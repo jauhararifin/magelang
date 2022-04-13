@@ -1,0 +1,12 @@
+Rust stuff:
+- figure out how to mutate struct field with immutable &self.
+  - by right this should be impossible,
+  - but there is a case where this might be useful.
+  - for example: to build a map that lazyly defragment the strucutre,
+  - the read operation is immutable, yet there is a change in the structure.
+- figure out how to return the same error multiple time
+  - sometimes we want to store the error first, and return it to the user later if a function is
+    called
+  - now, the problem is: who should own the error?
+  - and how to return the same error multiple times
+  - can we copy the error instead?

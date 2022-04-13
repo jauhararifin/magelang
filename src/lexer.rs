@@ -129,7 +129,7 @@ impl<T: Read> SimpleLexer<T> {
         if value.contains('.') {
             self.emit_token(TokenKind::FloatLit(value), pos);
         } else {
-            self.emit_token(TokenKind::NumberLit(value), pos);
+            self.emit_token(TokenKind::IntegerLit(value), pos);
         }
     }
 

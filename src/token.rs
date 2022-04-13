@@ -36,7 +36,7 @@ pub enum TokenKind {
     // constant
     Ident(String),
     StringLit(String),
-    NumberLit(String),
+    IntegerLit(String),
     FloatLit(String),
     True,
     False,
