@@ -1,84 +1,104 @@
-struct Token {
+use std::io;
+
+pub enum Error {
+    InvalidToken,
+    IoError(io::Error),
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
+        Error::IoError(err)
+    }
+}
+
+pub trait Lexer {
+    fn next(&mut self) -> Result<Token, Error>;
+    fn peek(&self) -> Result<Token, Error>;
+}
+
+pub struct Token {
     pub kind: TokenKind,
     pub pos: Pos,
 }
 
-enum TokenKind {
+#[derive(Clone)]
+pub enum TokenKind {
     // keywords
-    TokenFn,
-    TokenVar,
-    TokenIf,
-    TokenWhile,
-    TokenReturn,
-    TokenType,
-    TokenStruct,
-    TokenTuple,
+    Fn,
+    Var,
+    If,
+    While,
+    Return,
+    Type,
+    Struct,
+    Tuple,
     // constant
-    TokenIdent(String),
-    TokenStringLit(String),
-    TokenNumberLit(String),
-    TokenFloatLit(String),
-    TokenTrue,
-    TokenFalse,
+    Ident(String),
+    StringLit(String),
+    NumberLit(String),
+    FloatLit(String),
+    True,
+    False,
     // symbols
-    TokenOpenBrace,
-    TokenCloseBrace,
-    TokenOpenBlock,
-    TokenCloseBlock,
-    TokenAssign,
-    TokenEndl,
-    TokenEOI,
-    TokenComma,
-    TokenColon,
-    TokenDot,
+    OpenBrace,
+    CloseBrace,
+    OpenBlock,
+    CloseBlock,
+    Assign,
+    Endl,
+    EOI,
+    Comma,
+    Colon,
+    Dot,
     // operators
-    TokenPlus,
-    TokenPlusAssign,
-    TokenMinus,
-    TokenMinusAssign,
-    TokenMul,
-    TokenMulAssign,
-    TokenDiv,
-    TokenDivAssign,
-    TokenMod,
-    TokenModAssign,
-    TokenBitAnd,
-    TokenBitAndAssign,
-    TokenBitOr,
-    TokenBitOrAssign,
-    TokenBitNot,
-    TokenBitXor,
-    TokenBitXorAssign,
-    TokenSHL,
-    TokenSHLAssign,
-    TokenSHR,
-    TokenSHRAssign,
-    TokenAnd,
-    TokenOr,
-    TokenNot,
-    TokenGT,
-    TokenLT,
-    TokenGTEq,
-    TokenLTEq,
-    TokenEq,
-    TokenNotEq,
+    Plus,
+    PlusAssign,
+    Minus,
+    MinusAssign,
+    Mul,
+    MulAssign,
+    Div,
+    DivAssign,
+    Mod,
+    ModAssign,
+    BitAnd,
+    BitAndAssign,
+    BitOr,
+    BitOrAssign,
+    BitNot,
+    BitXor,
+    BitXorAssign,
+    SHL,
+    SHLAssign,
+    SHR,
+    SHRAssign,
+    And,
+    Or,
+    Not,
+    GT,
+    LT,
+    GTEq,
+    LTEq,
+    Eq,
+    NotEq,
     // comments
-    TokenComment(String),
+    Comment(String),
     // primitives
-    TokenBool,
-    TokenI8,
-    TokenI16,
-    TokenI32,
-    TokenI64,
-    TokenU8,
-    TokenU16,
-    TokenU32,
-    TokenU64,
-    TokenF32,
-    TokenF64,
+    Bool,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
 }
 
-struct Pos {
+#[derive(Copy, Clone)]
+pub struct Pos {
     pub line: i32,
     pub col: i32,
 }
