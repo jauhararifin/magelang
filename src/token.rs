@@ -2,18 +2,18 @@ use std::io;
 
 pub enum Error {
     InvalidToken,
-    IoError(io::Error),
+    Io(io::Error),
 }
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Error {
-        Error::IoError(err)
+        Error::Io(err)
     }
 }
 
 pub trait Lexer {
     fn next(&mut self) -> Result<Token, Error>;
-    fn peek(&self) -> Result<Token, Error>;
+    fn peek(&mut self) -> Result<&Token, Error>;
 }
 
 pub struct Token {
