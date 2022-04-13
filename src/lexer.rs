@@ -125,8 +125,12 @@ impl<T: Read> SimpleLexer<T> {
     }
 
     fn consume_number_literal(&mut self) {
-        let (value, pos) = self.consume_while_match(|c| c.is_digit(10) || c == '_');
-        self.emit_token(TokenKind::NumberLit(value), pos);
+        let (value, pos) = self.consume_while_match(|c| c.is_digit(10) || c == '_' || c == '.');
+        if value.contains('.') {
+            self.emit_token(TokenKind::FloatLit(value), pos);
+        } else {
+            self.emit_token(TokenKind::NumberLit(value), pos);
+        }
     }
 
     fn consume_string_literal(&mut self) {
@@ -184,9 +188,12 @@ impl<T: Read> SimpleLexer<T> {
 
         match name.as_str() {
             "if" => self.emit_token(TokenKind::If, pos),
+            "var" => self.emit_token(TokenKind::Var, pos),
+            "type" => self.emit_token(TokenKind::Type, pos),
+            "struct" => self.emit_token(TokenKind::Struct, pos),
+            "tuple" => self.emit_token(TokenKind::Tuple, pos),
             "while" => self.emit_token(TokenKind::While, pos),
             "fn" => self.emit_token(TokenKind::Fn, pos),
-            "var" => self.emit_token(TokenKind::Var, pos),
             "return" => self.emit_token(TokenKind::Return, pos),
             "bool" => self.emit_token(TokenKind::Bool, pos),
             "i8" => self.emit_token(TokenKind::I8, pos),
@@ -199,6 +206,8 @@ impl<T: Read> SimpleLexer<T> {
             "u64" => self.emit_token(TokenKind::U64, pos),
             "f32" => self.emit_token(TokenKind::F32, pos),
             "f64" => self.emit_token(TokenKind::F64, pos),
+            "true" => self.emit_token(TokenKind::True, pos),
+            "false" => self.emit_token(TokenKind::False, pos),
             _ => self.emit_token(TokenKind::Ident(name), pos),
         }
     }
@@ -240,7 +249,8 @@ impl<T: Read> SimpleLexer<T> {
             || self.consume_exact_operator(">", TokenKind::GT)
             || self.consume_exact_operator("==", TokenKind::Eq)
             || self.consume_exact_operator("=", TokenKind::Assign)
-            || self.consume_exact_operator(",", TokenKind::Comma);
+            || self.consume_exact_operator(",", TokenKind::Comma)
+            || self.consume_exact_operator(".", TokenKind::Dot);
 
         if !found {
             panic!(

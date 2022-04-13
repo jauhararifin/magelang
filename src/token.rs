@@ -2,7 +2,6 @@ use std::io;
 
 #[derive(Debug)]
 pub enum Error {
-    InvalidToken,
     Io(io::Error),
 }
 
