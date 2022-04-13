@@ -1,5 +1,6 @@
 use std::io;
 
+#[derive(Debug)]
 pub enum Error {
     InvalidToken,
     Io(io::Error),
@@ -16,12 +17,13 @@ pub trait Lexer {
     fn peek(&mut self) -> Result<&Token, Error>;
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub pos: Pos,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TokenKind {
     // keywords
     Fn,
@@ -97,7 +99,7 @@ pub enum TokenKind {
     F64,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Pos {
     pub line: i32,
     pub col: i32,

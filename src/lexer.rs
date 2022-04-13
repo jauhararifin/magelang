@@ -53,13 +53,13 @@ impl<T: Read> SimpleLexer<T> {
                 self.consume_number_literal();
             } else if self.next_is("\"") {
                 self.consume_string_literal();
-            } else if self.next_in("'*|-,&~)}<:./{=]^%[!(+>'") {
-                self.consume_operator();
             } else if self.next_is("\n") {
                 self.emit_token(TokenKind::Endl, self.char_posts[self.char_offset].pos);
                 self.char_offset += 1;
             } else if c.is_alphabetic() || c == '_' {
                 self.consume_word();
+            } else if self.next_in("'*|-,&~)}<:./{=]^%[!(+>'") {
+                self.consume_operator();
             } else {
                 self.char_offset += 1;
             }
@@ -205,42 +205,42 @@ impl<T: Read> SimpleLexer<T> {
 
     fn consume_operator(&mut self) {
         let found = self.consume_exact_operator("!=", TokenKind::NotEq)
-            && self.consume_exact_operator("!", TokenKind::Not)
-            && self.consume_exact_operator("%=", TokenKind::ModAssign)
-            && self.consume_exact_operator("%", TokenKind::Mod)
-            && self.consume_exact_operator("&&", TokenKind::And)
-            && self.consume_exact_operator("&=", TokenKind::BitAndAssign)
-            && self.consume_exact_operator("&", TokenKind::BitAnd)
-            && self.consume_exact_operator("||", TokenKind::Or)
-            && self.consume_exact_operator("|=", TokenKind::BitOrAssign)
-            && self.consume_exact_operator("|", TokenKind::BitOr)
-            && self.consume_exact_operator("^=", TokenKind::BitXorAssign)
-            && self.consume_exact_operator("^", TokenKind::BitXor)
-            && self.consume_exact_operator("~", TokenKind::BitNot)
-            && self.consume_exact_operator("(", TokenKind::OpenBrace)
-            && self.consume_exact_operator(")", TokenKind::CloseBrace)
-            && self.consume_exact_operator("{", TokenKind::OpenBlock)
-            && self.consume_exact_operator("}", TokenKind::CloseBlock)
-            && self.consume_exact_operator("*=", TokenKind::MulAssign)
-            && self.consume_exact_operator("*", TokenKind::Mul)
-            && self.consume_exact_operator("+=", TokenKind::PlusAssign)
-            && self.consume_exact_operator("+", TokenKind::Plus)
-            && self.consume_exact_operator("-=", TokenKind::MinusAssign)
-            && self.consume_exact_operator("-", TokenKind::Minus)
-            && self.consume_exact_operator("/=", TokenKind::DivAssign)
-            && self.consume_exact_operator("/", TokenKind::Div)
-            && self.consume_exact_operator(":", TokenKind::Colon)
-            && self.consume_exact_operator("<<=", TokenKind::SHLAssign)
-            && self.consume_exact_operator("<<", TokenKind::SHL)
-            && self.consume_exact_operator("<=", TokenKind::LTEq)
-            && self.consume_exact_operator("<", TokenKind::LT)
-            && self.consume_exact_operator(">>=", TokenKind::SHRAssign)
-            && self.consume_exact_operator(">>", TokenKind::SHR)
-            && self.consume_exact_operator(">=", TokenKind::GTEq)
-            && self.consume_exact_operator(">", TokenKind::GT)
-            && self.consume_exact_operator("==", TokenKind::Eq)
-            && self.consume_exact_operator("=", TokenKind::Assign)
-            && self.consume_exact_operator(",", TokenKind::Comma);
+            || self.consume_exact_operator("!", TokenKind::Not)
+            || self.consume_exact_operator("%=", TokenKind::ModAssign)
+            || self.consume_exact_operator("%", TokenKind::Mod)
+            || self.consume_exact_operator("&&", TokenKind::And)
+            || self.consume_exact_operator("&=", TokenKind::BitAndAssign)
+            || self.consume_exact_operator("&", TokenKind::BitAnd)
+            || self.consume_exact_operator("||", TokenKind::Or)
+            || self.consume_exact_operator("|=", TokenKind::BitOrAssign)
+            || self.consume_exact_operator("|", TokenKind::BitOr)
+            || self.consume_exact_operator("^=", TokenKind::BitXorAssign)
+            || self.consume_exact_operator("^", TokenKind::BitXor)
+            || self.consume_exact_operator("~", TokenKind::BitNot)
+            || self.consume_exact_operator("(", TokenKind::OpenBrace)
+            || self.consume_exact_operator(")", TokenKind::CloseBrace)
+            || self.consume_exact_operator("{", TokenKind::OpenBlock)
+            || self.consume_exact_operator("}", TokenKind::CloseBlock)
+            || self.consume_exact_operator("*=", TokenKind::MulAssign)
+            || self.consume_exact_operator("*", TokenKind::Mul)
+            || self.consume_exact_operator("+=", TokenKind::PlusAssign)
+            || self.consume_exact_operator("+", TokenKind::Plus)
+            || self.consume_exact_operator("-=", TokenKind::MinusAssign)
+            || self.consume_exact_operator("-", TokenKind::Minus)
+            || self.consume_exact_operator("/=", TokenKind::DivAssign)
+            || self.consume_exact_operator("/", TokenKind::Div)
+            || self.consume_exact_operator(":", TokenKind::Colon)
+            || self.consume_exact_operator("<<=", TokenKind::SHLAssign)
+            || self.consume_exact_operator("<<", TokenKind::SHL)
+            || self.consume_exact_operator("<=", TokenKind::LTEq)
+            || self.consume_exact_operator("<", TokenKind::LT)
+            || self.consume_exact_operator(">>=", TokenKind::SHRAssign)
+            || self.consume_exact_operator(">>", TokenKind::SHR)
+            || self.consume_exact_operator(">=", TokenKind::GTEq)
+            || self.consume_exact_operator(">", TokenKind::GT)
+            || self.consume_exact_operator("==", TokenKind::Eq)
+            || self.consume_exact_operator("=", TokenKind::Assign)
+            || self.consume_exact_operator(",", TokenKind::Comma);
 
         if !found {
             panic!(
@@ -309,5 +309,35 @@ impl<T: Read> Lexer for SimpleLexer<T> {
         }
 
         return Ok(&self.token_eoi);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_fn() {
+        let simple_fn = r#"
+            fn gcd(a: i32, b: i64): i64 {
+                while b != 0 {
+                    var t = b;
+                    b = a % b;
+                    b = t;
+                }
+                return a;
+            }
+            "#
+        .as_bytes();
+        let mut lexer = SimpleLexer::new(simple_fn);
+
+        let result = lexer.next().unwrap();
+        assert_eq!(
+            result,
+            Token {
+                kind: TokenKind::Fn,
+                pos: Pos { line: 1, col: 1 }
+            },
+        );
     }
 }
