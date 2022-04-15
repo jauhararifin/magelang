@@ -1,3 +1,4 @@
+use super::assign_parser::AssignParser;
 use super::if_parser::IfParser;
 use super::return_parser::ReturnParser;
 use super::while_parser::WhileParser;
@@ -27,7 +28,7 @@ impl<T: Lexer> Parser<T> for StatementParser {
                 Ok(ParseResult::Push(VarStatementParser::new()))
             },
             (TokenKind::Ident(_), TokenKind::Assign) => {
-                unimplemented!("assignment is not implemented yet")
+                Ok(ParseResult::Push(AssignParser::new()))
             }
             (TokenKind::While, _) => {
                 Ok(ParseResult::Push(WhileParser::new()))

@@ -2,21 +2,22 @@ use crate::ast::*;
 use crate::token::{Error as LexerError, Lexer, Token, TokenKind};
 use std::mem::discriminant;
 
+mod assign_parser;
 mod binary_parser;
 mod block_parser;
 mod call_parser;
 mod expr_parser;
 mod fn_parser;
+mod if_parser;
 mod param_parser;
 mod primary_parser;
+mod return_parser;
 mod root_parser;
 mod statement_parser;
 mod type_parser;
 mod unary_parser;
 mod var_parser;
 mod while_parser;
-mod if_parser;
-mod return_parser;
 
 use root_parser::RootParser;
 
