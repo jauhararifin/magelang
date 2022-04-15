@@ -1,4 +1,5 @@
 use super::if_parser::IfParser;
+use super::return_parser::ReturnParser;
 use super::while_parser::WhileParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use super::var_parser::VarStatementParser;
@@ -34,7 +35,9 @@ impl<T: Lexer> Parser<T> for StatementParser {
             (TokenKind::If, _) => {
                 Ok(ParseResult::Push(IfParser::new()))
             }
-            (TokenKind::Return, _) => unimplemented!("return is not implemented yet"),
+            (TokenKind::Return, _) => {
+                Ok(ParseResult::Push(ReturnParser::new()))
+            }
             _ => unimplemented!("expression is not implemented yet"),
         }
     }

@@ -16,6 +16,7 @@ mod unary_parser;
 mod var_parser;
 mod while_parser;
 mod if_parser;
+mod return_parser;
 
 use root_parser::RootParser;
 
