@@ -1,4 +1,4 @@
-use super::primary_parser::PrimaryParser;
+use super::call_parser::CallParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
@@ -34,6 +34,6 @@ impl<T: Lexer> Parser<T> for UnaryParser {
             return Ok(ParseResult::Push(UnaryParser::new()));
         }
 
-        return Ok(ParseResult::Push(PrimaryParser::new()));
+        return Ok(ParseResult::Push(CallParser::new()));
     }
 }
