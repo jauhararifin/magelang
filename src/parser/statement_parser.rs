@@ -1,5 +1,7 @@
+use super::if_parser::IfParser;
+use super::while_parser::WhileParser;
 use super::{Context, ParseResult, Parser, Result, AST};
-use crate::parser::var_statement_parser::VarStatementParser;
+use super::var_parser::VarStatementParser;
 use crate::token::{Lexer, TokenKind};
 
 pub struct StatementParser {}
@@ -26,7 +28,12 @@ impl<T: Lexer> Parser<T> for StatementParser {
             (TokenKind::Ident(_), TokenKind::Assign) => {
                 unimplemented!("assignment is not implemented yet")
             }
-            (TokenKind::While, _) => unimplemented!("while loop is not implemented yet"),
+            (TokenKind::While, _) => {
+                Ok(ParseResult::Push(WhileParser::new()))
+            }
+            (TokenKind::If, _) => {
+                Ok(ParseResult::Push(IfParser::new()))
+            }
             (TokenKind::Return, _) => unimplemented!("return is not implemented yet"),
             _ => unimplemented!("expression is not implemented yet"),
         }

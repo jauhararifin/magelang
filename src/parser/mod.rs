@@ -13,7 +13,9 @@ mod root_parser;
 mod statement_parser;
 mod type_parser;
 mod unary_parser;
-mod var_statement_parser;
+mod var_parser;
+mod while_parser;
+mod if_parser;
 
 use root_parser::RootParser;
 
