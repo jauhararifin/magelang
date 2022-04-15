@@ -4,7 +4,7 @@ mod parser;
 mod token;
 
 use crate::lexer::SimpleLexer;
-use crate::parser::{Parser, SimpleParser};
+use crate::parser::SimpleParser;
 use std::fs::File;
 
 fn main() {
