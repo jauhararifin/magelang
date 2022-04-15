@@ -320,6 +320,23 @@ impl<T: Read> Lexer for SimpleLexer<T> {
 
         return Ok(&self.token_eoi);
     }
+
+    fn peek_n(&mut self, n: usize) -> Result<Vec<&Token>, Error> {
+        self.load_tokens()?;
+
+        let mut result = Vec::new();
+        for t in self.tokens.iter() {
+            result.push(t);
+        }
+
+        if self.tokens.len() < n {
+            for _ in 0..(self.tokens.len() - n) {
+                result.push(&self.token_eoi);
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 #[cfg(test)]

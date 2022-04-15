@@ -11,7 +11,7 @@ pub enum Declaration {
     Fn {
         name: Token,
         param: Vec<Param>,
-        ret_type: Type,
+        ret_type: Option<Type>,
         body: BlockStatement,
     },
     Var {
@@ -36,24 +36,11 @@ pub enum Type {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    VarDecl {
-        name: Token,
-        typ: Type,
-        value: Expr,
-    },
-    Assign {
-        name: Token,
-        value: Expr,
-    },
+    VarDecl { name: Token, typ: Type, value: Option<Expr> },
+    Assign { name: Token, value: Expr },
     Return(Expr),
-    If {
-        cond: Expr,
-        body: BlockStatement,
-    },
-    While {
-        cond: Expr,
-        body: BlockStatement,
-    },
+    If { cond: Expr, body: BlockStatement },
+    While { cond: Expr, body: BlockStatement },
     Block(BlockStatement),
     Expr(Expr),
 }
@@ -64,6 +51,7 @@ pub enum Expr {
     IntegerLit(Token),
     FloatLit(Token),
     StringLit(Token),
+    BoolLit(Token),
     Binary {
         op: Token,
         a: Box<Expr>,

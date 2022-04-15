@@ -14,6 +14,7 @@ impl From<io::Error> for Error {
 pub trait Lexer {
     fn next(&mut self) -> Result<Token, Error>;
     fn peek(&mut self) -> Result<&Token, Error>;
+    fn peek_n(&mut self, n: usize) -> Result<Vec<&Token>, Error>;
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
