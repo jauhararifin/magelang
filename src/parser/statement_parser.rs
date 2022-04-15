@@ -1,9 +1,10 @@
 use super::assign_parser::AssignParser;
+use super::expr_stmt_parser::ExprStmtParser;
 use super::if_parser::IfParser;
 use super::return_parser::ReturnParser;
+use super::var_parser::VarStatementParser;
 use super::while_parser::WhileParser;
 use super::{Context, ParseResult, Parser, Result, AST};
-use super::var_parser::VarStatementParser;
 use crate::token::{Lexer, TokenKind};
 
 pub struct StatementParser {}
@@ -23,23 +24,15 @@ impl<T: Lexer> Parser<T> for StatementParser {
         while self.check(ctx, &TokenKind::Endl)?.is_some() {}
 
         let token = ctx.lexer.peek_n(2)?;
-        match (&token[0].kind, &token[1].kind) {
-            (TokenKind::Var, _) => {
-                Ok(ParseResult::Push(VarStatementParser::new()))
-            },
-            (TokenKind::Ident(_), TokenKind::Assign) => {
-                Ok(ParseResult::Push(AssignParser::new()))
-            }
-            (TokenKind::While, _) => {
-                Ok(ParseResult::Push(WhileParser::new()))
-            }
-            (TokenKind::If, _) => {
-                Ok(ParseResult::Push(IfParser::new()))
-            }
-            (TokenKind::Return, _) => {
-                Ok(ParseResult::Push(ReturnParser::new()))
-            }
-            _ => unimplemented!("expression is not implemented yet"),
-        }
+        let next_parser: Box<dyn Parser<T>> = match (&token[0].kind, &token[1].kind) {
+            (TokenKind::Var, _) => VarStatementParser::new(),
+            (TokenKind::Ident(_), TokenKind::Assign) => AssignParser::new(),
+            (TokenKind::While, _) => WhileParser::new(),
+            (TokenKind::If, _) => IfParser::new(),
+            (TokenKind::Return, _) => ReturnParser::new(),
+            _ => ExprStmtParser::new(),
+        };
+
+        Ok(ParseResult::Push(next_parser))
     }
 }
