@@ -1,4 +1,4 @@
-use super::unary_parser::UnaryParser;
+use super::cast_parser::CastParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
@@ -320,7 +320,7 @@ impl BinaryParserConfig for MultiplicativeParserConfig {
         vec![TokenKind::Mul, TokenKind::Div, TokenKind::Mod]
     }
     fn get_next_parser<T: Lexer>(&self) -> Box<dyn Parser<T>> {
-        UnaryParser::new()
+        CastParser::new()
     }
 }
 

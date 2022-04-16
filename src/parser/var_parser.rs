@@ -4,10 +4,12 @@ use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
 
-pub struct VarStatementParser {
+pub struct VarParser {
+    as_statement: bool,
     state: VarStatementParserState,
     name: Option<Token>,
     typ: Option<Type>,
+    value: Option<Expr>,
 }
 
 enum VarStatementParserState {
@@ -16,13 +18,23 @@ enum VarStatementParserState {
     Value,
 }
 
-impl VarStatementParser {
-    pub fn new() -> Box<Self> {
+impl VarParser {
+    fn new(as_statement: bool) -> Box<Self> {
         Box::new(Self {
+            as_statement,
             state: VarStatementParserState::Name,
             name: None,
             typ: None,
+            value: None,
         })
+    }
+
+    pub fn new_statement_parser() -> Box<Self> {
+        Self::new(true)
+    }
+
+    pub fn new_decl_parser() -> Box<Self> {
+        Self::new(false)
     }
 
     fn parse_var_name<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
@@ -41,11 +53,7 @@ impl VarStatementParser {
 
         if self.check(ctx, &TokenKind::Assign)?.is_none() {
             self.expect(ctx, TokenKind::Endl)?;
-            return Ok(ParseResult::AST(AST::Statement(Statement::VarDecl {
-                name: self.name.take().unwrap(),
-                typ: self.typ.take().unwrap(),
-                value: None,
-            })));
+            return self.build_result();
         }
 
         self.state = VarStatementParserState::Value;
@@ -54,15 +62,28 @@ impl VarStatementParser {
 
     fn parse_var_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         self.expect(ctx, TokenKind::Endl)?;
-        return Ok(ParseResult::AST(AST::Statement(Statement::VarDecl {
-            name: self.name.take().unwrap(),
-            typ: self.typ.take().unwrap(),
-            value: Some(data.as_expr()),
-        })));
+        self.value = Some(data.as_expr());
+        self.build_result()
+    }
+
+    fn build_result<T: Lexer>(&mut self) -> Result<T> {
+        Ok(ParseResult::AST(if self.as_statement {
+            AST::Statement(Statement::VarDecl {
+                name: self.name.take().unwrap(),
+                typ: self.typ.take().unwrap(),
+                value: self.value.take(),
+            })
+        } else {
+            AST::Declaration(Declaration::Var {
+                name: self.name.take().unwrap(),
+                typ: self.typ.take().unwrap(),
+                value: self.value.take(),
+            })
+        }))
     }
 }
 
-impl<T: Lexer> Parser<T> for VarStatementParser {
+impl<T: Lexer> Parser<T> for VarParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         match self.state {
             VarStatementParserState::Name => self.parse_var_name(ctx),

@@ -65,8 +65,9 @@ pub enum Expr {
         ptr: Box<Expr>,
         args: Vec<Expr>,
     },
+    // TODO: add selector statement
     Cast {
-        target: Token,
+        target: Type,
         val: Box<Expr>,
     },
 }

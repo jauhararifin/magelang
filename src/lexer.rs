@@ -194,6 +194,7 @@ impl<T: Read> SimpleLexer<T> {
             "tuple" => self.emit_token(TokenKind::Tuple, pos),
             "while" => self.emit_token(TokenKind::While, pos),
             "fn" => self.emit_token(TokenKind::Fn, pos),
+            "as" => self.emit_token(TokenKind::As, pos),
             "return" => self.emit_token(TokenKind::Return, pos),
             "bool" => self.emit_token(TokenKind::Bool, pos),
             "i8" => self.emit_token(TokenKind::I8, pos),

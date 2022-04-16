@@ -52,6 +52,7 @@ pub enum TokenKind {
     Comma,
     Colon,
     Dot,
+    As,
     // operators
     Plus,
     PlusAssign,

@@ -1,6 +1,8 @@
-fn gcd(a: i64, b: i64): i64 {
+var global_var: i32 = 0
+
+fn gcd(a: i32, b: i32): i32 {
   while b != 0 {
-    var t: i64 = b
+    var t: i32 = b
     b = a % b
     a = t
   }
@@ -10,5 +12,5 @@ fn gcd(a: i64, b: i64): i64 {
 fn main() {
     var a: i64 = 98
     var b: i64 = 14
-    var c: i64 = gcd(a, b)
+    var c: i64 = gcd(a as i32, b as i32) as i64
 }
