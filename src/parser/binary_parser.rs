@@ -51,11 +51,11 @@ impl<T: BinaryParserConfig> BinaryParser<T> {
 
     fn parse_logical_and_b<L: Lexer>(&mut self, _: &mut Context<L>, data: AST) -> Result<L> {
         let expr = data.as_expr();
-        Ok(ParseResult::AST(AST::Expr(Expr::Binary {
+        Ok(ParseResult::AST(AST::Expr(Expr::Binary(Binary {
             op: self.op_token.take().unwrap(),
             a: Box::new(self.a_expr.take().unwrap()),
             b: Box::new(expr),
-        })))
+        }))))
     }
 }
 
@@ -236,7 +236,12 @@ struct RelationalParserConfig();
 
 impl BinaryParserConfig for RelationalParserConfig {
     fn get_op_kinds(&self) -> Vec<TokenKind> {
-        vec![TokenKind::LT, TokenKind::LTEq, TokenKind::GT, TokenKind::GTEq]
+        vec![
+            TokenKind::LT,
+            TokenKind::LTEq,
+            TokenKind::GT,
+            TokenKind::GTEq,
+        ]
     }
     fn get_next_parser<T: Lexer>(&self) -> Box<dyn Parser<T>> {
         ShiftParser::new()
@@ -337,4 +342,3 @@ impl<T: Lexer> Parser<T> for MultiplicativeParser {
         self.0.parse(ctx, data)
     }
 }
-

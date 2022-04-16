@@ -8,21 +8,30 @@ pub struct Root {
 
 #[derive(Debug, Clone)]
 pub enum Declaration {
-    Fn {
-        name: Token,
-        param: Vec<Param>,
-        ret_type: Option<Type>,
-        body: BlockStatement,
-    },
-    Var {
-        name: Token,
-        typ: Type,
-        value: Option<Expr>,
-    },
-    Type {
-        name: Token,
-        typ: Type,
-    },
+    Fn(FnDecl),
+    Var(Var),
+    Type(TypeDecl),
+}
+
+#[derive(Debug, Clone)]
+pub struct FnDecl {
+    pub name: Token,
+    pub param: Vec<Param>,
+    pub ret_type: Option<Type>,
+    pub body: BlockStatement,
+}
+
+#[derive(Debug, Clone)]
+pub struct Var {
+    pub name: Token,
+    pub typ: Type,
+    pub value: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeDecl {
+    pub name: Token,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -40,26 +49,31 @@ pub enum Type {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    VarDecl {
-        name: Token,
-        typ: Type,
-        value: Option<Expr>,
-    },
-    Assign {
-        name: Token,
-        value: Expr,
-    },
+    Var(Var),
+    Assign(Assign),
     Return(Expr),
-    If {
-        cond: Expr,
-        body: BlockStatement,
-    },
-    While {
-        cond: Expr,
-        body: BlockStatement,
-    },
+    If(If),
+    While(While),
     Block(BlockStatement),
     Expr(Expr),
+}
+
+#[derive(Debug, Clone)]
+pub struct Assign {
+    pub name: Token,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct If {
+    pub cond: Expr,
+    pub body: BlockStatement,
+}
+
+#[derive(Debug, Clone)]
+pub struct While {
+    pub cond: Expr,
+    pub body: BlockStatement,
 }
 
 #[derive(Debug, Clone)]
@@ -69,24 +83,36 @@ pub enum Expr {
     FloatLit(Token),
     StringLit(Token),
     BoolLit(Token),
-    Binary {
-        op: Token,
-        a: Box<Expr>,
-        b: Box<Expr>,
-    },
-    Unary {
-        op: Token,
-        val: Box<Expr>,
-    },
-    FunctionCall {
-        ptr: Box<Expr>,
-        args: Vec<Expr>,
-    },
+    Binary(Binary),
+    Unary(Unary),
+    FunctionCall(FunctionCall),
+    Cast(Cast),
     // TODO: add selector statement
-    Cast {
-        target: Type,
-        val: Box<Expr>,
-    },
+}
+
+#[derive(Debug, Clone)]
+pub struct Binary {
+    pub op: Token,
+    pub a: Box<Expr>,
+    pub b: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Unary {
+    pub op: Token,
+    pub val: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionCall {
+    pub ptr: Box<Expr>,
+    pub args: Vec<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Cast {
+    pub target: Type,
+    pub val: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

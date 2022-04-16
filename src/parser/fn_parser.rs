@@ -82,12 +82,14 @@ impl FnParser {
         let body = data.as_block_statement();
         self.body = Some(body);
 
-        return Ok(ParseResult::AST(AST::Declaration(Declaration::Fn {
-            name: self.name.take().unwrap(),
-            param: std::mem::replace(&mut self.params, vec![]),
-            ret_type: self.return_type.take(),
-            body: self.body.take().unwrap(),
-        })));
+        return Ok(ParseResult::AST(AST::Declaration(Declaration::Fn(
+            FnDecl {
+                name: self.name.take().unwrap(),
+                param: std::mem::replace(&mut self.params, vec![]),
+                ret_type: self.return_type.take(),
+                body: self.body.take().unwrap(),
+            },
+        ))));
     }
 }
 

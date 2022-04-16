@@ -33,10 +33,12 @@ impl AssignParser {
     fn parse_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         let value = data.as_expr();
         self.expect(ctx, TokenKind::Endl)?;
-        return Ok(ParseResult::AST(AST::Statement(Statement::Assign {
-            name: self.name.take().unwrap(),
-            value,
-        })));
+        return Ok(ParseResult::AST(AST::Statement(Statement::Assign(
+            Assign {
+                name: self.name.take().unwrap(),
+                value,
+            },
+        ))));
     }
 }
 

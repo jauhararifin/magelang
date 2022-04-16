@@ -34,10 +34,10 @@ impl IfParser {
     }
 
     fn parse_body<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        return Ok(ParseResult::AST(AST::Statement(Statement::If {
+        return Ok(ParseResult::AST(AST::Statement(Statement::If(If {
             cond: self.cond.take().unwrap(),
             body: data.as_block_statement(),
-        })));
+        }))));
     }
 }
 

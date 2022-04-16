@@ -68,17 +68,17 @@ impl VarParser {
 
     fn build_result<T: Lexer>(&mut self) -> Result<T> {
         Ok(ParseResult::AST(if self.as_statement {
-            AST::Statement(Statement::VarDecl {
+            AST::Statement(Statement::Var(Var {
                 name: self.name.take().unwrap(),
                 typ: self.typ.take().unwrap(),
                 value: self.value.take(),
-            })
+            }))
         } else {
-            AST::Declaration(Declaration::Var {
+            AST::Declaration(Declaration::Var(Var {
                 name: self.name.take().unwrap(),
                 typ: self.typ.take().unwrap(),
                 value: self.value.take(),
-            })
+            }))
         }))
     }
 }
