@@ -2,6 +2,11 @@ var global_var: i32 = 0
 
 type JauharInt32 i32
 
+type JauharStruct struct {
+  A: i32,
+  B: i64,
+}
+
 fn gcd(a: i32, b: i32): i32 {
   while b != 0 {
     var t: i32 = b

@@ -20,6 +20,7 @@ mod type_parser;
 mod unary_parser;
 mod var_parser;
 mod while_parser;
+mod struct_parser;
 
 use root_parser::RootParser;
 
@@ -53,6 +54,13 @@ pub trait Parser<T: Lexer> {
         }
 
         Ok(token)
+    }
+
+    fn consume_endl(&self, ctx: &mut Context<T>) -> std::result::Result<(), Error> {
+        while let TokenKind::Endl = ctx.lexer.peek()?.kind {
+            ctx.lexer.next()?;
+        }
+        Ok(())
     }
 
     fn check(

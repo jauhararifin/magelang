@@ -44,7 +44,13 @@ pub struct Param {
 pub enum Type {
     Primitive(Token),
     Ident(Token),
-    // TODO: add inline type.
+    Struct(Struct),
+    // TODO: add tuple.
+}
+
+#[derive(Debug, Clone)]
+pub struct Struct {
+    pub fields: Vec<Param>,
 }
 
 #[derive(Debug, Clone)]

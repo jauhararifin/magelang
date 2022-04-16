@@ -1,3 +1,4 @@
+use super::struct_parser::StructParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
@@ -11,7 +12,15 @@ impl TypeParser {
 }
 
 impl<T: Lexer> Parser<T> for TypeParser {
-    fn parse(&mut self, ctx: &mut Context<T>, _: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+        if let AST::Type(typ) = data {
+            return Ok(ParseResult::AST(AST::Type(typ)));
+        }
+
+        if ctx.lexer.peek()?.kind == TokenKind::Struct {
+            return Ok(ParseResult::Push(StructParser::new()));
+        }
+
         let token = self.expect_one_of(
             ctx,
             vec![
@@ -25,6 +34,7 @@ impl<T: Lexer> Parser<T> for TypeParser {
                 TokenKind::U32,
                 TokenKind::U64,
                 TokenKind::Bool,
+                TokenKind::Struct,
             ],
         )?;
 
