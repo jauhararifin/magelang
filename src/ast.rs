@@ -93,6 +93,7 @@ pub enum Expr {
     Unary(Unary),
     FunctionCall(FunctionCall),
     Cast(Cast),
+    Selector(Selector),
     // TODO: add selector statement
 }
 
@@ -119,6 +120,12 @@ pub struct FunctionCall {
 pub struct Cast {
     pub target: Type,
     pub val: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Selector {
+    pub source: Box<Expr>,
+    pub selection: Token,
 }
 
 #[derive(Debug, Clone)]

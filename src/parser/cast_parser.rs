@@ -1,4 +1,4 @@
-use super::unary_parser::UnaryParser;
+use super::selector_parser::SelectorParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
 use crate::parser::type_parser::TypeParser;
@@ -31,7 +31,7 @@ impl CastParser {
             }
             return Ok(ParseResult::AST(AST::Expr(expr)));
         }
-        return Ok(ParseResult::Push(UnaryParser::new()));
+        return Ok(ParseResult::Push(SelectorParser::new()));
     }
 
     fn parse_type<T: Lexer>(&mut self, data: AST) -> Result<T> {

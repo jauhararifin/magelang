@@ -15,12 +15,13 @@ mod param_parser;
 mod primary_parser;
 mod return_parser;
 mod root_parser;
+mod selector_parser;
 mod statement_parser;
+mod struct_parser;
 mod type_parser;
 mod unary_parser;
 mod var_parser;
 mod while_parser;
-mod struct_parser;
 
 use root_parser::RootParser;
 

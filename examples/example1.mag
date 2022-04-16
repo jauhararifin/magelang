@@ -8,6 +8,9 @@ type JauharStruct struct {
 }
 
 fn gcd(a: i32, b: i32): i32 {
+  var wow: JauharStruct
+  wow.A = 10
+
   while b != 0 {
     var t: i32 = b
     b = a % b
