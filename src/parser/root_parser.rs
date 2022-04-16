@@ -1,4 +1,5 @@
 use super::fn_parser::FnParser;
+use super::type_parser::TypeDeclParser;
 use super::{Context, Error, ParseResult, Parser, AST};
 use crate::ast::*;
 use crate::parser::var_parser::VarParser;
@@ -40,6 +41,9 @@ impl<T: Lexer> Parser<T> for RootParser {
                 }
                 TokenKind::Var => {
                     return Ok(ParseResult::Push(VarParser::new_decl_parser()));
+                }
+                TokenKind::Type => {
+                    return Ok(ParseResult::Push(TypeDeclParser::new()));
                 }
                 _ => {
                     let token = ctx.lexer.next()?;

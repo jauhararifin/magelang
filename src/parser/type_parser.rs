@@ -1,6 +1,6 @@
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, TokenKind};
+use crate::token::{Lexer, Token, TokenKind};
 
 pub struct TypeParser {}
 
@@ -33,5 +33,30 @@ impl<T: Lexer> Parser<T> for TypeParser {
         }
 
         Ok(ParseResult::AST(AST::Type(Type::Primitive(token))))
+    }
+}
+
+pub struct TypeDeclParser {
+    name: Option<Token>,
+}
+
+impl TypeDeclParser {
+    pub fn new() -> Box<Self> {
+        Box::new(Self { name: None })
+    }
+}
+
+impl<T: Lexer> Parser<T> for TypeDeclParser {
+    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+        if let AST::Type(typ) = data {
+            return Ok(ParseResult::AST(AST::Declaration(Declaration::Type {
+                name: self.name.take().unwrap(),
+                typ,
+            })));
+        }
+
+        self.expect(ctx, TokenKind::Type)?;
+        self.name = Some(self.expect(ctx, TokenKind::Ident("".to_string()))?);
+        Ok(ParseResult::Push(TypeParser::new()))
     }
 }

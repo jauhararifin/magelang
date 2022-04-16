@@ -19,6 +19,10 @@ pub enum Declaration {
         typ: Type,
         value: Option<Expr>,
     },
+    Type {
+        name: Token,
+        typ: Type,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -36,11 +40,24 @@ pub enum Type {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    VarDecl { name: Token, typ: Type, value: Option<Expr> },
-    Assign { name: Token, value: Expr },
+    VarDecl {
+        name: Token,
+        typ: Type,
+        value: Option<Expr>,
+    },
+    Assign {
+        name: Token,
+        value: Expr,
+    },
     Return(Expr),
-    If { cond: Expr, body: BlockStatement },
-    While { cond: Expr, body: BlockStatement },
+    If {
+        cond: Expr,
+        body: BlockStatement,
+    },
+    While {
+        cond: Expr,
+        body: BlockStatement,
+    },
     Block(BlockStatement),
     Expr(Expr),
 }
