@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ast::{*, self};
 use crate::token::{Error as LexerError, Lexer, Token, TokenKind};
 use std::mem::discriminant;
 
@@ -119,57 +119,7 @@ pub struct Context<T: Lexer> {
 
 pub enum ParseResult<T: Lexer> {
     Push(Box<dyn Parser<T>>),
-    AST(AST),
-}
-
-#[derive(Debug)]
-pub enum AST {
-    Root(Root),
-    Declaration(Declaration),
-    Param(Param),
-    Type(Type),
-    Statement(Statement),
-    Expr(Expr),
-    Empty,
-}
-
-impl AST {
-    fn as_param(self) -> Param {
-        if let AST::Param(param) = self {
-            return param;
-        }
-        panic!("as_param called but the underlying variant is not AST::Param");
-    }
-
-    fn as_type(self) -> Type {
-        if let AST::Type(typ) = self {
-            return typ;
-        }
-        panic!("as_type called but the underlying variant is not AST::Type");
-    }
-
-    fn as_statement(self) -> Statement {
-        if let AST::Statement(stmt) = self {
-            return stmt;
-        }
-        panic!("as_statement called but the underlying variant is not AST::Statement");
-    }
-
-    fn as_block_statement(self) -> BlockStatement {
-        if let Statement::Block(block) = self.as_statement() {
-            return block;
-        }
-        panic!(
-            "as_block called but the underlying variant is not AST::Statement(Statement::Block)"
-        );
-    }
-
-    fn as_expr(self) -> Expr {
-        if let AST::Expr(expr) = self {
-            return expr;
-        }
-        panic!("as_expr called but the underlying variant is not AST::Expr");
-    }
+    AST(ast::AST),
 }
 
 pub struct SimpleParser<T: Lexer> {

@@ -14,7 +14,7 @@ impl ReturnParser {
 impl<T: Lexer> Parser<T> for ReturnParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         if let AST::Expr(expr) = data {
-            return Ok(ParseResult::AST(AST::Statement(Statement::Return(expr))));
+            return Ok(ParseResult::AST(AST::Return(Return { value: expr })));
         }
 
         self.expect(ctx, TokenKind::Return)?;

@@ -47,7 +47,7 @@ impl CallParser {
     }
 
     fn parse_fn_params<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        let expr = data.as_expr();
+        let expr = Expr::from(data);
         self.params.push(expr);
 
         let token = self.expect_one_of(ctx, vec![TokenKind::Comma, TokenKind::CloseBrace])?;

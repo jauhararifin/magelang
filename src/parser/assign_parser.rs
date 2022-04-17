@@ -52,15 +52,15 @@ impl AssignParser {
     }
 
     fn parse_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        let value = data.as_expr();
+        let value = Expr::from(data);
         self.consume_endl(ctx)?;
-        return Ok(ParseResult::AST(AST::Statement(Statement::Assign(
+        return Ok(ParseResult::AST(AST::Assign(
             Assign {
                 receiver: self.receiver.take().unwrap(),
                 op: self.assign_token.take().unwrap(),
                 value,
             },
-        ))));
+        )));
     }
 }
 

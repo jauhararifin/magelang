@@ -20,7 +20,9 @@ impl RootParser {
 impl<T: Lexer> Parser<T> for RootParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<ParseResult<T>, Error> {
         match data {
-            AST::Declaration(decl) => self.declarations.push(decl),
+            AST::FnDecl(decl) => self.declarations.push(Declaration::Fn(decl)),
+            AST::Var(decl) => self.declarations.push(Declaration::Var(decl)),
+            AST::TypeDecl(decl) => self.declarations.push(Declaration::Type(decl)),
             AST::Empty => (),
             _ => panic!("got {:?} instead of declaration", data),
         }
@@ -40,7 +42,7 @@ impl<T: Lexer> Parser<T> for RootParser {
                     return Ok(ParseResult::Push(FnParser::new()));
                 }
                 TokenKind::Var => {
-                    return Ok(ParseResult::Push(VarParser::new_decl_parser()));
+                    return Ok(ParseResult::Push(VarParser::new()));
                 }
                 TokenKind::Type => {
                     return Ok(ParseResult::Push(TypeDeclParser::new()));

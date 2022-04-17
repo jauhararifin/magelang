@@ -30,17 +30,17 @@ impl BlockStatementParser {
 
     fn parse_block_body<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         if !matches!(data, AST::Empty) {
-            self.body.push(data.as_statement());
+            self.body.push(Statement::from(data))
         }
 
         while self.check(ctx, &TokenKind::Endl)?.is_some() {}
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-            return Ok(ParseResult::AST(AST::Statement(Statement::Block(
+            return Ok(ParseResult::AST(AST::BlockStatement(
                 BlockStatement {
                     body: std::mem::replace(&mut self.body, vec![]),
                 },
-            ))));
+            )));
         }
 
         Ok(ParseResult::Push(StatementParser::new()))

@@ -32,7 +32,7 @@ impl ParamParser {
     }
 
     fn parse_param_type<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        let typ = data.as_type();
+        let typ = Type::from(data);
         Ok(ParseResult::AST(AST::Param(Param {
             name: self.name_token.take().unwrap(),
             typ,

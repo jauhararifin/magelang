@@ -5,7 +5,6 @@ use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
 
 pub struct VarParser {
-    as_statement: bool,
     state: VarStatementParserState,
     name: Option<Token>,
     typ: Option<Type>,
@@ -19,22 +18,13 @@ enum VarStatementParserState {
 }
 
 impl VarParser {
-    fn new(as_statement: bool) -> Box<Self> {
+    pub fn new() -> Box<Self> {
         Box::new(Self {
-            as_statement,
             state: VarStatementParserState::Name,
             name: None,
             typ: None,
             value: None,
         })
-    }
-
-    pub fn new_statement_parser() -> Box<Self> {
-        Self::new(true)
-    }
-
-    pub fn new_decl_parser() -> Box<Self> {
-        Self::new(false)
     }
 
     fn parse_var_name<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
@@ -49,7 +39,7 @@ impl VarParser {
     }
 
     fn parse_var_type<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        self.typ = Some(data.as_type());
+        self.typ = Some(Type::from(data));
 
         if self.check(ctx, &TokenKind::Assign)?.is_none() {
             self.expect(ctx, TokenKind::Endl)?;
@@ -62,24 +52,16 @@ impl VarParser {
 
     fn parse_var_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         self.expect(ctx, TokenKind::Endl)?;
-        self.value = Some(data.as_expr());
+        self.value = Some(Expr::from(data));
         self.build_result()
     }
 
     fn build_result<T: Lexer>(&mut self) -> Result<T> {
-        Ok(ParseResult::AST(if self.as_statement {
-            AST::Statement(Statement::Var(Var {
-                name: self.name.take().unwrap(),
-                typ: self.typ.take().unwrap(),
-                value: self.value.take(),
-            }))
-        } else {
-            AST::Declaration(Declaration::Var(Var {
-                name: self.name.take().unwrap(),
-                typ: self.typ.take().unwrap(),
-                value: self.value.take(),
-            }))
-        }))
+        Ok(ParseResult::AST(AST::Var(Var {
+            name: self.name.take().unwrap(),
+            typ: self.typ.take().unwrap(),
+            value: self.value.take(),
+        })))
     }
 }
 

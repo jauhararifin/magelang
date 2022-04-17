@@ -59,12 +59,10 @@ impl TypeDeclParser {
 impl<T: Lexer> Parser<T> for TypeDeclParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         if let AST::Type(typ) = data {
-            return Ok(ParseResult::AST(AST::Declaration(Declaration::Type(
-                TypeDecl {
-                    name: self.name.take().unwrap(),
-                    typ,
-                },
-            ))));
+            return Ok(ParseResult::AST(AST::TypeDecl(TypeDecl {
+                name: self.name.take().unwrap(),
+                typ,
+            })));
         }
 
         self.expect(ctx, TokenKind::Type)?;

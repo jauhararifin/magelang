@@ -57,7 +57,7 @@ pub struct Struct {
 pub enum Statement {
     Var(Var),
     Assign(Assign),
-    Return(Expr),
+    Return(Return),
     If(If),
     While(While),
     Block(BlockStatement),
@@ -68,6 +68,11 @@ pub enum Statement {
 pub struct Assign {
     pub receiver: Expr,
     pub op: Token,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct Return {
     pub value: Expr,
 }
 
@@ -133,3 +138,77 @@ pub struct Selector {
 pub struct BlockStatement {
     pub body: Vec<Statement>,
 }
+
+#[derive(Debug)]
+pub enum AST {
+    Root(Root),
+    Declaration(Declaration),
+    FnDecl(FnDecl),
+    Var(Var),
+    TypeDecl(TypeDecl),
+    Param(Param),
+    Type(Type),
+    Struct(Struct),
+    Statement(Statement),
+    Assign(Assign),
+    If(If),
+    While(While),
+    Return(Return),
+    Expr(Expr),
+    Binary(Binary),
+    Unary(Unary),
+    FunctionCall(FunctionCall),
+    Cast(Cast),
+    Selector(Selector),
+    BlockStatement(BlockStatement),
+    Empty,
+}
+
+// macro_rules! into {
+//     ($target: ty, $typ: ident) => {
+//             impl Into<$typ> for $target {
+//                 fn into(self) -> $typ {
+//                     if let AST::$typ(inner) = self {
+//                         inner
+//                     } else {
+//                         panic!("invalid conversion from {:?} to $typ", std::mem::discriminant(&self));
+//                     }
+//                 }
+//             }
+//     };
+// }
+
+macro_rules! from_ast {
+    ($target: ident) => {
+            impl From<AST> for $target {
+                fn from(ast: AST) -> $target {
+                    if let AST::$target(inner) = ast {
+                        inner
+                    } else {
+                        panic!("invalid conversion from AST to $target");
+                    }
+                }
+            }
+    };
+}
+
+from_ast!(Root);
+from_ast!(Declaration);
+from_ast!(FnDecl);
+from_ast!(Var);
+from_ast!(TypeDecl);
+from_ast!(Param);
+from_ast!(Type);
+from_ast!(Struct);
+from_ast!(Statement);
+from_ast!(Assign);
+from_ast!(If);
+from_ast!(While);
+from_ast!(Return);
+from_ast!(Expr);
+from_ast!(Binary);
+from_ast!(Unary);
+from_ast!(FunctionCall);
+from_ast!(Cast);
+from_ast!(Selector);
+from_ast!(BlockStatement);

@@ -59,7 +59,7 @@ impl FnParser {
     }
 
     fn parse_fn_param<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        let param = data.as_param();
+        let param = Param::from(data);
         self.params.push(param);
 
         let t = self.expect_one_of(ctx, vec![TokenKind::Comma, TokenKind::CloseBrace])?;
@@ -71,7 +71,7 @@ impl FnParser {
     }
 
     fn parse_fn_return<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        let typ = data.as_type();
+        let typ = Type::from(data);
         self.return_type = Some(typ);
 
         self.state = FnParserState::Body;
@@ -79,17 +79,17 @@ impl FnParser {
     }
 
     fn parse_fn_body<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        let body = data.as_block_statement();
+        let body = BlockStatement::from(data);
         self.body = Some(body);
 
-        return Ok(ParseResult::AST(AST::Declaration(Declaration::Fn(
+        return Ok(ParseResult::AST(AST::FnDecl(
             FnDecl {
                 name: self.name.take().unwrap(),
                 param: std::mem::replace(&mut self.params, vec![]),
                 ret_type: self.return_type.take(),
                 body: self.body.take().unwrap(),
             },
-        ))));
+        )));
     }
 }
 
