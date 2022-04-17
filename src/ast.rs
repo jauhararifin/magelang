@@ -164,20 +164,6 @@ pub enum AST {
     Empty,
 }
 
-// macro_rules! into {
-//     ($target: ty, $typ: ident) => {
-//             impl Into<$typ> for $target {
-//                 fn into(self) -> $typ {
-//                     if let AST::$typ(inner) = self {
-//                         inner
-//                     } else {
-//                         panic!("invalid conversion from {:?} to $typ", std::mem::discriminant(&self));
-//                     }
-//                 }
-//             }
-//     };
-// }
-
 macro_rules! from_ast {
     ($target: ident) => {
             impl From<AST> for $target {
