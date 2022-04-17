@@ -66,7 +66,8 @@ pub enum Statement {
 
 #[derive(Debug, Clone)]
 pub struct Assign {
-    pub name: Token,
+    pub receiver: Expr,
+    pub op: Token,
     pub value: Expr,
 }
 
@@ -94,7 +95,7 @@ pub enum Expr {
     FunctionCall(FunctionCall),
     Cast(Cast),
     Selector(Selector),
-    // TODO: add selector statement
+    // TODO: add struct literal.
 }
 
 #[derive(Debug, Clone)]

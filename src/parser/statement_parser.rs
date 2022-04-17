@@ -1,5 +1,4 @@
 use super::assign_parser::AssignParser;
-use super::expr_stmt_parser::ExprStmtParser;
 use super::if_parser::IfParser;
 use super::return_parser::ReturnParser;
 use super::var_parser::VarParser;
@@ -26,11 +25,10 @@ impl<T: Lexer> Parser<T> for StatementParser {
         let token = ctx.lexer.peek_n(2)?;
         let next_parser: Box<dyn Parser<T>> = match (&token[0].kind, &token[1].kind) {
             (TokenKind::Var, _) => VarParser::new_statement_parser(),
-            (TokenKind::Ident(_), TokenKind::Assign) => AssignParser::new(),
             (TokenKind::While, _) => WhileParser::new(),
             (TokenKind::If, _) => IfParser::new(),
             (TokenKind::Return, _) => ReturnParser::new(),
-            _ => ExprStmtParser::new(),
+            _ => AssignParser::new(),
         };
 
         Ok(ParseResult::Push(next_parser))

@@ -8,7 +8,6 @@ mod block_parser;
 mod call_parser;
 mod cast_parser;
 mod expr_parser;
-mod expr_stmt_parser;
 mod fn_parser;
 mod if_parser;
 mod param_parser;
@@ -95,6 +94,22 @@ pub trait Parser<T: Lexer> {
             expected: kind,
             found: token,
         })
+    }
+
+    fn check_one_of(
+        &self,
+        ctx: &mut Context<T>,
+        kind: Vec<TokenKind>,
+    ) -> std::result::Result<Option<Token>, Error> {
+        let token = ctx.lexer.peek()?;
+
+        for k in kind.iter() {
+            if discriminant(&token.kind) != discriminant(k) {
+                return Ok(Some(ctx.lexer.next()?));
+            }
+        }
+
+        Ok(None)
     }
 }
 
