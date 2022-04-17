@@ -45,12 +45,18 @@ pub enum Type {
     Primitive(Token),
     Ident(Token),
     Struct(Struct),
+    Pointer(Pointer),
     // TODO: add tuple.
 }
 
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub fields: Vec<Param>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Pointer {
+    pub elem: Box<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -166,15 +172,15 @@ pub enum AST {
 
 macro_rules! from_ast {
     ($target: ident) => {
-            impl From<AST> for $target {
-                fn from(ast: AST) -> $target {
-                    if let AST::$target(inner) = ast {
-                        inner
-                    } else {
-                        panic!("invalid conversion from AST to $target");
-                    }
+        impl From<AST> for $target {
+            fn from(ast: AST) -> $target {
+                if let AST::$target(inner) = ast {
+                    inner
+                } else {
+                    panic!("invalid conversion from AST to $target");
                 }
             }
+        }
     };
 }
 

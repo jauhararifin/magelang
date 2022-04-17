@@ -3,22 +3,34 @@ use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
 
-pub struct TypeParser {}
+pub struct TypeParser {
+    is_pointer: bool,
+}
 
 impl TypeParser {
     pub fn new() -> Box<Self> {
-        Box::new(Self {})
+        Box::new(Self { is_pointer: false })
     }
 }
 
 impl<T: Lexer> Parser<T> for TypeParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         if let AST::Type(typ) = data {
-            return Ok(ParseResult::AST(AST::Type(typ)));
+            let mut result = typ;
+            if self.is_pointer {
+                result = Type::Pointer(Pointer {
+                    elem: Box::new(result),
+                });
+            }
+            return Ok(ParseResult::AST(AST::Type(result)));
         }
 
         if ctx.lexer.peek()?.kind == TokenKind::Struct {
             return Ok(ParseResult::Push(StructParser::new()));
+        }
+
+        if ctx.lexer.peek()?.kind == TokenKind::Mul {
+            return Ok(ParseResult::Push(TypeParser::new()));
         }
 
         let token = self.expect_one_of(
