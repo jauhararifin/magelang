@@ -2,6 +2,7 @@ mod ast;
 mod lexer;
 mod parser;
 mod token;
+mod semantic;
 
 use crate::lexer::SimpleLexer;
 use crate::parser::SimpleParser;
