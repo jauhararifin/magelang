@@ -52,14 +52,14 @@ impl<T: Read> SimpleLexer<T> {
             } else if self.next_in("0123456789") {
                 self.consume_number_literal();
             } else if self.next_is("\"") {
-                self.consume_string_literal();
+                self.consume_string_literal()?;
             } else if self.next_is("\n") {
                 self.emit_token(TokenKind::Endl, self.char_posts[self.char_offset].pos);
                 self.char_offset += 1;
             } else if c.is_alphabetic() || c == '_' {
                 self.consume_word();
             } else if self.next_in("'*|-,&~)}<:./{=]^%[!(+>'") {
-                self.consume_operator();
+                self.consume_operator()?;
             } else {
                 self.char_offset += 1;
             }
@@ -133,7 +133,7 @@ impl<T: Read> SimpleLexer<T> {
         }
     }
 
-    fn consume_string_literal(&mut self) {
+    fn consume_string_literal(&mut self) -> Result<(), Error> {
         let opening_quote = self.char_posts[self.char_offset].val;
 
         let backslash_chars = HashMap::from([
@@ -155,14 +155,20 @@ impl<T: Read> SimpleLexer<T> {
             let c = char_pos.val;
 
             if c == '\n' {
-                panic!("TODO: invalid token, got newline inside string literal")
+                return Err(Error::UnexpectedSymbol {
+                    symbol: '\n',
+                    pos: char_pos.pos,
+                });
             }
 
             if after_backslash {
                 if let Some(v) = backslash_chars.get(&c) {
                     value.push(*v);
                 } else {
-                    panic!("TODO: invalid character after backslash. Got {}", c);
+                    return Err(Error::UnexpectedSymbol {
+                        symbol: c,
+                        pos: char_pos.pos,
+                    });
                 }
                 after_backslash = false;
             } else {
@@ -180,6 +186,7 @@ impl<T: Read> SimpleLexer<T> {
         }
 
         self.emit_token(TokenKind::StringLit(value), pos);
+        Ok(())
     }
 
     fn consume_word(&mut self) {
@@ -213,7 +220,7 @@ impl<T: Read> SimpleLexer<T> {
         }
     }
 
-    fn consume_operator(&mut self) {
+    fn consume_operator(&mut self) -> Result<(), Error> {
         let found = self.consume_exact_operator("!=", TokenKind::NotEq)
             || self.consume_exact_operator("!", TokenKind::Not)
             || self.consume_exact_operator("%=", TokenKind::ModAssign)
@@ -254,11 +261,13 @@ impl<T: Read> SimpleLexer<T> {
             || self.consume_exact_operator(".", TokenKind::Dot);
 
         if !found {
-            panic!(
-                "TODO: found invalid operator {}",
-                self.char_posts[self.char_offset].val
-            );
+            let char_pos = self.char_posts[self.char_offset];
+            return Err(Error::UnexpectedSymbol {
+                symbol: char_pos.val,
+                pos: char_pos.pos,
+            });
         }
+        Ok(())
     }
 
     fn consume_exact_operator(&mut self, op: &str, token_kind: TokenKind) -> bool {
@@ -320,23 +329,6 @@ impl<T: Read> Lexer for SimpleLexer<T> {
         }
 
         return Ok(&self.token_eoi);
-    }
-
-    fn peek_n(&mut self, n: usize) -> Result<Vec<&Token>, Error> {
-        self.load_tokens()?;
-
-        let mut result = Vec::new();
-        for t in self.tokens.iter() {
-            result.push(t);
-        }
-
-        if self.tokens.len() < n {
-            for _ in 0..(self.tokens.len() - n) {
-                result.push(&self.token_eoi);
-            }
-        }
-
-        Ok(result)
     }
 }
 

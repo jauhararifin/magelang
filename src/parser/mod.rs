@@ -1,5 +1,5 @@
 use crate::ast::{*, self};
-use crate::token::{Error as LexerError, Lexer, Token, TokenKind};
+use crate::token::{Lexer, Token, TokenKind};
 use std::mem::discriminant;
 
 mod assign_parser;
@@ -23,21 +23,6 @@ mod var_parser;
 mod while_parser;
 
 use root_parser::RootParser;
-
-#[derive(Debug)]
-pub enum Error {
-    UnexpectedToken {
-        expected: Vec<TokenKind>,
-        found: Token,
-    },
-    Lexer(LexerError),
-}
-
-impl From<LexerError> for Error {
-    fn from(err: LexerError) -> Self {
-        Error::Lexer(err)
-    }
-}
 
 type Result<T> = std::result::Result<ParseResult<T>, Error>;
 
@@ -132,8 +117,10 @@ impl<T: Lexer> SimpleParser<T> {
             context: Context { lexer },
         }
     }
+}
 
-    pub fn parse(&mut self) -> std::result::Result<Root, Error> {
+impl<T:Lexer> ast::Parser for SimpleParser<T> {
+    fn parse(&mut self) -> std::result::Result<Root, ast::Error> {
         let mut stack: Vec<Box<dyn Parser<T>>> = vec![RootParser::new()];
 
         let mut data = AST::Empty;

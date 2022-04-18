@@ -1,11 +1,12 @@
 mod ast;
 mod lexer;
 mod parser;
-mod token;
 mod semantic;
+mod token;
 
 use crate::lexer::SimpleLexer;
 use crate::parser::SimpleParser;
+use ast::Parser;
 use std::fs::File;
 
 fn main() {

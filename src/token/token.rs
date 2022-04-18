@@ -1,26 +1,25 @@
-use std::io;
+use std::fmt;
 
-#[derive(Debug)]
-pub enum Error {
-    Io(io::Error),
-}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::Io(err)
-    }
-}
-
-pub trait Lexer {
-    fn next(&mut self) -> Result<Token, Error>;
-    fn peek(&mut self) -> Result<&Token, Error>;
-    fn peek_n(&mut self, n: usize) -> Result<Vec<&Token>, Error>;
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
     pub pos: Pos,
+}
+
+impl Token {
+    fn ident(&self) -> Option<&String> {
+        if let TokenKind::Ident(s) = &self.kind {
+            Some(s)
+        } else {
+            None
+        }
+    }
+}
+
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{:?} {:?}]", &self.pos, &self.kind)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -100,8 +99,20 @@ pub enum TokenKind {
     F64,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Pos {
     pub line: i32,
     pub col: i32,
+}
+
+impl fmt::Debug for Pos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
+impl fmt::Display for Pos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
 }
