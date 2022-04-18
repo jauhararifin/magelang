@@ -1,52 +1,80 @@
+use std::collections::HashMap;
+
 use crate::ast;
-use crate::semantic::cycle;
+use crate::semantic::{cycle, Def};
 use crate::token;
 
 use super::{Error, Program, StructField, Type, TypeKind};
 use super::{FloatType, IntType, Ptr, StructType};
 
-pub struct SimpleAnalyzer {}
+pub struct SimpleAnalyzer<'a> {
+    type_to_ast: HashMap<&'a String, &'a ast::Declaration>,
+    types: HashMap<&'a String, Type>,
+}
 
-impl SimpleAnalyzer {
+impl<'a> SimpleAnalyzer<'a> {
     pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn analyze<'a>(&mut self, root_ast: &'a ast::Root) -> Result<Program, Error<'a>> {
-        self.analyze_types(root_ast)?;
-        unimplemented!();
-    }
-
-    fn analyze_types<'a>(&mut self, root_ast: &'a ast::Root) -> Result<(), Error<'a>> {
-        cycle::analyze(root_ast)?;
-
-        for decl in root_ast.declarations.iter() {}
-
-        unimplemented!();
-    }
-
-    fn analyze_declaration(&self, decl: &ast::Declaration) {
-        match decl {
-            ast::Declaration::Fn(fn_decl) => unimplemented!("func is not supported yet"),
-            ast::Declaration::Var(var_decl) => unimplemented!("var is not supported yet"),
-            ast::Declaration::Type(type_decl) => unimplemented!("type is not supported yet"),
+        Self {
+            type_to_ast: HashMap::new(),
+            types: HashMap::new(),
         }
     }
 
-    fn analyze_type_decl(&self, type_decl: &ast::TypeDecl) {
-        unimplemented!();
+    pub fn analyze(&mut self, root_ast: &'a ast::Root) -> Result<Program, Error<'a>> {
+        self.analyze_types(root_ast)?;
+
+        let mut definitions = HashMap::new();
+        for (name, typ) in std::mem::replace(&mut self.types, HashMap::new()).into_iter() {
+            definitions.insert(name.clone(), Def::TypeDef(typ));
+        }
+
+        Ok(Program { definitions })
     }
 
-    fn analyze_type(&self, typ: &ast::Type) -> Type {
+    fn analyze_types(&mut self, root_ast: &'a ast::Root) -> Result<(), Error<'a>> {
+        cycle::analyze(root_ast)?;
+
+        for decl in root_ast.declarations.iter() {
+            if let ast::Declaration::Type(type_decl) = decl {
+                let name = if let token::TokenKind::Ident(id) = &type_decl.name.kind {
+                    id
+                } else {
+                    panic!();
+                };
+                self.type_to_ast.insert(name, decl);
+            }
+        }
+
+        for name in self.type_to_ast.keys() {
+            let typ = self.analyze_type_name(name);
+            self.types.insert(name, typ);
+        }
+
+        Ok(())
+    }
+
+    fn analyze_type_name(&self, name: &'a String) -> Type {
+        let typ = *self.type_to_ast.get(name).unwrap();
+        if let ast::Declaration::Type(typ) = typ {
+            let result = self.analyze_type(&typ.typ);
+            return result;
+        }
+        panic!();
+    }
+
+    fn analyze_type(&self, typ: &'a ast::Type) -> Type {
         match typ {
             ast::Type::Primitive(primitive) => self.analyze_primitive(primitive),
-            ast::Type::Ident(_) => unimplemented!("ident type is not supported yet"),
+            ast::Type::Ident(token) => match &token.kind {
+                token::TokenKind::Ident(name) => self.analyze_type_name(name),
+                _ => panic!(),
+            },
             ast::Type::Struct(strct) => self.analyze_struct(strct),
             ast::Type::Pointer(ptr_type) => self.analyze_pointer_type(ptr_type),
         }
     }
 
-    fn analyze_pointer_type(&self, pointer_type: &ast::Pointer) -> Type {
+    fn analyze_pointer_type(&self, pointer_type: &'a ast::Pointer) -> Type {
         Type {
             kind: TypeKind::Ptr(Ptr {
                 elem: Box::new(self.analyze_type(&pointer_type.elem)),
@@ -55,7 +83,7 @@ impl SimpleAnalyzer {
         }
     }
 
-    fn analyze_struct(&self, strct: &ast::Struct) -> Type {
+    fn analyze_struct(&self, strct: &'a ast::Struct) -> Type {
         let mut size = 0;
         let mut fields = Vec::new();
         let mut current_offset = 0;
@@ -73,13 +101,13 @@ impl SimpleAnalyzer {
                 offset: current_offset,
                 typ: self.analyze_type(&param.typ),
             });
-            current_offset += 8;
+            current_offset += fields.last().unwrap().typ.size;
             size += fields.last().unwrap().typ.size;
         }
 
         Type {
-            kind: TypeKind::Struct(StructType { fields: vec![] }),
-            size: size,
+            kind: TypeKind::Struct(StructType { fields }),
+            size,
         }
     }
 

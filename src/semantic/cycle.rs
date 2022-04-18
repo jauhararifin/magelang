@@ -15,7 +15,7 @@ pub fn analyze(root_ast: &Root) -> Result {
     check_undefined_ident(&dependency)?;
     check_dependency_cycle(&dependency, &token_map)?;
 
-    unimplemented!();
+    Ok(())
 }
 
 fn build_dependency_list<'a>(root_ast: &'a Root) -> (DependencyList<'a>, TokenMap<'a>) {
