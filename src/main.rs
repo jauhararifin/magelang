@@ -13,6 +13,8 @@ fn main() {
     let lexer = SimpleLexer::new(f);
     let mut parser = SimpleParser::new(lexer);
     let root_ast = parser.parse().unwrap();
+    let mut analyzer = semantic::SimpleAnalyzer::new();
+    let program = analyzer.analyze(&root_ast).unwrap();
 
-    println!("{:?}", &root_ast);
+    println!("{:?}", &program);
 }

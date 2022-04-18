@@ -1,26 +1,8 @@
-var global_var: i32 = 0
-
-type JauharInt32 i32
-
-type JauharStruct struct {
-  A: i32,
-  B: i64,
+type Jauhar struct {
+  A: Arifin,
 }
 
-fn gcd(a: i32, b: i32): i32 {
-  var wow: JauharStruct
-  wow.A = 10
-
-  while b != 0 {
-    var t: i32 = b
-    b = a % b
-    a = t
-  }
-  return a
+type Arifin struct {
+  A: Jauhar,
 }
 
-fn main() {
-    var a: i64 = 98
-    var b: i64 = 14
-    var c: i64 = gcd(a as i32, b as i32) as i64
-}

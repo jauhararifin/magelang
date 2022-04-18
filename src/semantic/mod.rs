@@ -1,27 +1,49 @@
 use std::collections::HashMap;
 
+use crate::token::Token;
+
+mod analyzer;
+mod cycle;
+
+pub use analyzer::SimpleAnalyzer;
+
+#[derive(Debug)]
+pub enum Error<'a> {
+    UndefinedIdent{
+        token: &'a Token,
+    },
+    TypeCycle{
+        token: Vec<&'a Token>,
+    }
+}
+
+#[derive(Debug)]
 pub struct Program {
     pub definitions: HashMap<String, Def>,
 }
 
+#[derive(Debug)]
 pub enum Def {
     FnDef(FnDef),
     VarDef(VarDef),
     TypeDef(Type),
 }
 
+#[derive(Debug)]
 pub struct VarDef {
     pub name: String,
     pub typ: Type,
     pub value: Expr,
 }
 
+#[derive(Debug)]
 pub struct FnDef {
     pub name: String,
     pub typ: Type,
     pub body: Statement,
 }
 
+#[derive(Debug)]
 pub enum Statement {
     Block(BlockStmt),
     Assign(AssignStmt),
@@ -32,16 +54,19 @@ pub enum Statement {
     Var(VarStmt),
 }
 
+#[derive(Debug)]
 pub struct BlockStmt {
     pub statements: Vec<Statement>,
 }
 
+#[derive(Debug)]
 pub struct AssignStmt {
     pub target: Expr,
     pub kind: AssignKind,
     pub value: Expr,
 }
 
+#[derive(Debug)]
 pub enum AssignKind {
     Assign,
     Plus,
@@ -56,24 +81,29 @@ pub enum AssignKind {
     BitOr,
 }
 
+#[derive(Debug)]
 pub struct IfStmt {
     pub cond: Expr,
     pub body: Box<Statement>,
 }
 
+#[derive(Debug)]
 pub struct WhileStmt {
     pub cond: Expr,
     pub body: Box<Statement>,
 }
 
+#[derive(Debug)]
 pub struct ReturnStmt {
     pub value: Expr,
 }
 
+#[derive(Debug)]
 pub struct ExprStmt {
     pub expr: Expr,
 }
 
+#[derive(Debug)]
 pub struct VarStmt {
     pub name: String,
     pub typ: Type,
@@ -81,7 +111,13 @@ pub struct VarStmt {
 }
 
 #[derive(Debug)]
-pub enum Type {
+pub struct Type {
+    pub kind: TypeKind,
+    pub size: i32,
+}
+
+#[derive(Debug)]
+pub enum TypeKind {
     Int(IntType),
     Float(FloatType),
     Struct(StructType),
@@ -129,25 +165,30 @@ pub struct Ptr {
     pub elem: Box<Type>,
 }
 
+#[derive(Debug)]
 pub struct Ident {
     pub name: String,
     pub typ: Type,
 }
 
+#[derive(Debug)]
 pub struct Selector {}
 
+#[derive(Debug)]
 pub struct Expr {
     pub typ: Type,
     pub assignable: bool,
     pub kind: ExprKind,
 }
 
+#[derive(Debug)]
 pub enum ExprKind {
     BinaryOp(BinaryOp),
     UnaryOp(UnaryOpKind),
     FnCall(FnCall),
 }
 
+#[derive(Debug)]
 pub struct BinaryOp {
     pub kind: BinaryOpKind,
     pub typ: Type,
@@ -155,6 +196,7 @@ pub struct BinaryOp {
     pub b: Box<Expr>,
 }
 
+#[derive(Debug)]
 pub enum BinaryOpKind {
     Add,
     Sub,
@@ -165,6 +207,7 @@ pub enum BinaryOpKind {
     SHR,
 }
 
+#[derive(Debug)]
 pub struct UnaryOp {
     pub kind: UnaryOpKind,
     pub typ: Type,
@@ -172,6 +215,7 @@ pub struct UnaryOp {
     pub b: Box<Expr>,
 }
 
+#[derive(Debug)]
 pub enum UnaryOpKind {
     Not,
     BitNot,
@@ -181,6 +225,7 @@ pub enum UnaryOpKind {
     Deref,
 }
 
+#[derive(Debug)]
 pub struct FnCall {
     pub ptr: Box<Expr>,
     pub args: Vec<Expr>,
