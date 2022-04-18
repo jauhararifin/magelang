@@ -4,57 +4,93 @@ use crate::ast::*;
 use crate::token::{Lexer, Token, TokenKind};
 
 pub struct TypeParser {
-    is_pointer: bool,
+    state: TypeParserState,
+}
+
+enum TypeParserState {
+    Init,
+    Ptr,
+    Struct,
 }
 
 impl TypeParser {
     pub fn new() -> Box<Self> {
-        Box::new(Self { is_pointer: false })
+        Box::new(Self {
+            state: TypeParserState::Init,
+        })
+    }
+
+    fn parse_init<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
+        let token = ctx.lexer.peek()?;
+
+        match token.kind {
+            TokenKind::Struct => {
+                self.state = TypeParserState::Struct;
+                Ok(ParseResult::Push(StructParser::new()))
+            }
+            TokenKind::Mul => {
+                self.state = TypeParserState::Ptr;
+                Ok(ParseResult::Push(TypeParser::new()))
+            }
+            TokenKind::Ident => {
+                let token = ctx.lexer.next()?;
+                Ok(ParseResult::AST(AST::Type(Type::Ident(token))))
+            }
+            TokenKind::I8
+            | TokenKind::I16
+            | TokenKind::I32
+            | TokenKind::I64
+            | TokenKind::U8
+            | TokenKind::U16
+            | TokenKind::U32
+            | TokenKind::U64
+            | TokenKind::Bool => {
+                let token = ctx.lexer.next()?;
+                Ok(ParseResult::AST(AST::Type(Type::Primitive(token))))
+            }
+            _ => {
+                let token = ctx.lexer.next()?;
+                Err(Error::UnexpectedToken {
+                    expected: vec![
+                        TokenKind::Ident,
+                        TokenKind::I8,
+                        TokenKind::I16,
+                        TokenKind::I32,
+                        TokenKind::I64,
+                        TokenKind::U8,
+                        TokenKind::U16,
+                        TokenKind::U32,
+                        TokenKind::U64,
+                        TokenKind::Bool,
+                        TokenKind::Struct,
+                        TokenKind::Mul,
+                    ],
+                    found: token,
+                })
+            }
+        }
+    }
+
+    fn parse_ptr<T: Lexer>(&mut self, data: AST) -> Result<T> {
+        let t = Type::from(data);
+        Ok(ParseResult::AST(AST::Type(Type::Pointer(Pointer {
+            elem: Box::new(t),
+        }))))
+    }
+
+    fn parse_struct<T: Lexer>(&mut self, data: AST) -> Result<T> {
+        let t = Struct::from(data);
+        Ok(ParseResult::AST(AST::Type(Type::Struct(t))))
     }
 }
 
 impl<T: Lexer> Parser<T> for TypeParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Type(typ) = data {
-            let mut result = typ;
-            if self.is_pointer {
-                result = Type::Pointer(Pointer {
-                    elem: Box::new(result),
-                });
-            }
-            return Ok(ParseResult::AST(AST::Type(result)));
+        match self.state {
+            TypeParserState::Init => self.parse_init(ctx),
+            TypeParserState::Ptr => self.parse_ptr(data),
+            TypeParserState::Struct => self.parse_struct(data),
         }
-
-        if ctx.lexer.peek()?.kind == TokenKind::Struct {
-            return Ok(ParseResult::Push(StructParser::new()));
-        }
-
-        if ctx.lexer.peek()?.kind == TokenKind::Mul {
-            return Ok(ParseResult::Push(TypeParser::new()));
-        }
-
-        let token = self.expect_one_of(
-            ctx,
-            vec![
-                TokenKind::Ident,
-                TokenKind::I8,
-                TokenKind::I16,
-                TokenKind::I32,
-                TokenKind::I64,
-                TokenKind::U8,
-                TokenKind::U16,
-                TokenKind::U32,
-                TokenKind::U64,
-                TokenKind::Bool,
-                TokenKind::Struct,
-            ],
-        )?;
-
-        if TokenKind::Ident == token.kind {
-            return Ok(ParseResult::AST(AST::Type(Type::Ident(token))));
-        }
-
-        Ok(ParseResult::AST(AST::Type(Type::Primitive(token))))
     }
 }
 

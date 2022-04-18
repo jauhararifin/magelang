@@ -148,7 +148,6 @@ pub struct BlockStatement {
 #[derive(Debug)]
 pub enum AST {
     Root(Root),
-    Declaration(Declaration),
     FnDecl(FnDecl),
     Var(Var),
     TypeDecl(TypeDecl),
@@ -161,11 +160,6 @@ pub enum AST {
     While(While),
     Return(Return),
     Expr(Expr),
-    Binary(Binary),
-    Unary(Unary),
-    FunctionCall(FunctionCall),
-    Cast(Cast),
-    Selector(Selector),
     BlockStatement(BlockStatement),
     Empty,
 }
@@ -185,7 +179,6 @@ macro_rules! from_ast {
 }
 
 from_ast!(Root);
-from_ast!(Declaration);
 from_ast!(FnDecl);
 from_ast!(Var);
 from_ast!(TypeDecl);
@@ -198,9 +191,4 @@ from_ast!(If);
 from_ast!(While);
 from_ast!(Return);
 from_ast!(Expr);
-from_ast!(Binary);
-from_ast!(Unary);
-from_ast!(FunctionCall);
-from_ast!(Cast);
-from_ast!(Selector);
 from_ast!(BlockStatement);

@@ -33,9 +33,9 @@ impl<T: Lexer> Parser<T> for StructParser {
             };
 
             if is_end {
-                return Ok(ParseResult::AST(AST::Type(Type::Struct(Struct {
+                return Ok(ParseResult::AST(AST::Struct(Struct {
                     fields: std::mem::replace(&mut self.params, vec![]),
-                }))));
+                })));
             } else {
                 return Ok(ParseResult::Push(ParamParser::new()));
             }
@@ -43,13 +43,14 @@ impl<T: Lexer> Parser<T> for StructParser {
 
         self.expect(ctx, TokenKind::Struct)?;
         self.consume_endl(ctx)?;
+
         self.expect(ctx, TokenKind::OpenBlock)?;
         self.consume_endl(ctx)?;
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-            return Ok(ParseResult::AST(AST::Type(Type::Struct(Struct {
+            return Ok(ParseResult::AST(AST::Struct(Struct {
                 fields: std::mem::replace(&mut self.params, vec![]),
-            }))));
+            })));
         } else {
             return Ok(ParseResult::Push(ParamParser::new()));
         }
