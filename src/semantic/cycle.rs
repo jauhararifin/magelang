@@ -9,6 +9,7 @@ type Result<'a> = std::result::Result<(), Error<'a>>;
 type DependencyList<'a> = HashMap<&'a String, LinkedList<&'a Token>>;
 type TokenMap<'a> = HashMap<&'a String, &'a Token>;
 
+// TODO: implement this without recursive function call.
 pub fn analyze(root_ast: &Root) -> Result {
     let (dependency, token_map) = build_dependency_list(root_ast);
     check_undefined_ident(&dependency)?;
