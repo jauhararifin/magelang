@@ -30,7 +30,7 @@ impl VarParser {
     fn parse_var_name<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
         self.expect(ctx, TokenKind::Var)?;
 
-        let name_token = self.expect(ctx, TokenKind::Ident("".to_string()))?;
+        let name_token = self.expect(ctx, TokenKind::Ident)?;
         self.name = Some(name_token);
 
         self.expect(ctx, TokenKind::Colon)?;

@@ -36,7 +36,7 @@ impl<T: Lexer> Parser<T> for TypeParser {
         let token = self.expect_one_of(
             ctx,
             vec![
-                TokenKind::Ident("".to_string()),
+                TokenKind::Ident,
                 TokenKind::I8,
                 TokenKind::I16,
                 TokenKind::I32,
@@ -50,7 +50,7 @@ impl<T: Lexer> Parser<T> for TypeParser {
             ],
         )?;
 
-        if let TokenKind::Ident(_) = token.kind {
+        if TokenKind::Ident == token.kind {
             return Ok(ParseResult::AST(AST::Type(Type::Ident(token))));
         }
 
@@ -78,7 +78,7 @@ impl<T: Lexer> Parser<T> for TypeDeclParser {
         }
 
         self.expect(ctx, TokenKind::Type)?;
-        self.name = Some(self.expect(ctx, TokenKind::Ident("".to_string()))?);
+        self.name = Some(self.expect(ctx, TokenKind::Ident)?);
         Ok(ParseResult::Push(TypeParser::new()))
     }
 }

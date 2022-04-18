@@ -35,7 +35,7 @@ impl FnParser {
     fn parse_fn_name<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
         self.expect(ctx, TokenKind::Fn)?;
 
-        let name = self.expect(ctx, TokenKind::Ident("".to_string()))?;
+        let name = self.expect(ctx, TokenKind::Ident)?;
 
         self.expect(ctx, TokenKind::OpenBrace)?;
         self.name = Some(name);

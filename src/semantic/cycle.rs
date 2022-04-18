@@ -1,6 +1,6 @@
 use crate::ast;
 use crate::ast::{Declaration, Root};
-use crate::token::{Token, TokenKind};
+use crate::token::Token;
 use std::collections::{HashMap, LinkedList};
 
 use super::Error;
@@ -32,11 +32,7 @@ fn build_dependency_list<'a>(root_ast: &'a Root) -> (DependencyList<'a>, TokenMa
     for typ in types {
         let deps = get_type_dependency_names(&typ.typ);
 
-        let name = if let TokenKind::Ident(name) = &typ.name.kind {
-            name
-        } else {
-            panic!();
-        };
+        let name = typ.name.value.as_ref().unwrap();
 
         token_map.insert(name, &typ.name);
         dependency.insert(name, deps);
@@ -67,11 +63,7 @@ fn get_type_dependency_names<'a>(typ: &'a ast::Type) -> LinkedList<&'a Token> {
 fn check_undefined_ident<'a>(dependency: &DependencyList<'a>) -> Result<'a> {
     for (_, deps) in dependency.iter() {
         for dep in deps.iter() {
-            let name = if let TokenKind::Ident(name) = &dep.kind {
-                name
-            } else {
-                panic!();
-            };
+            let name = dep.value.as_ref().unwrap();
             if !dependency.contains_key(name) {
                 return Err(Error::UndefinedIdent { token: dep });
             }
@@ -127,12 +119,7 @@ impl<'a, 'b> DFS<'a, 'b> {
         self.ident_status.insert(node, Status::Entered);
 
         for dep in self.dependency[node].iter() {
-            let dep_name = if let TokenKind::Ident(name) = &dep.kind {
-                name
-            } else {
-                panic!();
-            };
-
+            let dep_name = dep.value.as_ref().unwrap();
             let child_status = self.ident_status.get(dep_name).unwrap();
             match child_status {
                 Status::Unvisited => {

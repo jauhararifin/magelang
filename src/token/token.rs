@@ -3,17 +3,8 @@ use std::fmt;
 #[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
+    pub value: Option<String>,
     pub pos: Pos,
-}
-
-impl Token {
-    fn ident(&self) -> Option<&String> {
-        if let TokenKind::Ident(s) = &self.kind {
-            Some(s)
-        } else {
-            None
-        }
-    }
 }
 
 impl fmt::Debug for Token {
@@ -34,10 +25,10 @@ pub enum TokenKind {
     Struct,
     Tuple,
     // constant
-    Ident(String),
-    StringLit(String),
-    IntegerLit(String),
-    FloatLit(String),
+    Ident,
+    StringLit,
+    IntegerLit,
+    FloatLit,
     True,
     False,
     // symbols
@@ -84,7 +75,7 @@ pub enum TokenKind {
     Eq,
     NotEq,
     // comments
-    Comment(String),
+    Comment,
     // primitives
     Bool,
     I8,

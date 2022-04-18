@@ -1,5 +1,4 @@
 use super::Pos;
-use crate::token::Error as LexerError;
 use std::{fmt, io};
 
 #[derive(Debug)]

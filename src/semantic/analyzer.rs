@@ -36,11 +36,7 @@ impl<'a> SimpleAnalyzer<'a> {
 
         for decl in root_ast.declarations.iter() {
             if let ast::Declaration::Type(type_decl) = decl {
-                let name = if let token::TokenKind::Ident(id) = &type_decl.name.kind {
-                    id
-                } else {
-                    panic!();
-                };
+                let name = &type_decl.name.value.as_ref().unwrap();
                 self.type_to_ast.insert(name, decl);
             }
         }
@@ -65,10 +61,7 @@ impl<'a> SimpleAnalyzer<'a> {
     fn analyze_type(&self, typ: &'a ast::Type) -> Type {
         match typ {
             ast::Type::Primitive(primitive) => self.analyze_primitive(primitive),
-            ast::Type::Ident(token) => match &token.kind {
-                token::TokenKind::Ident(name) => self.analyze_type_name(name),
-                _ => panic!(),
-            },
+            ast::Type::Ident(token) => self.analyze_type_name(token.value.as_ref().unwrap()),
             ast::Type::Struct(strct) => self.analyze_struct(strct),
             ast::Type::Pointer(ptr_type) => self.analyze_pointer_type(ptr_type),
         }
@@ -90,12 +83,7 @@ impl<'a> SimpleAnalyzer<'a> {
 
         // TODO: add better offset alignment
         for param in strct.fields.iter() {
-            let name = if let token::TokenKind::Ident(name) = &param.name.kind {
-                name.clone()
-            } else {
-                panic!();
-            };
-
+            let name = param.name.value.as_ref().unwrap().clone();
             fields.push(StructField {
                 name,
                 offset: current_offset,

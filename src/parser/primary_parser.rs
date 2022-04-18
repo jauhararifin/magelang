@@ -18,15 +18,15 @@ impl<T: Lexer> Parser<T> for PrimaryParser {
             return Ok(ParseResult::AST(AST::Expr(expr)));
         }
 
-        if let Some(token) = self.check(ctx, &TokenKind::IntegerLit("".to_string()))? {
+        if let Some(token) = self.check(ctx, &TokenKind::IntegerLit)? {
             return Ok(ParseResult::AST(AST::Expr(Expr::IntegerLit(token))));
         }
 
-        if let Some(token) = self.check(ctx, &TokenKind::FloatLit("".to_string()))? {
+        if let Some(token) = self.check(ctx, &TokenKind::FloatLit)? {
             return Ok(ParseResult::AST(AST::Expr(Expr::FloatLit(token))));
         }
 
-        if let Some(token) = self.check(ctx, &TokenKind::StringLit("".to_string()))? {
+        if let Some(token) = self.check(ctx, &TokenKind::StringLit)? {
             return Ok(ParseResult::AST(AST::Expr(Expr::StringLit(token))));
         }
 
@@ -38,7 +38,7 @@ impl<T: Lexer> Parser<T> for PrimaryParser {
             return Ok(ParseResult::AST(AST::Expr(Expr::BoolLit(token))));
         }
 
-        if let Some(token) = self.check(ctx, &TokenKind::Ident("".to_string()))? {
+        if let Some(token) = self.check(ctx, &TokenKind::Ident)? {
             return Ok(ParseResult::AST(AST::Expr(Expr::Ident(token))));
         }
 
@@ -48,13 +48,13 @@ impl<T: Lexer> Parser<T> for PrimaryParser {
 
         Err(Error::UnexpectedToken {
             expected: vec![
-                TokenKind::IntegerLit("".to_string()),
-                TokenKind::FloatLit("".to_string()),
-                TokenKind::StringLit("".to_string()),
+                TokenKind::IntegerLit,
+                TokenKind::FloatLit,
+                TokenKind::StringLit,
                 TokenKind::True,
                 TokenKind::False,
                 TokenKind::OpenBrace,
-                TokenKind::Ident("".to_string()),
+                TokenKind::Ident,
             ],
             found: ctx.lexer.next()?,
         })

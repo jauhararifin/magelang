@@ -22,7 +22,7 @@ impl ParamParser {
     }
 
     fn parse_param_name<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
-        let name_token = self.expect(ctx, TokenKind::Ident("".to_string()))?;
+        let name_token = self.expect(ctx, TokenKind::Ident)?;
         self.name_token = Some(name_token);
 
         self.expect(ctx, TokenKind::Colon)?;
