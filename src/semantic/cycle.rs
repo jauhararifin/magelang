@@ -3,7 +3,7 @@ use crate::ast::{Declaration, Root};
 use crate::token::Token;
 use std::collections::{HashMap, LinkedList};
 
-use super::Error;
+use super::error::Error;
 
 type Result<'a> = std::result::Result<(), Error<'a>>;
 type DependencyList<'a> = HashMap<&'a String, LinkedList<&'a Token>>;
