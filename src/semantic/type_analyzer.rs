@@ -21,17 +21,17 @@ pub struct TypeAnalyzer<'a> {
     global_types: HashMap<String, Rc<Type>>,
     local_types: HashMap<String, Rc<Type>>,
 
-    bool_type: Rc<Type>,
-    i8_type: Rc<Type>,
-    i16_type: Rc<Type>,
-    i32_type: Rc<Type>,
-    i64_type: Rc<Type>,
-    u8_type: Rc<Type>,
-    u16_type: Rc<Type>,
-    u32_type: Rc<Type>,
-    u64_type: Rc<Type>,
-    f32_type: Rc<Type>,
-    f64_type: Rc<Type>,
+    pub bool_type: Rc<Type>,
+    pub i8_type: Rc<Type>,
+    pub i16_type: Rc<Type>,
+    pub i32_type: Rc<Type>,
+    pub i64_type: Rc<Type>,
+    pub u8_type: Rc<Type>,
+    pub u16_type: Rc<Type>,
+    pub u32_type: Rc<Type>,
+    pub u64_type: Rc<Type>,
+    pub f32_type: Rc<Type>,
+    pub f64_type: Rc<Type>,
 }
 
 impl<'a> TypeAnalyzer<'a> {
@@ -44,7 +44,10 @@ impl<'a> TypeAnalyzer<'a> {
             global_types: HashMap::new(),
             local_types: HashMap::new(),
 
-            bool_type: Self::int_type(false, 1),
+            bool_type: Rc::new(Type {
+                kind: TypeKind::Bool,
+                size: 1,
+            }),
             i8_type: Self::int_type(false, 1),
             i16_type: Self::int_type(false, 2),
             i32_type: Self::int_type(false, 4),

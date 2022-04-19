@@ -110,6 +110,7 @@ pub struct Type {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TypeKind {
     Void,
+    Bool,
     Int(IntType),
     Float(FloatType),
     Struct(StructType),
