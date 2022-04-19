@@ -91,9 +91,14 @@ pub struct ExprStmt {
 
 #[derive(Debug)]
 pub struct VarStmt {
-    pub name: String,
-    pub typ: Type,
+    pub receiver: Rc<Var>,
     pub value: Option<Expr>,
+}
+
+#[derive(Debug)]
+pub struct Var {
+    pub name: String,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -173,6 +178,19 @@ pub enum ExprKind {
     BinaryOp(BinaryOp),
     UnaryOp(UnaryOpKind),
     FnCall(FnCall),
+    BoolLit(bool),
+    I8Lit(i8),
+    I16Lit(i16),
+    I32Lit(i32),
+    I64Lit(i64),
+    U8Lit(i8),
+    U16Lit(i16),
+    U32Lit(i32),
+    U64Lit(i64),
+    F32Lit(f32),
+    F64Lit(f32),
+    StringLit(String),
+    VarExpr(VarExpr),
 }
 
 #[derive(Debug)]
@@ -199,7 +217,6 @@ pub struct UnaryOp {
     pub kind: UnaryOpKind,
     pub typ: Type,
     pub a: Box<Expr>,
-    pub b: Box<Expr>,
 }
 
 #[derive(Debug)]
@@ -217,4 +234,9 @@ pub struct FnCall {
     pub ptr: Box<Expr>,
     pub args: Vec<Expr>,
     pub typ: Type,
+}
+
+#[derive(Debug)]
+pub struct VarExpr {
+    pub var: Rc<Var>,
 }

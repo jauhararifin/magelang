@@ -8,7 +8,8 @@ use super::semantic::Type;
 pub enum Error<'a> {
     UndefinedIdent { token: &'a Token },
     CannotAssignToValue { expr: &'a Expr },
-    MismatchType { expected: Rc<Type>, got: Rc<Type>},
+    MismatchType { expected: Rc<Type>, got: Rc<Type> },
     UnsupportedGlobal, // TODO: support global variable?
+    RedeclaredSymbol { symbol: &'a Token },
     TypeCycle { token: Vec<&'a Token> },
 }

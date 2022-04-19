@@ -6,12 +6,20 @@ use crate::ast;
 
 use super::cycle;
 use super::error::Error;
-use super::semantic::{FloatType, IntType, Ptr, StructField, StructType, Type, TypeKind};
+use super::semantic::{
+    FloatType, FnParam, FnType, IntType, Ptr, StructField, StructType, Type, TypeKind,
+};
 
 pub struct TypeAnalyzer<'a> {
     root: &'a ast::Root,
-    type_to_ast: HashMap<String, &'a ast::Type>,
+
+    type_ast: HashMap<String, &'a ast::Type>,
+
+    // map from type alias to its actual type.
     types: HashMap<String, Rc<Type>>,
+    // map from global & local identifier to its type.
+    global_types: HashMap<String, Rc<Type>>,
+    local_types: HashMap<String, Rc<Type>>,
 
     bool_type: Rc<Type>,
     i8_type: Rc<Type>,
@@ -30,8 +38,11 @@ impl<'a> TypeAnalyzer<'a> {
     pub fn new(root: &'a ast::Root) -> Self {
         Self {
             root,
-            type_to_ast: HashMap::new(),
+            type_ast: HashMap::new(),
+
             types: HashMap::new(),
+            global_types: HashMap::new(),
+            local_types: HashMap::new(),
 
             bool_type: Self::int_type(false, 1),
             i8_type: Self::int_type(false, 1),
@@ -61,21 +72,39 @@ impl<'a> TypeAnalyzer<'a> {
         })
     }
 
+    pub fn get_type(&self, identifier: &String) -> Option<Rc<Type>> {
+        let typ = self.local_types.get(identifier);
+        if let Some(typ) = typ {
+            return Some(Rc::clone(typ));
+        }
+
+        let typ = self.global_types.get(identifier);
+        if let Some(typ) = typ {
+            return Some(Rc::clone(typ));
+        }
+
+        None
+    }
+
     pub fn analyze(&mut self) -> Result<HashMap<String, Rc<Type>>, Error<'a>> {
         cycle::analyze(self.root)?;
 
-        let mut to_analyze = Vec::new();
+        let mut type_to_analyze = Vec::new();
 
         for decl in self.root.declarations.iter() {
-            if let ast::Declaration::Type(type_decl) = decl {
-                let name = type_decl.name.value.as_ref().unwrap();
-                self.type_to_ast.insert(name.clone(), &type_decl.typ);
-                to_analyze.push((name, &type_decl.typ));
+            match decl {
+                ast::Declaration::Type(type_decl) => {
+                    let name = type_decl.name.value.as_ref().unwrap();
+                    self.type_ast.insert(name.clone(), &type_decl.typ);
+                    type_to_analyze.push((name, &type_decl.typ));
+                }
+                ast::Declaration::Fn(fn_decl) => self.analyze_func(fn_decl)?,
+                _ => unimplemented!(),
             }
         }
 
         let mut result = HashMap::<String, Rc<Type>>::new();
-        for (name, typ) in to_analyze.into_iter() {
+        for (name, typ) in type_to_analyze.into_iter() {
             let typ = self.analyze_type(typ);
             result.insert(name.clone(), typ);
         }
@@ -98,7 +127,7 @@ impl<'a> TypeAnalyzer<'a> {
             return Rc::clone(typ);
         }
 
-        let type_ast = *self.type_to_ast.get(name).unwrap();
+        let type_ast = *self.type_ast.get(name).unwrap();
         let result = self.analyze_type(type_ast);
         self.types.insert(name.clone(), Rc::clone(&result));
         Rc::clone(&result)
@@ -153,5 +182,41 @@ impl<'a> TypeAnalyzer<'a> {
             token::TokenKind::F64 => Rc::clone(&self.f64_type),
             _ => panic!("{:?} is not primitive kind", typ.kind),
         }
+    }
+
+    fn analyze_func(&mut self, func: &'a ast::FnDecl) -> Result<(), Error<'a>> {
+        let name = func.name.value.as_ref().unwrap().clone();
+        if self.global_types.contains_key(&name) || self.type_ast.contains_key(&name) {
+            return Err(Error::RedeclaredSymbol { symbol: &func.name });
+        }
+
+        let typ = self.get_func_type(func);
+        self.global_types.insert(name, typ);
+        Ok(())
+    }
+
+    fn get_func_type(&mut self, func: &'a ast::FnDecl) -> Rc<Type> {
+        let ret_type = if let Some(typ) = func.ret_type.as_ref() {
+            self.analyze_type(typ)
+        } else {
+            Rc::new(Type {
+                kind: TypeKind::Void,
+                size: 0,
+            })
+        };
+
+        let mut params = Vec::new();
+        for param in func.param.iter() {
+            let typ = self.analyze_type(&param.typ);
+            params.push(FnParam {
+                name: param.name.value.as_ref().unwrap().clone(),
+                typ,
+            });
+        }
+
+        Rc::new(Type {
+            kind: TypeKind::Fn(FnType { params, ret_type }),
+            size: 8, // TODO: consider the arch
+        })
     }
 }
