@@ -1,8 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub struct Program {
-    pub definitions: HashMap<String, Def>,
+    pub definitions: Vec<Def>,
+
+    pub types: HashMap<String, Rc<Type>>,
+    pub functions: HashMap<String, FnDef>,
 }
 
 #[derive(Debug)]
@@ -15,14 +18,14 @@ pub enum Def {
 #[derive(Debug)]
 pub struct VarDef {
     pub name: String,
-    pub typ: Type,
+    pub typ: Rc<Type>,
     pub value: Expr,
 }
 
 #[derive(Debug)]
 pub struct FnDef {
     pub name: String,
-    pub typ: Type,
+    pub typ: Rc<Type>,
     pub body: Statement,
 }
 
@@ -93,13 +96,13 @@ pub struct VarStmt {
     pub value: Option<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Type {
     pub kind: TypeKind,
-    pub size: i32,
+    pub size: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TypeKind {
     Void,
     Int(IntType),
@@ -109,44 +112,44 @@ pub enum TypeKind {
     Ptr(Ptr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntType {
     pub signed: bool,
-    pub size: i32,
+    pub size: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FloatType {
-    pub size: i32,
+    pub size: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructType {
     pub fields: Vec<StructField>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructField {
     pub name: String,
-    pub offset: i32,
-    pub typ: Type,
+    pub offset: usize,
+    pub typ: Rc<Type>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FnType {
     pub params: Vec<FnParam>,
-    pub ret_type: Box<Type>,
+    pub ret_type: Rc<Type>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FnParam {
     pub name: String,
-    pub typ: Type,
+    pub typ: Rc<Type>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Ptr {
-    pub elem: Box<Type>,
+    pub elem: Rc<Type>,
 }
 
 #[derive(Debug)]
@@ -160,9 +163,9 @@ pub struct Selector {}
 
 #[derive(Debug)]
 pub struct Expr {
-    pub typ: Type,
-    pub assignable: bool,
+    pub typ: Rc<Type>,
     pub kind: ExprKind,
+    pub assignable: bool,
 }
 
 #[derive(Debug)]
@@ -174,8 +177,8 @@ pub enum ExprKind {
 
 #[derive(Debug)]
 pub struct BinaryOp {
-    pub kind: BinaryOpKind,
-    pub typ: Type,
+    pub op: BinaryOpKind,
+    pub typ: Rc<Type>,
     pub a: Box<Expr>,
     pub b: Box<Expr>,
 }
