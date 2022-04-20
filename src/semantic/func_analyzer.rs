@@ -19,7 +19,7 @@ pub struct FuncAnalyzer<'a: 'b, 'b> {
     fn_to_ast: HashMap<String, &'a ast::FnDecl>,
     funcs: HashMap<String, FnDef>,
 
-    locals: HashMap<String, Rc<Var>>,
+    locals: Vec<HashMap<String, Rc<Var>>>,
     current_ret_type: Option<Rc<Type>>,
 }
 
@@ -30,7 +30,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             type_analyzer,
             fn_to_ast: HashMap::new(),
             funcs: HashMap::new(),
-            locals: HashMap::new(),
+            locals: Vec::new(),
             current_ret_type: None,
         }
     }
@@ -55,21 +55,19 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
     fn analyze_func(&mut self, func: &'a ast::FnDecl) -> Result<FnDef, Error<'a>> {
         let typ = self.type_analyzer.get_type_from_token(&func.name)?;
 
-        self.current_ret_type = Some(Rc::clone(&typ));
+        let mut symbol_table = HashMap::new();
         if let TypeKind::Fn(fn_type) = &typ.kind {
             for param in fn_type.params.iter() {
-                self.locals.insert(param.name.clone(), Rc::clone(param));
+                symbol_table.insert(param.name.clone(), Rc::clone(param));
             }
+            self.current_ret_type = Some(Rc::clone(&fn_type.ret_type));
         }
+        self.locals.push(symbol_table);
 
         let name = func.name.value.as_ref().unwrap().clone();
         let body = self.analyze_block_statement(&func.body)?;
 
-        if let TypeKind::Fn(fn_type) = &typ.kind {
-            for param in fn_type.params.iter() {
-                self.locals.remove(&param.name);
-            }
-        }
+        self.locals.pop();
 
         Ok(FnDef { name, typ, body })
     }
@@ -87,11 +85,16 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
     }
 
     fn analyze_var_statement(&mut self, stmt: &'a ast::Var) -> Result<Statement, Error<'a>> {
+        let var = Rc::new(Var {
+            name: stmt.name.value.as_ref().unwrap().clone(),
+            typ: self.type_analyzer.analyze_type(&stmt.typ),
+        });
+
+        let symbol_table = self.locals.last_mut().unwrap();
+        symbol_table.insert(stmt.name.value.as_ref().unwrap().clone(), Rc::clone(&var));
+
         Ok(Statement::Var(VarStmt {
-            receiver: Rc::new(Var {
-                name: stmt.name.value.as_ref().unwrap().clone(),
-                typ: self.type_analyzer.analyze_type(&stmt.typ),
-            }),
+            receiver: Rc::clone(&var),
             value: None, // TODO: analyze the expr;
         }))
     }
@@ -178,10 +181,14 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         &mut self,
         stmt: &'a ast::BlockStatement,
     ) -> Result<Statement, Error<'a>> {
+        self.locals.push(HashMap::new());
+
         let mut statements = Vec::new();
         for body in stmt.body.iter() {
             statements.push(self.analyze_statement(body)?);
         }
+
+        self.locals.pop();
 
         Ok(Statement::Block(BlockStmt { statements }))
     }
@@ -325,8 +332,10 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
     }
 
     fn get_var(&self, name: &'a token::Token) -> Result<&Rc<Var>, Error<'a>> {
-        if let Some(v) = self.locals.get(name.value.as_ref().unwrap()) {
-            return Ok(v);
+        for symbol_table in self.locals.iter().rev() {
+            if let Some(v) = symbol_table.get(name.value.as_ref().unwrap()) {
+                return Ok(v);
+            }
         }
         Err(Error::UndefinedIdent { token: name })
     }

@@ -1,16 +1,6 @@
-type Vector2D struct {
-    A: i32,
-    B: i32,
-    C: Vector2DStatus,
-}
-
-type Vector2DStatus struct {
-    Ok: bool,
-}
-
-fn gcd(a: i64, b: i64): i64 {
+fn gcd(a: i32, b: i32): i32 {
   while b != 0 {
-    var t: i64 = b
+    var t: i32 = b
     b = a % b
     a = t
   }
@@ -18,8 +8,8 @@ fn gcd(a: i64, b: i64): i64 {
 }
 
 fn main() {
-    var a: i64 = 98
-    var b: i64 = 14
-    var c: i64 = gcd(a, b)
+    var a: i32 = 98
+    var b: i32 = 14
+    var c: i32 = gcd(a, b)
 }
 
