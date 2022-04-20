@@ -1,4 +1,4 @@
-use crate::semantic::semantic::{AssignKind, BinaryOpKind, Statement};
+use crate::semantic::semantic::{AssignKind, BinaryOpKind, FnCall, Statement};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -7,8 +7,8 @@ use crate::{ast, token};
 
 use super::error::Error;
 use super::semantic::{
-    AssignStmt, BinaryOp, BlockStmt, Expr, ExprKind, ExprStmt, FnDef, IfStmt, ReturnStmt, Type,
-    TypeKind, Var, VarExpr, VarStmt, WhileStmt,
+    AssignStmt, BinaryOp, BlockStmt, Expr, ExprKind, ExprStmt, FnDef, FnExpr, FnId, IfStmt,
+    ReturnStmt, Type, TypeKind, UnaryOp, UnaryOpKind, Var, VarExpr, VarStmt, WhileStmt,
 };
 use super::type_analyzer::TypeAnalyzer;
 
@@ -17,7 +17,7 @@ pub struct FuncAnalyzer<'a: 'b, 'b> {
     type_analyzer: &'b mut TypeAnalyzer<'a>,
 
     fn_to_ast: HashMap<String, &'a ast::FnDecl>,
-    funcs: HashMap<String, FnDef>,
+    funcs: HashMap<String, Rc<FnId>>,
 
     locals: Vec<HashMap<String, Rc<Var>>>,
     current_ret_type: Option<Rc<Type>>,
@@ -40,6 +40,9 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             if let ast::Declaration::Fn(fn_decl) = decl {
                 let name = &fn_decl.name.value.as_ref().unwrap().clone();
                 self.fn_to_ast.insert(name.clone(), &fn_decl);
+
+                let fn_id = self.analyze_func_id(fn_decl)?;
+                self.funcs.insert(name.clone(), Rc::new(fn_id));
             }
         }
 
@@ -52,11 +55,18 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         Ok(result)
     }
 
-    fn analyze_func(&mut self, func: &'a ast::FnDecl) -> Result<FnDef, Error<'a>> {
+    fn analyze_func_id(&mut self, func: &'a ast::FnDecl) -> Result<FnId, Error<'a>> {
         let typ = self.type_analyzer.get_type_from_token(&func.name)?;
+        let name = func.name.value.as_ref().unwrap().clone();
+
+        Ok(FnId { name, typ })
+    }
+
+    fn analyze_func(&mut self, func: &'a ast::FnDecl) -> Result<FnDef, Error<'a>> {
+        let func_id = Rc::clone(&self.funcs.get(func.name.value.as_ref().unwrap()).unwrap());
 
         let mut symbol_table = HashMap::new();
-        if let TypeKind::Fn(fn_type) = &typ.kind {
+        if let TypeKind::Fn(fn_type) = &func_id.typ.kind {
             for param in fn_type.params.iter() {
                 symbol_table.insert(param.name.clone(), Rc::clone(param));
             }
@@ -64,12 +74,14 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         }
         self.locals.push(symbol_table);
 
-        let name = func.name.value.as_ref().unwrap().clone();
         let body = self.analyze_block_statement(&func.body)?;
 
         self.locals.pop();
 
-        Ok(FnDef { name, typ, body })
+        Ok(FnDef {
+            id: Rc::clone(&func_id),
+            body,
+        })
     }
 
     fn analyze_statement(&mut self, stmt: &'a ast::Statement) -> Result<Statement, Error<'a>> {
@@ -93,9 +105,16 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         let symbol_table = self.locals.last_mut().unwrap();
         symbol_table.insert(stmt.name.value.as_ref().unwrap().clone(), Rc::clone(&var));
 
+        let value = stmt.value.as_ref();
+        let value = if let Some(value) = value {
+            Some(self.analyze_expr(value)?)
+        } else {
+            None
+        };
+
         Ok(Statement::Var(VarStmt {
             receiver: Rc::clone(&var),
-            value: None, // TODO: analyze the expr;
+            value,
         }))
     }
 
@@ -206,19 +225,35 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
     fn analyze_expr(&mut self, expr: &'a ast::Expr) -> Result<Expr, Error<'a>> {
         match expr {
             ast::Expr::Ident(expr) => self.analyze_ident_expr(expr),
-            ast::Expr::Binary(expr) => self.analyze_binary_expr(expr),
             ast::Expr::IntegerLit(expr) => self.analyze_int_lit_expr(expr),
+            ast::Expr::FloatLit(expr) => self.analyze_float_lit_expr(expr),
+            ast::Expr::BoolLit(expr) => self.analyze_bool_lit_expr(expr),
+            ast::Expr::Binary(expr) => self.analyze_binary_expr(expr),
+            ast::Expr::Unary(expr) => self.analyze_unary_expr(expr),
+            ast::Expr::FunctionCall(expr) => self.analyze_func_call_expr(expr),
             x => unimplemented!("{:?}", x),
         }
     }
 
     fn analyze_ident_expr(&mut self, ident: &'a token::Token) -> Result<Expr, Error<'a>> {
-        let var = Rc::clone(self.get_var(ident)?);
-        Ok(Expr {
-            typ: Rc::clone(&var.typ),
-            kind: ExprKind::VarExpr(VarExpr { var }),
-            assignable: true,
-        })
+        if let Some(var) = self.get_var(ident) {
+            let var = Rc::clone(var);
+            Ok(Expr {
+                typ: Rc::clone(&var.typ),
+                kind: ExprKind::VarExpr(VarExpr { var }),
+                assignable: true,
+            })
+        } else if let Some(func_id) = self.funcs.get(ident.value.as_ref().unwrap()) {
+            Ok(Expr {
+                typ: Rc::clone(&func_id.typ),
+                kind: ExprKind::FnExpr(FnExpr {
+                    func: Rc::clone(&func_id),
+                }),
+                assignable: false,
+            })
+        } else {
+            Err(Error::UndefinedIdent { token: ident })
+        }
     }
 
     fn analyze_binary_expr(&mut self, binary: &'a ast::Binary) -> Result<Expr, Error<'a>> {
@@ -331,12 +366,131 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         })
     }
 
-    fn get_var(&self, name: &'a token::Token) -> Result<&Rc<Var>, Error<'a>> {
-        for symbol_table in self.locals.iter().rev() {
-            if let Some(v) = symbol_table.get(name.value.as_ref().unwrap()) {
-                return Ok(v);
+    fn analyze_float_lit_expr(&mut self, ident: &'a token::Token) -> Result<Expr, Error<'a>> {
+        let value: f32 = ident.value.as_ref().unwrap().parse().unwrap(); // TODO: don't unwrap this. report error on wrong float.
+        let typ = Rc::clone(&self.type_analyzer.f32_type);
+        Ok(Expr {
+            typ,
+            kind: ExprKind::F32Lit(value),
+            assignable: false,
+        })
+    }
+
+    fn analyze_bool_lit_expr(&mut self, bool_value: &'a token::Token) -> Result<Expr, Error<'a>> {
+        let value = match bool_value.kind {
+            token::TokenKind::True => true,
+            token::TokenKind::False => false,
+            _ => panic!(
+                "invalid token. Expected bool literal, found {:?}",
+                bool_value
+            ),
+        };
+        let typ = Rc::clone(&self.type_analyzer.bool_type);
+        Ok(Expr {
+            typ,
+            kind: ExprKind::BoolLit(value),
+            assignable: false,
+        })
+    }
+
+    fn analyze_unary_expr(&mut self, unary: &'a ast::Unary) -> Result<Expr, Error<'a>> {
+        let val_expr = self.analyze_expr(&unary.val)?;
+
+        let ret_type = match &unary.op.kind {
+            token::TokenKind::Plus | token::TokenKind::Minus | token::TokenKind::BitNot => {
+                if !matches!(val_expr.typ.kind, TypeKind::Int(_) | TypeKind::Float(_)) {
+                    return Err(Error::CannotPerformOp {
+                        typ: Rc::clone(&val_expr.typ),
+                    });
+                }
+                Rc::clone(&val_expr.typ)
+            }
+            token::TokenKind::Mul => {
+                if let TypeKind::Ptr(typ) = val_expr.typ.kind.borrow() {
+                    Rc::clone(&typ.elem)
+                } else {
+                    return Err(Error::CannotPerformOp {
+                        typ: Rc::clone(&val_expr.typ),
+                    });
+                }
+            }
+            token::TokenKind::BitAnd => panic!(),
+            token::TokenKind::Not => panic!(),
+            k => panic!("Unrecognized unary opearator {:?}", k),
+        };
+
+        let kind = match &unary.op.kind {
+            token::TokenKind::Plus => UnaryOpKind::Plus,
+            token::TokenKind::Minus => UnaryOpKind::Minus,
+            token::TokenKind::Mul => UnaryOpKind::Deref,
+            token::TokenKind::BitNot => UnaryOpKind::BitNot,
+            token::TokenKind::BitAnd => UnaryOpKind::Addr,
+            token::TokenKind::Not => UnaryOpKind::BitNot,
+            k => panic!("Unrecognized unary opearator {:?}", k),
+        };
+
+        let assignable = matches!(&unary.op.kind, token::TokenKind::Mul);
+
+        Ok(Expr {
+            typ: Rc::clone(&ret_type),
+            assignable,
+            kind: ExprKind::UnaryOp(UnaryOp {
+                kind,
+                typ: Rc::clone(&ret_type),
+                a: Box::new(val_expr),
+            }),
+        })
+    }
+
+    fn analyze_func_call_expr(
+        &mut self,
+        func_call: &'a ast::FunctionCall,
+    ) -> Result<Expr, Error<'a>> {
+        let ptr = self.analyze_expr(func_call.ptr.borrow())?;
+
+        let ret_type = if let ExprKind::FnExpr(fn_expr) = &ptr.kind {
+            if let TypeKind::Fn(fn_type) = &fn_expr.func.typ.kind {
+                Rc::clone(&fn_type.ret_type)
+            } else {
+                panic!("asdf");
+            }
+        } else {
+            panic!("asdf");
+        };
+
+        let mut args = Vec::new();
+        for arg in func_call.args.iter() {
+            let arg_expr = self.analyze_expr(arg)?;
+            args.push(arg_expr);
+        }
+
+        if let ExprKind::FnExpr(fn_expr) = &ptr.kind {
+            if let TypeKind::Fn(fn_type) = &fn_expr.func.typ.kind {
+                for (i, param) in fn_type.params.iter().enumerate() {
+                    if !self.is_type_assignable_to(param.typ.borrow(), args[i].typ.borrow()) {
+                        panic!("wrong argument"); // TODO: use error instead of panic.
+                    }
+                }
             }
         }
-        Err(Error::UndefinedIdent { token: name })
+
+        Ok(Expr {
+            typ: Rc::clone(&ret_type),
+            assignable: false,
+            kind: ExprKind::FnCall(FnCall {
+                ptr: Box::new(ptr),
+                args,
+                typ: Rc::clone(&ret_type),
+            }),
+        })
+    }
+
+    fn get_var(&self, name: &'a token::Token) -> Option<&Rc<Var>> {
+        for symbol_table in self.locals.iter().rev() {
+            if let Some(v) = symbol_table.get(name.value.as_ref().unwrap()) {
+                return Some(v);
+            }
+        }
+        None
     }
 }

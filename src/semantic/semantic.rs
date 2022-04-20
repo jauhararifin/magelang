@@ -24,9 +24,14 @@ pub struct VarDef {
 
 #[derive(Debug)]
 pub struct FnDef {
+    pub id: Rc<FnId>,
+    pub body: Statement,
+}
+
+#[derive(Debug)]
+pub struct FnId {
     pub name: String,
     pub typ: Rc<Type>,
-    pub body: Statement,
 }
 
 #[derive(Debug)]
@@ -171,7 +176,7 @@ pub struct Expr {
 #[derive(Debug)]
 pub enum ExprKind {
     BinaryOp(BinaryOp),
-    UnaryOp(UnaryOpKind),
+    UnaryOp(UnaryOp),
     FnCall(FnCall),
     BoolLit(bool),
     I8Lit(i8),
@@ -186,6 +191,7 @@ pub enum ExprKind {
     F64Lit(f32),
     StringLit(String),
     VarExpr(VarExpr),
+    FnExpr(FnExpr),
 }
 
 #[derive(Debug)]
@@ -221,7 +227,7 @@ pub enum BinaryOpKind {
 #[derive(Debug)]
 pub struct UnaryOp {
     pub kind: UnaryOpKind,
-    pub typ: Type,
+    pub typ: Rc<Type>,
     pub a: Box<Expr>,
 }
 
@@ -239,10 +245,15 @@ pub enum UnaryOpKind {
 pub struct FnCall {
     pub ptr: Box<Expr>,
     pub args: Vec<Expr>,
-    pub typ: Type,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug)]
 pub struct VarExpr {
     pub var: Rc<Var>,
+}
+
+#[derive(Debug)]
+pub struct FnExpr {
+    pub func: Rc<FnId>,
 }

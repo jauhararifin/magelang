@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::{ast::Expr, token::Token};
 
-use super::semantic::Type;
+use super::semantic::{Type, TypeKind};
 
 #[derive(Debug)]
 pub enum Error<'a> {
