@@ -95,7 +95,7 @@ pub struct VarStmt {
     pub value: Option<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Var {
     pub name: String,
     pub typ: Rc<Type>,
@@ -143,14 +143,8 @@ pub struct StructField {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FnType {
-    pub params: Vec<FnParam>,
+    pub params: Vec<Rc<Var>>,
     pub ret_type: Rc<Type>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct FnParam {
-    pub name: String,
-    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -209,6 +203,17 @@ pub enum BinaryOpKind {
     Mul,
     Div,
     Mod,
+    And,
+    BitAnd,
+    Or,
+    BitOr,
+    BitXor,
+    GT,
+    LT,
+    GTEq,
+    LTEq,
+    Eq,
+    NotEq,
     SHL,
     SHR,
 }

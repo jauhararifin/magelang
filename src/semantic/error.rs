@@ -11,5 +11,6 @@ pub enum Error<'a> {
     MismatchType { expected: Rc<Type>, got: Rc<Type> },
     UnsupportedGlobal, // TODO: support global variable?
     RedeclaredSymbol { symbol: &'a Token },
+    CannotPerformOp { typ: Rc<Type> },
     TypeCycle { token: Vec<&'a Token> },
 }

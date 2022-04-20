@@ -7,7 +7,7 @@ use crate::ast;
 use super::error::Error;
 use super::func_analyzer::FuncAnalyzer;
 use super::semantic::{
-    AssignStmt, BlockStmt, Def, Expr, ExprStmt, FloatType, FnDef, FnParam, FnType, IfStmt, IntType,
+    AssignStmt, BlockStmt, Def, Expr, ExprStmt, FloatType, FnDef, FnType, IfStmt, IntType,
     Program, Ptr, ReturnStmt, Statement, StructField, StructType, Type, TypeKind, VarDef, VarStmt,
     WhileStmt,
 };

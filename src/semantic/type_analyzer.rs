@@ -7,7 +7,7 @@ use crate::ast;
 use super::cycle;
 use super::error::Error;
 use super::semantic::{
-    FloatType, FnParam, FnType, IntType, Ptr, StructField, StructType, Type, TypeKind,
+    FloatType, FnType, IntType, Ptr, StructField, StructType, Type, TypeKind, Var,
 };
 
 pub struct TypeAnalyzer<'a> {
@@ -17,9 +17,8 @@ pub struct TypeAnalyzer<'a> {
 
     // map from type alias to its actual type.
     types: HashMap<String, Rc<Type>>,
-    // map from global & local identifier to its type.
+    // map from global identifier to its type.
     global_types: HashMap<String, Rc<Type>>,
-    local_types: HashMap<String, Rc<Type>>,
 
     pub bool_type: Rc<Type>,
     pub i8_type: Rc<Type>,
@@ -42,7 +41,6 @@ impl<'a> TypeAnalyzer<'a> {
 
             types: HashMap::new(),
             global_types: HashMap::new(),
-            local_types: HashMap::new(),
 
             bool_type: Rc::new(Type {
                 kind: TypeKind::Bool,
@@ -75,18 +73,22 @@ impl<'a> TypeAnalyzer<'a> {
         })
     }
 
+    // TODO: maybe accept a Token instead of string. and maybe return Result instead of Option.
     pub fn get_type(&self, identifier: &String) -> Option<Rc<Type>> {
-        let typ = self.local_types.get(identifier);
-        if let Some(typ) = typ {
-            return Some(Rc::clone(typ));
-        }
-
         let typ = self.global_types.get(identifier);
         if let Some(typ) = typ {
             return Some(Rc::clone(typ));
         }
 
         None
+    }
+
+    pub fn get_type_from_token(&self, ident: &'a token::Token) -> Result<Rc<Type>, Error<'a>> {
+        if let Some(typ) = self.get_type(ident.value.as_ref().unwrap()) {
+            return Ok(Rc::clone(&typ));
+        }
+
+        Err(Error::UndefinedIdent { token: ident })
     }
 
     pub fn analyze(&mut self) -> Result<HashMap<String, Rc<Type>>, Error<'a>> {
@@ -211,10 +213,10 @@ impl<'a> TypeAnalyzer<'a> {
         let mut params = Vec::new();
         for param in func.param.iter() {
             let typ = self.analyze_type(&param.typ);
-            params.push(FnParam {
+            params.push(Rc::new(Var {
                 name: param.name.value.as_ref().unwrap().clone(),
                 typ,
-            });
+            }));
         }
 
         Rc::new(Type {
