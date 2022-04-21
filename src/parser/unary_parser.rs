@@ -17,10 +17,13 @@ impl<T: Lexer> Parser<T> for UnaryParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         if let AST::Expr(expr) = data {
             if let Some(op) = self.op.take() {
-                return Ok(ParseResult::AST(AST::Expr(Expr::Unary(Unary {
-                    op,
-                    val: Box::new(expr),
-                }))));
+                return Ok(ParseResult::AST(AST::Expr(Expr {
+                    pos: op.pos,
+                    kind: ExprKind::Unary(Unary {
+                        op,
+                        val: Box::new(expr),
+                    }),
+                })));
             }
             return Ok(ParseResult::AST(AST::Expr(expr)));
         }

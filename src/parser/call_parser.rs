@@ -34,12 +34,13 @@ impl CallParser {
             self.state = CallParserState::Params;
 
             if self.check(ctx, &TokenKind::CloseBrace)?.is_some() {
-                return Ok(ParseResult::AST(AST::Expr(Expr::FunctionCall(
-                    FunctionCall {
+                return Ok(ParseResult::AST(AST::Expr(Expr {
+                    pos: self.ptr.as_ref().unwrap().pos,
+                    kind: ExprKind::FunctionCall(FunctionCall {
                         ptr: Box::new(self.ptr.take().unwrap()),
                         args: std::mem::replace(&mut self.params, vec![]),
-                    },
-                ))));
+                    }),
+                })));
             }
             return Ok(ParseResult::Push(ExprParser::new()));
         }
@@ -54,12 +55,13 @@ impl CallParser {
         if let TokenKind::Comma = token.kind {
             return Ok(ParseResult::Push(ExprParser::new()));
         } else {
-            return Ok(ParseResult::AST(AST::Expr(Expr::FunctionCall(
-                FunctionCall {
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: self.ptr.as_ref().unwrap().pos,
+                kind: ExprKind::FunctionCall(FunctionCall {
                     ptr: Box::new(self.ptr.take().unwrap()),
                     args: std::mem::replace(&mut self.params, vec![]),
-                },
-            ))));
+                }),
+            })));
         }
     }
 }

@@ -48,6 +48,8 @@ impl<T: Read> SimpleLexer<T> {
         while self.char_offset < size {
             let c = self.char_posts[self.char_offset].val;
 
+            self.token_eoi.pos = self.char_posts[self.char_offset].pos;
+
             if self.next_is("//") {
                 self.consume_comment();
             } else if self.next_in("0123456789") {
@@ -313,11 +315,7 @@ impl<T: Read> Lexer for SimpleLexer<T> {
             return Ok(token);
         }
 
-        return Ok(Token {
-            kind: TokenKind::EOI,
-            value: None,
-            pos: Pos { line: 0, col: 0 },
-        });
+        return Ok(self.token_eoi.clone());
     }
 
     fn peek(&mut self) -> Result<&Token, Error> {

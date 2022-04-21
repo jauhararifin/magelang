@@ -19,27 +19,45 @@ impl<T: Lexer> Parser<T> for PrimaryParser {
         }
 
         if let Some(token) = self.check(ctx, &TokenKind::IntegerLit)? {
-            return Ok(ParseResult::AST(AST::Expr(Expr::IntegerLit(token))));
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: token.pos,
+                kind: ExprKind::IntegerLit(token),
+            })));
         }
 
         if let Some(token) = self.check(ctx, &TokenKind::FloatLit)? {
-            return Ok(ParseResult::AST(AST::Expr(Expr::FloatLit(token))));
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: token.pos,
+                kind: ExprKind::FloatLit(token),
+            })));
         }
 
         if let Some(token) = self.check(ctx, &TokenKind::StringLit)? {
-            return Ok(ParseResult::AST(AST::Expr(Expr::StringLit(token))));
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: token.pos,
+                kind: ExprKind::StringLit(token),
+            })));
         }
 
         if let Some(token) = self.check(ctx, &TokenKind::True)? {
-            return Ok(ParseResult::AST(AST::Expr(Expr::BoolLit(token))));
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: token.pos,
+                kind: ExprKind::BoolLit(token),
+            })));
         }
 
         if let Some(token) = self.check(ctx, &TokenKind::False)? {
-            return Ok(ParseResult::AST(AST::Expr(Expr::BoolLit(token))));
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: token.pos,
+                kind: ExprKind::BoolLit(token),
+            })));
         }
 
         if let Some(token) = self.check(ctx, &TokenKind::Ident)? {
-            return Ok(ParseResult::AST(AST::Expr(Expr::Ident(token))));
+            return Ok(ParseResult::AST(AST::Expr(Expr {
+                pos: token.pos,
+                kind: ExprKind::Ident(token),
+            })));
         }
 
         if let Some(_) = self.check(ctx, &TokenKind::OpenBrace)? {

@@ -35,10 +35,13 @@ impl CastParser {
     }
 
     fn parse_type<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        Ok(ParseResult::AST(AST::Expr(Expr::Cast(Cast {
-            target: Type::from(data),
-            val: Box::new(self.val.take().unwrap()),
-        }))))
+        Ok(ParseResult::AST(AST::Expr(Expr {
+            pos: self.val.as_ref().unwrap().pos,
+            kind: ExprKind::Cast(Cast {
+                target: Type::from(data),
+                val: Box::new(self.val.take().unwrap()),
+            }),
+        })))
     }
 }
 

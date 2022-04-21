@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::token::{Pos, Token};
 
 #[derive(Debug, Clone)]
 pub struct Root {
@@ -94,7 +94,13 @@ pub struct While {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub struct Expr {
+    pub kind: ExprKind,
+    pub pos: Pos,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExprKind {
     Ident(Token),
     IntegerLit(Token),
     FloatLit(Token),

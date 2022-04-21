@@ -1,5 +1,5 @@
-use super::Pos;
 use std::{fmt, io};
+use super::token::Pos;
 
 #[derive(Debug)]
 pub enum Error {

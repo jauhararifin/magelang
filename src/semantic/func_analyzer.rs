@@ -123,6 +123,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         if !target.assignable {
             return Err(Error::CannotAssignToValue {
                 expr: &stmt.receiver,
+                pos: &stmt.op.pos,
             });
         }
 
@@ -131,6 +132,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             return Err(Error::MismatchType {
                 expected: Rc::clone(&target.typ),
                 got: Rc::clone(&value.typ),
+                pos: &stmt.value.pos,
             });
         }
 
@@ -164,6 +166,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             return Err(Error::MismatchType {
                 expected: Rc::clone(ret_type),
                 got: Rc::clone(&value.typ),
+                pos: &stmt.value.pos,
             });
         }
 
@@ -176,6 +179,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             return Err(Error::MismatchType {
                 expected: Rc::clone(&self.type_analyzer.bool_type),
                 got: Rc::clone(&cond.typ),
+                pos: &stmt.cond.pos,
             });
         }
 
@@ -189,6 +193,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             return Err(Error::MismatchType {
                 expected: Rc::clone(&self.type_analyzer.bool_type),
                 got: Rc::clone(&cond.typ),
+                pos: &stmt.cond.pos,
             });
         }
 
@@ -223,16 +228,16 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
     }
 
     fn analyze_expr(&mut self, expr: &'a ast::Expr) -> Result<Expr, Error<'a>> {
-        match expr {
-            ast::Expr::Ident(expr) => self.analyze_ident_expr(expr),
-            ast::Expr::IntegerLit(expr) => self.analyze_int_lit_expr(expr),
-            ast::Expr::FloatLit(expr) => self.analyze_float_lit_expr(expr),
-            ast::Expr::BoolLit(expr) => self.analyze_bool_lit_expr(expr),
-            ast::Expr::Binary(expr) => self.analyze_binary_expr(expr),
-            ast::Expr::Unary(expr) => self.analyze_unary_expr(expr),
-            ast::Expr::FunctionCall(expr) => self.analyze_func_call_expr(expr),
-            ast::Expr::Cast(expr) => self.analyze_cast_expr(expr),
-            ast::Expr::Selector(expr) => self.analyze_selector_expr(expr),
+        match &expr.kind {
+            ast::ExprKind::Ident(expr) => self.analyze_ident_expr(expr),
+            ast::ExprKind::IntegerLit(expr) => self.analyze_int_lit_expr(expr),
+            ast::ExprKind::FloatLit(expr) => self.analyze_float_lit_expr(expr),
+            ast::ExprKind::BoolLit(expr) => self.analyze_bool_lit_expr(expr),
+            ast::ExprKind::Binary(expr) => self.analyze_binary_expr(expr),
+            ast::ExprKind::Unary(expr) => self.analyze_unary_expr(expr),
+            ast::ExprKind::FunctionCall(expr) => self.analyze_func_call_expr(expr),
+            ast::ExprKind::Cast(expr) => self.analyze_cast_expr(expr),
+            ast::ExprKind::Selector(expr) => self.analyze_selector_expr(expr),
             x => unimplemented!("{:?}", x),
         }
     }
@@ -280,12 +285,14 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 if !matches!(a_expr.typ.kind, TypeKind::Int(_) | TypeKind::Float(_)) {
                     return Err(Error::CannotPerformOp {
                         typ: Rc::clone(&a_expr.typ),
+                        pos: &binary.op.pos,
                     });
                 }
                 if a_expr.typ != b_expr.typ {
                     return Err(Error::MismatchType {
                         expected: Rc::clone(&a_expr.typ),
                         got: Rc::clone(&b_expr.typ),
+                        pos: &binary.b.pos,
                     });
                 }
 
@@ -302,14 +309,22 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 }
             }
             token::TokenKind::And | token::TokenKind::Or => {
-                if a_expr.typ != self.type_analyzer.bool_type
-                    || b_expr.typ != self.type_analyzer.bool_type
-                {
+                if a_expr.typ != self.type_analyzer.bool_type{
                     return Err(Error::MismatchType {
                         expected: Rc::clone(&self.type_analyzer.bool_type),
                         got: Rc::clone(&a_expr.typ),
+                        pos: &binary.a.pos,
                     });
                 }
+
+                if b_expr.typ != self.type_analyzer.bool_type {
+                    return Err(Error::MismatchType {
+                        expected: Rc::clone(&self.type_analyzer.bool_type),
+                        got: Rc::clone(&a_expr.typ),
+                        pos: &binary.b.pos,
+                    });
+                }
+
                 Rc::clone(&self.type_analyzer.bool_type)
             }
             token::TokenKind::Eq | token::TokenKind::NotEq => {
@@ -317,6 +332,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                     return Err(Error::MismatchType {
                         expected: Rc::clone(&a_expr.typ),
                         got: Rc::clone(&b_expr.typ),
+                        pos: &binary.b.pos,
                     });
                 }
                 Rc::clone(&self.type_analyzer.bool_type)
@@ -403,6 +419,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 if !matches!(val_expr.typ.kind, TypeKind::Int(_) | TypeKind::Float(_)) {
                     return Err(Error::CannotPerformOp {
                         typ: Rc::clone(&val_expr.typ),
+                        pos: &unary.op.pos,
                     });
                 }
                 Rc::clone(&val_expr.typ)
@@ -413,6 +430,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 } else {
                     return Err(Error::CannotPerformOp {
                         typ: Rc::clone(&val_expr.typ),
+                        pos: &unary.op.pos,
                     });
                 }
             }
@@ -514,6 +532,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         return Err(Error::UnsupportedCast {
             target: Rc::clone(&target_type),
             source: Rc::clone(&source_expr.typ),
+            pos: &cast.val.pos,
         });
     }
 

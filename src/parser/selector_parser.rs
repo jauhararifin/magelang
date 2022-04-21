@@ -16,10 +16,13 @@ impl<T: Lexer> Parser<T> for SelectorParser {
         if let AST::Expr(expr) = data {
             if self.check(ctx, &TokenKind::Dot)?.is_some() {
                 let selection = self.expect(ctx, TokenKind::Ident)?;
-                return Ok(ParseResult::AST(AST::Expr(Expr::Selector(Selector {
-                    source: Box::new(expr),
-                    selection,
-                }))));
+                return Ok(ParseResult::AST(AST::Expr(Expr {
+                    pos: expr.pos,
+                    kind: ExprKind::Selector(Selector {
+                        source: Box::new(expr),
+                        selection,
+                    }),
+                })));
             }
             return Ok(ParseResult::AST(AST::Expr(expr)));
         }
