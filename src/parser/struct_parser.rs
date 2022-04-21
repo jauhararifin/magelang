@@ -1,5 +1,5 @@
 use super::param_parser::ParamParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::TokenKind;
@@ -15,8 +15,8 @@ impl StructParser {
 }
 
 impl<T: Lexer> Parser<T> for StructParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Param(param) = data {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
+        if let Ast::Param(param) = data {
             self.params.push(param);
 
             self.consume_endl(ctx)?;
@@ -30,7 +30,7 @@ impl<T: Lexer> Parser<T> for StructParser {
             };
 
             if is_end {
-                return Ok(ParseResult::AST(AST::Struct(Struct {
+                return Ok(ParseResult::Ast(Ast::Struct(Struct {
                     fields: std::mem::take(&mut self.params),
                 })));
             } else {
@@ -45,7 +45,7 @@ impl<T: Lexer> Parser<T> for StructParser {
         self.consume_endl(ctx)?;
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-            Ok(ParseResult::AST(AST::Struct(Struct {
+            Ok(ParseResult::Ast(Ast::Struct(Struct {
                 fields: std::mem::take(&mut self.params),
             })))
         } else {

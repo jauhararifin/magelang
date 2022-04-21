@@ -5,7 +5,7 @@ use crate::{
     token::{Pos, Token},
 };
 
-use super::semantic::Type;
+use super::repr::Type;
 
 #[derive(Debug)]
 pub enum Error<'a> {

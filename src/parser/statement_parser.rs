@@ -3,7 +3,7 @@ use super::if_parser::IfParser;
 use super::return_parser::ReturnParser;
 use super::var_parser::VarParser;
 use super::while_parser::WhileParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::Statement;
 use crate::lexer::Lexer;
 use crate::token::TokenKind;
@@ -17,16 +17,16 @@ impl StatementParser {
 }
 
 impl<T: Lexer> Parser<T> for StatementParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match data {
-            AST::Var(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::Var(stmt)))),
-            AST::Assign(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::Assign(stmt)))),
-            AST::Return(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::Return(stmt)))),
-            AST::If(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::If(stmt)))),
-            AST::While(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::While(stmt)))),
-            AST::BlockStatement(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::Block(stmt)))),
-            AST::Expr(stmt) => return Ok(ParseResult::AST(AST::Statement(Statement::Expr(stmt)))),
-            AST::Statement(stmt) => return Ok(ParseResult::AST(AST::Statement(stmt))),
+            Ast::Var(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::Var(stmt)))),
+            Ast::Assign(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::Assign(stmt)))),
+            Ast::Return(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::Return(stmt)))),
+            Ast::If(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::If(stmt)))),
+            Ast::While(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::While(stmt)))),
+            Ast::BlockStatement(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::Block(stmt)))),
+            Ast::Expr(stmt) => return Ok(ParseResult::Ast(Ast::Statement(Statement::Expr(stmt)))),
+            Ast::Statement(stmt) => return Ok(ParseResult::Ast(Ast::Statement(stmt))),
             _ => {},
         }
 

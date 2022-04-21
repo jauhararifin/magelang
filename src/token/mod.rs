@@ -1,3 +1,3 @@
-mod token;
+mod repr;
 
-pub use token::{Pos, Token, TokenKind};
+pub use repr::{Pos, Token, TokenKind};

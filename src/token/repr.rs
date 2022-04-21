@@ -38,7 +38,7 @@ pub enum TokenKind {
     CloseBlock,
     Assign,
     Endl,
-    EOI,
+    Eoi,
     Comma,
     Colon,
     Dot,

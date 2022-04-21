@@ -1,6 +1,6 @@
 use super::fn_parser::FnParser;
 use super::type_parser::TypeDeclParser;
-use super::{Context, Error, ParseResult, Parser, AST};
+use super::{Context, Error, ParseResult, Parser, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::parser::var_parser::VarParser;
@@ -19,20 +19,20 @@ impl RootParser {
 }
 
 impl<T: Lexer> Parser<T> for RootParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<ParseResult<T>, Error> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<ParseResult<T>, Error> {
         match data {
-            AST::FnDecl(decl) => self.declarations.push(Declaration::Fn(decl)),
-            AST::Var(decl) => self.declarations.push(Declaration::Var(decl)),
-            AST::TypeDecl(decl) => self.declarations.push(Declaration::Type(decl)),
-            AST::Empty => (),
+            Ast::FnDecl(decl) => self.declarations.push(Declaration::Fn(decl)),
+            Ast::Var(decl) => self.declarations.push(Declaration::Var(decl)),
+            Ast::TypeDecl(decl) => self.declarations.push(Declaration::Type(decl)),
+            Ast::Empty => (),
             _ => panic!("got {:?} instead of declaration", data),
         }
 
         loop {
             let token = ctx.lexer.peek()?;
             match token.kind {
-                TokenKind::EOI => {
-                    return Ok(ParseResult::AST(AST::Root(Root {
+                TokenKind::Eoi => {
+                    return Ok(ParseResult::Ast(Ast::Root(Root {
                         declarations: std::mem::take(&mut self.declarations),
                     })));
                 }

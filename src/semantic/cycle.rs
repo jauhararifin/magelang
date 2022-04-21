@@ -18,7 +18,7 @@ pub fn analyze(root_ast: &Root) -> Result {
     Ok(())
 }
 
-fn build_dependency_list<'a>(root_ast: &'a Root) -> (DependencyList<'a>, TokenMap<'a>) {
+fn build_dependency_list(root_ast: &Root) -> (DependencyList, TokenMap) {
     let mut dependency = DependencyList::new();
     let mut token_map = HashMap::new();
     let types = root_ast.declarations.iter().filter_map(|decl| {
@@ -41,7 +41,7 @@ fn build_dependency_list<'a>(root_ast: &'a Root) -> (DependencyList<'a>, TokenMa
     (dependency, token_map)
 }
 
-fn get_type_dependency_names<'a>(typ: &'a ast::Type) -> LinkedList<&'a Token> {
+fn get_type_dependency_names(typ: &ast::Type) -> LinkedList<&Token> {
     let mut result = LinkedList::new();
 
     if let ast::Type::Ident(id) = typ {
@@ -92,7 +92,7 @@ fn check_dependency_cycle<'a>(
         parents.insert(name as &'a String, None);
     }
 
-    let mut dfs = DFS {
+    let mut dfs = Dfs {
         dependency,
         token_map,
         ident_status,
@@ -107,14 +107,14 @@ fn check_dependency_cycle<'a>(
     Ok(())
 }
 
-struct DFS<'a, 'b> {
+struct Dfs<'a, 'b> {
     dependency: &'b DependencyList<'a>,
     token_map: &'b TokenMap<'a>,
     ident_status: HashMap<&'a String, Status>,
     parents: HashMap<&'a String, Option<&'a String>>,
 }
 
-impl<'a, 'b> DFS<'a, 'b> {
+impl<'a, 'b> Dfs<'a, 'b> {
     fn dfs(&mut self, node: &'a String) -> Result<'a> {
         self.ident_status.insert(node, Status::Entered);
 

@@ -1,5 +1,5 @@
 use super::call_parser::CallParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -15,10 +15,10 @@ impl UnaryParser {
 }
 
 impl<T: Lexer> Parser<T> for UnaryParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Expr(expr) = data {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
+        if let Ast::Expr(expr) = data {
             if let Some(op) = self.op.take() {
-                return Ok(ParseResult::AST(AST::Expr(Expr {
+                return Ok(ParseResult::Ast(Ast::Expr(Expr {
                     pos: op.pos,
                     kind: ExprKind::Unary(Unary {
                         op,
@@ -26,7 +26,7 @@ impl<T: Lexer> Parser<T> for UnaryParser {
                     }),
                 })));
             }
-            return Ok(ParseResult::AST(AST::Expr(expr)));
+            return Ok(ParseResult::Ast(Ast::Expr(expr)));
         }
 
         let token = ctx.lexer.peek()?;

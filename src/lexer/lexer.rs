@@ -36,7 +36,7 @@ impl<T: Read> SimpleLexer<T> {
 
             tokens: VecDeque::new(),
             token_eoi: Token {
-                kind: TokenKind::EOI,
+                kind: TokenKind::Eoi,
                 value: None,
                 pos: Pos { line: 0, col: 0 },
             },

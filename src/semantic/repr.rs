@@ -56,8 +56,8 @@ pub enum AssignKind {
     Mul,
     Div,
     Mod,
-    SHR,
-    SHL,
+    Shr,
+    Shl,
     BitAnd,
     BitXor,
     BitOr,
@@ -205,8 +205,8 @@ pub enum BinaryOpKind {
     LTEq,
     Eq,
     NotEq,
-    SHL,
-    SHR,
+    Shl,
+    Shr,
 }
 
 #[derive(Debug)]

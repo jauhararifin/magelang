@@ -6,7 +6,7 @@ use crate::ast;
 
 use super::cycle;
 use super::error::Error;
-use super::semantic::{
+use super::repr::{
     FloatType, FnType, IntType, Ptr, StructField, StructType, Type, TypeKind, Var,
 };
 

@@ -1,5 +1,5 @@
 use super::statement_parser::StatementParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::TokenKind;
@@ -26,18 +26,18 @@ impl BlockStatementParser {
         self.expect(ctx, TokenKind::OpenBlock)?;
 
         self.state = BlockStatementParserState::Body;
-        self.parse_block_body(ctx, AST::Empty)
+        self.parse_block_body(ctx, Ast::Empty)
     }
 
-    fn parse_block_body<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if !matches!(data, AST::Empty) {
+    fn parse_block_body<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
+        if !matches!(data, Ast::Empty) {
             self.body.push(Statement::from(data))
         }
 
         while self.check(ctx, &TokenKind::Endl)?.is_some() {}
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-            return Ok(ParseResult::AST(AST::BlockStatement(BlockStatement {
+            return Ok(ParseResult::Ast(Ast::BlockStatement(BlockStatement {
                 body: std::mem::take(&mut self.body),
             })));
         }
@@ -47,7 +47,7 @@ impl BlockStatementParser {
 }
 
 impl<T: Lexer> Parser<T> for BlockStatementParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match self.state {
             BlockStatementParserState::Open => self.parse_block_open(ctx),
             BlockStatementParserState::Body => self.parse_block_body(ctx, data),

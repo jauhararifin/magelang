@@ -1,4 +1,3 @@
-use crate::semantic::semantic::{AssignKind, BinaryOpKind, CastExpr, FnCall, Statement};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -6,9 +5,10 @@ use std::rc::Rc;
 use crate::{ast, token};
 
 use super::error::Error;
-use super::semantic::{
-    AssignStmt, BinaryOp, BlockStmt, Expr, ExprKind, ExprStmt, FnDef, FnExpr, FnId, IfStmt,
-    ReturnStmt, Type, TypeKind, UnaryOp, UnaryOpKind, Var, VarExpr, VarStmt, WhileStmt,
+use super::repr::{
+    AssignKind, AssignStmt, BinaryOp, BinaryOpKind, BlockStmt, CastExpr, Expr, ExprKind, ExprStmt,
+    FnCall, FnDef, FnExpr, FnId, IfStmt, ReturnStmt, Statement, Type, TypeKind, UnaryOp,
+    UnaryOpKind, Var, VarExpr, VarStmt, WhileStmt,
 };
 use super::type_analyzer::TypeAnalyzer;
 
@@ -146,8 +146,8 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             token::TokenKind::BitAndAssign => AssignKind::BitAnd,
             token::TokenKind::BitOrAssign => AssignKind::BitOr,
             token::TokenKind::BitXorAssign => AssignKind::BitXor,
-            token::TokenKind::ShlAssign => AssignKind::SHL,
-            token::TokenKind::ShrAssign => AssignKind::SHR,
+            token::TokenKind::ShlAssign => AssignKind::Shl,
+            token::TokenKind::ShrAssign => AssignKind::Shr,
             _ => panic!("found assign operator {:?}", stmt.op.kind),
         };
 
@@ -309,7 +309,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 }
             }
             token::TokenKind::And | token::TokenKind::Or => {
-                if a_expr.typ != self.type_analyzer.bool_type{
+                if a_expr.typ != self.type_analyzer.bool_type {
                     return Err(Error::MismatchType {
                         expected: Rc::clone(&self.type_analyzer.bool_type),
                         got: Rc::clone(&a_expr.typ),
@@ -349,8 +349,8 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             token::TokenKind::BitAnd => BinaryOpKind::BitAnd,
             token::TokenKind::BitOr => BinaryOpKind::BitOr,
             token::TokenKind::BitXor => BinaryOpKind::BitXor,
-            token::TokenKind::Shl => BinaryOpKind::SHL,
-            token::TokenKind::Shr => BinaryOpKind::SHR,
+            token::TokenKind::Shl => BinaryOpKind::Shl,
+            token::TokenKind::Shr => BinaryOpKind::Shr,
             token::TokenKind::GT => BinaryOpKind::GT,
             token::TokenKind::LT => BinaryOpKind::LT,
             token::TokenKind::GTEq => BinaryOpKind::GTEq,

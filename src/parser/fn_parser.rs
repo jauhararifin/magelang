@@ -1,7 +1,7 @@
 use super::block_parser::BlockStatementParser;
 use super::param_parser::ParamParser;
 use super::type_parser::TypeParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -59,7 +59,7 @@ impl FnParser {
         Ok(ParseResult::Push(TypeParser::new()))
     }
 
-    fn parse_fn_param<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse_fn_param<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         let param = Param::from(data);
         self.params.push(param);
 
@@ -71,7 +71,7 @@ impl FnParser {
         self.parse_after_close_brace(ctx)
     }
 
-    fn parse_fn_return<T: Lexer>(&mut self, data: AST) -> Result<T> {
+    fn parse_fn_return<T: Lexer>(&mut self, data: Ast) -> Result<T> {
         let typ = Type::from(data);
         self.return_type = Some(typ);
 
@@ -79,11 +79,11 @@ impl FnParser {
         Ok(ParseResult::Push(BlockStatementParser::new()))
     }
 
-    fn parse_fn_body<T: Lexer>(&mut self, data: AST) -> Result<T> {
+    fn parse_fn_body<T: Lexer>(&mut self, data: Ast) -> Result<T> {
         let body = BlockStatement::from(data);
         self.body = Some(body);
 
-        Ok(ParseResult::AST(AST::FnDecl(
+        Ok(ParseResult::Ast(Ast::FnDecl(
             FnDecl {
                 name: self.name.take().unwrap(),
                 param: std::mem::take(&mut self.params),
@@ -95,7 +95,7 @@ impl FnParser {
 }
 
 impl<T: Lexer> Parser<T> for FnParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match &self.state {
             FnParserState::Name => self.parse_fn_name(ctx),
             FnParserState::Param => self.parse_fn_param(ctx, data),

@@ -1,5 +1,5 @@
 use super::expr_parser::ExprParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -30,7 +30,7 @@ impl AssignParser {
         Ok(ParseResult::Push(ExprParser::new()))
     }
 
-    fn parse_assign_op<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse_assign_op<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         let expr: Expr = data.into();
 
         if let Some(assign_token) = self.check_one_of(
@@ -53,14 +53,14 @@ impl AssignParser {
             self.state = AssignParserState::Value;
             Ok(ParseResult::Push(ExprParser::new()))
         } else {
-            Ok(ParseResult::AST(AST::Statement(Statement::Expr(expr))))
+            Ok(ParseResult::Ast(Ast::Statement(Statement::Expr(expr))))
         }
     }
 
-    fn parse_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         let value = Expr::from(data);
         self.consume_endl(ctx)?;
-        Ok(ParseResult::AST(AST::Assign(Assign {
+        Ok(ParseResult::Ast(Ast::Assign(Assign {
             receiver: self.receiver.take().unwrap(),
             op: self.assign_token.take().unwrap(),
             value,
@@ -69,7 +69,7 @@ impl AssignParser {
 }
 
 impl<T: Lexer> Parser<T> for AssignParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match self.state {
             AssignParserState::Receiver => self.parse_receiver(),
             AssignParserState::AssignOp => self.parse_assign_op(ctx, data),

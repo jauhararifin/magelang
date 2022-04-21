@@ -28,7 +28,7 @@ use root_parser::RootParser;
 type Result<T> = std::result::Result<ParseResult<T>, Error>;
 
 pub trait Parser<T: Lexer> {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T>;
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T>;
 
     fn expect(&self, ctx: &mut Context<T>, kind: TokenKind) -> std::result::Result<Token, Error> {
         let token = ctx.lexer.next()?;
@@ -105,7 +105,7 @@ pub struct Context<T: Lexer> {
 
 pub enum ParseResult<T: Lexer> {
     Push(Box<dyn Parser<T>>),
-    AST(ast::AST),
+    Ast(ast::Ast),
 }
 
 pub struct SimpleParser<T: Lexer> {
@@ -124,22 +124,22 @@ impl<T: Lexer> ast::Parser for SimpleParser<T> {
     fn parse(&mut self) -> std::result::Result<Root, ast::Error> {
         let mut stack: Vec<Box<dyn Parser<T>>> = vec![RootParser::new()];
 
-        let mut data = AST::Empty;
+        let mut data = Ast::Empty;
         while let Some(mut parser) = stack.pop() {
             let result = parser.parse(&mut self.context, data)?;
             match result {
                 ParseResult::Push(new_parser) => {
                     stack.push(parser);
                     stack.push(new_parser);
-                    data = AST::Empty;
+                    data = Ast::Empty;
                 }
-                ParseResult::AST(ast) => {
+                ParseResult::Ast(ast) => {
                     data = ast;
                 }
             }
         }
 
-        if let AST::Root(result) = data {
+        if let Ast::Root(result) = data {
             return Ok(result);
         }
 

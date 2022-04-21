@@ -1,6 +1,6 @@
 use super::expr_parser::ExprParser;
 use super::primary_parser::PrimaryParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::TokenKind;
@@ -25,17 +25,17 @@ impl CallParser {
         })
     }
 
-    fn parse_fn_ptr<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Expr(expr) = data {
+    fn parse_fn_ptr<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
+        if let Ast::Expr(expr) = data {
             if self.check(ctx, &TokenKind::OpenBrace)?.is_none() {
-                return Ok(ParseResult::AST(AST::Expr(expr)));
+                return Ok(ParseResult::Ast(Ast::Expr(expr)));
             }
 
             self.ptr = Some(expr);
             self.state = CallParserState::Params;
 
             if self.check(ctx, &TokenKind::CloseBrace)?.is_some() {
-                return Ok(ParseResult::AST(AST::Expr(Expr {
+                return Ok(ParseResult::Ast(Ast::Expr(Expr {
                     pos: self.ptr.as_ref().unwrap().pos,
                     kind: ExprKind::FunctionCall(FunctionCall {
                         ptr: Box::new(self.ptr.take().unwrap()),
@@ -48,7 +48,7 @@ impl CallParser {
         Ok(ParseResult::Push(PrimaryParser::new()))
     }
 
-    fn parse_fn_params<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse_fn_params<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         let expr = Expr::from(data);
         self.params.push(expr);
 
@@ -56,7 +56,7 @@ impl CallParser {
         if let TokenKind::Comma = token.kind {
             Ok(ParseResult::Push(ExprParser::new()))
         } else {
-            return Ok(ParseResult::AST(AST::Expr(Expr {
+            return Ok(ParseResult::Ast(Ast::Expr(Expr {
                 pos: self.ptr.as_ref().unwrap().pos,
                 kind: ExprKind::FunctionCall(FunctionCall {
                     ptr: Box::new(self.ptr.take().unwrap()),
@@ -68,7 +68,7 @@ impl CallParser {
 }
 
 impl<T: Lexer> Parser<T> for CallParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match self.state {
             CallParserState::Ptr => self.parse_fn_ptr(ctx, data),
             CallParserState::Params => self.parse_fn_params(ctx, data),

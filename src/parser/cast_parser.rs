@@ -1,5 +1,5 @@
 use super::selector_parser::SelectorParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::parser::type_parser::TypeParser;
 use crate::lexer::Lexer;
@@ -23,20 +23,20 @@ impl CastParser {
         })
     }
 
-    fn parse_expr<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Expr(expr) = data {
+    fn parse_expr<T: Lexer>(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
+        if let Ast::Expr(expr) = data {
             if self.check(ctx, &TokenKind::As)?.is_some() {
                 self.val = Some(expr);
                 self.state = CastParserState::Type;
                 return Ok(ParseResult::Push(TypeParser::new()));
             }
-            return Ok(ParseResult::AST(AST::Expr(expr)));
+            return Ok(ParseResult::Ast(Ast::Expr(expr)));
         }
         Ok(ParseResult::Push(SelectorParser::new()))
     }
 
-    fn parse_type<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        Ok(ParseResult::AST(AST::Expr(Expr {
+    fn parse_type<T: Lexer>(&mut self, data: Ast) -> Result<T> {
+        Ok(ParseResult::Ast(Ast::Expr(Expr {
             pos: self.val.as_ref().unwrap().pos,
             kind: ExprKind::Cast(Cast {
                 target: Type::from(data),
@@ -47,7 +47,7 @@ impl CastParser {
 }
 
 impl<T: Lexer> Parser<T> for CastParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match self.state {
             CastParserState::Expr => self.parse_expr(ctx, data),
             CastParserState::Type => self.parse_type(data),

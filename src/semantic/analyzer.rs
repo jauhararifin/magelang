@@ -2,7 +2,7 @@ use crate::ast;
 
 use super::error::Error;
 use super::func_analyzer::FuncAnalyzer;
-use super::semantic::Program;
+use super::repr::Program;
 use super::type_analyzer::TypeAnalyzer;
 
 pub struct SimpleAnalyzer {}

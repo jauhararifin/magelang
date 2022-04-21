@@ -151,7 +151,7 @@ pub struct BlockStatement {
 }
 
 #[derive(Debug)]
-pub enum AST {
+pub enum Ast {
     Root(Root),
     FnDecl(FnDecl),
     Var(Var),
@@ -171,9 +171,9 @@ pub enum AST {
 
 macro_rules! from_ast {
     ($target: ident) => {
-        impl From<AST> for $target {
-            fn from(ast: AST) -> $target {
-                if let AST::$target(inner) = ast {
+        impl From<Ast> for $target {
+            fn from(ast: Ast) -> $target {
+                if let Ast::$target(inner) = ast {
                     inner
                 } else {
                     panic!("invalid conversion from AST to $target");

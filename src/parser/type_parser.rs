@@ -1,5 +1,5 @@
 use super::struct_parser::StructParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -35,7 +35,7 @@ impl TypeParser {
             }
             TokenKind::Ident => {
                 let token = ctx.lexer.next()?;
-                Ok(ParseResult::AST(AST::Type(Type::Ident(token))))
+                Ok(ParseResult::Ast(Ast::Type(Type::Ident(token))))
             }
             TokenKind::I8
             | TokenKind::I16
@@ -47,7 +47,7 @@ impl TypeParser {
             | TokenKind::U64
             | TokenKind::Bool => {
                 let token = ctx.lexer.next()?;
-                Ok(ParseResult::AST(AST::Type(Type::Primitive(token))))
+                Ok(ParseResult::Ast(Ast::Type(Type::Primitive(token))))
             }
             _ => {
                 let token = ctx.lexer.next()?;
@@ -72,21 +72,21 @@ impl TypeParser {
         }
     }
 
-    fn parse_ptr<T: Lexer>(&mut self, data: AST) -> Result<T> {
+    fn parse_ptr<T: Lexer>(&mut self, data: Ast) -> Result<T> {
         let t = Type::from(data);
-        Ok(ParseResult::AST(AST::Type(Type::Pointer(Pointer {
+        Ok(ParseResult::Ast(Ast::Type(Type::Pointer(Pointer {
             elem: Box::new(t),
         }))))
     }
 
-    fn parse_struct<T: Lexer>(&mut self, data: AST) -> Result<T> {
+    fn parse_struct<T: Lexer>(&mut self, data: Ast) -> Result<T> {
         let t = Struct::from(data);
-        Ok(ParseResult::AST(AST::Type(Type::Struct(t))))
+        Ok(ParseResult::Ast(Ast::Type(Type::Struct(t))))
     }
 }
 
 impl<T: Lexer> Parser<T> for TypeParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match self.state {
             TypeParserState::Init => self.parse_init(ctx),
             TypeParserState::Ptr => self.parse_ptr(data),
@@ -106,9 +106,9 @@ impl TypeDeclParser {
 }
 
 impl<T: Lexer> Parser<T> for TypeDeclParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Type(typ) = data {
-            return Ok(ParseResult::AST(AST::TypeDecl(TypeDecl {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
+        if let Ast::Type(typ) = data {
+            return Ok(ParseResult::Ast(Ast::TypeDecl(TypeDecl {
                 name: self.name.take().unwrap(),
                 typ,
             })));

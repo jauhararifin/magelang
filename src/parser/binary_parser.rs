@@ -1,5 +1,5 @@
 use super::cast_parser::CastParser;
-use super::{Context, ParseResult, Parser, Result, AST};
+use super::{Context, ParseResult, Parser, Result, Ast};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -35,8 +35,8 @@ impl<T: BinaryParserConfig> BinaryParser<T> {
         }
     }
 
-    fn parse_logical_and_a<L: Lexer>(&mut self, ctx: &mut Context<L>, data: AST) -> Result<L> {
-        if let AST::Expr(expr) = data {
+    fn parse_logical_and_a<L: Lexer>(&mut self, ctx: &mut Context<L>, data: Ast) -> Result<L> {
+        if let Ast::Expr(expr) = data {
             for op in self.config.get_op_kinds().iter() {
                 if let Some(op) = self.check(ctx, op)? {
                     self.a_expr = Some(expr);
@@ -45,14 +45,14 @@ impl<T: BinaryParserConfig> BinaryParser<T> {
                     return Ok(ParseResult::Push(self.config.get_next_parser()));
                 }
             }
-            return Ok(ParseResult::AST(AST::Expr(expr)));
+            return Ok(ParseResult::Ast(Ast::Expr(expr)));
         }
         return Ok(ParseResult::Push(self.config.get_next_parser()));
     }
 
-    fn parse_logical_and_b<L: Lexer>(&mut self, _: &mut Context<L>, data: AST) -> Result<L> {
+    fn parse_logical_and_b<L: Lexer>(&mut self, _: &mut Context<L>, data: Ast) -> Result<L> {
         let expr = Expr::from(data);
-        Ok(ParseResult::AST(AST::Expr(Expr {
+        Ok(ParseResult::Ast(Ast::Expr(Expr {
             pos: self.a_expr.as_ref().unwrap().pos,
             kind: ExprKind::Binary(Binary {
                 op: self.op_token.take().unwrap(),
@@ -64,7 +64,7 @@ impl<T: BinaryParserConfig> BinaryParser<T> {
 }
 
 impl<T: BinaryParserConfig, L: Lexer> Parser<L> for BinaryParser<T> {
-    fn parse(&mut self, ctx: &mut Context<L>, data: AST) -> Result<L> {
+    fn parse(&mut self, ctx: &mut Context<L>, data: Ast) -> Result<L> {
         match self.state {
             BinaryParserState::A => self.parse_logical_and_a(ctx, data),
             BinaryParserState::B => self.parse_logical_and_b(ctx, data),
@@ -94,7 +94,7 @@ impl LogicalOrParser {
 }
 
 impl<T: Lexer> Parser<T> for LogicalOrParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -121,7 +121,7 @@ impl LogicalAndParser {
 }
 
 impl<T: Lexer> Parser<T> for LogicalAndParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -148,7 +148,7 @@ impl BitOrParser {
 }
 
 impl<T: Lexer> Parser<T> for BitOrParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -175,7 +175,7 @@ impl BitXorParser {
 }
 
 impl<T: Lexer> Parser<T> for BitXorParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -202,7 +202,7 @@ impl BitAndParser {
 }
 
 impl<T: Lexer> Parser<T> for BitAndParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -229,7 +229,7 @@ impl EqualityParser {
 }
 
 impl<T: Lexer> Parser<T> for EqualityParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -261,7 +261,7 @@ impl RelationalParser {
 }
 
 impl<T: Lexer> Parser<T> for RelationalParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -288,7 +288,7 @@ impl ShiftParser {
 }
 
 impl<T: Lexer> Parser<T> for ShiftParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -315,7 +315,7 @@ impl AdditiveParser {
 }
 
 impl<T: Lexer> Parser<T> for AdditiveParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
@@ -342,7 +342,7 @@ impl MultiplicativeParser {
 }
 
 impl<T: Lexer> Parser<T> for MultiplicativeParser {
-    fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+    fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         self.0.parse(ctx, data)
     }
 }
