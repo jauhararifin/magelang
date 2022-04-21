@@ -1,6 +1,12 @@
-use crate::token::{Error, Lexer, Pos, Token, TokenKind};
+use super::error::{Error, Result};
+use crate::token::{Pos, Token, TokenKind};
 use std::collections::{HashMap, VecDeque};
 use std::io::Read;
+
+pub trait Lexer {
+    fn next(&mut self) -> Result<Token>;
+    fn peek(&mut self) -> Result<&Token>;
+}
 
 pub struct SimpleLexer<T: Read> {
     reader: T,
@@ -37,7 +43,7 @@ impl<T: Read> SimpleLexer<T> {
         }
     }
 
-    fn load_tokens(&mut self) -> Result<(), Error> {
+    fn load_tokens(&mut self) -> Result<()> {
         if self.is_loaded {
             return Ok(());
         }
@@ -72,7 +78,7 @@ impl<T: Read> SimpleLexer<T> {
         Ok(())
     }
 
-    fn load_char_posts(&mut self) -> Result<(), Error> {
+    fn load_char_posts(&mut self) -> Result<()> {
         let mut buff = String::new();
         self.reader.read_to_string(&mut buff)?;
 
@@ -136,7 +142,7 @@ impl<T: Read> SimpleLexer<T> {
         }
     }
 
-    fn consume_string_literal(&mut self) -> Result<(), Error> {
+    fn consume_string_literal(&mut self) -> Result<()> {
         let opening_quote = self.char_posts[self.char_offset].val;
 
         let backslash_chars = HashMap::from([
@@ -223,7 +229,7 @@ impl<T: Read> SimpleLexer<T> {
         }
     }
 
-    fn consume_operator(&mut self) -> Result<(), Error> {
+    fn consume_operator(&mut self) -> Result<()> {
         let found = self.consume_exact_operator("!=", TokenKind::NotEq)
             || self.consume_exact_operator("!", TokenKind::Not)
             || self.consume_exact_operator("%=", TokenKind::ModAssign)
@@ -308,7 +314,7 @@ impl<T: Read> SimpleLexer<T> {
 }
 
 impl<T: Read> Lexer for SimpleLexer<T> {
-    fn next(&mut self) -> Result<Token, Error> {
+    fn next(&mut self) -> Result<Token> {
         self.load_tokens()?;
 
         if let Some(token) = self.tokens.pop_front() {
@@ -318,7 +324,7 @@ impl<T: Read> Lexer for SimpleLexer<T> {
         return Ok(self.token_eoi.clone());
     }
 
-    fn peek(&mut self) -> Result<&Token, Error> {
+    fn peek(&mut self) -> Result<&Token> {
         self.load_tokens()?;
 
         if let Some(token) = self.tokens.front() {

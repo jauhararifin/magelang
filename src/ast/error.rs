@@ -1,4 +1,5 @@
-use crate::token::{Error as LexerError, Token, TokenKind};
+use crate::lexer::Error as LexerError;
+use crate::token::{Token, TokenKind};
 
 #[derive(Debug)]
 pub enum Error {

@@ -2,8 +2,9 @@ use super::fn_parser::FnParser;
 use super::type_parser::TypeDeclParser;
 use super::{Context, Error, ParseResult, Parser, AST};
 use crate::ast::*;
+use crate::lexer::Lexer;
 use crate::parser::var_parser::VarParser;
-use crate::token::{Lexer, TokenKind};
+use crate::token::TokenKind;
 
 pub struct RootParser {
     declarations: Vec<Declaration>,

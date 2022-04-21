@@ -2,7 +2,8 @@ use super::block_parser::BlockStatementParser;
 use super::expr_parser::ExprParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::TokenKind;
 
 pub struct IfParser {
     state: IfParserState,

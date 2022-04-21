@@ -1,7 +1,8 @@
 use super::type_parser::TypeParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, Token, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::{Token, TokenKind};
 
 pub struct ParamParser {
     state: ParamParserState,

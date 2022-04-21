@@ -1,7 +1,8 @@
 use super::statement_parser::StatementParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::TokenKind;
 
 pub struct BlockStatementParser {
     state: BlockStatementParserState,
@@ -36,11 +37,9 @@ impl BlockStatementParser {
         while self.check(ctx, &TokenKind::Endl)?.is_some() {}
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-            return Ok(ParseResult::AST(AST::BlockStatement(
-                BlockStatement {
-                    body: std::mem::replace(&mut self.body, vec![]),
-                },
-            )));
+            return Ok(ParseResult::AST(AST::BlockStatement(BlockStatement {
+                body: std::mem::replace(&mut self.body, vec![]),
+            })));
         }
 
         Ok(ParseResult::Push(StatementParser::new()))

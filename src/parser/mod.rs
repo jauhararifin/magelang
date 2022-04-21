@@ -1,5 +1,6 @@
-use crate::ast::{*, self};
-use crate::token::{Lexer, Token, TokenKind};
+use crate::ast::{self, *};
+use crate::lexer::Lexer;
+use crate::token::{Token, TokenKind};
 use std::mem::discriminant;
 
 mod assign_parser;
@@ -119,7 +120,7 @@ impl<T: Lexer> SimpleParser<T> {
     }
 }
 
-impl<T:Lexer> ast::Parser for SimpleParser<T> {
+impl<T: Lexer> ast::Parser for SimpleParser<T> {
     fn parse(&mut self) -> std::result::Result<Root, ast::Error> {
         let mut stack: Vec<Box<dyn Parser<T>>> = vec![RootParser::new()];
 

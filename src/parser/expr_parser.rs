@@ -1,17 +1,6 @@
-use super::{Context, ParseResult, Parser, Result, AST};
 use super::binary_parser::LogicalOrParser;
-use crate::token::Lexer;
-
-// expression     → equality ;
-// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-// comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-// term           → factor ( ( "-" | "+" ) factor )* ;
-// factor         → unary ( ( "/" | "*" ) unary )* ;
-// unary          → ( "!" | "-" ) unary
-//                | function_call ;
-// function_call  → primary ( "(" params ")" )?;
-// primary        → NUMBER | STRING | "true" | "false" | "nil"
-//                | "(" expression ")" ;
+use super::{Context, ParseResult, Parser, Result, AST};
+use crate::lexer::Lexer;
 
 pub struct ExprParser {}
 

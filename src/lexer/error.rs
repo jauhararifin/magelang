@@ -1,5 +1,8 @@
 use std::{fmt, io};
-use super::token::Pos;
+
+use crate::token::Pos;
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
@@ -12,7 +15,7 @@ impl fmt::Display for Error {
         match self {
             Error::Io(err) => err.fmt(f),
             Error::UnexpectedSymbol { symbol, pos } => {
-                write!(f, "Unknown symbol. Found {}, at {}", symbol, pos)
+                write!(f, "Unknown symbol. Found \"{}\" sybol, at {}", symbol, pos)
             }
         }
     }

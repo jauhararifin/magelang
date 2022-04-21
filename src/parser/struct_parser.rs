@@ -1,7 +1,8 @@
 use super::param_parser::ParamParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::TokenKind;
 
 pub struct StructParser {
     params: Vec<Param>,

@@ -2,7 +2,8 @@ use super::expr_parser::ExprParser;
 use super::primary_parser::PrimaryParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::TokenKind;
 
 pub struct CallParser {
     state: CallParserState,

@@ -1,7 +1,8 @@
 use super::call_parser::CallParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::*;
-use crate::token::{Lexer, Token, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::{Token, TokenKind};
 
 pub struct UnaryParser {
     op: Option<Token>,

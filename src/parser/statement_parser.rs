@@ -5,7 +5,8 @@ use super::var_parser::VarParser;
 use super::while_parser::WhileParser;
 use super::{Context, ParseResult, Parser, Result, AST};
 use crate::ast::Statement;
-use crate::token::{Lexer, TokenKind};
+use crate::lexer::Lexer;
+use crate::token::TokenKind;
 
 pub struct StatementParser {}
 
