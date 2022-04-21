@@ -8,8 +8,8 @@ fn gcd(a: i32, b: i32): i32 {
 }
 
 fn main() {
-    var a: i32 = 98
-    var b: i32 = 14
-    var c: i32 = gcd(a, b)
+    var a: i64 = 98 as i64
+    var b: i64 = 14 as i64
+    var c: i64 = gcd(a as i32, b as i32) as i64
 }
 

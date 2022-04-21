@@ -2,17 +2,8 @@ use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub struct Program {
-    pub definitions: Vec<Def>,
-
     pub types: HashMap<String, Rc<Type>>,
     pub functions: HashMap<String, FnDef>,
-}
-
-#[derive(Debug)]
-pub enum Def {
-    FnDef(FnDef),
-    VarDef(VarDef),
-    TypeDef(Type),
 }
 
 #[derive(Debug)]
@@ -179,19 +170,13 @@ pub enum ExprKind {
     UnaryOp(UnaryOp),
     FnCall(FnCall),
     BoolLit(bool),
-    I8Lit(i8),
-    I16Lit(i16),
     I32Lit(i32),
-    I64Lit(i64),
-    U8Lit(i8),
-    U16Lit(i16),
-    U32Lit(i32),
-    U64Lit(i64),
     F32Lit(f32),
-    F64Lit(f32),
-    StringLit(String),
+    // TODO: support string lit.
+    // StringLit(String),
     VarExpr(VarExpr),
     FnExpr(FnExpr),
+    Cast(CastExpr),
 }
 
 #[derive(Debug)]
@@ -256,4 +241,10 @@ pub struct VarExpr {
 #[derive(Debug)]
 pub struct FnExpr {
     pub func: Rc<FnId>,
+}
+
+#[derive(Debug)]
+pub struct CastExpr {
+    pub value: Box<Expr>,
+    pub target: Rc<Type>,
 }

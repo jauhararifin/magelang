@@ -1,4 +1,4 @@
-use crate::semantic::semantic::{AssignKind, BinaryOpKind, FnCall, Statement};
+use crate::semantic::semantic::{AssignKind, BinaryOpKind, CastExpr, FnCall, Statement};
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -231,6 +231,8 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             ast::Expr::Binary(expr) => self.analyze_binary_expr(expr),
             ast::Expr::Unary(expr) => self.analyze_unary_expr(expr),
             ast::Expr::FunctionCall(expr) => self.analyze_func_call_expr(expr),
+            ast::Expr::Cast(expr) => self.analyze_cast_expr(expr),
+            ast::Expr::Selector(expr) => self.analyze_selector_expr(expr),
             x => unimplemented!("{:?}", x),
         }
     }
@@ -425,7 +427,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             token::TokenKind::Mul => UnaryOpKind::Deref,
             token::TokenKind::BitNot => UnaryOpKind::BitNot,
             token::TokenKind::BitAnd => UnaryOpKind::Addr,
-            token::TokenKind::Not => UnaryOpKind::BitNot,
+            token::TokenKind::Not => UnaryOpKind::Not,
             k => panic!("Unrecognized unary opearator {:?}", k),
         };
 
@@ -483,6 +485,40 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 typ: Rc::clone(&ret_type),
             }),
         })
+    }
+
+    fn analyze_cast_expr(&mut self, cast: &'a ast::Cast) -> Result<Expr, Error<'a>> {
+        let target_type = self.type_analyzer.analyze_type(&cast.target);
+        let source_expr = self.analyze_expr(&cast.val)?;
+
+        let mut matched = matches!(&target_type.kind, TypeKind::Int(_))
+            && matches!(&source_expr.typ.kind, TypeKind::Int(_));
+        matched = matched
+            || (matches!(&target_type.kind, TypeKind::Float(_))
+                && matches!(&source_expr.typ.kind, TypeKind::Float(_)));
+        matched = matched
+            || (matches!(&target_type.kind, TypeKind::Ptr(_))
+                && matches!(&source_expr.typ.kind, TypeKind::Ptr(_)));
+
+        if matched {
+            return Ok(Expr {
+                typ: Rc::clone(&target_type),
+                kind: ExprKind::Cast(CastExpr {
+                    value: Box::new(source_expr),
+                    target: Rc::clone(&target_type),
+                }),
+                assignable: false,
+            });
+        }
+
+        return Err(Error::UnsupportedCast {
+            target: Rc::clone(&target_type),
+            source: Rc::clone(&source_expr.typ),
+        });
+    }
+
+    fn analyze_selector_expr(&mut self, _selector: &'a ast::Selector) -> Result<Expr, Error<'a>> {
+        unimplemented!();
     }
 
     fn get_var(&self, name: &'a token::Token) -> Option<&Rc<Var>> {
