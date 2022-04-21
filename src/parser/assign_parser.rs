@@ -44,8 +44,8 @@ impl AssignParser {
                 TokenKind::MinusAssign,
                 TokenKind::MulAssign,
                 TokenKind::ModAssign,
-                TokenKind::SHRAssign,
-                TokenKind::SHLAssign,
+                TokenKind::ShrAssign,
+                TokenKind::ShlAssign,
             ],
         )? {
             self.receiver = Some(expr);

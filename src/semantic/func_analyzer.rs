@@ -146,8 +146,8 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             token::TokenKind::BitAndAssign => AssignKind::BitAnd,
             token::TokenKind::BitOrAssign => AssignKind::BitOr,
             token::TokenKind::BitXorAssign => AssignKind::BitXor,
-            token::TokenKind::SHLAssign => AssignKind::SHL,
-            token::TokenKind::SHRAssign => AssignKind::SHR,
+            token::TokenKind::ShlAssign => AssignKind::SHL,
+            token::TokenKind::ShrAssign => AssignKind::SHR,
             _ => panic!("found assign operator {:?}", stmt.op.kind),
         };
 
@@ -276,8 +276,8 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             | token::TokenKind::BitAnd
             | token::TokenKind::BitOr
             | token::TokenKind::BitXor
-            | token::TokenKind::SHL
-            | token::TokenKind::SHR
+            | token::TokenKind::Shl
+            | token::TokenKind::Shr
             | token::TokenKind::GT
             | token::TokenKind::LT
             | token::TokenKind::GTEq
@@ -349,8 +349,8 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             token::TokenKind::BitAnd => BinaryOpKind::BitAnd,
             token::TokenKind::BitOr => BinaryOpKind::BitOr,
             token::TokenKind::BitXor => BinaryOpKind::BitXor,
-            token::TokenKind::SHL => BinaryOpKind::SHL,
-            token::TokenKind::SHR => BinaryOpKind::SHR,
+            token::TokenKind::Shl => BinaryOpKind::SHL,
+            token::TokenKind::Shr => BinaryOpKind::SHR,
             token::TokenKind::GT => BinaryOpKind::GT,
             token::TokenKind::LT => BinaryOpKind::LT,
             token::TokenKind::GTEq => BinaryOpKind::GTEq,

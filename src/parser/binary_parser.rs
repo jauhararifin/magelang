@@ -272,7 +272,7 @@ struct ShiftParserConfig();
 
 impl BinaryParserConfig for ShiftParserConfig {
     fn get_op_kinds(&self) -> Vec<TokenKind> {
-        vec![TokenKind::SHL, TokenKind::SHR]
+        vec![TokenKind::Shl, TokenKind::Shr]
     }
     fn get_next_parser<T: Lexer>(&self) -> Box<dyn Parser<T>> {
         AdditiveParser::new()
