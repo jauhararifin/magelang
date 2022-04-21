@@ -2,7 +2,6 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub struct Root {
-    // TODO: add packaging and imports
     pub declarations: Vec<Declaration>,
 }
 
