@@ -11,6 +11,7 @@ pub struct AssignParser {
 
 enum AssignParserState {
     Receiver,
+    AssignOp,
     Value,
 }
 
@@ -23,51 +24,54 @@ impl AssignParser {
         })
     }
 
-    fn parse_receiver<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
-        if let AST::Expr(expr) = data {
-            if let Some(assign_token) = self.check_one_of(
-                ctx,
-                vec![
-                    TokenKind::Assign,
-                    TokenKind::BitAndAssign,
-                    TokenKind::BitOrAssign,
-                    TokenKind::BitXorAssign,
-                    TokenKind::PlusAssign,
-                    TokenKind::MinusAssign,
-                    TokenKind::MulAssign,
-                    TokenKind::ModAssign,
-                    TokenKind::SHRAssign,
-                    TokenKind::SHLAssign,
-                ],
-            )? {
-                self.receiver = Some(expr);
-                self.assign_token = Some(assign_token);
-                self.state = AssignParserState::Value;
-                return Ok(ParseResult::Push(ExprParser::new()));
-            }
-            return Ok(ParseResult::AST(AST::Statement(Statement::Expr(expr))));
-        }
-
+    fn parse_receiver<T: Lexer>(&mut self) -> Result<T> {
+        self.state = AssignParserState::AssignOp;
         Ok(ParseResult::Push(ExprParser::new()))
+    }
+
+    fn parse_assign_op<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
+        let expr: Expr = data.into();
+
+        if let Some(assign_token) = self.check_one_of(
+            ctx,
+            vec![
+                TokenKind::Assign,
+                TokenKind::BitAndAssign,
+                TokenKind::BitOrAssign,
+                TokenKind::BitXorAssign,
+                TokenKind::PlusAssign,
+                TokenKind::MinusAssign,
+                TokenKind::MulAssign,
+                TokenKind::ModAssign,
+                TokenKind::SHRAssign,
+                TokenKind::SHLAssign,
+            ],
+        )? {
+            self.receiver = Some(expr);
+            self.assign_token = Some(assign_token);
+            self.state = AssignParserState::Value;
+            Ok(ParseResult::Push(ExprParser::new()))
+        } else {
+            Ok(ParseResult::AST(AST::Statement(Statement::Expr(expr))))
+        }
     }
 
     fn parse_value<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         let value = Expr::from(data);
         self.consume_endl(ctx)?;
-        return Ok(ParseResult::AST(AST::Assign(
-            Assign {
-                receiver: self.receiver.take().unwrap(),
-                op: self.assign_token.take().unwrap(),
-                value,
-            },
-        )));
+        return Ok(ParseResult::AST(AST::Assign(Assign {
+            receiver: self.receiver.take().unwrap(),
+            op: self.assign_token.take().unwrap(),
+            value,
+        })));
     }
 }
 
 impl<T: Lexer> Parser<T> for AssignParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
         match self.state {
-            AssignParserState::Receiver => self.parse_receiver(ctx, data),
+            AssignParserState::Receiver => self.parse_receiver(),
+            AssignParserState::AssignOp => self.parse_assign_op(ctx, data),
             AssignParserState::Value => self.parse_value(ctx, data),
         }
     }
