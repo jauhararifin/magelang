@@ -32,7 +32,7 @@ impl CastParser {
             }
             return Ok(ParseResult::AST(AST::Expr(expr)));
         }
-        return Ok(ParseResult::Push(SelectorParser::new()));
+        Ok(ParseResult::Push(SelectorParser::new()))
     }
 
     fn parse_type<T: Lexer>(&mut self, data: AST) -> Result<T> {

@@ -43,6 +43,6 @@ impl<T: Lexer> Parser<T> for UnaryParser {
             return Ok(ParseResult::Push(UnaryParser::new()));
         }
 
-        return Ok(ParseResult::Push(CallParser::new()));
+        Ok(ParseResult::Push(CallParser::new()))
     }
 }

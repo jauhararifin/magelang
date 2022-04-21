@@ -27,6 +27,6 @@ impl<T: Lexer> Parser<T> for SelectorParser {
             }
             return Ok(ParseResult::AST(AST::Expr(expr)));
         }
-        return Ok(ParseResult::Push(UnaryParser::new()));
+        Ok(ParseResult::Push(UnaryParser::new()))
     }
 }

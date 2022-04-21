@@ -53,7 +53,7 @@ impl<T: BinaryParserConfig> BinaryParser<T> {
     fn parse_logical_and_b<L: Lexer>(&mut self, _: &mut Context<L>, data: AST) -> Result<L> {
         let expr = Expr::from(data);
         Ok(ParseResult::AST(AST::Expr(Expr {
-            pos: self.a_expr.as_ref().unwrap().pos.clone(),
+            pos: self.a_expr.as_ref().unwrap().pos,
             kind: ExprKind::Binary(Binary {
                 op: self.op_token.take().unwrap(),
                 a: Box::new(self.a_expr.take().unwrap()),

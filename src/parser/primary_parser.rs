@@ -61,7 +61,7 @@ impl<T: Lexer> Parser<T> for PrimaryParser {
             })));
         }
 
-        if let Some(_) = self.check(ctx, &TokenKind::OpenBrace)? {
+        if (self.check(ctx, &TokenKind::OpenBrace)?).is_some() {
             return Ok(ParseResult::Push(ExprParser::new()));
         }
 

@@ -93,7 +93,7 @@ fn check_dependency_cycle<'a>(
     }
 
     let mut dfs = DFS {
-        dependency: &dependency,
+        dependency,
         token_map,
         ident_status,
         parents,

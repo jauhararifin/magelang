@@ -39,7 +39,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         for decl in self.root.declarations.iter() {
             if let ast::Declaration::Fn(fn_decl) = decl {
                 let name = &fn_decl.name.value.as_ref().unwrap().clone();
-                self.fn_to_ast.insert(name.clone(), &fn_decl);
+                self.fn_to_ast.insert(name.clone(), fn_decl);
 
                 let fn_id = self.analyze_func_id(fn_decl)?;
                 self.funcs.insert(name.clone(), Rc::new(fn_id));
@@ -47,7 +47,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         }
 
         let mut result = HashMap::new();
-        for (name, typ) in std::mem::replace(&mut self.fn_to_ast, HashMap::new()).iter() {
+        for (name, typ) in std::mem::take(&mut self.fn_to_ast).iter() {
             let typ = self.analyze_func(typ)?;
             result.insert(name.clone(), typ);
         }
@@ -63,7 +63,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
     }
 
     fn analyze_func(&mut self, func: &'a ast::FnDecl) -> Result<FnDef, Error<'a>> {
-        let func_id = Rc::clone(&self.funcs.get(func.name.value.as_ref().unwrap()).unwrap());
+        let func_id = Rc::clone(self.funcs.get(func.name.value.as_ref().unwrap()).unwrap());
 
         let mut symbol_table = HashMap::new();
         if let TypeKind::Fn(fn_type) = &func_id.typ.kind {
@@ -170,7 +170,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             });
         }
 
-        return Ok(Statement::Return(ReturnStmt { value }));
+        Ok(Statement::Return(ReturnStmt { value }))
     }
 
     fn analyze_if_statement(&mut self, stmt: &'a ast::If) -> Result<Statement, Error<'a>> {
@@ -254,7 +254,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             Ok(Expr {
                 typ: Rc::clone(&func_id.typ),
                 kind: ExprKind::FnExpr(FnExpr {
-                    func: Rc::clone(&func_id),
+                    func: Rc::clone(func_id),
                 }),
                 assignable: false,
             })
@@ -529,11 +529,11 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             });
         }
 
-        return Err(Error::UnsupportedCast {
+        Err(Error::UnsupportedCast {
             target: Rc::clone(&target_type),
             source: Rc::clone(&source_expr.typ),
             pos: &cast.val.pos,
-        });
+        })
     }
 
     fn analyze_selector_expr(&mut self, _selector: &'a ast::Selector) -> Result<Expr, Error<'a>> {

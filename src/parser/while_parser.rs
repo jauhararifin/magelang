@@ -35,10 +35,10 @@ impl WhileParser {
     }
 
     fn parse_body<T: Lexer>(&mut self, data: AST) -> Result<T> {
-        return Ok(ParseResult::AST(AST::While(While {
+        Ok(ParseResult::AST(AST::While(While {
             cond: self.cond.take().unwrap(),
             body: BlockStatement::from(data),
-        })));
+        })))
     }
 }
 

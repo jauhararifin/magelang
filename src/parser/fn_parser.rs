@@ -46,7 +46,7 @@ impl FnParser {
         }
 
         self.state = FnParserState::Param;
-        return Ok(ParseResult::Push(ParamParser::new()));
+        Ok(ParseResult::Push(ParamParser::new()))
     }
 
     fn parse_after_close_brace<T: Lexer>(&mut self, ctx: &mut Context<T>) -> Result<T> {
@@ -56,7 +56,7 @@ impl FnParser {
         }
 
         self.state = FnParserState::Return;
-        return Ok(ParseResult::Push(TypeParser::new()));
+        Ok(ParseResult::Push(TypeParser::new()))
     }
 
     fn parse_fn_param<T: Lexer>(&mut self, ctx: &mut Context<T>, data: AST) -> Result<T> {
@@ -68,7 +68,7 @@ impl FnParser {
             return Ok(ParseResult::Push(ParamParser::new()));
         }
 
-        return self.parse_after_close_brace(ctx);
+        self.parse_after_close_brace(ctx)
     }
 
     fn parse_fn_return<T: Lexer>(&mut self, data: AST) -> Result<T> {
@@ -76,21 +76,21 @@ impl FnParser {
         self.return_type = Some(typ);
 
         self.state = FnParserState::Body;
-        return Ok(ParseResult::Push(BlockStatementParser::new()));
+        Ok(ParseResult::Push(BlockStatementParser::new()))
     }
 
     fn parse_fn_body<T: Lexer>(&mut self, data: AST) -> Result<T> {
         let body = BlockStatement::from(data);
         self.body = Some(body);
 
-        return Ok(ParseResult::AST(AST::FnDecl(
+        Ok(ParseResult::AST(AST::FnDecl(
             FnDecl {
                 name: self.name.take().unwrap(),
-                param: std::mem::replace(&mut self.params, vec![]),
+                param: std::mem::take(&mut self.params),
                 ret_type: self.return_type.take(),
                 body: self.body.take().unwrap(),
             },
-        )));
+        )))
     }
 }
 

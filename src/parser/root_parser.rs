@@ -33,7 +33,7 @@ impl<T: Lexer> Parser<T> for RootParser {
             match token.kind {
                 TokenKind::EOI => {
                     return Ok(ParseResult::AST(AST::Root(Root {
-                        declarations: std::mem::replace(&mut self.declarations, vec![]),
+                        declarations: std::mem::take(&mut self.declarations),
                     })));
                 }
                 TokenKind::Endl => {

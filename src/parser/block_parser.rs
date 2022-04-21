@@ -38,7 +38,7 @@ impl BlockStatementParser {
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
             return Ok(ParseResult::AST(AST::BlockStatement(BlockStatement {
-                body: std::mem::replace(&mut self.body, vec![]),
+                body: std::mem::take(&mut self.body),
             })));
         }
 

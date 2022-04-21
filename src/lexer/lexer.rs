@@ -180,15 +180,13 @@ impl<T: Read> SimpleLexer<T> {
                     });
                 }
                 after_backslash = false;
+            } else if c == '\\' {
+                after_backslash = true;
+            } else if c == opening_quote {
+                self.char_offset += 1;
+                break;
             } else {
-                if c == '\\' {
-                    after_backslash = true;
-                } else if c == opening_quote {
-                    self.char_offset += 1;
-                    break;
-                } else {
-                    value.push(c);
-                }
+                value.push(c);
             }
 
             self.char_offset += 1;
@@ -305,7 +303,7 @@ impl<T: Read> SimpleLexer<T> {
             }
         }
 
-        return (result, pos);
+        (result, pos)
     }
 
     fn emit_token(&mut self, kind: TokenKind, value: Option<String>, pos: Pos) {
@@ -321,7 +319,7 @@ impl<T: Read> Lexer for SimpleLexer<T> {
             return Ok(token);
         }
 
-        return Ok(self.token_eoi.clone());
+        Ok(self.token_eoi.clone())
     }
 
     fn peek(&mut self) -> Result<&Token> {
@@ -331,7 +329,7 @@ impl<T: Read> Lexer for SimpleLexer<T> {
             return Ok(token);
         }
 
-        return Ok(&self.token_eoi);
+        Ok(&self.token_eoi)
     }
 }
 

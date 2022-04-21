@@ -39,7 +39,7 @@ impl CallParser {
                     pos: self.ptr.as_ref().unwrap().pos,
                     kind: ExprKind::FunctionCall(FunctionCall {
                         ptr: Box::new(self.ptr.take().unwrap()),
-                        args: std::mem::replace(&mut self.params, vec![]),
+                        args: std::mem::take(&mut self.params),
                     }),
                 })));
             }
@@ -54,13 +54,13 @@ impl CallParser {
 
         let token = self.expect_one_of(ctx, vec![TokenKind::Comma, TokenKind::CloseBrace])?;
         if let TokenKind::Comma = token.kind {
-            return Ok(ParseResult::Push(ExprParser::new()));
+            Ok(ParseResult::Push(ExprParser::new()))
         } else {
             return Ok(ParseResult::AST(AST::Expr(Expr {
                 pos: self.ptr.as_ref().unwrap().pos,
                 kind: ExprKind::FunctionCall(FunctionCall {
                     ptr: Box::new(self.ptr.take().unwrap()),
-                    args: std::mem::replace(&mut self.params, vec![]),
+                    args: std::mem::take(&mut self.params),
                 }),
             })));
         }

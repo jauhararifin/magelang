@@ -26,16 +26,12 @@ impl<T: Lexer> Parser<T> for StructParser {
             } else {
                 self.expect(ctx, TokenKind::Comma)?;
                 self.consume_endl(ctx)?;
-                if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-                    true
-                } else {
-                    false
-                }
+                self.check(ctx, &TokenKind::CloseBlock)?.is_some()
             };
 
             if is_end {
                 return Ok(ParseResult::AST(AST::Struct(Struct {
-                    fields: std::mem::replace(&mut self.params, vec![]),
+                    fields: std::mem::take(&mut self.params),
                 })));
             } else {
                 return Ok(ParseResult::Push(ParamParser::new()));
@@ -49,11 +45,11 @@ impl<T: Lexer> Parser<T> for StructParser {
         self.consume_endl(ctx)?;
 
         if self.check(ctx, &TokenKind::CloseBlock)?.is_some() {
-            return Ok(ParseResult::AST(AST::Struct(Struct {
-                fields: std::mem::replace(&mut self.params, vec![]),
-            })));
+            Ok(ParseResult::AST(AST::Struct(Struct {
+                fields: std::mem::take(&mut self.params),
+            })))
         } else {
-            return Ok(ParseResult::Push(ParamParser::new()));
+            Ok(ParseResult::Push(ParamParser::new()))
         }
     }
 }
