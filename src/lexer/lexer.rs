@@ -52,29 +52,35 @@ impl<T: Read> SimpleLexer<T> {
 
         let size = self.char_posts.len();
         while self.char_offset < size {
-            let c = self.char_posts[self.char_offset].val;
-
-            self.token_eoi.pos = self.char_posts[self.char_offset].pos;
-
-            if self.next_is("//") {
-                self.consume_comment();
-            } else if self.next_in("0123456789") {
-                self.consume_number_literal();
-            } else if self.next_is("\"") {
-                self.consume_string_literal()?;
-            } else if self.next_is("\n") {
-                self.emit_token(TokenKind::Endl, None, self.char_posts[self.char_offset].pos);
-                self.char_offset += 1;
-            } else if c.is_alphabetic() || c == '_' {
-                self.consume_word();
-            } else if self.next_in("'*|-,&~)}<:./{=]^%[!(+>'") {
-                self.consume_operator()?;
-            } else {
-                self.char_offset += 1;
-            }
+            self.process_char_post(self.char_posts[self.char_offset])?;
         }
 
         self.is_loaded = true;
+        Ok(())
+    }
+
+    fn process_char_post(&mut self, char_pos: CharPos) -> Result<()> {
+        let c = char_pos.val;
+
+        self.token_eoi.pos = char_pos.pos;
+
+        if self.next_is("//") {
+            self.consume_comment();
+        } else if self.next_in("0123456789") {
+            self.consume_number_literal();
+        } else if self.next_is("\"") {
+            self.consume_string_literal()?;
+        } else if self.next_is("\n") {
+            self.emit_token(TokenKind::Endl, None, self.char_posts[self.char_offset].pos);
+            self.char_offset += 1;
+        } else if c.is_alphabetic() || c == '_' {
+            self.consume_word();
+        } else if self.next_in("'*|-,&~)}<:./{=]^%[!(+>'") {
+            self.consume_operator()?;
+        } else {
+            self.char_offset += 1;
+        }
+
         Ok(())
     }
 
@@ -267,23 +273,25 @@ impl<T: Read> SimpleLexer<T> {
             || self.consume_exact_operator(",", TokenKind::Comma)
             || self.consume_exact_operator(".", TokenKind::Dot);
 
-        if !found {
-            let char_pos = self.char_posts[self.char_offset];
-            return Err(Error::UnexpectedSymbol {
-                symbol: char_pos.val,
-                pos: char_pos.pos,
-            });
+        if found {
+            return Ok(());
         }
-        Ok(())
+
+        let char_pos = self.char_posts[self.char_offset];
+        Err(Error::UnexpectedSymbol {
+            symbol: char_pos.val,
+            pos: char_pos.pos,
+        })
     }
 
     fn consume_exact_operator(&mut self, op: &str, token_kind: TokenKind) -> bool {
-        if self.next_is(op) {
-            self.emit_token(token_kind, None, self.char_posts[self.char_offset].pos);
-            self.char_offset += op.len();
-            return true;
+        if !self.next_is(op) {
+            return false;
         }
-        false
+
+        self.emit_token(token_kind, None, self.char_posts[self.char_offset].pos);
+        self.char_offset += op.len();
+        true
     }
 
     fn consume_while_match<F: Fn(char) -> bool>(&mut self, matcher: F) -> (String, Pos) {
