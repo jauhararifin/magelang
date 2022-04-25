@@ -6,3 +6,4 @@ mod repr;
 mod type_analyzer;
 
 pub use analyzer::SimpleAnalyzer;
+pub use repr::*;
