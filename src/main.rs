@@ -4,6 +4,7 @@ mod lexer;
 mod parser;
 mod semantic;
 mod token;
+mod vm;
 
 use crate::lexer::SimpleLexer;
 use crate::parser::SimpleParser;
