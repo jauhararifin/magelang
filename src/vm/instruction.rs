@@ -1,6 +1,8 @@
 use super::value::Value;
 
 pub enum Instruction {
+    Constant(Value), // push constant value to stack.
+
     Add(NumType),
     Sub(NumType),
     Div(NumType),
@@ -19,6 +21,8 @@ pub enum Instruction {
     Xor(IntType),
     Neg(IntType),
     Not,
+
+    Alloc(Value), // push heap allocated value to stack.
 
     Jump(isize), // jump offset
     JumpIfTrue(isize),

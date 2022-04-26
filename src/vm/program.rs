@@ -1,11 +1,14 @@
+use crate::ast::Type;
+
 use super::instruction::Instruction;
 
-struct Program {
-    functions: Vec<Function>,
+pub struct Program {
+    pub types: Vec<Type>,
+    pub functions: Vec<Function>,
 }
 
-struct Function {
-    name: Option<String>,
-    instructions: Vec<Instruction>,
+pub struct Function {
+    pub name: Option<String>,
+    pub instructions: Vec<Instruction>,
 }
 
