@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+message Program {
+  repeated Type types = 1;
+  repeated Function functions = 2;
+}
+
+message Type {
+  TypeKind kind = 1;
+  optional Struct struct = 2;
+  optional Type elem = 3;
+}
+
+enum TypeKind {
+  I8 = 1;
+  I16 = 2;
+  I32 = 3;
+  I64 = 4;
+  U8 = 5;
+  U16 = 6;
+  U32 = 7;
+  U64 = 8;
+  F32 = 9;
+  F64 = 10;
+  Bool = 11;
+  Struct = 12;
+  Object = 13;
+}
+
+message Struct {
+  optional string name = 1;
+  repeated Field fields = 2;
+}
+
+message Field {
+  uint64 index = 1;
+  uint64 offset = 2;
+  string name = 3;
+  Type type = 4;
+}
+
+message Value {
+  Type type = 1;
+  optional int64 int_val = 2;
+  optional uint64 uint_val = 3;
+  optional bool bool_val = 4;
+  optional fixed32 f32_val = 5;
+  optional fixed64 f64_val = 6;
+  optional StructValue struct_val = 7;
+  optional Value elem = 8;
+}
+
+message StructValue {
+  Type type = 1;
+  repeated Value values = 2;
+}
+
+message Function {
+  string name = 1;
+  repeated Instruction instruction = 2;
+}
+
+message Instruction {
+  OpCode op_code = 1;
+  optional Variant Variant = 2;
+  optional uint64 index = 3;
+  optional int64 offset = 4;
+  optional Value value = 5;
+}
+
+enum OpCode {
+  Const = 0;
+  Add = 1;
+  Sub = 2;
+  Div = 3;
+  Mul = 4;
+  Mod = 5;
+  Eq = 6;
+  NEq = 7;
+  LT = 8;
+  LTEq = 9;
+  GT = 10;
+  GTEq = 11;
+  And = 12;
+  Or = 13;
+  Xor = 14;
+  Neg = 15;
+  Not = 16;
+  Alloc = 17;
+  SetLoc = 18;
+  GetLoc = 19;
+  SetProp = 20;
+  GetProp = 21;
+  Jump = 22;
+  JumpIfTrue = 23;
+  JumpIfFalse = 24;
+  Push = 25;
+  Call = 26;
+}
+
+enum Variant {
+  I8 = 1;
+  I16 = 2;
+  I32 = 3;
+  I64 = 4;
+  U8 = 5;
+  U16 = 6;
+  U32 = 7;
+  U64 = 8;
+  F32 = 9;
+  F64 = 10;
+  Bool = 11;
+}
+
