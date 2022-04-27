@@ -111,7 +111,6 @@ pub enum TypeKind {
     Float(FloatType),
     Struct(StructType),
     Fn(FnType),
-    Ptr(Ptr),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -141,11 +140,6 @@ pub struct StructField {
 pub struct FnType {
     pub params: Vec<Rc<Var>>,
     pub ret_type: Rc<Type>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Ptr {
-    pub elem: Rc<Type>,
 }
 
 #[derive(Debug)]
@@ -222,8 +216,6 @@ pub enum UnaryOpKind {
     BitNot,
     Plus,
     Minus,
-    Addr,
-    Deref,
 }
 
 #[derive(Debug)]

@@ -1,5 +1,5 @@
 use super::struct_parser::StructParser;
-use super::{Context, ParseResult, Parser, Result, Ast};
+use super::{Ast, Context, ParseResult, Parser, Result};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -10,7 +10,6 @@ pub struct TypeParser {
 
 enum TypeParserState {
     Init,
-    Ptr,
     Struct,
 }
 
@@ -28,10 +27,6 @@ impl TypeParser {
             TokenKind::Struct => {
                 self.state = TypeParserState::Struct;
                 Ok(ParseResult::Push(StructParser::new()))
-            }
-            TokenKind::Mul => {
-                self.state = TypeParserState::Ptr;
-                Ok(ParseResult::Push(TypeParser::new()))
             }
             TokenKind::Ident => {
                 let token = ctx.lexer.next()?;
@@ -72,13 +67,6 @@ impl TypeParser {
         }
     }
 
-    fn parse_ptr<T: Lexer>(&mut self, data: Ast) -> Result<T> {
-        let t = Type::from(data);
-        Ok(ParseResult::Ast(Ast::Type(Type::Pointer(Pointer {
-            elem: Box::new(t),
-        }))))
-    }
-
     fn parse_struct<T: Lexer>(&mut self, data: Ast) -> Result<T> {
         let t = Struct::from(data);
         Ok(ParseResult::Ast(Ast::Type(Type::Struct(t))))
@@ -89,7 +77,6 @@ impl<T: Lexer> Parser<T> for TypeParser {
     fn parse(&mut self, ctx: &mut Context<T>, data: Ast) -> Result<T> {
         match self.state {
             TypeParserState::Init => self.parse_init(ctx),
-            TypeParserState::Ptr => self.parse_ptr(data),
             TypeParserState::Struct => self.parse_struct(data),
         }
     }

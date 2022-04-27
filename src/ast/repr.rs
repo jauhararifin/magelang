@@ -44,18 +44,12 @@ pub enum Type {
     Primitive(Token),
     Ident(Token),
     Struct(Struct),
-    Pointer(Pointer),
     // TODO: add tuple.
 }
 
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub fields: Vec<Param>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Pointer {
-    pub elem: Box<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +123,7 @@ pub struct Unary {
 
 #[derive(Debug, Clone)]
 pub struct FunctionCall {
-    pub ptr: Box<Expr>,
+    pub func: Box<Expr>,
     pub args: Vec<Expr>,
 }
 

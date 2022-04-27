@@ -1,5 +1,5 @@
 use super::call_parser::CallParser;
-use super::{Context, ParseResult, Parser, Result, Ast};
+use super::{Ast, Context, ParseResult, Parser, Result};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenKind};
@@ -32,12 +32,7 @@ impl<T: Lexer> Parser<T> for UnaryParser {
         let token = ctx.lexer.peek()?;
         if matches!(
             token.kind,
-            TokenKind::Not
-                | TokenKind::Minus
-                | TokenKind::Plus
-                | TokenKind::BitNot
-                | TokenKind::BitAnd
-                | TokenKind::Mul
+            TokenKind::Not | TokenKind::Minus | TokenKind::Plus | TokenKind::BitNot
         ) {
             self.op = Some(ctx.lexer.next()?);
             return Ok(ParseResult::Push(UnaryParser::new()));

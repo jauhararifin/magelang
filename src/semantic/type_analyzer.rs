@@ -6,9 +6,7 @@ use crate::ast;
 
 use super::cycle;
 use super::error::Error;
-use super::repr::{
-    FloatType, FnType, IntType, Ptr, StructField, StructType, Type, TypeKind, Var,
-};
+use super::repr::{FloatType, FnType, IntType, StructField, StructType, Type, TypeKind, Var};
 
 pub struct TypeAnalyzer<'a> {
     root: &'a ast::Root,
@@ -120,7 +118,6 @@ impl<'a> TypeAnalyzer<'a> {
     pub fn analyze_type(&mut self, typ: &'a ast::Type) -> Rc<Type> {
         match typ {
             ast::Type::Ident(token) => self.analyze_ident_type(token),
-            ast::Type::Pointer(ptr_type) => self.analyze_pointer_type(ptr_type),
             ast::Type::Struct(strct) => self.analyze_struct(strct),
             ast::Type::Primitive(primitive) => self.analyze_primitive(primitive),
         }
@@ -136,15 +133,6 @@ impl<'a> TypeAnalyzer<'a> {
         let result = self.analyze_type(type_ast);
         self.types.insert(name.clone(), Rc::clone(&result));
         Rc::clone(&result)
-    }
-
-    fn analyze_pointer_type(&mut self, pointer_type: &'a ast::Pointer) -> Rc<Type> {
-        Rc::new(Type {
-            kind: TypeKind::Ptr(Ptr {
-                elem: self.analyze_type(&pointer_type.elem),
-            }),
-            size: 8, // TODO: maybe check the architecture.
-        })
     }
 
     fn analyze_struct(&mut self, strct: &'a ast::Struct) -> Rc<Type> {

@@ -1,1 +1,2 @@
-pub mod model;
+include!(concat!(env!("OUT_DIR"), "/bytecode.rs"));
+

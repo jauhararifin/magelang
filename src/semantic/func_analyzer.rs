@@ -424,16 +424,6 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
                 }
                 Rc::clone(&val_expr.typ)
             }
-            token::TokenKind::Mul => {
-                if let TypeKind::Ptr(typ) = val_expr.typ.kind.borrow() {
-                    Rc::clone(&typ.elem)
-                } else {
-                    return Err(Error::CannotPerformOp {
-                        typ: Rc::clone(&val_expr.typ),
-                        pos: &unary.op.pos,
-                    });
-                }
-            }
             token::TokenKind::BitAnd => panic!(),
             token::TokenKind::Not => panic!(),
             k => panic!("Unrecognized unary opearator {:?}", k),
@@ -442,9 +432,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         let kind = match &unary.op.kind {
             token::TokenKind::Plus => UnaryOpKind::Plus,
             token::TokenKind::Minus => UnaryOpKind::Minus,
-            token::TokenKind::Mul => UnaryOpKind::Deref,
             token::TokenKind::BitNot => UnaryOpKind::BitNot,
-            token::TokenKind::BitAnd => UnaryOpKind::Addr,
             token::TokenKind::Not => UnaryOpKind::Not,
             k => panic!("Unrecognized unary opearator {:?}", k),
         };
@@ -466,16 +454,16 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         &mut self,
         func_call: &'a ast::FunctionCall,
     ) -> Result<Expr, Error<'a>> {
-        let ptr = self.analyze_expr(func_call.ptr.borrow())?;
+        let func = self.analyze_expr(func_call.func.borrow())?;
 
-        let ret_type = if let ExprKind::FnExpr(fn_expr) = &ptr.kind {
+        let ret_type = if let ExprKind::FnExpr(fn_expr) = &func.kind {
             if let TypeKind::Fn(fn_type) = &fn_expr.func.typ.kind {
                 Rc::clone(&fn_type.ret_type)
             } else {
-                panic!("asdf");
+                panic!("asdf"); // TODO: handle this.
             }
         } else {
-            panic!("asdf");
+            panic!("asdf"); // TODO: handle this.
         };
 
         let mut args = Vec::new();
@@ -484,7 +472,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             args.push(arg_expr);
         }
 
-        if let ExprKind::FnExpr(fn_expr) = &ptr.kind {
+        if let ExprKind::FnExpr(fn_expr) = &func.kind {
             if let TypeKind::Fn(fn_type) = &fn_expr.func.typ.kind {
                 for (i, param) in fn_type.params.iter().enumerate() {
                     if !self.is_type_assignable_to(param.typ.borrow(), args[i].typ.borrow()) {
@@ -498,7 +486,7 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
             typ: Rc::clone(&ret_type),
             assignable: false,
             kind: ExprKind::FnCall(FnCall {
-                ptr: Box::new(ptr),
+                ptr: Box::new(func),
                 args,
                 typ: Rc::clone(&ret_type),
             }),
@@ -514,9 +502,6 @@ impl<'a, 'b> FuncAnalyzer<'a, 'b> {
         matched = matched
             || (matches!(&target_type.kind, TypeKind::Float(_))
                 && matches!(&source_expr.typ.kind, TypeKind::Float(_)));
-        matched = matched
-            || (matches!(&target_type.kind, TypeKind::Ptr(_))
-                && matches!(&source_expr.typ.kind, TypeKind::Ptr(_)));
 
         if matched {
             return Ok(Expr {

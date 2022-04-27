@@ -1,13 +1,13 @@
 use super::expr_parser::ExprParser;
 use super::primary_parser::PrimaryParser;
-use super::{Context, ParseResult, Parser, Result, Ast};
+use super::{Ast, Context, ParseResult, Parser, Result};
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::TokenKind;
 
 pub struct CallParser {
     state: CallParserState,
-    ptr: Option<Expr>,
+    func: Option<Expr>,
     params: Vec<Expr>,
 }
 
@@ -20,7 +20,7 @@ impl CallParser {
     pub fn new() -> Box<Self> {
         Box::new(Self {
             state: CallParserState::Ptr,
-            ptr: None,
+            func: None,
             params: vec![],
         })
     }
@@ -31,14 +31,14 @@ impl CallParser {
                 return Ok(ParseResult::Ast(Ast::Expr(expr)));
             }
 
-            self.ptr = Some(expr);
+            self.func = Some(expr);
             self.state = CallParserState::Params;
 
             if self.check(ctx, &TokenKind::CloseBrace)?.is_some() {
                 return Ok(ParseResult::Ast(Ast::Expr(Expr {
-                    pos: self.ptr.as_ref().unwrap().pos,
+                    pos: self.func.as_ref().unwrap().pos,
                     kind: ExprKind::FunctionCall(FunctionCall {
-                        ptr: Box::new(self.ptr.take().unwrap()),
+                        func: Box::new(self.func.take().unwrap()),
                         args: std::mem::take(&mut self.params),
                     }),
                 })));
@@ -57,9 +57,9 @@ impl CallParser {
             Ok(ParseResult::Push(ExprParser::new()))
         } else {
             return Ok(ParseResult::Ast(Ast::Expr(Expr {
-                pos: self.ptr.as_ref().unwrap().pos,
+                pos: self.func.as_ref().unwrap().pos,
                 kind: ExprKind::FunctionCall(FunctionCall {
-                    ptr: Box::new(self.ptr.take().unwrap()),
+                    func: Box::new(self.func.take().unwrap()),
                     args: std::mem::take(&mut self.params),
                 }),
             })));
