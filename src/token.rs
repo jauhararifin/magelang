@@ -1,5 +1,7 @@
 use std::fmt;
 
+use super::pos::Pos;
+
 #[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
@@ -9,7 +11,11 @@ pub struct Token {
 
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:?} {:?}]", &self.pos, &self.kind)
+        if let Some(ref value) = self.value {
+            write!(f, "[{:?} {:?}({})]", &self.pos, &self.kind, value)
+        } else {
+            write!(f, "[{:?} {:?}]", &self.pos, &self.kind)
+        }
     }
 }
 
@@ -37,6 +43,16 @@ pub enum TokenKind {
     OpenBlock,
     CloseBlock,
     Assign,
+    PlusAssign,
+    MinusAssign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+    BitAndAssign,
+    BitOrAssign,
+    BitXorAssign,
+    ShlAssign,
+    ShrAssign,
     Endl,
     Eoi,
     Comma,
@@ -45,26 +61,16 @@ pub enum TokenKind {
     As,
     // operators
     Plus,
-    PlusAssign,
     Minus,
-    MinusAssign,
     Mul,
-    MulAssign,
     Div,
-    DivAssign,
     Mod,
-    ModAssign,
     BitAnd,
-    BitAndAssign,
     BitOr,
-    BitOrAssign,
     BitNot,
     BitXor,
-    BitXorAssign,
     Shl,
-    ShlAssign,
     Shr,
-    ShrAssign,
     And,
     Or,
     Not,
@@ -88,22 +94,4 @@ pub enum TokenKind {
     U64,
     F32,
     F64,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct Pos {
-    pub line: i32,
-    pub col: i32,
-}
-
-impl fmt::Debug for Pos {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
-    }
-}
-
-impl fmt::Display for Pos {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
-    }
 }

@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use crate::{
-    ast::Expr,
-    token::{Pos, Token},
-};
+use crate::{ast::Expr, pos::Pos, token::Token};
 
 use super::repr::Type;
 

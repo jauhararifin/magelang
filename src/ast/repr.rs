@@ -1,4 +1,5 @@
-use crate::token::{Pos, Token};
+use crate::token::Token;
+use crate::pos::Pos;
 
 #[derive(Debug, Clone)]
 pub struct Root {
