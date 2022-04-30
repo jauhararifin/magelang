@@ -44,14 +44,17 @@ enum ParsingState {
     FnName,
     FnParam {
         name: Token,
+        native: bool,
         params: Vec<Param>,
     },
     FnReturn {
         name: Token,
+        native: bool,
         params: Vec<Param>,
     },
     FnBody {
         name: Token,
+        native: bool,
         params: Vec<Param>,
         ret_type: Option<Type>,
     },
@@ -143,9 +146,14 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::VarType { name } => self.parse_var_type(name, data),
             ParsingState::VarValue { name, typ } => self.parse_var_value(name, typ, data),
             ParsingState::FnName => self.parse_fn_name(),
-            ParsingState::FnParam { name, params } => self.parse_fn_param(name, params, data),
-            ParsingState::FnReturn { name, params } => self.parse_fn_return(name, params, data),
-            ParsingState::FnBody { name, params, ret_type } => self.parse_fn_body(name, params, ret_type, data),
+            ParsingState::FnParam { name, native, params } => self.parse_fn_param(name, native, params, data),
+            ParsingState::FnReturn { name, native, params } => self.parse_fn_return(name, native, params, data),
+            ParsingState::FnBody {
+                name,
+                native,
+                params,
+                ret_type,
+            } => self.parse_fn_body(name, native, params, ret_type, data),
             ParsingState::ParamName => self.parse_param_name(),
             ParsingState::ParamType { name } => self.parse_param_type(name, data),
             ParsingState::TypeDecl => self.parse_type_decl(),
@@ -277,17 +285,19 @@ impl<T: Lexer> SimpleParser<T> {
 
     fn parse_fn_name(&mut self) -> Result<Ast, Error> {
         self.expect(TokenKind::Fn)?;
+        let native = self.check(&TokenKind::Native)?.is_some();
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::OpenBrace)?;
 
         self.stack.push(ParsingState::FnParam {
             name,
+            native,
             params: Vec::new(),
         });
         Ok(Ast::Empty)
     }
 
-    fn parse_fn_param(&mut self, name: Token, mut params: Vec<Param>, data: Ast) -> Result<Ast, Error> {
+    fn parse_fn_param(&mut self, name: Token, native: bool, mut params: Vec<Param>, data: Ast) -> Result<Ast, Error> {
         let mut first_param = true;
         if let Ast::Param(param) = data {
             params.push(param);
@@ -298,13 +308,14 @@ impl<T: Lexer> SimpleParser<T> {
             if self.check(&TokenKind::Colon)?.is_none() {
                 self.stack.push(ParsingState::FnBody {
                     name,
+                    native,
                     params,
                     ret_type: None,
                 });
                 return Ok(Ast::Empty);
             }
 
-            self.stack.push(ParsingState::FnReturn { name, params });
+            self.stack.push(ParsingState::FnReturn { name, native, params });
             return Ok(Ast::Empty);
         }
 
@@ -312,23 +323,24 @@ impl<T: Lexer> SimpleParser<T> {
             self.expect(TokenKind::Comma)?;
         }
 
-        self.stack.push(ParsingState::FnParam { name, params });
+        self.stack.push(ParsingState::FnParam { name, native, params });
         self.stack.push(ParsingState::ParamName);
 
         Ok(Ast::Empty)
     }
 
-    fn parse_fn_return(&mut self, name: Token, params: Vec<Param>, data: Ast) -> Result<Ast, Error> {
+    fn parse_fn_return(&mut self, name: Token, native: bool, params: Vec<Param>, data: Ast) -> Result<Ast, Error> {
         if let Ast::Type(typ) = data {
             self.stack.push(ParsingState::FnBody {
                 name,
+                native,
                 params,
                 ret_type: Some(typ),
             });
             return Ok(Ast::Empty);
         }
 
-        self.stack.push(ParsingState::FnReturn { name, params });
+        self.stack.push(ParsingState::FnReturn { name, native, params });
         self.stack.push(ParsingState::Type);
 
         Ok(Ast::Empty)
@@ -337,6 +349,7 @@ impl<T: Lexer> SimpleParser<T> {
     fn parse_fn_body(
         &mut self,
         name: Token,
+        native: bool,
         params: Vec<Param>,
         ret_type: Option<Type>,
         data: Ast,
@@ -344,13 +357,19 @@ impl<T: Lexer> SimpleParser<T> {
         if let Ast::BlockStatement(body) = data {
             return Ok(Ast::FnDecl(FnDecl {
                 name,
+                native,
                 params,
                 ret_type,
                 body,
             }));
         }
 
-        self.stack.push(ParsingState::FnBody { name, params, ret_type });
+        self.stack.push(ParsingState::FnBody {
+            name,
+            native,
+            params,
+            ret_type,
+        });
         self.stack.push(ParsingState::BlockStatement { body: vec![] });
 
         Ok(Ast::Empty)

@@ -17,6 +17,7 @@ pub enum Declaration {
 #[derive(Debug, Clone)]
 pub struct FnDecl {
     pub name: Token,
+    pub native: bool,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
     pub body: BlockStatement,

@@ -218,13 +218,13 @@ impl<R: Read> SimpleLexer<R> {
 
     fn consume_word(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
         let mut word = char_pos.val.to_string();
-        let (name, next) =
-            self.consume_while_match(|c| c.is_alphabetic() || c == '_' || c.is_digit(10))?;
+        let (name, next) = self.consume_while_match(|c| c.is_alphabetic() || c == '_' || c.is_digit(10))?;
         word.push_str(name.as_str());
 
         match word.as_str() {
             "package" => self.emit_token(TokenKind::Package, None, char_pos.pos),
             "if" => self.emit_token(TokenKind::If, None, char_pos.pos),
+            "native" => self.emit_token(TokenKind::Native, None, char_pos.pos),
             "var" => self.emit_token(TokenKind::Var, None, char_pos.pos),
             "type" => self.emit_token(TokenKind::Type, None, char_pos.pos),
             "struct" => self.emit_token(TokenKind::Struct, None, char_pos.pos),
@@ -331,10 +331,7 @@ impl<R: Read> SimpleLexer<R> {
         Ok(next)
     }
 
-    fn consume_while_match<F: Fn(char) -> bool>(
-        &mut self,
-        matcher: F,
-    ) -> Result<(String, Option<CharPos>)> {
+    fn consume_while_match<F: Fn(char) -> bool>(&mut self, matcher: F) -> Result<(String, Option<CharPos>)> {
         let mut result = String::new();
         while let Some(char_pos) = self.next_char()? {
             let c = char_pos.val;

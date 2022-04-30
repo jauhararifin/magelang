@@ -24,6 +24,7 @@ pub enum TokenKind {
     Package,
     // keywords
     Fn,
+    Native,
     Var,
     If,
     While,
