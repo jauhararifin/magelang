@@ -64,6 +64,8 @@ pub enum Statement {
     While(While),
     Block(BlockStatement),
     Expr(Expr),
+    Continue,
+    Break,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +102,7 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Ident(Token),
+    StructLit(StructLit),
     IntegerLit(Token),
     FloatLit(Token),
     StringLit(Token),
@@ -109,7 +112,19 @@ pub enum ExprKind {
     FunctionCall(FunctionCall),
     Cast(Cast),
     Selector(Selector),
-    // TODO: add struct literal.
+}
+
+#[derive(Debug, Clone)]
+pub struct StructLit {
+    // TODO jauhararifin: support inline struct.
+    pub name: Token,
+    pub fields: Vec<Field>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Field {
+    pub name: Token,
+    pub value: Expr,
 }
 
 #[derive(Debug, Clone)]

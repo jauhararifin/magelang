@@ -1,6 +1,6 @@
 use crate::ast::{
-    Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, FnDecl, FunctionCall, If, Param, Return, Root,
-    Selector, Statement, Struct, Type, TypeDecl, Unary, Var, While,
+    Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FunctionCall, If, Param, Return,
+    Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
 };
 use crate::lexer::{Error as LexerError, Lexer};
 use crate::token::{Token, TokenKind};
@@ -112,6 +112,14 @@ enum ParsingState {
         args: Vec<Expr>,
     },
     PrimaryExpr,
+    StructLitExpr {
+        name: Token,
+        fields: Vec<Field>,
+    },
+    FieldName,
+    FieldValue {
+        name: Token,
+    },
 }
 
 #[derive(Debug)]
@@ -121,6 +129,7 @@ enum Ast {
     Var(Var),
     TypeDecl(TypeDecl),
     Param(Param),
+    Field(Field),
     Type(Type),
     Struct(Struct),
     Statement(Statement),
@@ -186,6 +195,9 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::CallExpr => self.parse_call_expr(data),
             ParsingState::CallExprParams { func, args } => self.parse_call_expr_params(func, args, data),
             ParsingState::PrimaryExpr => self.parse_primary_expr(data),
+            ParsingState::StructLitExpr { name, fields } => self.parse_struct_lit_expr(name, fields, data),
+            ParsingState::FieldName => self.parse_field_name(),
+            ParsingState::FieldValue { name } => self.parse_field_value(name, data),
         }
     }
 
@@ -899,10 +911,22 @@ impl<T: Lexer> SimpleParser<T> {
                 pos: token.pos,
                 kind: ExprKind::BoolLit(token),
             })),
-            TokenKind::Ident => Ok(Ast::Expr(Expr {
-                pos: token.pos,
-                kind: ExprKind::Ident(token),
-            })),
+            TokenKind::Ident => {
+                self.consume_endl()?;
+
+                if self.check(&TokenKind::OpenBlock)?.is_some() {
+                    self.stack.push(ParsingState::StructLitExpr {
+                        name: token,
+                        fields: Vec::new(),
+                    });
+                    return Ok(Ast::Empty);
+                }
+
+                Ok(Ast::Expr(Expr {
+                    pos: token.pos,
+                    kind: ExprKind::Ident(token),
+                }))
+            }
             TokenKind::OpenBrace => {
                 self.stack.push(ParsingState::PrimaryExpr);
                 self.stack.push(ParsingState::Expr);
@@ -921,6 +945,42 @@ impl<T: Lexer> SimpleParser<T> {
                 found: token,
             }),
         }
+    }
+
+    fn parse_struct_lit_expr(&mut self, name: Token, mut fields: Vec<Field>, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Field(field) = data {
+            fields.push(field);
+        }
+
+        if self.check(&TokenKind::CloseBlock)?.is_some() {
+            return Ok(Ast::Expr(Expr {
+                pos: name.pos,
+                kind: ExprKind::StructLit(StructLit { name, fields }),
+            }));
+        }
+
+        self.stack.push(ParsingState::StructLitExpr { name, fields });
+        self.stack.push(ParsingState::FieldName);
+
+        Ok(Ast::Empty)
+    }
+
+    fn parse_field_name(&mut self) -> Result<Ast, Error> {
+        let name = self.expect(TokenKind::Ident)?;
+        self.expect(TokenKind::Colon)?;
+        self.stack.push(ParsingState::ParamType { name });
+        Ok(Ast::Empty)
+    }
+
+    fn parse_field_value(&mut self, name: Token, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Expr(value) = data {
+            self.consume_endl()?;
+            self.check(&TokenKind::Comma)?;
+            return Ok(Ast::Field(Field { name, value }));
+        }
+        self.stack.push(ParsingState::FieldValue { name });
+        self.stack.push(ParsingState::Type);
+        Ok(Ast::Empty)
     }
 
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
