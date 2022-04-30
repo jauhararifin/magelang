@@ -199,7 +199,7 @@ impl<'a> TypeAnalyzer<'a> {
         };
 
         let mut params = Vec::new();
-        for param in func.param.iter() {
+        for param in func.params.iter() {
             let typ = self.analyze_type(&param.typ);
             params.push(Rc::new(Var {
                 name: param.name.value.as_ref().unwrap().clone(),
