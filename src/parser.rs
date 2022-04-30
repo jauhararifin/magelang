@@ -523,6 +523,8 @@ impl<T: Lexer> SimpleParser<T> {
             TokenKind::If => ParsingState::IfStatement,
             TokenKind::Return => ParsingState::ReturnStatement,
             TokenKind::OpenBlock => ParsingState::BlockStatement { body: vec![] },
+            TokenKind::Continue => return Ok(Ast::Statement(Statement::Continue)),
+            TokenKind::Break => return Ok(Ast::Statement(Statement::Break)),
             _ => ParsingState::AssignStatement,
         };
 

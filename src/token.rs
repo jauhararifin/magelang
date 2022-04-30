@@ -32,6 +32,8 @@ pub enum TokenKind {
     Type,
     Struct,
     Tuple,
+    Continue,
+    Break,
     // constant
     Ident,
     StringLit,

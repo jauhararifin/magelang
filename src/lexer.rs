@@ -230,6 +230,8 @@ impl<R: Read> SimpleLexer<R> {
             "struct" => self.emit_token(TokenKind::Struct, None, char_pos.pos),
             "tuple" => self.emit_token(TokenKind::Tuple, None, char_pos.pos),
             "while" => self.emit_token(TokenKind::While, None, char_pos.pos),
+            "continue" => self.emit_token(TokenKind::Continue, None, char_pos.pos),
+            "break" => self.emit_token(TokenKind::Break, None, char_pos.pos),
             "fn" => self.emit_token(TokenKind::Fn, None, char_pos.pos),
             "as" => self.emit_token(TokenKind::As, None, char_pos.pos),
             "return" => self.emit_token(TokenKind::Return, None, char_pos.pos),
