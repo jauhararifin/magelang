@@ -75,6 +75,7 @@ pub struct Assign {
 
 #[derive(Debug, Clone)]
 pub struct Return {
+    pub ret: Token,
     pub value: Option<Expr>,
 }
 

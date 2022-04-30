@@ -88,6 +88,9 @@ enum ParsingState {
         cond: Expr,
     },
     ReturnStatement,
+    ReturnStatementValue {
+        ret: Token,
+    },
     Expr,
     UnaryExpr,
     UnaryExprVal {
@@ -170,7 +173,8 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::IfStatementBody { cond } => self.parse_if_statement_body(cond, data),
             ParsingState::WhileStatement => self.parse_while_statement(data),
             ParsingState::WhileStatementBody { cond } => self.parse_while_statement_body(cond, data),
-            ParsingState::ReturnStatement => self.parse_return_statement(data),
+            ParsingState::ReturnStatement => self.parse_return_statement(),
+            ParsingState::ReturnStatementValue { ret } => self.parse_return_value_statement(ret, data),
             ParsingState::Expr => self.parse_expr(data),
             ParsingState::UnaryExpr => self.parse_unary_expr(),
             ParsingState::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
@@ -651,22 +655,27 @@ impl<T: Lexer> SimpleParser<T> {
         })
     }
 
-    fn parse_return_statement(&mut self, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Expr(value) = data {
-            return Ok(Ast::Return(Return { value: Some(value) }));
-        }
-
-        self.expect(TokenKind::Return)?;
-
+    fn parse_return_statement(&mut self) -> Result<Ast, Error> {
+        let ret = self.expect(TokenKind::Return)?;
         if self.check(&TokenKind::Endl)?.is_some() {
             // TODO (jauhararifin): endl is not the only token indicating end of statement.
-            return Ok(Ast::Return(Return { value: None }));
+            return Ok(Ast::Return(Return { ret, value: None }));
         }
 
-        self.stack.push(ParsingState::ReturnStatement);
+        self.stack.push(ParsingState::ReturnStatementValue { ret });
         self.stack.push(ParsingState::Expr);
-
         Ok(Ast::Empty)
+    }
+
+    fn parse_return_value_statement(&mut self, ret: Token, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Expr(value) = data {
+            return Ok(Ast::Return(Return {
+                ret,
+                value: Some(value),
+            }));
+        } else {
+            panic!("got invalid data while parsing return value statement: {:?}", data);
+        }
     }
 
     fn parse_expr(&mut self, data: Ast) -> Result<Ast, Error> {
