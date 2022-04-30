@@ -88,9 +88,7 @@ enum ParsingState {
     UnaryExprVal {
         op: Token,
     },
-    BinaryExpr {
-        target_op: Vec<TokenKind>,
-    },
+    BinaryExpr,
     BinaryExprOperand {
         a: Expr,
         op: Token,
@@ -165,7 +163,7 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::Expr => self.parse_expr(data),
             ParsingState::UnaryExpr => self.parse_unary_expr(),
             ParsingState::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
-            ParsingState::BinaryExpr { target_op } => self.parse_binary_expr(target_op, data),
+            ParsingState::BinaryExpr => self.parse_binary_expr(data),
             ParsingState::BinaryExprOperand { a, op } => self.parse_binary_expr_operand(a, op, data),
             ParsingState::CastExpr => self.parse_cast_expr(data),
             ParsingState::CastExprType { val } => self.parse_cast_expr_type(val, data),
@@ -498,6 +496,8 @@ impl<T: Lexer> SimpleParser<T> {
     }
 
     fn parse_block_statement(&mut self, mut body: Vec<Statement>, data: Ast) -> Result<Ast, Error> {
+        self.consume_endl()?;
+
         match data {
             Ast::Empty => {
                 self.expect(TokenKind::OpenBlock)?;
@@ -651,7 +651,15 @@ impl<T: Lexer> SimpleParser<T> {
         }
 
         self.stack.push(ParsingState::Expr);
+        self.stack.push(ParsingState::BinaryExpr);
+        self.stack.push(ParsingState::CastExpr);
+        self.stack.push(ParsingState::SelectorExpr);
+        self.stack.push(ParsingState::UnaryExpr);
 
+        Ok(Ast::Empty)
+    }
+
+    fn parse_binary_expr(&mut self, data: Ast) -> Result<Ast, Error> {
         let binary_precedence = vec![
             vec![TokenKind::Or],
             vec![TokenKind::And],
@@ -663,25 +671,15 @@ impl<T: Lexer> SimpleParser<T> {
             vec![TokenKind::Plus, TokenKind::Minus],
             vec![TokenKind::Mul, TokenKind::Div, TokenKind::Mod],
         ];
-        for target_op in binary_precedence.into_iter() {
-            self.stack.push(ParsingState::BinaryExpr { target_op });
-        }
 
-        self.stack.push(ParsingState::CastExpr);
-        self.stack.push(ParsingState::SelectorExpr);
-        self.stack.push(ParsingState::UnaryExpr);
-
-        Ok(Ast::Empty)
-    }
-
-    fn parse_binary_expr(&mut self, target_op: Vec<TokenKind>, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(expr) = data {
-            if let Some(op) = self.check_one_of(target_op)? {
-                self.stack.push(ParsingState::BinaryExprOperand { a: expr, op });
-                Ok(Ast::Empty)
-            } else {
-                Ok(Ast::Expr(expr))
+            for target_op in binary_precedence.into_iter() {
+                if let Some(op) = self.check_one_of(target_op)? {
+                    self.stack.push(ParsingState::BinaryExprOperand { a: expr, op });
+                    return Ok(Ast::Empty);
+                }
             }
+            Ok(Ast::Expr(expr))
         } else {
             panic!("invalid data when parsing binary expr: {:?}", data)
         }
@@ -728,6 +726,7 @@ impl<T: Lexer> SimpleParser<T> {
                 }),
             }),
             Ast::Empty => {
+                self.stack.push(ParsingState::CastExprType { val });
                 self.stack.push(ParsingState::Type);
                 Ast::Empty
             }
@@ -802,20 +801,25 @@ impl<T: Lexer> SimpleParser<T> {
             args.push(arg);
         }
 
-        let token = self.expect_one_of(vec![TokenKind::Comma, TokenKind::CloseBrace])?;
-        if token.kind == TokenKind::Comma {
-            self.stack.push(ParsingState::CallExprParams { func, args });
-            self.stack.push(ParsingState::Expr);
-            return Ok(Ast::Empty);
+        if let Some(token) = self.check_one_of(vec![TokenKind::Comma, TokenKind::CloseBrace])? {
+            if token.kind == TokenKind::Comma {
+                self.stack.push(ParsingState::CallExprParams { func, args });
+                self.stack.push(ParsingState::Expr);
+                return Ok(Ast::Empty);
+            }
+
+            return Ok(Ast::Expr(Expr {
+                pos: func.pos,
+                kind: ExprKind::FunctionCall(FunctionCall {
+                    func: Box::new(func),
+                    args,
+                }),
+            }));
         }
 
-        Ok(Ast::Expr(Expr {
-            pos: func.pos,
-            kind: ExprKind::FunctionCall(FunctionCall {
-                func: Box::new(func),
-                args,
-            }),
-        }))
+        self.stack.push(ParsingState::CallExprParams { func, args });
+        self.stack.push(ParsingState::Expr);
+        Ok(Ast::Empty)
     }
 
     fn parse_primary_expr(&mut self, data: Ast) -> Result<Ast, Error> {
@@ -878,21 +882,6 @@ impl<T: Lexer> SimpleParser<T> {
         Ok(token)
     }
 
-    fn expect_one_of(&mut self, kind: Vec<TokenKind>) -> Result<Token, Error> {
-        let token = self.lexer.next()?;
-
-        for k in kind.iter() {
-            if &token.kind != k {
-                return Ok(token);
-            }
-        }
-
-        Err(Error::UnexpectedToken {
-            expected: kind,
-            found: token,
-        })
-    }
-
     fn check(&mut self, kind: &TokenKind) -> Result<Option<Token>, Error> {
         let token = self.lexer.peek()?;
         if &token.kind != kind {
@@ -907,7 +896,7 @@ impl<T: Lexer> SimpleParser<T> {
         let token = self.lexer.peek()?;
 
         for k in kind.iter() {
-            if &token.kind != k {
+            if &token.kind == k {
                 return Ok(Some(self.lexer.next()?));
             }
         }

@@ -245,7 +245,7 @@ impl<R: Read> SimpleLexer<R> {
             "f64" => self.emit_token(TokenKind::F64, None, char_pos.pos),
             "true" => self.emit_token(TokenKind::True, None, char_pos.pos),
             "false" => self.emit_token(TokenKind::False, None, char_pos.pos),
-            _ => self.emit_token(TokenKind::Ident, Some(name), char_pos.pos),
+            _ => self.emit_token(TokenKind::Ident, Some(word), char_pos.pos),
         }
 
         Ok(next)
