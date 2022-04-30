@@ -1,10 +1,13 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
+#[derive(Debug)]
 pub struct Program {
     pub executable: bool,
-    pub global_values: HashMap<String, Value>,
+    pub global_values: Vec<Value>,
+    pub entry_point: usize,
 }
 
+#[derive(Debug)]
 pub enum Value {
     I8(i8),
     I16(i16),
@@ -20,18 +23,21 @@ pub enum Value {
     Void,
     Struct(StructValue),
     Fn(FnValue),
-    Heap(Rc<Value>),
+    Ptr(usize), // pointer to a value, doesn't have to be in heap
 }
 
+#[derive(Debug)]
 pub struct StructValue {
     pub values: Vec<Value>,
 }
 
+#[derive(Debug)]
 pub struct FnValue {
     pub name: String,
     pub instructions: Vec<Instruction>,
 }
 
+#[derive(Debug)]
 pub enum Instruction {
     Constant(Value), // push constant value to stack.
 
@@ -66,8 +72,11 @@ pub enum Instruction {
     // Then, it will push a Value::Obj to the stack.
     Alloc(Value),
 
-    SetLocal(usize), // pop stack, and set it into the n-th stack element.
-    GetLocal(usize), // push the n-th local value to stack.
+    SetLocal(isize), // pop stack, and set it into the n-th stack element.
+    GetLocal(isize), // push the n-th local value to stack.
+
+    SetGlobal(usize),
+    GetGlobal(usize),
 
     // pop stack, and get n-th prop.
     GetProp(usize),
@@ -81,8 +90,8 @@ pub enum Instruction {
     JumpIfTrue(isize),
     JumpIfFalse(isize),
 
-    Push(Value), // TODO: use more native method.
-    Pop,
+    Pop(usize), // pop n items from the stack
 
     Call(usize), // call(func_id),
+    Ret, // return
 }
