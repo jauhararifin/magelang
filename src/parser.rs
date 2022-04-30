@@ -653,12 +653,19 @@ impl<T: Lexer> SimpleParser<T> {
 
     fn parse_return_statement(&mut self, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(value) = data {
-            return Ok(Ast::Return(Return { value }));
+            return Ok(Ast::Return(Return { value: Some(value) }));
         }
 
         self.expect(TokenKind::Return)?;
+
+        if self.check(&TokenKind::Endl)?.is_some() {
+            // TODO (jauhararifin): endl is not the only token indicating end of statement.
+            return Ok(Ast::Return(Return { value: None }));
+        }
+
         self.stack.push(ParsingState::ReturnStatement);
         self.stack.push(ParsingState::Expr);
+
         Ok(Ast::Empty)
     }
 
@@ -706,7 +713,7 @@ impl<T: Lexer> SimpleParser<T> {
         ];
 
         if let Ast::Expr(expr) = data {
-            for target_op in binary_precedence.into_iter() {
+            for target_op in binary_precedence.into_iter().rev() {
                 if let Some(op) = self.check_one_of(target_op)? {
                     self.stack.push(ParsingState::BinaryExprOperand { a: expr, op });
                     return Ok(Ast::Empty);
@@ -729,6 +736,7 @@ impl<T: Lexer> SimpleParser<T> {
                 }),
             }),
             Ast::Empty => {
+                self.stack.push(ParsingState::BinaryExprOperand { a, op });
                 self.stack.push(ParsingState::Expr);
                 Ast::Empty
             }
