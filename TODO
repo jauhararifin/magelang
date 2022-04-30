@@ -1,3 +1,10 @@
+Features:
+- array support
+- method and closure support
+- generic support
+- interface support
+- module
+
 Rust stuff:
 - figure out how to mutate struct field with immutable &self.
   - by right this should be impossible,

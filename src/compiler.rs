@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        Assign, Binary, BlockStatement, Declaration, Expr, ExprKind, FnDecl, FunctionCall, Param, Return, Root,
-        Statement, Type, Var, While,
+        Assign, Binary, BlockStatement, Declaration, Expr, ExprKind, FnDecl, FunctionCall, Return, Root, Statement,
+        Type, Var, While,
     },
-    bytecode::{FnValue, Instruction, Program, Value},
-    parser::{self, Parser},
+    bytecode::{Function, Instruction, Program, Value},
+    parser,
     token::{Token, TokenKind},
 };
 
@@ -19,6 +19,7 @@ pub enum Error {
     ParseError(parser::Error),
     RedeclaredSymbol(Token),
     UndeclaredSymbol(Token),
+    CannotAssignToFunction(Token),
     MissingMain,
 }
 
@@ -33,9 +34,13 @@ impl From<parser::Error> for Error {
 pub struct SimpleCompiler {
     root: Root,
 
-    name_to_index: HashMap<String, usize>,
     values: Vec<Value>,
-    counter: usize,
+    name_to_value_index: HashMap<String, usize>,
+    value_counter: usize,
+
+    functions: Vec<Function>,
+    name_to_func_index: HashMap<String, usize>,
+    function_counter: usize,
 }
 
 struct FnContext {
@@ -44,9 +49,9 @@ struct FnContext {
 }
 
 impl FnContext {
-    fn new(params: &Vec<Param>) -> Self {
+    fn new(fn_decl: &FnDecl) -> Self {
         let mut table = HashMap::new();
-        for (i, param) in params.iter().rev().enumerate() {
+        for (i, param) in fn_decl.params.iter().rev().enumerate() {
             table.insert(param.name.value.as_ref().unwrap().clone(), -(i as isize + 1));
         }
 
@@ -84,22 +89,26 @@ impl SimpleCompiler {
         Self {
             root,
 
-            name_to_index: HashMap::new(),
             values: Vec::new(),
-            counter: 0,
+            name_to_value_index: HashMap::new(),
+            value_counter: 0,
+
+            functions: Vec::new(),
+            name_to_func_index: HashMap::new(),
+            function_counter: 0,
         }
     }
 
-    fn compile_func(&self, fn_decl: &FnDecl) -> Result<Value, Error> {
+    fn compile_func(&self, fn_decl: &FnDecl) -> Result<Function, Error> {
         let mut instructions = Vec::new();
-        let mut ctx = FnContext::new(&fn_decl.params);
+        let mut ctx = FnContext::new(&fn_decl);
 
         instructions.extend(self.compile_block_stmt(&mut ctx, &fn_decl.body)?);
 
-        Ok(Value::Fn(FnValue {
+        Ok(Function {
             name: fn_decl.name.value.as_ref().unwrap().clone(),
             instructions,
-        }))
+        })
     }
 
     fn compile_statement(&self, ctx: &mut FnContext, expr: &Statement) -> Result<Vec<Instruction>, Error> {
@@ -185,8 +194,10 @@ impl SimpleCompiler {
         let name = token.value.as_ref().unwrap();
         if let Some(index) = ctx.find_symbol(name) {
             Ok(vec![Instruction::SetLocal(index)])
-        } else if let Some(index) = self.name_to_index.get(name) {
+        } else if let Some(index) = self.name_to_value_index.get(name) {
             Ok(vec![Instruction::SetGlobal(index.clone())])
+        } else if self.name_to_func_index.contains_key(name) {
+            Err(Error::CannotAssignToFunction(token.clone()))
         } else {
             Err(Error::UndeclaredSymbol(token.clone()))
         }
@@ -243,8 +254,10 @@ impl SimpleCompiler {
         let name = token.value.as_ref().unwrap();
         if let Some(index) = ctx.find_symbol(name) {
             Ok(vec![Instruction::GetLocal(index)])
-        } else if let Some(index) = self.name_to_index.get(name) {
+        } else if let Some(index) = self.name_to_value_index.get(name) {
             Ok(vec![Instruction::GetGlobal(index.clone())])
+        } else if let Some(index) = self.name_to_func_index.get(name) {
+            Ok(vec![Instruction::Constant(Value::Fn(index.clone()))])
         } else {
             Err(Error::UndeclaredSymbol(token.clone()))
         }
@@ -291,21 +304,23 @@ impl SimpleCompiler {
     }
 
     fn compile_func_call(&self, ctx: &FnContext, fn_call: &FunctionCall) -> Result<Vec<Instruction>, Error> {
-        let index = if let ExprKind::Ident(name) = &fn_call.func.kind {
-            if let Some(index) = self.name_to_index.get(name.value.as_ref().unwrap()) {
-                index.clone()
-            } else {
-                return Err(Error::UndeclaredSymbol(name.clone()));
-            }
-        } else {
-            todo!("closure not yet supported");
-        };
+        // let index = if let ExprKind::Ident(name) = &fn_call.func.kind {
+        //     if let Some(index) = self.name_to_func_index.get(name.value.as_ref().unwrap()) {
+        //         index.clone()
+        //     } else {
+        //         return Err(Error::UndeclaredSymbol(name.clone()));
+        //     }
+        // } else {
+        //     todo!("closure not yet supported");
+        // };
 
         let mut instructions = Vec::new();
         for arg in fn_call.args.iter() {
             instructions.extend(self.compile_expr(ctx, arg)?);
         }
-        instructions.push(Instruction::Call(index));
+        instructions.extend(self.compile_expr(ctx, &fn_call.func)?);
+        instructions.push(Instruction::Call);
+        instructions.push(Instruction::Pop(fn_call.args.len()));
 
         Ok(instructions)
     }
@@ -339,11 +354,11 @@ impl Compiler for SimpleCompiler {
                 Declaration::Fn(fn_decl) => {
                     let name = fn_decl.name.value.as_ref().unwrap().clone();
 
-                    if self.name_to_index.contains_key(&name) {
+                    if self.name_to_func_index.contains_key(&name) {
                         return Err(Error::RedeclaredSymbol(fn_decl.name.clone()));
                     }
-                    self.name_to_index.insert(name, self.counter);
-                    self.counter += 1;
+                    self.name_to_func_index.insert(name, self.function_counter);
+                    self.function_counter += 1;
                 }
                 Declaration::Var(_var) => todo!(),
                 Declaration::Type(_type_decl) => todo!(),
@@ -353,18 +368,20 @@ impl Compiler for SimpleCompiler {
         for decl in self.root.declarations.iter() {
             match decl {
                 Declaration::Fn(fn_decl) => {
-                    let func_value = self.compile_func(fn_decl)?;
-                    self.values.push(func_value);
+                    let func = self.compile_func(fn_decl)?;
+                    self.functions.push(func);
                 }
                 Declaration::Var(_var) => todo!(),
                 Declaration::Type(_type_decl) => todo!(),
             }
         }
 
-        let main_func = self.name_to_index.get("main").ok_or(Error::MissingMain)?;
+        let main_func = self.name_to_func_index.get("main").ok_or(Error::MissingMain)?;
+
         Ok(Program {
             executable: true,
-            global_values: std::mem::take(&mut self.values),
+            values: std::mem::take(&mut self.values),
+            functions: std::mem::take(&mut self.functions),
             entry_point: main_func.clone(),
         })
     }

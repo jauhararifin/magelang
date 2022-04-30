@@ -1,9 +1,8 @@
-use std::rc::Rc;
-
 #[derive(Debug)]
 pub struct Program {
     pub executable: bool,
-    pub global_values: Vec<Value>,
+    pub values: Vec<Value>,
+    pub functions: Vec<Function>,
     pub entry_point: usize,
 }
 
@@ -22,19 +21,19 @@ pub enum Value {
     Bool(bool),
     Void,
     Struct(StructValue),
-    Fn(FnValue),
+    Fn(usize),  // pointer to function
     Ptr(usize), // pointer to a value, doesn't have to be in heap
+}
+
+#[derive(Debug)]
+pub struct Function {
+    pub name: String,
+    pub instructions: Vec<Instruction>,
 }
 
 #[derive(Debug)]
 pub struct StructValue {
     pub values: Vec<Value>,
-}
-
-#[derive(Debug)]
-pub struct FnValue {
-    pub name: String,
-    pub instructions: Vec<Instruction>,
 }
 
 #[derive(Debug)]
@@ -92,6 +91,6 @@ pub enum Instruction {
 
     Pop(usize), // pop n items from the stack
 
-    Call(usize), // call(func_id),
-    Ret, // return
+    Call, // pop 1 value, and use it as function pointer.
+    Ret,  // return
 }
