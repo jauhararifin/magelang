@@ -1,5 +1,5 @@
-use crate::token::Token;
 use crate::pos::Pos;
+use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub struct Root {
@@ -16,7 +16,7 @@ pub enum Declaration {
 #[derive(Debug, Clone)]
 pub struct FnDecl {
     pub name: Token,
-    pub param: Vec<Param>,
+    pub params: Vec<Param>,
     pub ret_type: Option<Type>,
     pub body: BlockStatement,
 }
@@ -144,51 +144,3 @@ pub struct Selector {
 pub struct BlockStatement {
     pub body: Vec<Statement>,
 }
-
-#[derive(Debug)]
-pub enum Ast {
-    Root(Root),
-    FnDecl(FnDecl),
-    Var(Var),
-    TypeDecl(TypeDecl),
-    Param(Param),
-    Type(Type),
-    Struct(Struct),
-    Statement(Statement),
-    Assign(Assign),
-    If(If),
-    While(While),
-    Return(Return),
-    Expr(Expr),
-    BlockStatement(BlockStatement),
-    Empty,
-}
-
-macro_rules! from_ast {
-    ($target: ident) => {
-        impl From<Ast> for $target {
-            fn from(ast: Ast) -> $target {
-                if let Ast::$target(inner) = ast {
-                    inner
-                } else {
-                    panic!("invalid conversion from AST to $target");
-                }
-            }
-        }
-    };
-}
-
-from_ast!(Root);
-from_ast!(FnDecl);
-from_ast!(Var);
-from_ast!(TypeDecl);
-from_ast!(Param);
-from_ast!(Type);
-from_ast!(Struct);
-from_ast!(Statement);
-from_ast!(Assign);
-from_ast!(If);
-from_ast!(While);
-from_ast!(Return);
-from_ast!(Expr);
-from_ast!(BlockStatement);
