@@ -3,6 +3,7 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub struct Root {
+    pub package: Token,
     pub declarations: Vec<Declaration>,
 }
 

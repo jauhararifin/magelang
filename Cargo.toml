@@ -5,8 +5,3 @@ edition = "2021"
 
 [dependencies]
 unicode_reader = "1.0.2"
-prost = "0.6"
-prost-types = "0.6"
-
-[build-dependencies]
-prost-build = { version = "0.6" }

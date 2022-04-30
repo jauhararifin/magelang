@@ -28,7 +28,9 @@ pub struct SimpleParser<T: Lexer> {
 
 #[derive(Debug)]
 enum ParsingState {
-    Root {
+    Root,
+    RootDecl {
+        package: Token,
         declarations: Vec<Declaration>,
     },
     Var,
@@ -135,7 +137,8 @@ impl<T: Lexer> SimpleParser<T> {
 
     fn parse_state(&mut self, state: ParsingState, data: Ast) -> Result<Ast, Error> {
         match state {
-            ParsingState::Root { declarations } => self.parse_root(declarations, data),
+            ParsingState::Root => self.parse_root(),
+            ParsingState::RootDecl { package, declarations } => self.parse_root_decl(package, declarations, data),
             ParsingState::Var => self.parse_var(),
             ParsingState::VarType { name } => self.parse_var_type(name, data),
             ParsingState::VarValue { name, typ } => self.parse_var_value(name, typ, data),
@@ -174,7 +177,18 @@ impl<T: Lexer> SimpleParser<T> {
         }
     }
 
-    fn parse_root(&mut self, mut declarations: Vec<Declaration>, data: Ast) -> Result<Ast, Error> {
+    fn parse_root(&mut self) -> Result<Ast, Error> {
+        self.consume_endl()?;
+        self.expect(TokenKind::Package)?;
+        let package = self.expect(TokenKind::StringLit)?;
+        self.stack.push(ParsingState::RootDecl {
+            package,
+            declarations: vec![],
+        });
+        Ok(Ast::Empty)
+    }
+
+    fn parse_root_decl(&mut self, package: Token, mut declarations: Vec<Declaration>, data: Ast) -> Result<Ast, Error> {
         match data {
             Ast::Var(decl) => declarations.push(Declaration::Var(decl)),
             Ast::FnDecl(decl) => declarations.push(Declaration::Fn(decl)),
@@ -187,23 +201,23 @@ impl<T: Lexer> SimpleParser<T> {
             let token = self.lexer.peek()?;
             match token.kind {
                 TokenKind::Eoi => {
-                    return Ok(Ast::Root(Root { declarations }));
+                    return Ok(Ast::Root(Root { package, declarations }));
                 }
                 TokenKind::Endl => {
                     self.lexer.next()?;
                 }
                 TokenKind::Fn => {
-                    self.stack.push(ParsingState::Root { declarations });
+                    self.stack.push(ParsingState::RootDecl { package, declarations });
                     self.stack.push(ParsingState::FnName);
                     return Ok(Ast::Empty);
                 }
                 TokenKind::Var => {
-                    self.stack.push(ParsingState::Root { declarations });
+                    self.stack.push(ParsingState::RootDecl { package, declarations });
                     self.stack.push(ParsingState::Var);
                     return Ok(Ast::Empty);
                 }
                 TokenKind::Type => {
-                    self.stack.push(ParsingState::Root { declarations });
+                    self.stack.push(ParsingState::RootDecl { package, declarations });
                     self.stack.push(ParsingState::TypeDecl);
                     return Ok(Ast::Empty);
                 }
@@ -914,10 +928,7 @@ impl<T: Lexer> SimpleParser<T> {
 
 impl<T: Lexer> Parser for SimpleParser<T> {
     fn parse(&mut self) -> std::result::Result<Root, Error> {
-        let initial_state = ParsingState::Root {
-            declarations: Vec::new(),
-        };
-        self.stack.push(initial_state);
+        self.stack.push(ParsingState::Root);
 
         let mut data = Ast::Empty;
         while let Some(state) = self.stack.pop() {

@@ -1,6 +1,36 @@
-use crate::ast::Type;
+use std::{collections::HashMap, rc::Rc};
 
-use super::value::Value;
+pub struct Program {
+    pub executable: bool,
+    pub global_values: HashMap<String, Value>,
+}
+
+pub enum Value {
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    Bool(bool),
+    Void,
+    Struct(StructValue),
+    Fn(FnValue),
+    Heap(Rc<Value>),
+}
+
+pub struct StructValue {
+    pub values: Vec<Value>,
+}
+
+pub struct FnValue {
+    pub name: String,
+    pub instructions: Vec<Instruction>,
+}
 
 pub enum Instruction {
     Constant(Value), // push constant value to stack.
@@ -32,7 +62,9 @@ pub enum Instruction {
     Xor,
     Neg,
 
-    Alloc(Type), // based on the type, push heap allocated value to stack.
+    // Alloc allocate a Value in the heap.
+    // Then, it will push a Value::Obj to the stack.
+    Alloc(Value),
 
     SetLocal(usize), // pop stack, and set it into the n-th stack element.
     GetLocal(usize), // push the n-th local value to stack.
@@ -54,4 +86,3 @@ pub enum Instruction {
 
     Call(usize), // call(func_id),
 }
-
