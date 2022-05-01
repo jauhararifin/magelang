@@ -1,6 +1,6 @@
 use crate::ast::{
     Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FunctionCall, If, Param, Return,
-    Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
+    Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While, FnHeader,
 };
 use crate::lexer::{Error as LexerError, Lexer};
 use crate::token::{Token, TokenKind};
@@ -372,10 +372,12 @@ impl<T: Lexer> SimpleParser<T> {
     ) -> Result<Ast, Error> {
         if let Ast::BlockStatement(body) = data {
             return Ok(Ast::FnDecl(FnDecl {
-                name,
-                native,
-                params,
-                ret_type,
+                header: FnHeader {
+                    name,
+                    native,
+                    params,
+                    ret_type,
+                },
                 body,
             }));
         }

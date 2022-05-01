@@ -16,11 +16,16 @@ pub enum Declaration {
 
 #[derive(Debug, Clone)]
 pub struct FnDecl {
+    pub header: FnHeader,
+    pub body: BlockStatement,
+}
+
+#[derive(Debug, Clone)]
+pub struct FnHeader {
     pub name: Token,
     pub native: bool,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
-    pub body: BlockStatement,
 }
 
 #[derive(Debug, Clone)]

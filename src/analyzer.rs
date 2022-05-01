@@ -7,10 +7,10 @@ use std::{
 };
 
 use crate::{
-    ast::{self, Expr, ExprKind, TypeDecl},
+    ast::{self, Expr, ExprKind, FnHeader, TypeDecl},
     parser,
     pos::Pos,
-    semantic::{Field, Root, Type, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8},
+    semantic::{Argument, Field, Root, Type, TypePtr, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8},
     token::{Token, TokenKind},
 };
 
@@ -52,7 +52,7 @@ impl Analyzer for SimpleAnalyzer {
         type_processor.setup()?;
 
         let mut value_processor = ValueProcessor::new(&self.root_ast, &type_processor);
-        value_processor.analyze_values()?;
+        value_processor.setup()?;
 
         todo!();
     }
@@ -228,7 +228,7 @@ impl<'a> TypeProcessor<'a> {
 
             for ast_field in ast_fields.iter() {
                 let name = ast_field.name.value.as_ref().unwrap();
-                let mut typ = fields.get(name).unwrap().typ.borrow_mut();
+                let mut typ = fields.get(name).unwrap().typ.0.borrow_mut();
                 let ast_type = &ast_field.typ;
 
                 if typ.upgrade().is_none() {
@@ -281,7 +281,7 @@ impl<'a> TypeProcessor<'a> {
             } else {
                 Weak::new()
             };
-            let typ = RefCell::new(typ);
+            let typ = TypePtr(RefCell::new(typ));
             fields.insert(name, Field { index, typ });
         }
 
@@ -290,6 +290,36 @@ impl<'a> TypeProcessor<'a> {
 
     fn get_type_by_name(&self, name: &String) -> Option<Rc<Type>> {
         self.type_alias.get(name).cloned()
+    }
+
+    fn get_fn_type(&self, header: &FnHeader) -> Option<Rc<Type>> {
+        let mut arguments = Vec::new();
+
+        for (index, arg) in header.params.iter().enumerate() {
+            let typ = self.get_type(&arg.typ);
+            if typ.is_none() {
+                return None;
+            }
+            let typ = typ.unwrap();
+
+            arguments.push(Argument {
+                index,
+                name: arg.name.value.as_ref().unwrap().clone(),
+                typ: RefCell::new(Rc::downgrade(&typ)),
+            });
+        }
+
+        let return_type = if let Some(t) = &header.ret_type {
+            if let Some(typ) = self.get_type(t) {
+                Some(TypePtr(RefCell::new(Rc::downgrade(&typ))))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Some(Rc::new(Type::Fn { arguments, return_type }))
     }
 }
 
@@ -314,7 +344,14 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
         }
     }
 
-    fn analyze_values(&mut self) -> Result<(), Error> {
+    fn setup(&mut self) -> Result<(), Error> {
+        self.setup_values()?;
+        self.setup_functions()?;
+        println!("symbol_tables: {:?}", self.symbol_table); // TODO: REMOVE!!
+        Ok(())
+    }
+
+    fn setup_values(&mut self) -> Result<(), Error> {
         let type_decls: Vec<&ast::Var> = self
             .root_ast
             .declarations
@@ -377,14 +414,14 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 }
             }
             ExprKind::IntegerLit(_) => {
-                if let Type::Int { signed, size } = expected.deref() {
+                if let Type::Int { signed: _, size: _ } = expected.deref() {
                     Ok(Rc::clone(expected))
                 } else {
                     Ok(Rc::clone(&self.type_processor.type_i32))
                 }
             }
             ExprKind::FloatLit(_) => {
-                if let Type::Float { size } = expected.deref() {
+                if let Type::Float { size: _ } = expected.deref() {
                     Ok(Rc::clone(expected))
                 } else {
                     Ok(Rc::clone(&self.type_processor.type_f64))
@@ -502,7 +539,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 let typ = self.analyze_constant_expr(selector.source.as_ref(), expected)?;
                 if let Type::Struct { fields } = typ.as_ref() {
                     if let Some(field) = fields.get(selector.selection.value.as_ref().unwrap()) {
-                        Ok(Rc::clone(&field.typ.borrow().upgrade().unwrap()))
+                        Ok(Rc::clone(&field.typ.0.borrow().upgrade().unwrap()))
                     } else {
                         Err(Error::HasNoField(typ.as_ref().clone(), selector.source.pos))
                     }
@@ -511,6 +548,38 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 }
             }
         }
+    }
+
+    fn setup_functions(&mut self) -> Result<(), Error> {
+        let type_decls: Vec<&ast::FnDecl> = self
+            .root_ast
+            .declarations
+            .iter()
+            .filter_map(|decl| {
+                if let ast::Declaration::Fn(t) = decl {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        self.add_symbol_table_block();
+        for type_decl in type_decls.iter() {
+            let name = type_decl.header.name.value.as_ref().unwrap();
+            if self.find_symbol(name).is_some() {
+                return Err(Error::RedeclaredSymbol(type_decl.header.name.clone()));
+            }
+
+            let typ = self
+                .type_processor
+                .get_fn_type(&type_decl.header)
+                .ok_or(Error::UndeclaredSymbol(type_decl.header.name.clone()))?; // TODO: fix the error reporting
+
+            self.add_symbol(name, typ);
+        }
+
+        Ok(())
     }
 
     fn add_symbol_table_block(&mut self) {

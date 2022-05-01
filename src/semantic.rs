@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, rc::Weak};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Weak,
+};
 
 #[derive(Debug, Clone)]
 pub struct Root {
@@ -39,20 +43,30 @@ pub struct Param {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
-    Invalid,
-    Int { signed: bool, size: u8 },
-    Float { size: u8 },
+    Int {
+        signed: bool,
+        size: u8,
+    },
+    Float {
+        size: u8,
+    },
     Bool,
-    Struct { fields: HashMap<String, Field> },
+    Fn {
+        arguments: Vec<Argument>,
+        return_type: Option<TypePtr>,
+    },
+    Struct {
+        fields: HashMap<String, Field>,
+    },
 }
 
 impl Type {
     pub fn is_number(&self) -> bool {
-        matches!(self, Type::Int{signed:_, size: _} | Type::Float{size: _})
+        matches!(self, Type::Int { signed: _, size: _ } | Type::Float { size: _ })
     }
 
     pub fn is_int(&self) -> bool {
-        matches!(self, Type::Int{signed:_, size: _})
+        matches!(self, Type::Int { signed: _, size: _ })
     }
 
     pub fn is_bool(&self) -> bool {
@@ -61,18 +75,45 @@ impl Type {
 }
 
 #[derive(Debug, Clone)]
-pub struct Field {
-    pub index: usize,
-    pub typ: RefCell<Weak<Type>>,
-}
+pub struct TypePtr(pub RefCell<Weak<Type>>);
 
-impl PartialEq for Field {
+impl PartialEq for TypePtr {
     fn eq(&self, other: &Self) -> bool {
-        self.index == other.index && self.typ.borrow().ptr_eq(&other.typ.borrow())
+        let a = self.0.borrow().upgrade();
+        let b = other.0.borrow().upgrade();
+        if let Some(a) = a {
+            if let Some(b) = b {
+                return a == b;
+            }
+            return false;
+        }
+        return b.is_none();
     }
 }
 
-impl Eq for Field {}
+impl Eq for TypePtr {}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Field {
+    pub index: usize,
+    pub typ: TypePtr,
+}
+
+#[derive(Debug, Clone)]
+pub struct Argument {
+    pub index: usize,
+    pub name: String,
+    pub typ: RefCell<Weak<Type>>,
+}
+
+impl PartialEq for Argument {
+    fn eq(&self, other: &Self) -> bool {
+        // TODO jauhararifin: check the value instead of just the pointer
+        self.index == other.index && self.name == other.name && self.typ.borrow().ptr_eq(&other.typ.borrow())
+    }
+}
+
+impl Eq for Argument {}
 
 pub const BOOL: Type = Type::Bool;
 pub const I8: Type = Type::Int { signed: true, size: 8 };
