@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    rc::Weak,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Weak};
 
 #[derive(Debug, Clone)]
 pub struct Root {
@@ -51,6 +47,7 @@ pub enum Type {
         size: u8,
     },
     Bool,
+    Void,
     Fn {
         arguments: Vec<Argument>,
         return_type: Option<TypePtr>,
@@ -71,6 +68,16 @@ impl Type {
 
     pub fn is_bool(&self) -> bool {
         matches!(self, Type::Bool)
+    }
+
+    pub fn is_func(&self) -> bool {
+        matches!(
+            self,
+            Type::Fn {
+                arguments: _,
+                return_type: _
+            }
+        )
     }
 }
 
@@ -115,6 +122,7 @@ impl PartialEq for Argument {
 
 impl Eq for Argument {}
 
+pub const VOID: Type = Type::Void;
 pub const BOOL: Type = Type::Bool;
 pub const I8: Type = Type::Int { signed: true, size: 8 };
 pub const I16: Type = Type::Int { signed: true, size: 16 };

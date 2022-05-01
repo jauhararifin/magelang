@@ -10,7 +10,7 @@ use crate::{
     ast::{self, Expr, ExprKind, FnHeader, TypeDecl},
     parser,
     pos::Pos,
-    semantic::{Argument, Field, Root, Type, TypePtr, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8},
+    semantic::{Argument, Field, Root, Type, TypePtr, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID},
     token::{Token, TokenKind},
 };
 
@@ -29,6 +29,8 @@ pub enum Error {
     ReturnOnVoidFunc(Pos),
     MissingReturnValue(Pos),
     UnsupportedOperationInConstant(Pos),
+    FuncCallArgNumMismatch,
+    IsNotAFunction,
     MissingMain,
 }
 
@@ -73,6 +75,7 @@ struct TypeProcessor<'a> {
     type_f32: Rc<Type>,
     type_f64: Rc<Type>,
     type_bool: Rc<Type>,
+    type_void: Rc<Type>,
 }
 
 impl<'a> TypeProcessor<'a> {
@@ -92,6 +95,7 @@ impl<'a> TypeProcessor<'a> {
             type_f32: Rc::new(F32),
             type_f64: Rc::new(F64),
             type_bool: Rc::new(BOOL),
+            type_void: Rc::new(VOID),
         }
     }
 
@@ -377,7 +381,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             }
 
             if let Some(val) = &type_decl.value {
-                let value_type = self.analyze_constant_expr(val, &typ)?;
+                let value_type = self.analyze_expr(val, &typ, true)?;
                 if &value_type != &typ {
                     return Err(Error::MismatchType {
                         expected: typ.as_ref().clone(),
@@ -393,7 +397,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
         Ok(())
     }
 
-    fn analyze_constant_expr(&self, expr: &Expr, expected: &Rc<Type>) -> Result<Rc<Type>, Error> {
+    fn analyze_expr(&self, expr: &Expr, expected: &Rc<Type>, is_global_var: bool) -> Result<Rc<Type>, Error> {
         match &expr.kind {
             ExprKind::Ident(token) => {
                 let name = token.value.as_ref().unwrap();
@@ -430,8 +434,8 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             ExprKind::StringLit(_) => todo!(),
             ExprKind::BoolLit(_) => Ok(Rc::clone(&self.type_processor.type_bool)),
             ExprKind::Binary(binary) => {
-                let a = self.analyze_constant_expr(binary.a.borrow(), expected)?;
-                let b = self.analyze_constant_expr(binary.b.borrow(), expected)?;
+                let a = self.analyze_expr(binary.a.borrow(), expected, is_global_var)?;
+                let b = self.analyze_expr(binary.b.borrow(), expected, is_global_var)?;
 
                 let matched = match binary.op.kind {
                     TokenKind::Eq | TokenKind::NotEq => a == b,
@@ -496,7 +500,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 })
             }
             ExprKind::Unary(unary) => {
-                let val_type = self.analyze_constant_expr(unary.val.borrow(), expected)?;
+                let val_type = self.analyze_expr(unary.val.borrow(), expected, is_global_var)?;
 
                 let matched = match unary.op.kind {
                     TokenKind::Not => val_type.is_bool(),
@@ -526,17 +530,50 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     _ => unreachable!(),
                 })
             }
-            ExprKind::FunctionCall(_) => Err(Error::UnsupportedOperationInConstant(expr.pos)),
+            ExprKind::FunctionCall(func_call) => {
+                if is_global_var {
+                    return Err(Error::UnsupportedOperationInConstant(expr.pos));
+                }
+
+                let func = self.analyze_expr(func_call.func.as_ref(), expected, is_global_var)?;
+                let (func_arguments, return_type) = if let Type::Fn { arguments, return_type } = func.borrow() {
+                    (arguments, return_type)
+                } else {
+                    return Err(Error::IsNotAFunction);
+                };
+
+                if func_arguments.len() != func_call.args.len() {
+                    return Err(Error::FuncCallArgNumMismatch);
+                }
+
+                for (i, val) in func_call.args.iter().enumerate() {
+                    let val_type = self.analyze_expr(val, expected, is_global_var)?;
+                    let func_type = func_arguments.get(i).unwrap().typ.borrow().upgrade().unwrap();
+                    if val_type != func_type {
+                        return Err(Error::MismatchType {
+                            expected: func_type.as_ref().clone(),
+                            got: val_type.as_ref().clone(),
+                            pos: val.pos,
+                        });
+                    }
+                }
+
+                if let Some(t) = return_type {
+                    Ok(Rc::clone(&t.0.borrow().upgrade().unwrap()))
+                } else {
+                    Ok(Rc::clone(&self.type_processor.type_void))
+                }
+            }
             ExprKind::Cast(cast) => {
                 let typ = self.type_processor.get_type(&cast.target);
                 if let Some(typ) = typ {
-                    self.analyze_constant_expr(cast.val.borrow(), typ.borrow())
+                    self.analyze_expr(cast.val.borrow(), typ.borrow(), is_global_var)
                 } else {
                     Err(Error::UndeclaredType)
                 }
             }
             ExprKind::Selector(selector) => {
-                let typ = self.analyze_constant_expr(selector.source.as_ref(), expected)?;
+                let typ = self.analyze_expr(selector.source.as_ref(), expected, is_global_var)?;
                 if let Type::Struct { fields } = typ.as_ref() {
                     if let Some(field) = fields.get(selector.selection.value.as_ref().unwrap()) {
                         Ok(Rc::clone(&field.typ.0.borrow().upgrade().unwrap()))
