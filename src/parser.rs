@@ -428,7 +428,7 @@ impl<T: Lexer> SimpleParser<T> {
 
     fn parse_type(&mut self, data: Ast) -> Result<Ast, Error> {
         if let Ast::Struct(typ) = data {
-            return Ok(Ast::Struct(typ));
+            return Ok(Ast::Type(Type::Struct(typ)));
         }
 
         let token = self.lexer.peek()?;
