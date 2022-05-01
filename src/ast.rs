@@ -3,6 +3,7 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub struct Root {
+    pub package_token: Token,
     pub package: Token,
     pub declarations: Vec<Declaration>,
 }
@@ -16,13 +17,14 @@ pub enum Declaration {
 
 #[derive(Debug, Clone)]
 pub struct FnDecl {
+    pub fn_token: Token,
+    pub name: Token,
     pub header: FnHeader,
     pub body: BlockStatement,
 }
 
 #[derive(Debug, Clone)]
 pub struct FnHeader {
-    pub name: Token,
     pub native: bool,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,

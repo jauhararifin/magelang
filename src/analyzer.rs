@@ -566,15 +566,15 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
 
         self.add_symbol_table_block();
         for type_decl in type_decls.iter() {
-            let name = type_decl.header.name.value.as_ref().unwrap();
+            let name = type_decl.name.value.as_ref().unwrap();
             if self.find_symbol(name).is_some() {
-                return Err(Error::RedeclaredSymbol(type_decl.header.name.clone()));
+                return Err(Error::RedeclaredSymbol(type_decl.name.clone()));
             }
 
             let typ = self
                 .type_processor
                 .get_fn_type(&type_decl.header)
-                .ok_or(Error::UndeclaredSymbol(type_decl.header.name.clone()))?; // TODO: fix the error reporting
+                .ok_or(Error::UndeclaredSymbol(type_decl.name.clone()))?; // TODO: fix the error reporting
 
             self.add_symbol(name, typ);
         }
