@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Weak};
 
 #[derive(Debug, Clone)]
 pub struct Root {
@@ -39,17 +39,61 @@ pub struct Param {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
+    Invalid,
     Int { signed: bool, size: u8 },
     Float { size: u8 },
     Bool,
     Struct { fields: HashMap<String, Field> },
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Field {
-    index: usize,
-    typ: Type,
+impl Type {
+    pub fn is_number(&self) -> bool {
+        matches!(self, Type::Int{signed:_, size: _} | Type::Float{size: _})
+    }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self, Type::Int{signed:_, size: _})
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Type::Bool)
+    }
 }
+
+#[derive(Debug, Clone)]
+pub struct Field {
+    pub index: usize,
+    pub typ: RefCell<Weak<Type>>,
+}
+
+impl PartialEq for Field {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index && self.typ.borrow().ptr_eq(&other.typ.borrow())
+    }
+}
+
+impl Eq for Field {}
+
+pub const BOOL: Type = Type::Bool;
+pub const I8: Type = Type::Int { signed: true, size: 8 };
+pub const I16: Type = Type::Int { signed: true, size: 16 };
+pub const I32: Type = Type::Int { signed: true, size: 32 };
+pub const I64: Type = Type::Int { signed: true, size: 64 };
+pub const U8: Type = Type::Int { signed: false, size: 8 };
+pub const U16: Type = Type::Int {
+    signed: false,
+    size: 16,
+};
+pub const U32: Type = Type::Int {
+    signed: false,
+    size: 32,
+};
+pub const U64: Type = Type::Int {
+    signed: false,
+    size: 64,
+};
+pub const F32: Type = Type::Float { size: 32 };
+pub const F64: Type = Type::Float { size: 64 };
 
 #[derive(Debug, Clone)]
 pub enum Statement {

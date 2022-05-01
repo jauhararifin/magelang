@@ -450,6 +450,8 @@ impl<T: Lexer> SimpleParser<T> {
             | TokenKind::U16
             | TokenKind::U32
             | TokenKind::U64
+            | TokenKind::F32
+            | TokenKind::F64
             | TokenKind::Bool => {
                 let token = self.lexer.next()?;
                 Ok(Ast::Type(Type::Primitive(token)))
@@ -467,6 +469,8 @@ impl<T: Lexer> SimpleParser<T> {
                         TokenKind::U16,
                         TokenKind::U32,
                         TokenKind::U64,
+                        TokenKind::F32,
+                        TokenKind::F64,
                         TokenKind::Bool,
                         TokenKind::Struct,
                     ],
