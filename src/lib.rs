@@ -10,3 +10,4 @@ pub mod semantic;
 pub mod token;
 pub mod vm;
 pub mod mangler;
+pub mod type_helper;

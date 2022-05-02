@@ -23,6 +23,16 @@ pub enum Declaration {
     Type(TypeDecl),
 }
 
+impl Declaration {
+    pub fn try_unwrap_type(&self) -> Option<&TypeDecl> {
+        if let Self::Type(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FnDecl {
     pub fn_token: Token,
@@ -63,7 +73,7 @@ pub enum Type {
     Ident(Token),
     Struct(Struct),
     Selector(TypeSelector),
-     // TODO: add tuple.
+    // TODO: add tuple.
 }
 
 #[derive(Debug, Clone)]

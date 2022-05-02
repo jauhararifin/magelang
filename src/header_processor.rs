@@ -1,8 +1,6 @@
 // TODO: find better name.
 
-use std::{
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{self, Root},
@@ -11,6 +9,7 @@ use crate::{
         FunctionCall, Header, IntType, Selector, Struct, StructLit, Type, TypeDecl, TypePtr, Unary, UnaryOp, VarHeader,
     },
     token::{Token, TokenKind},
+    type_helper::{ITypeHelper, TypeHelper},
 };
 
 #[derive(Debug)]
@@ -31,7 +30,7 @@ pub enum Error {
 }
 
 pub trait HeaderProcessor {
-    fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<HashMap<&'a str, Header>, Error>;
+    fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error>;
 }
 
 pub struct SimpleHeaderProcessor {}
@@ -41,7 +40,7 @@ impl SimpleHeaderProcessor {
         Self {}
     }
 
-    fn build<'a>(&self, roots: &'a [Root]) -> Result<HashMap<&'a str, Header>, Error> {
+    fn build<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
         let dependency_graph = self.build_package_dependency(roots);
         let plan = self.build_processing_plan(&dependency_graph)?;
 
@@ -53,11 +52,11 @@ impl SimpleHeaderProcessor {
                 .push(root);
         }
 
-        let mut headers = HashMap::new();
+        let mut headers = Vec::new();
         for pack in plan.iter() {
             let roots = pack_to_ast.get(*pack).unwrap().as_slice();
             let header = self.build_header(roots, &headers)?;
-            headers.insert(pack, header);
+            headers.push(header);
         }
 
         Ok(headers)
@@ -126,7 +125,7 @@ impl SimpleHeaderProcessor {
         Ok(plan)
     }
 
-    fn build_header(&self, roots: &[&Root], dependencies: &HashMap<&str, Header>) -> Result<Header, Error> {
+    fn build_header(&self, roots: &[&Root], dependencies: &[Header]) -> Result<Header, Error> {
         let mut processor = SingleHeaderProcessor::new(dependencies);
         for root in roots.into_iter() {
             processor.process(root)?;
@@ -136,14 +135,14 @@ impl SimpleHeaderProcessor {
 }
 
 impl HeaderProcessor for SimpleHeaderProcessor {
-    fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<HashMap<&'a str, Header>, Error> {
+    fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
         self.build(roots)
     }
 }
 
 struct SingleHeaderProcessor<'a> {
     package_name: Option<String>,
-    dependencies: &'a HashMap<&'a str, Header>,
+    dependencies: &'a [Header],
 
     types: Vec<TypeDecl>,
     vars: Vec<VarHeader>,
@@ -151,7 +150,7 @@ struct SingleHeaderProcessor<'a> {
 }
 
 impl<'a> SingleHeaderProcessor<'a> {
-    fn new(dependencies: &'a HashMap<&'a str, Header>) -> Self {
+    fn new(dependencies: &'a [Header]) -> Self {
         Self {
             package_name: None,
             dependencies,
@@ -164,16 +163,18 @@ impl<'a> SingleHeaderProcessor<'a> {
     fn process(&mut self, root: &'a Root) -> Result<(), Error> {
         self.package_name = Some(root.package_name.unwrap_value().clone());
 
-        let mut type_processor = TypeProcessor::new(root, self.dependencies);
-        type_processor.setup()?;
-        for (name, typ) in type_processor.type_alias.iter() {
+        let type_helper = TypeHelper::from_headers(self.dependencies);
+
+        let mut type_processor = TypeProcessor::new(root, &type_helper);
+        let type_aliases = type_processor.setup()?;
+        for (name, typ) in type_aliases.iter() {
             self.types.push(TypeDecl {
                 name: String::from(*name),
                 typ: typ.clone(),
             });
         }
 
-        let mut value_processor = ValueProcessor::new(root, &type_processor);
+        let mut value_processor = ValueProcessor::new(root, &type_helper);
         value_processor.setup()?;
         let (fn_headers, var_headers) = value_processor.build_headers();
         for var_header in var_headers.into_iter() {
@@ -196,101 +197,43 @@ impl<'a> SingleHeaderProcessor<'a> {
     }
 }
 
-// TODO: this TypeProcessor is so ugly, refactor it!!!
 struct TypeProcessor<'a> {
-    root_ast: &'a Root,
-    dependencies: HashMap<&'a str, HashMap<&'a str, &'a Type>>,
-
-    type_i8: Type,
-    type_i16: Type,
-    type_i32: Type,
-    type_i64: Type,
-    type_u8: Type,
-    type_u16: Type,
-    type_u32: Type,
-    type_u64: Type,
-    type_f32: Type,
-    type_f64: Type,
-    type_bool: Type,
-    type_void: Type,
-
-    type_alias: HashMap<&'a str, Type>,
+    root: &'a ast::Root,
+    type_helper: &'a dyn ITypeHelper<'a>,
 }
 
 impl<'a> TypeProcessor<'a> {
-    pub fn new(root_ast: &'a Root, dependencies: &'a HashMap<&'a str, Header>) -> Self {
-        let mut deps: HashMap<&'a str, HashMap<&'a str, &'a Type>> = HashMap::new();
-        for (pkg_name, header) in dependencies.iter() {
-            let entry = deps.entry(pkg_name).or_default();
-            for type_decl in header.types.iter() {
-                entry.insert(type_decl.name.as_str(), &type_decl.typ);
-            }
-        }
-
-        Self {
-            root_ast,
-            dependencies: deps,
-
-            type_i8: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 8 })),
-            type_i16: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 16 })),
-            type_i32: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 32 })),
-            type_i64: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 64 })),
-            type_u8: Type::from_concrete(ConcreteType::Int(IntType { signed: false, size: 8 })),
-            type_u16: Type::from_concrete(ConcreteType::Int(IntType {
-                signed: false,
-                size: 16,
-            })),
-            type_u32: Type::from_concrete(ConcreteType::Int(IntType {
-                signed: false,
-                size: 32,
-            })),
-            type_u64: Type::from_concrete(ConcreteType::Int(IntType {
-                signed: false,
-                size: 64,
-            })),
-            type_f32: Type::from_concrete(ConcreteType::Float(FloatType { size: 32 })),
-            type_f64: Type::from_concrete(ConcreteType::Float(FloatType { size: 64 })),
-            type_bool: Type::from_concrete(ConcreteType::Bool),
-            type_void: Type::from_concrete(ConcreteType::Void),
-
-            type_alias: HashMap::new(),
-        }
+    fn new(root: &'a ast::Root, type_helper: &'a dyn ITypeHelper<'a>) -> Self {
+        Self { root, type_helper }
     }
 
-    fn setup(&mut self) -> Result<(), Error> {
+    fn setup(&mut self) -> Result<HashMap<&str, Type>, Error> {
         let plan = self.build_setup_plan()?;
-        self.setup_types(&plan);
-        Ok(())
+        Ok(self.setup_types(&plan[..]))
     }
 
-    fn build_setup_plan(&mut self) -> Result<Vec<String>, Error> {
-        let type_decls: Vec<&ast::TypeDecl> = self
-            .root_ast
+    fn build_setup_plan(&mut self) -> Result<Vec<&'a str>, Error> {
+        let type_decls: Vec<&'a ast::TypeDecl> = self
+            .root
             .declarations
             .iter()
-            .filter_map(|decl| {
-                if let ast::Declaration::Type(t) = decl {
-                    Some(t)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|decl| decl.try_unwrap_type())
             .collect();
 
         let mut name_to_type = HashMap::new();
         for type_decl in type_decls.iter() {
-            let name = type_decl.name.value.as_ref().unwrap().clone();
-            if name_to_type.contains_key(&name) {
+            let name = type_decl.name.unwrap_value();
+            if name_to_type.contains_key(name.as_str()) {
                 return Err(Error::RedeclaredSymbol);
             }
-            name_to_type.insert(name, type_decl.typ.clone());
+            name_to_type.insert(name.as_str(), &type_decl.typ);
         }
 
-        let mut plan: Vec<String> = vec![];
+        let mut plan: Vec<&'a str> = vec![];
         let mut visited = HashSet::new();
 
         for type_decl in type_decls.iter() {
-            if visited.contains(type_decl.name.value.as_ref().unwrap()) {
+            if visited.contains(type_decl.name.unwrap_value().as_str()) {
                 continue;
             }
 
@@ -298,7 +241,7 @@ impl<'a> TypeProcessor<'a> {
 
             for item in chain.into_iter().rev() {
                 if !visited.contains(&item) {
-                    plan.push(item.clone());
+                    plan.push(item);
                     visited.insert(item);
                 }
             }
@@ -309,21 +252,21 @@ impl<'a> TypeProcessor<'a> {
 
     fn traverse_type_alias(
         &self,
-        name_to_type: &HashMap<String, ast::Type>,
-        type_decl: &ast::TypeDecl,
-    ) -> Result<Vec<String>, Error> {
-        let mut chain: Vec<String> = vec![];
+        name_to_type: &HashMap<&'a str, &'a ast::Type>,
+        type_decl: &'a ast::TypeDecl,
+    ) -> Result<Vec<&'a str>, Error> {
+        let mut chain: Vec<&'a str> = vec![];
         let mut chain_set = HashSet::new();
 
         let mut current_type = &type_decl.name;
         loop {
-            let name = current_type.value.as_ref().unwrap();
+            let name = current_type.unwrap_value().as_str();
 
             if chain_set.contains(name) {
                 return Err(Error::CyclicType);
             }
 
-            chain.push(name.clone());
+            chain.push(name);
             chain_set.insert(name);
 
             let current_type_decl = name_to_type.get(name).ok_or(Error::UndeclaredSymbol)?;
@@ -338,167 +281,40 @@ impl<'a> TypeProcessor<'a> {
         Ok(chain)
     }
 
-    fn setup_types(&mut self, plan: &Vec<String>) {
-        let mut type_decls: HashMap<&String, &ast::TypeDecl> = self
-            .root_ast
+    fn setup_types(&mut self, plan: &[&str]) -> HashMap<&str, Type> {
+        let mut type_decls: HashMap<&str, &ast::TypeDecl> = self
+            .root
             .declarations
             .iter()
-            .filter_map(|decl| {
-                if let ast::Declaration::Type(t) = decl {
-                    let name = t.name.value.as_ref().unwrap();
-                    Some((name, t))
-                } else {
-                    None
-                }
-            })
+            .filter_map(|decl| decl.try_unwrap_type())
+            .map(|decl| (decl.name.unwrap_value().as_str(), decl))
             .collect();
-        let type_decls: Vec<&ast::TypeDecl> = plan.iter().map(|v| type_decls.remove(v).unwrap()).collect();
+        let type_decls: Vec<&ast::TypeDecl> = plan.iter().map(|v| type_decls.remove(*v).unwrap()).collect();
 
+        let mut type_alias = HashMap::new();
         for type_decl in type_decls.iter() {
             let name = type_decl.name.value.as_ref().unwrap();
-            self.type_alias.insert(name, Type::from_concrete(ConcreteType::Invalid));
+            type_alias.insert(name.as_str(), Type::from_concrete(ConcreteType::Invalid));
         }
 
-        self.populate_types(&type_decls);
-        self.populate_types(&type_decls);
+        self.populate_types(&mut type_alias, type_decls.as_slice());
+        self.populate_types(&mut type_alias, type_decls.as_slice());
+
+        type_alias
     }
 
-    fn populate_types(&mut self, type_decls: &Vec<&'a ast::TypeDecl>) {
+    fn populate_types(&mut self, type_alias: &mut HashMap<&'a str, Type>, type_decls: &[&'a ast::TypeDecl]) {
         for type_decl in type_decls.iter() {
-            let name = type_decl.name.value.as_ref().unwrap();
-            let typ = self.get_type(&type_decl.typ).unwrap();
-            self.type_alias.insert(name, typ);
+            let name = type_decl.name.unwrap_value();
+            let typ = self.type_helper.get(&type_decl.typ).unwrap();
+            type_alias.insert(name.as_str(), typ);
         }
-    }
-
-    // fn repopulate_struct_fields(&self, type_decls: &Vec<&ast::TypeDecl>) {
-    //     for type_decl in type_decls.iter() {
-    //         let name = type_decl.name.value.as_ref().unwrap();
-    //         let ast_type = &type_decl.typ;
-    //         let typ = self.type_alias.get(name.as_str()).unwrap().clone();
-    //
-    //         let ast_fields = if let ast::Type::Struct(t) = ast_type {
-    //             &t.fields
-    //         } else {
-    //             continue;
-    //         };
-    //
-    //         let strct = typ.unwrap_struct();
-    //
-    //         for ast_field in ast_fields.iter() {
-    //             let name = ast_field.name.value.as_ref().unwrap();
-    //             let ast_type = &ast_field.typ;
-    //
-    //             let mut typ = strct.fields.get(name).unwrap().typ.upgrade();
-    //             if typ.is_none() {
-    //                 let t = self.get_type(ast_type).unwrap();
-    //                 *typ = t.downgrade();
-    //             }
-    //         }
-    //     }
-    // }
-
-    fn get_type(&self, typ: &ast::Type) -> Option<Type> {
-        match &typ {
-            ast::Type::Primitive(token) => Some(self.get_type_from_primitive(token)),
-            ast::Type::Ident(token) => self.get_type_from_ident(token),
-            ast::Type::Struct(strct) => Some(self.get_struct(strct)),
-            ast::Type::Selector(selector) => self.get_selector(selector),
-        }
-    }
-
-    fn get_type_from_ident(&self, token: &Token) -> Option<Type> {
-        let name = token.unwrap_value();
-        self.type_alias.get(name.as_str()).map(|t| t.clone())
-    }
-
-    fn get_type_from_primitive(&self, token: &Token) -> Type {
-        match &token.kind {
-            TokenKind::Bool => self.type_bool.clone(),
-            TokenKind::I8 => self.type_i8.clone(),
-            TokenKind::I16 => self.type_i16.clone(),
-            TokenKind::I32 => self.type_i32.clone(),
-            TokenKind::I64 => self.type_i64.clone(),
-            TokenKind::U8 => self.type_u8.clone(),
-            TokenKind::U16 => self.type_u16.clone(),
-            TokenKind::U32 => self.type_u32.clone(),
-            TokenKind::U64 => self.type_u64.clone(),
-            TokenKind::F32 => self.type_f32.clone(),
-            TokenKind::F64 => self.type_f64.clone(),
-            _ => unreachable!(),
-        }
-    }
-
-    fn get_struct(&self, strct: &ast::Struct) -> Type {
-        let mut fields: HashMap<String, Field> = HashMap::new();
-
-        for (index, field) in strct.fields.iter().enumerate() {
-            let name = field.name.unwrap_value();
-            let typ = self.get_type(&field.typ);
-            let typ = typ.map(|t| t.downgrade()).unwrap_or(TypePtr::new());
-            fields.insert(name.clone(), Field { index, typ });
-        }
-
-        Type::from_concrete(ConcreteType::Struct(Struct { fields }))
-    }
-
-    fn get_selector(&self, selector: &ast::TypeSelector) -> Option<Type> {
-        let pkg_name = selector.package.unwrap_value();
-        let name = selector.name.unwrap_value();
-
-        let dep_header = self.dependencies.get(pkg_name.as_str());
-        if dep_header.is_none() {
-            return None;
-        }
-        let dep_header = dep_header.unwrap();
-
-        dep_header.get(name.as_str()).map(|t| (*t).clone())
-    }
-
-    fn get_type_by_name(&self, name: &String) -> Option<Type> {
-        self.type_alias.get(name.as_str()).cloned()
-    }
-
-    fn get_fn_type(&self, header: &ast::FnHeader) -> Option<Type> {
-        let mut arguments = Vec::new();
-
-        for (index, arg) in header.params.iter().enumerate() {
-            let typ = self.get_type(&arg.typ);
-            if typ.is_none() {
-                return None;
-            }
-            let typ = typ.unwrap();
-
-            arguments.push(Argument {
-                index,
-                name: arg.name.unwrap_value().clone(),
-                typ: typ.downgrade(),
-            });
-        }
-
-        let return_type = if let Some(t) = &header.ret_type {
-            if let Some(typ) = self.get_type(t) {
-                Some(typ.downgrade())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        let native = header.native;
-
-        Some(Type::from_concrete(ConcreteType::Fn(FnType {
-            native,
-            arguments,
-            return_type,
-        })))
     }
 }
 
 struct ValueProcessor<'a, 'b> {
     root_ast: &'a ast::Root,
-    type_processor: &'b TypeProcessor<'a>,
+    type_helper: &'b dyn ITypeHelper<'a>,
 
     symbol_table: Vec<HashMap<String, Symbol>>,
 }
@@ -509,10 +325,10 @@ struct Symbol {
 }
 
 impl<'a, 'b> ValueProcessor<'a, 'b> {
-    fn new(root_ast: &'a ast::Root, type_alias_processor: &'b TypeProcessor<'a>) -> Self {
+    fn new(root_ast: &'a ast::Root, type_helper: &'b dyn ITypeHelper<'a>) -> Self {
         Self {
             root_ast,
-            type_processor: type_alias_processor,
+            type_helper,
             symbol_table: Vec::new(),
         }
     }
@@ -562,10 +378,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
         self.add_symbol_table_block();
         for type_decl in type_decls.iter() {
             let name = type_decl.name.value.as_ref().unwrap();
-            let typ = self
-                .type_processor
-                .get_type(&type_decl.typ)
-                .ok_or(Error::UnresolvedType)?;
+            let typ = self.type_helper.get(&type_decl.typ).ok_or(Error::UnresolvedType)?;
 
             if self.find_symbol(name).is_some() {
                 return Err(Error::RedeclaredSymbol);
@@ -602,10 +415,10 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 }
             }
             ast::ExprKind::StructLit(struct_lit) => {
-                let name = struct_lit.name.value.as_ref().unwrap();
+                let name = struct_lit.name.unwrap_value();
                 let typ = self
-                    .type_processor
-                    .get_type_by_name(name)
+                    .type_helper
+                    .get_by_name(name.as_str())
                     .ok_or(Error::UndeclaredSymbol)?;
 
                 let struct_fields = if let ConcreteType::Struct(strct) = &*typ.borrow() {
@@ -640,8 +453,10 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 })
             }
             ast::ExprKind::IntegerLit(val) => {
-                let expected = expected.unwrap_or(&self.type_processor.type_i32);
-                if let ConcreteType::Int(IntType { signed, size }) = &*expected.borrow() {
+                let i32_type = self.type_helper.get_i32();
+                let expected = expected.unwrap_or(&i32_type);
+                let concrete_type = expected.borrow();
+                if let ConcreteType::Int(IntType { signed, size }) = &*concrete_type {
                     let kind = match (signed, size) {
                         (true, 8) => ExprKind::I8(val.value.as_ref().unwrap().parse().unwrap()),
                         (true, 16) => ExprKind::I16(val.value.as_ref().unwrap().parse().unwrap()),
@@ -662,13 +477,15 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     Ok(Expr {
                         kind: ExprKind::I32(0),
                         assignable: false,
-                        typ: self.type_processor.type_i32.clone(),
+                        typ: self.type_helper.get_i32(),
                     })
                 }
             }
             ast::ExprKind::FloatLit(val) => {
-                let expected = expected.unwrap_or(&self.type_processor.type_f64);
-                if let ConcreteType::Float(FloatType { size }) = &*expected.borrow() {
+                let f64_type = self.type_helper.get_f64();
+                let expected = expected.unwrap_or(&f64_type);
+                let concrete_type = expected.borrow();
+                if let ConcreteType::Float(FloatType { size }) = &*concrete_type {
                     let kind = match size {
                         32 => ExprKind::F32(val.value.as_ref().unwrap().parse().unwrap()),
                         64 => ExprKind::F64(val.value.as_ref().unwrap().parse().unwrap()),
@@ -683,7 +500,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     Ok(Expr {
                         kind: ExprKind::F64(0.0),
                         assignable: false,
-                        typ: self.type_processor.type_f64.clone(),
+                        typ: self.type_helper.get_f64(),
                     })
                 }
             }
@@ -691,7 +508,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             ast::ExprKind::BoolLit(val) => Ok(Expr {
                 kind: ExprKind::Bool(val.kind == TokenKind::True),
                 assignable: false,
-                typ: self.type_processor.type_bool.clone(),
+                typ: self.type_helper.get_bool(),
             }),
             ast::ExprKind::Binary(binary) => {
                 let a = self.analyze_expr(binary.a.as_ref(), expected, is_global_var)?;
@@ -763,7 +580,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     | TokenKind::GTEq
                     | TokenKind::LTEq
                     | TokenKind::And
-                    | TokenKind::Or => self.type_processor.type_bool.clone(),
+                    | TokenKind::Or => self.type_helper.get_bool(),
                     TokenKind::Plus
                     | TokenKind::Minus
                     | TokenKind::Mul
@@ -807,7 +624,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 };
 
                 let t = match unary.op.kind {
-                    TokenKind::Not => self.type_processor.type_bool.clone(),
+                    TokenKind::Not => self.type_helper.get_bool(),
                     TokenKind::BitNot | TokenKind::Plus | TokenKind::Minus => val_type.clone(),
                     _ => unreachable!(),
                 };
@@ -851,7 +668,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 let return_type = if let Some(t) = &fn_type.return_type {
                     t.upgrade().unwrap()
                 } else {
-                    self.type_processor.type_void.clone()
+                    self.type_helper.get_void()
                 };
 
                 Ok(Expr {
@@ -864,7 +681,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 })
             }
             ast::ExprKind::Cast(cast) => {
-                let typ = self.type_processor.get_type(&cast.target);
+                let typ = self.type_helper.get(&cast.target);
                 if let Some(typ) = typ {
                     self.analyze_expr(cast.val.as_ref(), Some(&typ), is_global_var)
                 } else {
@@ -918,8 +735,8 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             }
 
             let typ = self
-                .type_processor
-                .get_fn_type(&type_decl.header)
+                .type_helper
+                .get_fn(&type_decl.header)
                 .ok_or(Error::UndeclaredSymbol)?;
 
             self.add_symbol(name, typ);
