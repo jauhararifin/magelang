@@ -464,7 +464,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 }
 
                 Ok(Expr {
-                    kind: ExprKind::StructLit(StructLit { fields }),
+                    kind: ExprKind::Struct(StructLit { fields }),
                     assignable: false,
                     typ,
                 })
@@ -739,6 +739,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                             kind: ExprKind::Selector(Selector {
                                 source: Box::new(val),
                                 selection: selector.selection.value.as_ref().unwrap().clone(),
+                                selection_index: field.index,
                             }),
                             assignable: true,
                             typ: Rc::clone(&field.typ.0.borrow().upgrade().unwrap()),

@@ -44,12 +44,6 @@ pub enum Type {
     Struct { fields: HashMap<String, Field> },
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct FnType {
-    pub arguments: Vec<Argument>,
-    pub return_type: Option<TypePtr>,
-}
-
 impl Type {
     pub fn is_number(&self) -> bool {
         matches!(self, Type::Int { signed: _, size: _ } | Type::Float { size: _ })
@@ -66,6 +60,20 @@ impl Type {
     pub fn is_func(&self) -> bool {
         matches!(self, Type::Fn(_))
     }
+
+    pub fn unwrap_func(&self) -> &FnType {
+       if let Type::Fn(f) = self {
+            f
+       } else {
+           panic!("type is not a function typ")
+       }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FnType {
+    pub arguments: Vec<Argument>,
+    pub return_type: Option<TypePtr>,
 }
 
 #[derive(Debug, Clone)]
@@ -205,7 +213,7 @@ pub enum ExprKind {
     F64(f64),
     Bool(bool),
     String(String),
-    StructLit(StructLit),
+    Struct(StructLit),
     Binary(Binary),
     Unary(Unary),
     FunctionCall(FunctionCall),
@@ -284,6 +292,7 @@ pub struct Cast {
 pub struct Selector {
     pub source: Box<Expr>,
     pub selection: String,
+    pub selection_index: usize,
 }
 
 #[derive(Debug, Clone)]
