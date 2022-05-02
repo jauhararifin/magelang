@@ -5,7 +5,7 @@ use crate::{
     parser,
     pos::Pos,
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Root,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Unit,
         Selector, Statement, Type, Var, While,
     },
     token::Token,
@@ -34,7 +34,7 @@ impl From<parser::Error> for Error {
 
 // TODO (jauhararifin): refactor this into non-recursive implementation.
 pub struct SimpleCompiler {
-    root: Root,
+    root: Unit,
 
     values: Vec<Value>,
     name_to_value_index: HashMap<String, usize>,
@@ -46,7 +46,7 @@ pub struct SimpleCompiler {
 }
 
 impl SimpleCompiler {
-    pub fn new(root: Root) -> Self {
+    pub fn new(root: Unit) -> Self {
         Self {
             root,
 

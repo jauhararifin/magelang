@@ -12,7 +12,7 @@ use crate::{
     pos::Pos,
     semantic::{
         Argument, Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, Field, FieldValue, FnDecl, FnType,
-        FunctionCall, If, Return, Root, Selector, Statement, StructLit, Type, TypePtr, Unary, UnaryOp, Var, While,
+        FunctionCall, If, Return, Unit, Selector, Statement, StructLit, Type, TypePtr, Unary, UnaryOp, Var, While,
         BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID,
     },
     token::{Token, TokenKind},
@@ -39,7 +39,7 @@ pub enum Error {
 }
 
 pub trait Analyzer {
-    fn analyze(&mut self) -> Result<Root, Error>;
+    fn analyze(&mut self) -> Result<Unit, Error>;
 }
 
 pub struct SimpleAnalyzer {
@@ -53,7 +53,7 @@ impl SimpleAnalyzer {
 }
 
 impl Analyzer for SimpleAnalyzer {
-    fn analyze(&mut self) -> Result<Root, Error> {
+    fn analyze(&mut self) -> Result<Unit, Error> {
         let mut type_processor = TypeProcessor::new(&self.root_ast);
         type_processor.setup()?;
 
@@ -63,7 +63,7 @@ impl Analyzer for SimpleAnalyzer {
         let mut func_processor = FuncProcessor::new(&self.root_ast, &type_processor, &mut value_processor);
         let fn_declarations = func_processor.analyze()?;
 
-        Ok(Root {
+        Ok(Unit {
             package_name: self.root_ast.package.value.as_ref().unwrap().clone(),
             type_declarations: Vec::new(),
             var_declarations: Vec::new(),
@@ -997,7 +997,7 @@ impl<'a, 'b> FuncProcessor<'a, 'b> {
                 Ok(Statement::While(While { cond, body }))
             }
             ast::Statement::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
-            ast::Statement::Expr(stmt) => todo!(),
+            ast::Statement::Expr(_stmt) => todo!(),
             ast::Statement::Continue => todo!(),
             ast::Statement::Break => todo!(),
         }

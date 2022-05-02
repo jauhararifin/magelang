@@ -5,7 +5,7 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Root {
+pub struct Unit {
     pub package_name: String,
 
     pub type_declarations: Vec<TypeDecl>,
