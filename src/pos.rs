@@ -2,6 +2,7 @@ use std::fmt;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Pos {
+    // TODO: add file path information.
     pub line: usize,
     pub col: usize,
 }

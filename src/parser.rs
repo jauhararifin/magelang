@@ -1,6 +1,7 @@
 use crate::ast::{
     Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FnHeader, FunctionCall, If,
-    Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
+    Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, TypeSelector, Unary, Var,
+    While,
 };
 use crate::lexer::{Error as LexerError, Lexer};
 use crate::token::{Token, TokenKind};
@@ -60,7 +61,6 @@ enum ParsingState {
     FnBody {
         fn_token: Token,
         name: Token,
-        native: bool,
         params: Vec<Param>,
         ret_type: Option<Type>,
     },
@@ -186,10 +186,9 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::FnBody {
                 fn_token,
                 name,
-                native,
                 params,
                 ret_type,
-            } => self.parse_fn_body(fn_token, name, native, params, ret_type, data),
+            } => self.parse_fn_body(fn_token, name, params, ret_type, data),
             ParsingState::ParamName => self.parse_param_name(),
             ParsingState::ParamType { name } => self.parse_param_type(name, data),
             ParsingState::TypeDecl => self.parse_type_decl(),
@@ -400,14 +399,25 @@ impl<T: Lexer> SimpleParser<T> {
 
         if self.check(&TokenKind::CloseBrace)?.is_some() {
             if self.check(&TokenKind::Colon)?.is_none() {
-                self.stack.push(ParsingState::FnBody {
+                if !native {
+                    self.stack.push(ParsingState::FnBody {
+                        fn_token,
+                        name,
+                        params,
+                        ret_type: None,
+                    });
+                    return Ok(Ast::Empty);
+                }
+                return Ok(Ast::FnDecl(FnDecl {
                     fn_token,
                     name,
-                    native,
-                    params,
-                    ret_type: None,
-                });
-                return Ok(Ast::Empty);
+                    header: FnHeader {
+                        native,
+                        params,
+                        ret_type: None,
+                    },
+                    body: None,
+                }));
             }
 
             self.stack.push(ParsingState::FnReturn {
@@ -443,14 +453,25 @@ impl<T: Lexer> SimpleParser<T> {
         data: Ast,
     ) -> Result<Ast, Error> {
         if let Ast::Type(typ) = data {
-            self.stack.push(ParsingState::FnBody {
+            if !native {
+                self.stack.push(ParsingState::FnBody {
+                    fn_token,
+                    name,
+                    params,
+                    ret_type: Some(typ),
+                });
+                return Ok(Ast::Empty);
+            }
+            return Ok(Ast::FnDecl(FnDecl {
                 fn_token,
                 name,
-                native,
-                params,
-                ret_type: Some(typ),
-            });
-            return Ok(Ast::Empty);
+                header: FnHeader {
+                    native,
+                    params,
+                    ret_type: Some(typ),
+                },
+                body: None,
+            }));
         }
 
         self.stack.push(ParsingState::FnReturn {
@@ -468,7 +489,6 @@ impl<T: Lexer> SimpleParser<T> {
         &mut self,
         fn_token: Token,
         name: Token,
-        native: bool,
         params: Vec<Param>,
         ret_type: Option<Type>,
         data: Ast,
@@ -478,18 +498,17 @@ impl<T: Lexer> SimpleParser<T> {
                 fn_token,
                 name,
                 header: FnHeader {
-                    native,
+                    native: false,
                     params,
                     ret_type,
                 },
-                body,
+                body: Some(body),
             }));
         }
 
         self.stack.push(ParsingState::FnBody {
             fn_token,
             name,
-            native,
             params,
             ret_type,
         });
@@ -547,7 +566,13 @@ impl<T: Lexer> SimpleParser<T> {
             }
             TokenKind::Ident => {
                 let token = self.lexer.next()?;
-                Ok(Ast::Type(Type::Ident(token)))
+
+                if self.check(&TokenKind::Dot)?.is_some() {
+                    let name = self.expect(TokenKind::Ident)?;
+                    Ok(Ast::Type(Type::Selector(TypeSelector { package: token, name })))
+                } else {
+                    Ok(Ast::Type(Type::Ident(token)))
+                }
             }
             TokenKind::I8
             | TokenKind::I16
@@ -669,6 +694,8 @@ impl<T: Lexer> SimpleParser<T> {
             }
             _ => panic!("invalid data when parsing block statement: {:?}", data),
         }
+
+        self.consume_endl()?;
 
         let result = if self.check(&TokenKind::CloseBlock)?.is_some() {
             Ast::BlockStatement(BlockStatement { body })

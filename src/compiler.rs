@@ -5,8 +5,8 @@ use crate::{
     parser,
     pos::Pos,
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Unit,
-        Selector, Statement, Type, Var, While,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Selector,
+        Statement, Type, Unit, Var, While,
     },
     token::Token,
 };
@@ -39,7 +39,6 @@ pub struct SimpleCompiler {
     values: Vec<Value>,
     name_to_value_index: HashMap<String, usize>,
     // value_counter: usize,
-
     functions: Vec<Function>,
     name_to_func_index: HashMap<String, usize>,
     function_counter: usize,
@@ -53,7 +52,6 @@ impl SimpleCompiler {
             values: Vec::new(),
             name_to_value_index: HashMap::new(),
             // value_counter: 0,
-
             functions: Vec::new(),
             name_to_func_index: HashMap::new(),
             function_counter: 0,
@@ -64,7 +62,11 @@ impl SimpleCompiler {
         let mut instructions = Vec::new();
         let mut ctx = FnContext::new(&fn_decl)?;
 
-        instructions.extend(self.compile_statement(&mut ctx, &fn_decl.body)?);
+        if fn_decl.header.native {
+            instructions.push(Instruction::CallNative(fn_decl.header.name.clone()));
+        } else {
+            instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap())?);
+        }
 
         Ok(Function {
             name: fn_decl.header.name.clone(),
@@ -390,10 +392,7 @@ impl FnContext {
 
     fn add_symbol(&mut self, name: String) {
         let index = self.counter;
-        self.symbol_tables
-            .last_mut()
-            .unwrap()
-            .insert(name, Symbol { index });
+        self.symbol_tables.last_mut().unwrap().insert(name, Symbol { index });
         self.counter += 1;
     }
 

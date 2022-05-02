@@ -7,6 +7,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct Header {
     pub package_name: String,
+
     pub types: Vec<TypeDecl>,
     pub vars: Vec<VarHeader>,
     pub functions: Vec<FnHeader>,
@@ -24,7 +25,7 @@ pub struct Unit {
 #[derive(Debug, Clone)]
 pub struct TypeDecl {
     pub name: String,
-    pub typ: Type,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,7 +43,7 @@ pub struct VarHeader {
 #[derive(Debug, Clone)]
 pub struct FnDecl {
     pub header: FnHeader,
-    pub body: Statement,
+    pub body: Option<Statement>,
 }
 
 #[derive(Debug, Clone)]
@@ -90,6 +91,7 @@ impl Type {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FnType {
+    pub native: bool,
     pub arguments: Vec<Argument>,
     pub return_type: Option<TypePtr>,
 }

@@ -28,7 +28,7 @@ pub struct FnDecl {
     pub fn_token: Token,
     pub name: Token,
     pub header: FnHeader,
-    pub body: BlockStatement,
+    pub body: Option<BlockStatement>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,12 +62,19 @@ pub enum Type {
     Primitive(Token),
     Ident(Token),
     Struct(Struct),
-    // TODO: add tuple.
+    Selector(TypeSelector),
+     // TODO: add tuple.
 }
 
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub fields: Vec<Param>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeSelector {
+    pub package: Token,
+    pub name: Token,
 }
 
 #[derive(Debug, Clone)]

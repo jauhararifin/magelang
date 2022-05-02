@@ -93,4 +93,7 @@ pub enum Instruction {
 
     Call, // pop 1 value, and use it as function pointer.
     Ret,  // return
+
+    // call native method
+    CallNative(String),
 }

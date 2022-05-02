@@ -9,6 +9,16 @@ pub struct Token {
     pub pos: Pos,
 }
 
+impl Token {
+    pub fn unwrap_value(&self) -> &String {
+        self.value.as_ref().unwrap()
+    }
+
+    pub fn clone_value(&self) -> String {
+        self.unwrap_value().clone()
+    }
+}
+
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ref value) = self.value {
