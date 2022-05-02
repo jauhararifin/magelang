@@ -64,7 +64,7 @@ impl Analyzer for SimpleAnalyzer {
         let fn_declarations = func_processor.analyze()?;
 
         Ok(Unit {
-            package_name: self.root_ast.package.value.as_ref().unwrap().clone(),
+            package_name: self.root_ast.package_name.value.as_ref().unwrap().clone(),
             type_declarations: Vec::new(),
             var_declarations: Vec::new(),
             fn_declarations,

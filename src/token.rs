@@ -22,6 +22,7 @@ impl fmt::Debug for Token {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TokenKind {
     Package,
+    Import,
     // keywords
     Fn,
     Native,

@@ -4,8 +4,16 @@ use crate::token::Token;
 #[derive(Debug, Clone)]
 pub struct Root {
     pub package_token: Token,
-    pub package: Token,
+    pub package_name: Token,
+    pub imports: Vec<Import>,
     pub declarations: Vec<Declaration>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Import {
+    pub import_token: Token,
+    pub name: Token,
+    pub package_name: Token,
 }
 
 #[derive(Debug, Clone)]

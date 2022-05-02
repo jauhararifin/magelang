@@ -223,6 +223,7 @@ impl<R: Read> SimpleLexer<R> {
 
         match word.as_str() {
             "package" => self.emit_token(TokenKind::Package, None, char_pos.pos),
+            "import" => self.emit_token(TokenKind::Import, None, char_pos.pos),
             "if" => self.emit_token(TokenKind::If, None, char_pos.pos),
             "native" => self.emit_token(TokenKind::Native, None, char_pos.pos),
             "var" => self.emit_token(TokenKind::Var, None, char_pos.pos),

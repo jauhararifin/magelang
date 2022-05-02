@@ -1,6 +1,6 @@
 use crate::ast::{
     Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FnHeader, FunctionCall, If,
-    Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
+    Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
 };
 use crate::lexer::{Error as LexerError, Lexer};
 use crate::token::{Token, TokenKind};
@@ -31,9 +31,11 @@ enum ParsingState {
     Root,
     RootDecl {
         package_token: Token,
-        package: Token,
+        package_name: Token,
+        imports: Vec<Import>,
         declarations: Vec<Declaration>,
     },
+    Import,
     Var,
     VarType {
         name: Token,
@@ -129,6 +131,7 @@ enum ParsingState {
 #[derive(Debug)]
 enum Ast {
     Root(Root),
+    Import(Import),
     FnDecl(FnDecl),
     Var(Var),
     TypeDecl(TypeDecl),
@@ -159,9 +162,11 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::Root => self.parse_root(),
             ParsingState::RootDecl {
                 package_token,
-                package,
+                package_name,
+                imports,
                 declarations,
-            } => self.parse_root_decl(package_token, package, declarations, data),
+            } => self.parse_root_decl(package_token, package_name, imports, declarations, data),
+            ParsingState::Import => self.parse_import(),
             ParsingState::Var => self.parse_var(),
             ParsingState::VarType { name } => self.parse_var_type(name, data),
             ParsingState::VarValue { name, typ } => self.parse_var_value(name, typ, data),
@@ -226,7 +231,8 @@ impl<T: Lexer> SimpleParser<T> {
         let package = self.expect(TokenKind::StringLit)?;
         self.stack.push(ParsingState::RootDecl {
             package_token,
-            package,
+            package_name: package,
+            imports: vec![],
             declarations: vec![],
         });
         Ok(Ast::Empty)
@@ -235,67 +241,89 @@ impl<T: Lexer> SimpleParser<T> {
     fn parse_root_decl(
         &mut self,
         package_token: Token,
-        package: Token,
+        package_name: Token,
+        mut imports: Vec<Import>,
         mut declarations: Vec<Declaration>,
         data: Ast,
     ) -> Result<Ast, Error> {
         match data {
             Ast::Var(decl) => declarations.push(Declaration::Var(decl)),
+            Ast::Import(import) => imports.push(import),
             Ast::FnDecl(decl) => declarations.push(Declaration::Fn(decl)),
             Ast::TypeDecl(decl) => declarations.push(Declaration::Type(decl)),
             Ast::Empty => (),
             _ => panic!("got {:?} instead of declaration", data),
         }
 
-        loop {
-            let token = self.lexer.peek()?;
-            match token.kind {
-                TokenKind::Eoi => {
-                    return Ok(Ast::Root(Root {
-                        package_token,
-                        package,
-                        declarations,
-                    }));
-                }
-                TokenKind::Endl => {
-                    self.lexer.next()?;
-                }
-                TokenKind::Fn => {
-                    self.stack.push(ParsingState::RootDecl {
-                        package_token,
-                        package,
-                        declarations,
-                    });
-                    self.stack.push(ParsingState::FnName);
-                    return Ok(Ast::Empty);
-                }
-                TokenKind::Var => {
-                    self.stack.push(ParsingState::RootDecl {
-                        package_token,
-                        package,
-                        declarations,
-                    });
-                    self.stack.push(ParsingState::Var);
-                    return Ok(Ast::Empty);
-                }
-                TokenKind::Type => {
-                    self.stack.push(ParsingState::RootDecl {
-                        package_token,
-                        package,
-                        declarations,
-                    });
-                    self.stack.push(ParsingState::TypeDecl);
-                    return Ok(Ast::Empty);
-                }
-                _ => {
-                    let token = self.lexer.next()?;
-                    return Err(Error::UnexpectedToken {
-                        expected: vec![TokenKind::Fn, TokenKind::Var],
-                        found: token,
-                    });
-                }
+        self.consume_endl()?;
+
+        let token = self.lexer.peek()?;
+        match token.kind {
+            TokenKind::Eoi => Ok(Ast::Root(Root {
+                package_token,
+                package_name,
+                imports,
+                declarations,
+            })),
+            TokenKind::Import => {
+                self.stack.push(ParsingState::RootDecl {
+                    package_token,
+                    package_name,
+                    imports,
+                    declarations,
+                });
+                self.stack.push(ParsingState::Import);
+                Ok(Ast::Empty)
+            }
+            TokenKind::Fn => {
+                self.stack.push(ParsingState::RootDecl {
+                    package_token,
+                    package_name,
+                    imports,
+                    declarations,
+                });
+                self.stack.push(ParsingState::FnName);
+                Ok(Ast::Empty)
+            }
+            TokenKind::Var => {
+                self.stack.push(ParsingState::RootDecl {
+                    package_token,
+                    package_name,
+                    imports,
+                    declarations,
+                });
+                self.stack.push(ParsingState::Var);
+                Ok(Ast::Empty)
+            }
+            TokenKind::Type => {
+                self.stack.push(ParsingState::RootDecl {
+                    package_token,
+                    package_name,
+                    imports,
+                    declarations,
+                });
+                self.stack.push(ParsingState::TypeDecl);
+                Ok(Ast::Empty)
+            }
+            _ => {
+                let token = self.lexer.next()?;
+                Err(Error::UnexpectedToken {
+                    expected: vec![TokenKind::Fn, TokenKind::Var],
+                    found: token,
+                })
             }
         }
+    }
+
+    fn parse_import(&mut self) -> Result<Ast, Error> {
+        let import_token = self.expect(TokenKind::Import)?;
+        let name = self.expect(TokenKind::Ident)?;
+        let package_name = self.expect(TokenKind::StringLit)?;
+        Ok(Ast::Import(Import {
+            import_token,
+            name,
+            package_name,
+        }))
     }
 
     fn parse_var(&mut self) -> Result<Ast, Error> {
