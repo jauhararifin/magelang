@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    ops::Deref,
     rc::{Rc, Weak},
 };
 
@@ -17,7 +18,6 @@ pub struct Header {
 pub struct Unit {
     pub package_name: String,
 
-    pub type_declarations: Vec<TypeDecl>,
     pub var_declarations: Vec<Var>,
     pub fn_declarations: Vec<FnDecl>,
 }
@@ -25,7 +25,7 @@ pub struct Unit {
 #[derive(Debug, Clone)]
 pub struct TypeDecl {
     pub name: String,
-    pub typ: Rc<Type>,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -37,56 +37,110 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct VarHeader {
     pub name: String,
-    pub typ: Rc<Type>,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]
 pub struct FnDecl {
     pub header: FnHeader,
-    pub body: Option<Statement>,
+    pub body: Option<Statement>, // native functions don't have body.
 }
 
 #[derive(Debug, Clone)]
 pub struct FnHeader {
     pub name: String,
     pub native: bool,
-    pub typ: Rc<Type>, // This always in the Fn variant.
+    pub typ: Type, // This always in the Fn variant.
+}
+
+#[derive(Debug)]
+pub struct Type(Rc<RefCell<ConcreteType>>);
+
+impl Type {
+    pub fn from_concrete(t: ConcreteType) -> Self {
+        Type(Rc::new(RefCell::new(t)))
+    }
+
+    pub fn downgrade(&self) -> TypePtr {
+        TypePtr(Rc::downgrade(&self.0))
+    }
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for Type{}
+
+impl Clone for Type {
+    fn clone(&self) -> Self {
+        Type(Rc::clone(&self.0))
+    }
+}
+
+impl Deref for Type {
+    type Target = Rc<RefCell<ConcreteType>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Type {
-    Int { signed: bool, size: u8 },
-    Float { size: u8 },
+pub enum ConcreteType {
+    Invalid,
     Bool,
     Void,
+    Int(IntType),
+    Float(FloatType),
     Fn(FnType),
-    Struct { fields: HashMap<String, Field> },
+    Struct(Struct),
 }
 
-impl Type {
+impl ConcreteType {
     pub fn is_number(&self) -> bool {
-        matches!(self, Type::Int { signed: _, size: _ } | Type::Float { size: _ })
+        matches!(self, ConcreteType::Int(_) | ConcreteType::Float(_))
     }
 
     pub fn is_int(&self) -> bool {
-        matches!(self, Type::Int { signed: _, size: _ })
+        matches!(self, ConcreteType::Int(_))
     }
 
     pub fn is_bool(&self) -> bool {
-        matches!(self, Type::Bool)
+        matches!(self, ConcreteType::Bool)
     }
 
     pub fn is_func(&self) -> bool {
-        matches!(self, Type::Fn(_))
+        matches!(self, ConcreteType::Fn(_))
     }
 
     pub fn unwrap_func(&self) -> &FnType {
-        if let Type::Fn(f) = self {
+        if let ConcreteType::Fn(f) = self {
             f
         } else {
-            panic!("type is not a function typ")
+            panic!("type is not a function type")
         }
     }
+
+    pub fn unwrap_struct(&self) -> &Struct {
+        if let ConcreteType::Struct(s) = self {
+            s
+        } else {
+            panic!("type is not a struct type")
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct IntType {
+    pub signed: bool,
+    pub size: u8,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FloatType {
+    pub size: u8,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -97,23 +151,25 @@ pub struct FnType {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypePtr(pub RefCell<Weak<Type>>);
+pub struct Argument {
+    pub index: usize,
+    pub name: String,
+    pub typ: TypePtr,
+}
 
-impl PartialEq for TypePtr {
+impl PartialEq for Argument {
     fn eq(&self, other: &Self) -> bool {
-        let a = self.0.borrow().upgrade();
-        let b = other.0.borrow().upgrade();
-        if let Some(a) = a {
-            if let Some(b) = b {
-                return a == b;
-            }
-            return false;
-        }
-        return b.is_none();
+        // TODO jauhararifin: check the value instead of just the pointer
+        self.index == other.index && self.name == other.name && self.typ.0.ptr_eq(&other.typ.0)
     }
 }
 
-impl Eq for TypePtr {}
+impl Eq for Argument {}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Struct {
+    pub fields: HashMap<String, Field>,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Field {
@@ -122,42 +178,37 @@ pub struct Field {
 }
 
 #[derive(Debug, Clone)]
-pub struct Argument {
-    pub index: usize,
-    pub name: String,
-    pub typ: RefCell<Weak<Type>>,
-}
+pub struct TypePtr(Weak<RefCell<ConcreteType>>);
 
-impl PartialEq for Argument {
-    fn eq(&self, other: &Self) -> bool {
-        // TODO jauhararifin: check the value instead of just the pointer
-        self.index == other.index && self.name == other.name && self.typ.borrow().ptr_eq(&other.typ.borrow())
+impl TypePtr {
+    pub fn new() -> Self {
+        TypePtr(Weak::new())
+    }
+
+    pub fn upgrade(&self) -> Option<Type> {
+        self.0.upgrade().map(Type)
     }
 }
 
-impl Eq for Argument {}
+impl PartialEq for TypePtr {
+    fn eq(&self, other: &Self) -> bool {
+        let a = self.0.upgrade();
+        let b = other.0.upgrade();
+        if let (Some(a), Some(b)) = (&a, &b) {
+            return a == b;
+        }
+        return a.is_none() && b.is_none();
+    }
+}
 
-pub const VOID: Type = Type::Void;
-pub const BOOL: Type = Type::Bool;
-pub const I8: Type = Type::Int { signed: true, size: 8 };
-pub const I16: Type = Type::Int { signed: true, size: 16 };
-pub const I32: Type = Type::Int { signed: true, size: 32 };
-pub const I64: Type = Type::Int { signed: true, size: 64 };
-pub const U8: Type = Type::Int { signed: false, size: 8 };
-pub const U16: Type = Type::Int {
-    signed: false,
-    size: 16,
-};
-pub const U32: Type = Type::Int {
-    signed: false,
-    size: 32,
-};
-pub const U64: Type = Type::Int {
-    signed: false,
-    size: 64,
-};
-pub const F32: Type = Type::Float { size: 32 };
-pub const F64: Type = Type::Float { size: 64 };
+impl Eq for TypePtr {}
+
+impl Deref for TypePtr {
+    type Target = Weak<RefCell<ConcreteType>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -212,10 +263,15 @@ pub struct While {
 }
 
 #[derive(Debug, Clone)]
+pub struct BlockStatement {
+    pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub assignable: bool,
-    pub typ: Rc<Type>,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -313,9 +369,4 @@ pub struct Selector {
     pub source: Box<Expr>,
     pub selection: String,
     pub selection_index: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct BlockStatement {
-    pub body: Vec<Statement>,
 }

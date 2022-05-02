@@ -1,4 +1,4 @@
-pub mod analyzer;
+// pub mod analyzer;
 pub mod ast;
 pub mod bytecode;
 pub mod compiler;

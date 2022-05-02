@@ -1,12 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use crate::{
     bytecode::{Function, Instruction, Program, Value},
     parser,
     pos::Pos,
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Selector,
-        Statement, Type, Unit, Var, While,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, ConcreteType, Expr, ExprKind, FnDecl, FunctionCall, If,
+        Return, Selector, Statement, Type, Unit, Var, While,
     },
     token::Token,
 };
@@ -305,30 +305,27 @@ impl SimpleCompiler {
     }
 
     fn empty_value(&self, typ: &Type) -> Result<Value, Error> {
-        Ok(match typ {
-            Type::Int { signed: true, size: 8 } => Value::I8(0),
-            Type::Int { signed: true, size: 16 } => Value::I16(0),
-            Type::Int { signed: true, size: 32 } => Value::I32(0),
-            Type::Int { signed: true, size: 64 } => Value::I64(0),
-            Type::Int { signed: false, size: 8 } => Value::U8(0),
-            Type::Int {
-                signed: false,
-                size: 16,
-            } => Value::U16(0),
-            Type::Int {
-                signed: false,
-                size: 32,
-            } => Value::U32(0),
-            Type::Int {
-                signed: false,
-                size: 64,
-            } => Value::U64(0),
-            Type::Float { size: 32 } => Value::F32(0.0),
-            Type::Float { size: 64 } => Value::F64(0.0),
-            Type::Bool => Value::Bool(false),
-            Type::Void => Value::Void,
-            Type::Fn(_fn) => todo!(),
-            Type::Struct { fields: _ } => todo!(),
+        Ok(match &*typ.borrow() {
+            ConcreteType::Int(int_type) => match (int_type.signed, int_type.size) {
+                (true, 8) => Value::I8(0),
+                (true, 16) => Value::I16(0),
+                (true, 32) => Value::I32(0),
+                (true, 64) => Value::I64(0),
+                (false, 8) => Value::U8(0),
+                (false, 16) => Value::U16(0),
+                (false, 32) => Value::U32(0),
+                (false, 64) => Value::U64(0),
+                _ => unreachable!(),
+            },
+            ConcreteType::Float(float_type) => match float_type.size {
+                32 => Value::F32(0.0),
+                64 => Value::F64(0.0),
+                _ => unreachable!(),
+            },
+            ConcreteType::Bool => Value::Bool(false),
+            ConcreteType::Void => Value::Void,
+            ConcreteType::Fn(_) => todo!(),
+            ConcreteType::Struct(_) => todo!(),
             _ => unreachable!(),
         })
     }
@@ -368,7 +365,8 @@ struct Symbol {
 
 impl FnContext {
     fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
-        let fn_decl = fn_decl.header.typ.unwrap_func();
+        let fn_decl = fn_decl.header.typ.borrow();
+        let fn_decl = fn_decl.unwrap_func();
         let mut table = HashMap::new();
         for (i, param) in fn_decl.arguments.iter().rev().enumerate() {
             let name = param.name.clone();
