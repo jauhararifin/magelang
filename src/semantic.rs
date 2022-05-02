@@ -5,6 +5,14 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
+pub struct Header {
+    pub package_name: String,
+    pub types: Vec<TypeDecl>,
+    pub vars: Vec<VarHeader>,
+    pub functions: Vec<FnHeader>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Unit {
     pub package_name: String,
 
@@ -21,17 +29,27 @@ pub struct TypeDecl {
 
 #[derive(Debug, Clone)]
 pub struct Var {
-    pub name: String,
-    pub typ: Rc<Type>,
+    pub header: VarHeader,
     pub value: Option<Expr>,
 }
 
 #[derive(Debug, Clone)]
+pub struct VarHeader {
+    pub name: String,
+    pub typ: Rc<Type>,
+}
+
+#[derive(Debug, Clone)]
 pub struct FnDecl {
+    pub header: FnHeader,
+    pub body: Statement,
+}
+
+#[derive(Debug, Clone)]
+pub struct FnHeader {
     pub name: String,
     pub native: bool,
     pub typ: Rc<Type>, // This always in the Fn variant.
-    pub body: Statement,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -62,11 +80,11 @@ impl Type {
     }
 
     pub fn unwrap_func(&self) -> &FnType {
-       if let Type::Fn(f) = self {
+        if let Type::Fn(f) = self {
             f
-       } else {
-           panic!("type is not a function typ")
-       }
+        } else {
+            panic!("type is not a function typ")
+        }
     }
 }
 

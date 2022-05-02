@@ -7,13 +7,13 @@ use std::{
 };
 
 use crate::{
-    ast::{self, FnHeader, TypeDecl},
+    ast::{self, TypeDecl},
     parser,
     pos::Pos,
     semantic::{
-        Argument, Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, Field, FieldValue, FnDecl, FnType,
-        FunctionCall, If, Return, Unit, Selector, Statement, StructLit, Type, TypePtr, Unary, UnaryOp, Var, While,
-        BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID,
+        Argument, Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, Field, FieldValue, FnDecl, FnHeader,
+        FnType, FunctionCall, If, Return, Selector, Statement, StructLit, Type, TypePtr, Unary, UnaryOp, Unit, Var,
+        VarHeader, While, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID,
     },
     token::{Token, TokenKind},
 };
@@ -307,7 +307,7 @@ impl<'a> TypeProcessor<'a> {
         self.type_alias.get(name).cloned()
     }
 
-    fn get_fn_type(&self, header: &FnHeader) -> Option<Rc<Type>> {
+    fn get_fn_type(&self, header: &ast::FnHeader) -> Option<Rc<Type>> {
         let mut arguments = Vec::new();
 
         for (index, arg) in header.params.iter().enumerate() {
@@ -866,9 +866,11 @@ impl<'a, 'b> FuncProcessor<'a, 'b> {
             let native = fn_decl.header.native;
 
             fn_declarations.push(FnDecl {
-                name,
-                native,
-                typ: func_type,
+                header: FnHeader {
+                    name,
+                    native,
+                    typ: func_type,
+                },
                 body: statement,
             });
 
@@ -911,8 +913,10 @@ impl<'a, 'b> FuncProcessor<'a, 'b> {
                 self.value_processor.add_symbol(name, Rc::clone(&typ));
 
                 Ok(Statement::Var(Var {
-                    name: name.clone(),
-                    typ: Rc::clone(&typ),
+                    header: VarHeader {
+                        name: name.clone(),
+                        typ: Rc::clone(&typ),
+                    },
                     value,
                 }))
             }

@@ -67,7 +67,7 @@ impl SimpleCompiler {
         instructions.extend(self.compile_statement(&mut ctx, &fn_decl.body)?);
 
         Ok(Function {
-            name: fn_decl.name.clone(),
+            name: fn_decl.header.name.clone(),
             instructions,
         })
     }
@@ -101,13 +101,13 @@ impl SimpleCompiler {
     }
 
     fn compile_var(&self, ctx: &mut FnContext, var: &Var) -> Result<Vec<Instruction>, Error> {
-        let name = var.name.clone();
+        let name = var.header.name.clone();
         ctx.add_symbol(name);
 
         if let Some(value) = &var.value {
             self.compile_expr(ctx, value)
         } else {
-            Ok(vec![Instruction::Constant(self.empty_value(&var.typ)?)])
+            Ok(vec![Instruction::Constant(self.empty_value(&var.header.typ)?)])
         }
     }
 
@@ -335,7 +335,7 @@ impl SimpleCompiler {
 impl Compiler for SimpleCompiler {
     fn compile(&mut self) -> Result<Program, Error> {
         for fn_decl in self.root.fn_declarations.iter() {
-            let name = fn_decl.name.clone();
+            let name = fn_decl.header.name.clone();
             self.name_to_func_index.insert(name, self.function_counter);
             self.function_counter += 1;
 
@@ -366,7 +366,7 @@ struct Symbol {
 
 impl FnContext {
     fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
-        let fn_decl = fn_decl.typ.unwrap_func();
+        let fn_decl = fn_decl.header.typ.unwrap_func();
         let mut table = HashMap::new();
         for (i, param) in fn_decl.arguments.iter().rev().enumerate() {
             let name = param.name.clone();
