@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, rc::Weak};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::{Rc, Weak},
+};
 
 #[derive(Debug, Clone)]
 pub struct Root {
@@ -18,7 +22,7 @@ pub struct TypeDecl {
 #[derive(Debug, Clone)]
 pub struct Var {
     pub name: String,
-    pub typ: Type,
+    pub typ: Rc<Type>,
     pub value: Option<Expr>,
 }
 
@@ -26,35 +30,24 @@ pub struct Var {
 pub struct FnDecl {
     pub name: String,
     pub native: bool,
-    pub params: Vec<Param>,
-    pub ret_type: Option<Type>,
-    pub body: BlockStatement,
-}
-
-#[derive(Debug, Clone)]
-pub struct Param {
-    pub name: String,
-    pub typ: Type,
+    pub typ: Rc<Type>, // This always in the Fn variant.
+    pub body: Statement,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
-    Int {
-        signed: bool,
-        size: u8,
-    },
-    Float {
-        size: u8,
-    },
+    Int { signed: bool, size: u8 },
+    Float { size: u8 },
     Bool,
     Void,
-    Fn {
-        arguments: Vec<Argument>,
-        return_type: Option<TypePtr>,
-    },
-    Struct {
-        fields: HashMap<String, Field>,
-    },
+    Fn(FnType),
+    Struct { fields: HashMap<String, Field> },
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FnType {
+    pub arguments: Vec<Argument>,
+    pub return_type: Option<TypePtr>,
 }
 
 impl Type {
@@ -71,13 +64,7 @@ impl Type {
     }
 
     pub fn is_func(&self) -> bool {
-        matches!(
-            self,
-            Type::Fn {
-                arguments: _,
-                return_type: _
-            }
-        )
+        matches!(self, Type::Fn(_))
     }
 }
 
@@ -187,20 +174,20 @@ pub struct Return {
 #[derive(Debug, Clone)]
 pub struct If {
     pub cond: Expr,
-    pub body: BlockStatement,
+    pub body: Box<Statement>,
 }
 
 #[derive(Debug, Clone)]
 pub struct While {
     pub cond: Expr,
-    pub body: BlockStatement,
+    pub body: Box<Statement>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub assignable: bool,
-    pub typ: Type,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -218,12 +205,24 @@ pub enum ExprKind {
     F64(f64),
     Bool(bool),
     String(String),
+    StructLit(StructLit),
     Binary(Binary),
     Unary(Unary),
     FunctionCall(FunctionCall),
     Cast(Cast),
     Selector(Selector),
     // TODO: add struct literal.
+}
+
+#[derive(Debug, Clone)]
+pub struct StructLit {
+    pub fields: Vec<FieldValue>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldValue {
+    pub index: usize,
+    pub value: Expr,
 }
 
 #[derive(Debug, Clone)]

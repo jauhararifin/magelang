@@ -7,10 +7,14 @@ use std::{
 };
 
 use crate::{
-    ast::{self, Expr, ExprKind, FnHeader, TypeDecl},
+    ast::{self, FnHeader, TypeDecl},
     parser,
     pos::Pos,
-    semantic::{Argument, Field, Root, Type, TypePtr, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID},
+    semantic::{
+        Argument, Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, Field, FieldValue, FnDecl, FnType,
+        FunctionCall, If, Return, Root, Selector, Statement, StructLit, Type, TypePtr, Unary, UnaryOp, Var, While,
+        BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID,
+    },
     token::{Token, TokenKind},
 };
 
@@ -56,7 +60,15 @@ impl Analyzer for SimpleAnalyzer {
         let mut value_processor = ValueProcessor::new(&self.root_ast, &type_processor);
         value_processor.setup()?;
 
-        todo!();
+        let mut func_processor = FuncProcessor::new(&self.root_ast, &type_processor, &mut value_processor);
+        let fn_declarations = func_processor.analyze()?;
+
+        Ok(Root {
+            package_name: self.root_ast.package.value.as_ref().unwrap().clone(),
+            type_declarations: Vec::new(),
+            var_declarations: Vec::new(),
+            fn_declarations,
+        })
     }
 }
 
@@ -102,7 +114,6 @@ impl<'a> TypeProcessor<'a> {
     fn setup(&mut self) -> Result<(), Error> {
         let plan = self.build_setup_plan()?;
         self.setup_types(&plan);
-        println!("types: {:?}", self.type_alias); // TODO: REMOVE
         Ok(())
     }
 
@@ -323,7 +334,7 @@ impl<'a> TypeProcessor<'a> {
             None
         };
 
-        Some(Rc::new(Type::Fn { arguments, return_type }))
+        Some(Rc::new(Type::Fn(FnType { arguments, return_type })))
     }
 }
 
@@ -351,7 +362,6 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
     fn setup(&mut self) -> Result<(), Error> {
         self.setup_values()?;
         self.setup_functions()?;
-        println!("symbol_tables: {:?}", self.symbol_table); // TODO: REMOVE!!
         Ok(())
     }
 
@@ -381,7 +391,8 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             }
 
             if let Some(val) = &type_decl.value {
-                let value_type = self.analyze_expr(val, &typ, true)?;
+                let value = self.analyze_expr(val, Some(&typ), true)?;
+                let value_type = Rc::clone(&value.typ);
                 if &value_type != &typ {
                     return Err(Error::MismatchType {
                         expected: typ.as_ref().clone(),
@@ -397,48 +408,130 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
         Ok(())
     }
 
-    fn analyze_expr(&self, expr: &Expr, expected: &Rc<Type>, is_global_var: bool) -> Result<Rc<Type>, Error> {
+    fn analyze_expr(&self, expr: &ast::Expr, expected: Option<&Rc<Type>>, is_global_var: bool) -> Result<Expr, Error> {
         match &expr.kind {
-            ExprKind::Ident(token) => {
+            ast::ExprKind::Ident(token) => {
                 let name = token.value.as_ref().unwrap();
                 let symbol = self.find_symbol(name);
+
                 if let Some(sym) = symbol {
-                    Ok(Rc::clone(&sym.typ))
+                    Ok(Expr {
+                        kind: ExprKind::Ident(name.clone()),
+                        assignable: true,
+                        typ: Rc::clone(&sym.typ),
+                    })
                 } else {
                     Err(Error::UndeclaredSymbol(token.clone()))
                 }
             }
-            ExprKind::StructLit(struct_lit) => {
+            ast::ExprKind::StructLit(struct_lit) => {
                 let name = struct_lit.name.value.as_ref().unwrap();
-                let typ = self.type_processor.get_type_by_name(name);
-                if let Some(t) = typ {
-                    Ok(t)
+                let typ = self
+                    .type_processor
+                    .get_type_by_name(name)
+                    .ok_or(Error::UndeclaredSymbol(struct_lit.name.clone()))?;
+
+                let struct_fields = if let Type::Struct { fields } = typ.as_ref() {
+                    fields
                 } else {
-                    Err(Error::UndeclaredSymbol(struct_lit.name.clone()))
+                    return Err(Error::HasNoField(typ.as_ref().clone(), struct_lit.name.pos));
+                };
+
+                let mut fields = Vec::new();
+                for field in struct_lit.fields.iter() {
+                    let type_field = struct_fields.get(field.name.value.as_ref().unwrap());
+                    if type_field.is_none() {
+                        return Err(Error::UndefinedField {
+                            typ: typ.as_ref().clone(),
+                            field: field.name.clone(),
+                        });
+                    }
+                    let type_field = type_field.unwrap();
+
+                    let val = self.analyze_expr(&field.value, expected, is_global_var)?;
+                    if val.typ != type_field.typ.0.borrow().upgrade().unwrap() {
+                        return Err(Error::MismatchType {
+                            expected: type_field.typ.0.borrow().upgrade().unwrap().as_ref().clone(),
+                            got: val.typ.as_ref().clone(),
+                            pos: field.value.pos,
+                        });
+                    }
+
+                    fields.push(FieldValue {
+                        index: type_field.index,
+                        value: val,
+                    });
+                }
+
+                Ok(Expr {
+                    kind: ExprKind::StructLit(StructLit { fields }),
+                    assignable: false,
+                    typ,
+                })
+            }
+            ast::ExprKind::IntegerLit(val) => {
+                let expected = expected.unwrap_or(&self.type_processor.type_i32);
+                if let Type::Int { signed, size } = expected.deref() {
+                    let kind = match (signed, size) {
+                        (true, 8) => ExprKind::I8(val.value.as_ref().unwrap().parse().unwrap()),
+                        (true, 16) => ExprKind::I16(val.value.as_ref().unwrap().parse().unwrap()),
+                        (true, 32) => ExprKind::I32(val.value.as_ref().unwrap().parse().unwrap()),
+                        (true, 64) => ExprKind::I64(val.value.as_ref().unwrap().parse().unwrap()),
+                        (false, 8) => ExprKind::U8(val.value.as_ref().unwrap().parse().unwrap()),
+                        (false, 16) => ExprKind::U16(val.value.as_ref().unwrap().parse().unwrap()),
+                        (false, 32) => ExprKind::U32(val.value.as_ref().unwrap().parse().unwrap()),
+                        (false, 64) => ExprKind::U64(val.value.as_ref().unwrap().parse().unwrap()),
+                        _ => unreachable!(),
+                    };
+                    Ok(Expr {
+                        kind,
+                        assignable: false,
+                        typ: Rc::clone(expected),
+                    })
+                } else {
+                    Ok(Expr {
+                        kind: ExprKind::I32(0),
+                        assignable: false,
+                        typ: Rc::clone(&self.type_processor.type_i32),
+                    })
                 }
             }
-            ExprKind::IntegerLit(_) => {
-                if let Type::Int { signed: _, size: _ } = expected.deref() {
-                    Ok(Rc::clone(expected))
+            ast::ExprKind::FloatLit(val) => {
+                let expected = expected.unwrap_or(&self.type_processor.type_f64);
+                if let Type::Float { size } = expected.deref() {
+                    let kind = match size {
+                        32 => ExprKind::F32(val.value.as_ref().unwrap().parse().unwrap()),
+                        64 => ExprKind::F64(val.value.as_ref().unwrap().parse().unwrap()),
+                        _ => unreachable!(),
+                    };
+                    Ok(Expr {
+                        kind,
+                        assignable: false,
+                        typ: Rc::clone(expected),
+                    })
                 } else {
-                    Ok(Rc::clone(&self.type_processor.type_i32))
+                    Ok(Expr {
+                        kind: ExprKind::F64(0.0),
+                        assignable: false,
+                        typ: Rc::clone(&self.type_processor.type_f64),
+                    })
                 }
             }
-            ExprKind::FloatLit(_) => {
-                if let Type::Float { size: _ } = expected.deref() {
-                    Ok(Rc::clone(expected))
-                } else {
-                    Ok(Rc::clone(&self.type_processor.type_f64))
-                }
-            }
-            ExprKind::StringLit(_) => todo!(),
-            ExprKind::BoolLit(_) => Ok(Rc::clone(&self.type_processor.type_bool)),
-            ExprKind::Binary(binary) => {
+            ast::ExprKind::StringLit(_) => todo!(),
+            ast::ExprKind::BoolLit(val) => Ok(Expr {
+                kind: ExprKind::Bool(val.kind == TokenKind::True),
+                assignable: false,
+                typ: Rc::clone(&self.type_processor.type_bool),
+            }),
+            ast::ExprKind::Binary(binary) => {
                 let a = self.analyze_expr(binary.a.borrow(), expected, is_global_var)?;
-                let b = self.analyze_expr(binary.b.borrow(), expected, is_global_var)?;
+                let a_typ = Rc::clone(&a.typ);
+
+                let b = self.analyze_expr(binary.b.borrow(), Some(&a_typ), is_global_var)?;
+                let b_typ = Rc::clone(&b.typ);
 
                 let matched = match binary.op.kind {
-                    TokenKind::Eq | TokenKind::NotEq => a == b,
+                    TokenKind::Eq | TokenKind::NotEq => a_typ == b_typ,
                     TokenKind::Plus
                     | TokenKind::Minus
                     | TokenKind::Mul
@@ -446,21 +539,23 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     | TokenKind::GT
                     | TokenKind::LT
                     | TokenKind::GTEq
-                    | TokenKind::LTEq => a == b && a.is_number(),
-                    TokenKind::Mod | TokenKind::BitAnd | TokenKind::BitOr | TokenKind::BitXor => a == b && a.is_int(),
-                    TokenKind::Shl | TokenKind::Shr => a.is_int() && b.is_int(),
+                    | TokenKind::LTEq => a_typ == b_typ && a_typ.is_number(),
+                    TokenKind::Mod | TokenKind::BitAnd | TokenKind::BitOr | TokenKind::BitXor => {
+                        a_typ == b_typ && a_typ.is_int()
+                    }
+                    TokenKind::Shl | TokenKind::Shr => a_typ.is_int() && b_typ.is_int(),
                     TokenKind::And | TokenKind::Or => {
-                        if !a.is_bool() {
+                        if !a_typ.is_bool() {
                             return Err(Error::MismatchType {
                                 expected: Type::Bool,
-                                got: a.as_ref().clone(),
+                                got: a_typ.as_ref().clone(),
                                 pos: binary.a.pos,
                             });
                         }
-                        if !b.is_bool() {
+                        if !b_typ.is_bool() {
                             return Err(Error::MismatchType {
                                 expected: Type::Bool,
-                                got: b.as_ref().clone(),
+                                got: b_typ.as_ref().clone(),
                                 pos: binary.a.pos,
                             });
                         }
@@ -471,13 +566,41 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
 
                 if !matched {
                     return Err(Error::MismatchType {
-                        expected: a.as_ref().clone(),
-                        got: b.as_ref().clone(),
+                        expected: a_typ.as_ref().clone(),
+                        got: b_typ.as_ref().clone(),
                         pos: binary.b.pos,
                     });
                 }
 
-                Ok(match binary.op.kind {
+                let bin_op = match binary.op.kind {
+                    TokenKind::Eq => BinOp::Eq,
+                    TokenKind::NotEq => BinOp::NotEq,
+                    TokenKind::GT => BinOp::GT,
+                    TokenKind::LT => BinOp::LT,
+                    TokenKind::GTEq => BinOp::GTEq,
+                    TokenKind::LTEq => BinOp::LTEq,
+                    TokenKind::And => BinOp::And,
+                    TokenKind::Or => BinOp::Or,
+                    TokenKind::Plus => BinOp::Plus,
+                    TokenKind::Minus => BinOp::Minus,
+                    TokenKind::Mul => BinOp::Mul,
+                    TokenKind::Div => BinOp::Div,
+                    TokenKind::Mod => BinOp::Mod,
+                    TokenKind::BitAnd => BinOp::BitAnd,
+                    TokenKind::BitOr => BinOp::BitOr,
+                    TokenKind::BitXor => BinOp::BitXor,
+                    TokenKind::Shl => BinOp::Shl,
+                    TokenKind::Shr => BinOp::Shr,
+                    _ => unreachable!(),
+                };
+
+                let kind = ExprKind::Binary(Binary {
+                    op: bin_op,
+                    a: Box::new(a),
+                    b: Box::new(b),
+                });
+
+                let t = match binary.op.kind {
                     TokenKind::Eq
                     | TokenKind::NotEq
                     | TokenKind::GT
@@ -495,12 +618,19 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     | TokenKind::BitOr
                     | TokenKind::BitXor
                     | TokenKind::Shl
-                    | TokenKind::Shr => Rc::clone(&a),
+                    | TokenKind::Shr => a_typ,
                     _ => unreachable!(),
+                };
+
+                Ok(Expr {
+                    kind,
+                    assignable: false,
+                    typ: Rc::clone(&t),
                 })
             }
-            ExprKind::Unary(unary) => {
-                let val_type = self.analyze_expr(unary.val.borrow(), expected, is_global_var)?;
+            ast::ExprKind::Unary(unary) => {
+                let val = self.analyze_expr(unary.val.borrow(), expected, is_global_var)?;
+                let val_type = Rc::clone(&val.typ);
 
                 let matched = match unary.op.kind {
                     TokenKind::Not => val_type.is_bool(),
@@ -524,59 +654,95 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                     });
                 }
 
-                Ok(match unary.op.kind {
+                let op = match unary.op.kind {
+                    TokenKind::Not => UnaryOp::Not,
+                    TokenKind::BitNot => UnaryOp::BitNot,
+                    TokenKind::Plus => UnaryOp::Plus,
+                    TokenKind::Minus => UnaryOp::Minus,
+                    _ => unreachable!(),
+                };
+
+                let t = match unary.op.kind {
                     TokenKind::Not => Rc::clone(&self.type_processor.type_bool),
                     TokenKind::BitNot | TokenKind::Plus | TokenKind::Minus => Rc::clone(&val_type),
                     _ => unreachable!(),
+                };
+
+                Ok(Expr {
+                    kind: ExprKind::Unary(Unary { op, val: Box::new(val) }),
+                    assignable: false,
+                    typ: t,
                 })
             }
-            ExprKind::FunctionCall(func_call) => {
+            ast::ExprKind::FunctionCall(func_call) => {
                 if is_global_var {
                     return Err(Error::UnsupportedOperationInConstant(expr.pos));
                 }
 
                 let func = self.analyze_expr(func_call.func.as_ref(), expected, is_global_var)?;
-                let (func_arguments, return_type) = if let Type::Fn { arguments, return_type } = func.borrow() {
-                    (arguments, return_type)
+
+                let fn_type = if let Type::Fn(fn_type) = func.typ.borrow() {
+                    fn_type
                 } else {
                     return Err(Error::IsNotAFunction);
                 };
 
-                if func_arguments.len() != func_call.args.len() {
+                if fn_type.arguments.len() != func_call.args.len() {
                     return Err(Error::FuncCallArgNumMismatch);
                 }
 
-                for (i, val) in func_call.args.iter().enumerate() {
-                    let val_type = self.analyze_expr(val, expected, is_global_var)?;
-                    let func_type = func_arguments.get(i).unwrap().typ.borrow().upgrade().unwrap();
+                let mut args = Vec::new();
+                for (i, arg) in func_call.args.iter().enumerate() {
+                    let val = self.analyze_expr(arg, expected, is_global_var)?;
+                    let val_type = Rc::clone(&val.typ);
+                    let func_type = fn_type.arguments.get(i).unwrap().typ.borrow().upgrade().unwrap();
                     if val_type != func_type {
                         return Err(Error::MismatchType {
                             expected: func_type.as_ref().clone(),
                             got: val_type.as_ref().clone(),
-                            pos: val.pos,
+                            pos: arg.pos,
                         });
                     }
+
+                    args.push(val);
                 }
 
-                if let Some(t) = return_type {
-                    Ok(Rc::clone(&t.0.borrow().upgrade().unwrap()))
+                let return_type = if let Some(t) = &fn_type.return_type {
+                    Rc::clone(&t.0.borrow().upgrade().unwrap())
                 } else {
-                    Ok(Rc::clone(&self.type_processor.type_void))
-                }
+                    Rc::clone(&self.type_processor.type_void)
+                };
+
+                Ok(Expr {
+                    kind: ExprKind::FunctionCall(FunctionCall {
+                        func: Box::new(func),
+                        args,
+                    }),
+                    assignable: false,
+                    typ: return_type,
+                })
             }
-            ExprKind::Cast(cast) => {
+            ast::ExprKind::Cast(cast) => {
                 let typ = self.type_processor.get_type(&cast.target);
                 if let Some(typ) = typ {
-                    self.analyze_expr(cast.val.borrow(), typ.borrow(), is_global_var)
+                    self.analyze_expr(cast.val.borrow(), Some(typ.borrow()), is_global_var)
                 } else {
                     Err(Error::UndeclaredType)
                 }
             }
-            ExprKind::Selector(selector) => {
-                let typ = self.analyze_expr(selector.source.as_ref(), expected, is_global_var)?;
+            ast::ExprKind::Selector(selector) => {
+                let val = self.analyze_expr(selector.source.as_ref(), expected, is_global_var)?;
+                let typ = Rc::clone(&val.typ);
                 if let Type::Struct { fields } = typ.as_ref() {
                     if let Some(field) = fields.get(selector.selection.value.as_ref().unwrap()) {
-                        Ok(Rc::clone(&field.typ.0.borrow().upgrade().unwrap()))
+                        Ok(Expr {
+                            kind: ExprKind::Selector(Selector {
+                                source: Box::new(val),
+                                selection: selector.selection.value.as_ref().unwrap().clone(),
+                            }),
+                            assignable: true,
+                            typ: Rc::clone(&field.typ.0.borrow().upgrade().unwrap()),
+                        })
                     } else {
                         Err(Error::HasNoField(typ.as_ref().clone(), selector.source.pos))
                     }
@@ -637,5 +803,210 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             }
         }
         None
+    }
+
+    fn pop_symbol_table_block(&mut self) {
+        self.symbol_table.pop();
+    }
+}
+
+struct FuncProcessor<'a, 'b> {
+    root_ast: &'a ast::Root,
+    type_processor: &'b TypeProcessor<'a>,
+    value_processor: &'b mut ValueProcessor<'a, 'b>,
+}
+
+impl<'a, 'b> FuncProcessor<'a, 'b> {
+    fn new(
+        root_ast: &'a ast::Root,
+        type_processor: &'b TypeProcessor<'a>,
+        value_processor: &'b mut ValueProcessor<'a, 'b>,
+    ) -> Self {
+        Self {
+            root_ast,
+            type_processor,
+            value_processor,
+        }
+    }
+
+    fn analyze(&mut self) -> Result<Vec<FnDecl>, Error> {
+        let type_decls: Vec<&ast::FnDecl> = self
+            .root_ast
+            .declarations
+            .iter()
+            .filter_map(|decl| {
+                if let ast::Declaration::Fn(t) = decl {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut fn_declarations: Vec<FnDecl> = Vec::new();
+        for fn_decl in type_decls.iter() {
+            let name = fn_decl.name.value.as_ref().unwrap().clone();
+            let func_symbol = self.value_processor.find_symbol(&name).unwrap();
+            let func_type = func_symbol.typ;
+
+            self.value_processor.add_symbol_table_block();
+            let ftype = if let Type::Fn(t) = func_type.as_ref() {
+                for arg in t.arguments.iter() {
+                    self.value_processor
+                        .add_symbol(&arg.name, Rc::clone(&arg.typ.borrow().upgrade().unwrap()));
+                }
+                t
+            } else {
+                unreachable!();
+            };
+
+            let statement = self.analyze_block_stmt(&fn_decl.body, ftype)?;
+
+            let native = fn_decl.header.native;
+
+            fn_declarations.push(FnDecl {
+                name,
+                native,
+                typ: func_type,
+                body: statement,
+            });
+
+            self.value_processor.pop_symbol_table_block();
+        }
+
+        Ok(fn_declarations)
+    }
+
+    fn analyze_stmt(&mut self, stmt: &ast::Statement, ftype: &FnType) -> Result<Statement, Error> {
+        match stmt {
+            ast::Statement::Var(stmt) => {
+                // TODO jauhararifin: this implementation is similar to the one in the value
+                // processor. Maybe can consider make it dryer.
+
+                let name = stmt.name.value.as_ref().unwrap();
+                let typ = self
+                    .type_processor
+                    .get_type(&stmt.typ)
+                    .ok_or(Error::UndeclaredSymbol(stmt.name.clone()))?; // TODO: fix the error reporting
+                if self.value_processor.find_symbol(name).is_some() {
+                    return Err(Error::RedeclaredSymbol(stmt.name.clone()));
+                }
+
+                let value = if let Some(val) = &stmt.value {
+                    let value = self.value_processor.analyze_expr(val, Some(&typ), false)?;
+                    let value_type = Rc::clone(&value.typ);
+                    if &value.typ != &typ {
+                        return Err(Error::MismatchType {
+                            expected: typ.as_ref().clone(),
+                            got: value_type.as_ref().clone(),
+                            pos: val.pos,
+                        });
+                    }
+                    Some(value)
+                } else {
+                    None
+                };
+
+                self.value_processor.add_symbol(name, Rc::clone(&typ));
+
+                Ok(Statement::Var(Var {
+                    name: name.clone(),
+                    typ: Rc::clone(&typ),
+                    value,
+                }))
+            }
+            ast::Statement::Assign(stmt) => {
+                let receiver = self.value_processor.analyze_expr(&stmt.receiver, None, false)?;
+                if !receiver.assignable {
+                    return Err(Error::CannotAssignTo(receiver.typ.as_ref().clone(), stmt.receiver.pos));
+                }
+
+                let value = self
+                    .value_processor
+                    .analyze_expr(&stmt.value, Some(&receiver.typ), false)?;
+
+                // TODO: check based on the op instead of just using !=.
+                if value.typ != receiver.typ {
+                    return Err(Error::MismatchType {
+                        expected: receiver.typ.as_ref().clone(),
+                        got: value.typ.as_ref().clone(),
+                        pos: stmt.value.pos,
+                    });
+                }
+
+                let op = match &stmt.op.kind {
+                    TokenKind::Assign => AssignOp::Assign,
+                    TokenKind::PlusAssign => AssignOp::PlusAssign,
+                    TokenKind::MinusAssign => AssignOp::MinusAssign,
+                    TokenKind::MulAssign => AssignOp::MulAssign,
+                    TokenKind::DivAssign => AssignOp::DivAssign,
+                    TokenKind::ModAssign => AssignOp::ModAssign,
+                    TokenKind::BitAndAssign => AssignOp::BitAndAssign,
+                    TokenKind::BitOrAssign => AssignOp::BitOrAssign,
+                    TokenKind::BitXorAssign => AssignOp::BitXorAssign,
+                    TokenKind::ShlAssign => AssignOp::ShlAssign,
+                    TokenKind::ShrAssign => AssignOp::ShrAssign,
+                    _ => unreachable!(),
+                };
+
+                Ok(Statement::Assign(Assign { receiver, op, value }))
+            }
+            ast::Statement::Return(stmt) => {
+                if let Some(expected_ret_type) = &ftype.return_type {
+                    let t = expected_ret_type.0.borrow().upgrade().unwrap();
+                    if let Some(ret_val) = &stmt.value {
+                        let val = self.value_processor.analyze_expr(&ret_val, None, false)?;
+                        if val.typ != t {
+                            return Err(Error::MismatchType {
+                                expected: t.as_ref().clone(),
+                                got: val.typ.as_ref().clone(),
+                                pos: ret_val.pos,
+                            });
+                        }
+
+                        Ok(Statement::Return(Return { value: Some(val) }))
+                    } else {
+                        Err(Error::MissingReturnValue(stmt.ret.pos))
+                    }
+                } else {
+                    if let Some(ret_val) = &stmt.value {
+                        let val = self.value_processor.analyze_expr(&ret_val, None, false)?;
+                        Err(Error::MismatchType {
+                            expected: self.type_processor.type_void.as_ref().clone(),
+                            got: val.typ.as_ref().clone(),
+                            pos: ret_val.pos,
+                        })
+                    } else {
+                        Ok(Statement::Return(Return { value: None }))
+                    }
+                }
+            }
+            ast::Statement::If(stmt) => {
+                let cond =
+                    self.value_processor
+                        .analyze_expr(&stmt.cond, Some(&self.type_processor.type_bool), false)?;
+                let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
+                Ok(Statement::If(If { cond, body }))
+            }
+            ast::Statement::While(stmt) => {
+                let cond =
+                    self.value_processor
+                        .analyze_expr(&stmt.cond, Some(&self.type_processor.type_bool), false)?;
+                let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
+                Ok(Statement::While(While { cond, body }))
+            }
+            ast::Statement::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
+            ast::Statement::Expr(stmt) => todo!(),
+            ast::Statement::Continue => todo!(),
+            ast::Statement::Break => todo!(),
+        }
+    }
+
+    fn analyze_block_stmt(&mut self, stmt: &ast::BlockStatement, ftype: &FnType) -> Result<Statement, Error> {
+        let mut body = Vec::new();
+        for s in stmt.body.iter() {
+            body.push(self.analyze_stmt(s, ftype)?);
+        }
+        Ok(Statement::Block(BlockStatement { body }))
     }
 }
