@@ -5,10 +5,10 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     ast::{self, Root},
     semantic::{
-        Argument, BinOp, Binary, ConcreteType, Expr, ExprKind, Field, FieldValue, FloatType, FnHeader, FnType,
-        FunctionCall, Header, IntType, Selector, Struct, StructLit, Type, TypeDecl, TypePtr, Unary, UnaryOp, VarHeader,
+        BinOp, Binary, ConcreteType, Expr, ExprKind, FieldValue, FloatType, FnHeader, FunctionCall, Header, IntType,
+        Selector, StructLit, Type, TypeDecl, Unary, UnaryOp, VarHeader,
     },
-    token::{Token, TokenKind},
+    token::TokenKind,
     type_helper::{ITypeHelper, TypeHelper},
 };
 
