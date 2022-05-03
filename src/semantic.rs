@@ -24,7 +24,7 @@ pub struct Unit {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Name {
-    pub package: String,
+    pub package: String, // empty string indicating local var
     pub name: String,
 }
 

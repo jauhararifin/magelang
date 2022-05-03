@@ -7,19 +7,8 @@ use crate::{
         Selector, StructLit, Type, Unary, UnaryOp,
     },
     token::TokenKind,
-    type_helper::ITypeHelper,
+    type_helper::ITypeHelper, errors::Error,
 };
-
-#[derive(Debug)]
-pub enum Error {
-    UndeclaredField,
-    UndeclaredSymbol,
-    MismatchType,
-    NotAStruct,
-    NotAFn,
-    UnsupportedOperationInConstant,
-    FnCallArgNumMismatch,
-}
 
 pub struct ExprHelper<'a, 'b> {
     package_name: &'a str,

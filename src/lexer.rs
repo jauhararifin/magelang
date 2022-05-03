@@ -1,34 +1,11 @@
+use crate::errors::Error;
 use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Bytes, Read};
-use std::{fmt, io};
 use unicode_reader::CodePoints;
 
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug)]
-pub enum Error {
-    UnexpectedSymbol { symbol: char, pos: Pos },
-    Io(io::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Io(err) => err.fmt(f),
-            Error::UnexpectedSymbol { symbol, pos } => {
-                write!(f, "Unknown symbol. Found \"{}\" sybol, at {}", symbol, pos)
-            }
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Error {
-        Error::Io(err)
-    }
-}
+type Result<T> = std::result::Result<T, Error>;
 
 pub trait Lexer {
     fn next(&mut self) -> Result<Token>;

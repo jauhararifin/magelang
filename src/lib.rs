@@ -1,4 +1,4 @@
-// pub mod analyzer;
+pub mod analyzer;
 pub mod ast;
 pub mod bytecode;
 // pub mod compiler;
@@ -13,3 +13,4 @@ pub mod token;
 pub mod type_helper;
 pub mod util;
 pub mod vm;
+pub mod errors;

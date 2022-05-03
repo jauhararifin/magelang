@@ -6,23 +6,6 @@ use crate::{
     token::{Token, TokenKind},
 };
 
-#[derive(Debug)]
-pub enum Error {
-    EmptyPackage,
-    MissingPackage,
-    ImportCycle,
-    RedeclaredSymbol,
-    UndeclaredSymbol,
-    UndeclaredField,
-    UnresolvedType,
-    MismatchType,
-    CyclicType,
-    NotAStruct,
-    NotAFn,
-    UnsupportedOperationInConstant,
-    FnCallArgNumMismatch,
-}
-
 pub trait ITypeHelper<'a> {
     fn add_type(&mut self, name: &'a Name, typ: &Type);
     fn get(&self, typ: &ast::Type) -> Option<Type>;

@@ -1,13 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-pub enum PlanError {
-    ImportCycle,       // TODO: add more info.
-    MissingDependency, // TODO: add more info.
-}
+use crate::errors::Error;
 
 pub fn build_processing_plan<'a>(
     dependency_graph: &HashMap<&'a str, HashSet<&'a str>>,
-) -> Result<Vec<&'a str>, PlanError> {
+) -> Result<Vec<&'a str>, Error> {
     if dependency_graph.is_empty() {
         return Ok(Vec::new());
     }
@@ -27,7 +24,7 @@ pub fn build_processing_plan<'a>(
 
         while let Some(p) = stack.pop() {
             stack.push(p);
-            let deps = dependency_graph.get(p).ok_or(PlanError::MissingDependency)?;
+            let deps = dependency_graph.get(p).ok_or(Error::MissingPackage)?;
 
             let mut has_unresolved = false;
             for dep in deps.iter() {
@@ -35,7 +32,7 @@ pub fn build_processing_plan<'a>(
                     continue;
                 }
                 if in_stack.contains(dep) {
-                    return Err(PlanError::ImportCycle);
+                    return Err(Error::ImportCycle);
                 }
 
                 stack.push(*dep);

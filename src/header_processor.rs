@@ -4,42 +4,28 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{self, Root},
-    expr_helper::{self, ExprHelper, Symbol},
+    expr_helper::{ExprHelper, Symbol},
     semantic::{ConcreteType, FnHeader, Header, Name, Type, TypeDecl, VarHeader},
     type_helper::{ITypeHelper, TypeHelper},
-    util,
+    util, errors::Error,
 };
 
-#[derive(Debug)]
-pub enum Error {
-    EmptyPackage,
-    MissingPackage,
-    ImportCycle,
-    RedeclaredSymbol,
-    UndeclaredSymbol,
-    UndeclaredField,
-    UnresolvedType,
-    MismatchType,
-    CyclicType,
-    NotAStruct,
-    NotAFn,
-    UnsupportedOperationInConstant,
-    FnCallArgNumMismatch,
-}
-
-impl From<expr_helper::Error> for Error {
-    fn from(err: expr_helper::Error) -> Self {
-        match err {
-            expr_helper::Error::UndeclaredField => Error::UndeclaredField,
-            expr_helper::Error::UndeclaredSymbol => Error::UndeclaredSymbol,
-            expr_helper::Error::MismatchType => Error::MismatchType,
-            expr_helper::Error::NotAStruct => Error::NotAStruct,
-            expr_helper::Error::NotAFn => Error::NotAFn,
-            expr_helper::Error::UnsupportedOperationInConstant => Error::UnsupportedOperationInConstant,
-            expr_helper::Error::FnCallArgNumMismatch => Error::FnCallArgNumMismatch,
-        }
-    }
-}
+// #[derive(Debug)]
+// pub enum Error {
+//     EmptyPackage,
+//     MissingPackage,
+//     ImportCycle,
+//     RedeclaredSymbol,
+//     UndeclaredSymbol,
+//     UndeclaredField,
+//     UnresolvedType,
+//     MismatchType,
+//     CyclicType,
+//     NotAStruct,
+//     NotAFn,
+//     UnsupportedOperationInConstant,
+//     FnCallArgNumMismatch,
+// }
 
 pub trait HeaderProcessor {
     fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error>;
@@ -55,10 +41,7 @@ impl SimpleHeaderProcessor {
     fn build<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
         let dependency_graph = self.build_package_dependency(roots);
 
-        let plan = util::build_processing_plan(&dependency_graph).map_err(|err| match err {
-            util::PlanError::ImportCycle => Error::ImportCycle,
-            util::PlanError::MissingDependency => Error::MissingPackage,
-        })?;
+        let plan = util::build_processing_plan(&dependency_graph)?;
 
         let mut pack_to_ast: HashMap<&str, Vec<&Root>> = HashMap::new();
         for root in roots.iter() {
@@ -176,10 +159,7 @@ impl<'a> TypeProcessor<'a> {
 
     fn setup(&mut self) -> Result<HashMap<&str, Type>, Error> {
         let dependency_graph = self.build_package_dependency()?;
-        let plan = util::build_processing_plan(&dependency_graph).map_err(|err| match err {
-            util::PlanError::ImportCycle => Error::ImportCycle,
-            util::PlanError::MissingDependency => Error::MissingPackage,
-        })?;
+        let plan = util::build_processing_plan(&dependency_graph)?;
 
         Ok(self.setup_types(&plan[..]))
     }

@@ -1,6 +1,6 @@
-// use magelang::analyzer::{Analyzer, SimpleAnalyzer};
+use magelang::analyzer::{Analyzer, SimpleAnalyzer};
 // use magelang::compiler::{Compiler, SimpleCompiler};
-use magelang::header_processor::{SimpleHeaderProcessor, HeaderProcessor};
+use magelang::header_processor::{HeaderProcessor, SimpleHeaderProcessor};
 use magelang::lexer::SimpleLexer;
 use magelang::parser::{Parser, SimpleParser};
 use std::env;
@@ -11,7 +11,7 @@ fn main() {
 
     if args.len() == 0 {
         println!("please specify the list of files you want to compile");
-        return
+        return;
     }
 
     let mut root_asts = Vec::new();
@@ -26,6 +26,13 @@ fn main() {
     let header_processor = SimpleHeaderProcessor::new();
     let headers = header_processor.build_headers(root_asts.as_slice()).unwrap();
     println!("{:?}", headers);
+
+    let analyzer = SimpleAnalyzer::new(&headers[..]);
+
+    for root in root_asts.iter() {
+        let semantic = analyzer.analyze(root).unwrap();
+        println!("semantic: {:?}", semantic);
+    }
 
     // let f = File::open("./examples/example1.mag").unwrap();
     // let lexer = SimpleLexer::new(f);

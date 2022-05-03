@@ -2,22 +2,10 @@ use crate::ast::{
     Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FnHeader, FunctionCall, If,
     Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
 };
-use crate::lexer::{Error as LexerError, Lexer};
+use crate::errors::Error;
+use crate::lexer::Lexer;
 use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
-
-#[derive(Debug)]
-pub enum Error {
-    UnexpectedToken { expected: Vec<TokenKind>, found: Token },
-    UnexpectedStructType { expr: Expr },
-    Lexer(LexerError),
-}
-
-impl From<LexerError> for Error {
-    fn from(err: LexerError) -> Self {
-        Error::Lexer(err)
-    }
-}
 
 pub trait Parser {
     fn parse(&mut self) -> std::result::Result<Root, Error>;
