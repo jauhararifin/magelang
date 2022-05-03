@@ -4,10 +4,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{self, Root},
+    errors::Error,
     expr_helper::{ExprHelper, Symbol},
-    semantic::{ConcreteType, FnHeader, Header, Name, Type, TypeDecl, VarHeader},
+    semantic::{FnHeader, Header, Name, Type, TypeDecl, VarHeader},
     type_helper::{ITypeHelper, TypeHelper},
-    util, errors::Error,
+    util,
 };
 
 pub trait HeaderProcessor {
@@ -99,6 +100,7 @@ impl<'a> SingleHeaderProcessor<'a> {
         let type_aliases = type_processor.setup()?;
         for (name, typ) in type_aliases.iter() {
             self.types.push(TypeDecl {
+                id: self.types.len(),
                 name: Name {
                     package: String::from(self.package_name),
                     name: String::from(*name),
@@ -187,7 +189,7 @@ impl<'a> TypeProcessor<'a> {
         let mut type_alias = HashMap::new();
         for type_decl in type_decls.iter() {
             let name = type_decl.name.value.as_ref().unwrap();
-            type_alias.insert(name.as_str(), Type::from_concrete(ConcreteType::Invalid));
+            type_alias.insert(name.as_str(), Type::Invalid);
         }
 
         self.populate_types(&mut type_alias, type_decls.as_slice());
@@ -199,7 +201,7 @@ impl<'a> TypeProcessor<'a> {
     fn populate_types(&mut self, type_alias: &mut HashMap<&'a str, Type>, type_decls: &[&'a ast::TypeDecl]) {
         for type_decl in type_decls.iter() {
             let name = type_decl.name.unwrap_value();
-            let typ = self.type_helper.get(&type_decl.typ).unwrap();
+            let typ = self.type_helper.get(&type_decl.typ);
             type_alias.insert(name.as_str(), typ);
         }
     }
@@ -236,11 +238,11 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 continue;
             }
 
-            if let ConcreteType::Fn(fn_type) = &*sym.typ.borrow() {
+            if let Type::Fn(fn_type) = &sym.typ {
                 fn_result.push(FnHeader {
                     name: sym.name.clone(),
                     native: fn_type.native,
-                    typ: sym.typ.clone(),
+                    typ: fn_type.clone(),
                 })
             } else {
                 var_result.push(VarHeader {
@@ -268,7 +270,10 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             .collect();
 
         for var in var_decls.iter() {
-            let typ = self.type_helper.get(&var.typ).ok_or(Error::UnresolvedType)?;
+            let typ = self.type_helper.get(&var.typ);
+            if typ.is_invalid() {
+                return Err(Error::UnresolvedType);
+            }
 
             let name = Name {
                 package: String::from(self.package_name),
@@ -310,10 +315,10 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
                 return Err(Error::RedeclaredSymbol);
             }
 
-            let typ = self
-                .type_helper
-                .get_fn(&fn_decl.header)
-                .ok_or(Error::UndeclaredSymbol)?;
+            let typ = self.type_helper.get_fn(&fn_decl.header);
+            if typ.is_invalid() {
+                return Err(Error::UndeclaredSymbol);
+            }
 
             self.expr_helper.add_symbol(Symbol { name, typ: typ.clone() });
         }

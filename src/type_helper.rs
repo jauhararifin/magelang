@@ -2,17 +2,17 @@ use std::collections::HashMap;
 
 use crate::{
     ast,
-    semantic::{Argument, ConcreteType, Field, FloatType, FnType, Header, IntType, Name, Struct, Type, TypePtr},
+    semantic::{Argument, Field, FloatType, FnType, Header, IntType, Name, Struct, Type},
     token::{Token, TokenKind},
 };
 
 pub trait ITypeHelper<'a> {
     fn add_type(&mut self, name: &'a Name, typ: &Type);
-    fn get(&self, typ: &ast::Type) -> Option<Type>;
-    fn get_fn(&self, fn_header: &ast::FnHeader) -> Option<Type>;
-    fn get_selector(&self, selector: &ast::Selector) -> Option<Type>;
-    fn get_qual(&self, typ: &Name) -> Option<Type>;
-    fn get_by_name(&self, name: &'a str) -> Option<Type>;
+    fn get(&self, typ: &ast::Type) -> Type;
+    fn get_fn(&self, fn_header: &ast::FnHeader) -> Type;
+    fn get_selector(&self, selector: &ast::Selector) -> Type;
+    fn get_qual(&self, typ: &Name) -> Type;
+    fn get_by_name(&self, name: &'a str) -> Type;
 
     fn get_i32(&self) -> Type;
     fn get_f64(&self) -> Type;
@@ -39,18 +39,20 @@ pub struct TypeHelper<'a> {
     type_void: Type,
 
     type_alias: HashMap<&'a Name, Type>,
+    type_alias_id: HashMap<&'a Name, usize>,
+    type_alias_last_id: usize,
 }
 
 impl<'a> ITypeHelper<'a> for TypeHelper<'a> {
-    fn get(&self, typ: &ast::Type) -> Option<Type> {
+    fn get(&self, typ: &ast::Type) -> Type {
         self.get_type(typ)
     }
 
-    fn get_qual(&self, name: &Name) -> Option<Type> {
+    fn get_qual(&self, name: &Name) -> Type {
         self.get_type_by_name(name)
     }
 
-    fn get_by_name(&self, name: &'a str) -> Option<Type> {
+    fn get_by_name(&self, name: &'a str) -> Type {
         self.get_qual(&Name {
             package: self.package_name.clone(),
             name: String::from(name),
@@ -61,11 +63,11 @@ impl<'a> ITypeHelper<'a> for TypeHelper<'a> {
         self.add_type_alias(name, typ)
     }
 
-    fn get_fn(&self, fn_header: &ast::FnHeader) -> Option<Type> {
+    fn get_fn(&self, fn_header: &ast::FnHeader) -> Type {
         self.get_fn_type(fn_header)
     }
 
-    fn get_selector(&self, selector: &ast::Selector) -> Option<Type> {
+    fn get_selector(&self, selector: &ast::Selector) -> Type {
         self.get_selector(selector)
     }
 
@@ -107,54 +109,47 @@ impl<'a> TypeHelper<'a> {
             package_name,
             dependencies,
 
-            type_i8: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 8 })),
-            type_i16: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 16 })),
-            type_i32: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 32 })),
-            type_i64: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 64 })),
-            type_u8: Type::from_concrete(ConcreteType::Int(IntType { signed: false, size: 8 })),
-            type_u16: Type::from_concrete(ConcreteType::Int(IntType {
-                signed: false,
-                size: 16,
-            })),
-            type_u32: Type::from_concrete(ConcreteType::Int(IntType {
-                signed: false,
-                size: 32,
-            })),
-            type_u64: Type::from_concrete(ConcreteType::Int(IntType {
-                signed: false,
-                size: 64,
-            })),
-            type_f32: Type::from_concrete(ConcreteType::Float(FloatType { size: 32 })),
-            type_f64: Type::from_concrete(ConcreteType::Float(FloatType { size: 64 })),
-            type_bool: Type::from_concrete(ConcreteType::Bool),
-            type_void: Type::from_concrete(ConcreteType::Void),
+            type_i8: Type::Int(IntType::signed(8)),
+            type_i16: Type::Int(IntType::signed(16)),
+            type_i32: Type::Int(IntType::signed(32)),
+            type_i64: Type::Int(IntType::signed(64)),
+            type_u8: Type::Int(IntType::unsigned(8)),
+            type_u16: Type::Int(IntType::unsigned(16)),
+            type_u32: Type::Int(IntType::unsigned(32)),
+            type_u64: Type::Int(IntType::unsigned(64)),
+            type_f32: Type::Float(FloatType { size: 32 }),
+            type_f64: Type::Float(FloatType { size: 64 }),
+            type_bool: Type::Bool,
+            type_void: Type::Void,
 
             type_alias: HashMap::new(),
+            type_alias_id: HashMap::new(),
+            type_alias_last_id: 0,
         }
     }
 
     pub fn add_type_alias(&mut self, name: &'a Name, typ: &Type) {
         self.type_alias.insert(name, typ.clone());
+        self.type_alias_id.insert(name, self.type_alias_last_id);
+        self.type_alias_last_id += 1;
     }
 
-    pub fn get_type(&self, typ: &ast::Type) -> Option<Type> {
+    pub fn get_type(&self, typ: &ast::Type) -> Type {
         match &typ {
-            ast::Type::Primitive(token) => Some(self.get_type_from_primitive(token)),
+            ast::Type::Primitive(token) => self.get_type_from_primitive(token),
             ast::Type::Ident(token) => self.get_type_from_ident(token),
-            ast::Type::Struct(strct) => Some(self.get_struct(strct)),
+            ast::Type::Struct(strct) => self.get_struct(strct),
             ast::Type::Selector(selector) => self.get_selector(selector),
         }
     }
 
-    fn get_type_from_ident(&self, token: &Token) -> Option<Type> {
-        // TODO: instead of cloning the package and name like this, can we borrow instead? or maybe
-        // move the value temporarily?
-
+    fn get_type_from_ident(&self, token: &Token) -> Type {
         let name = Name {
             package: self.package_name.clone(),
             name: token.clone_value(),
         };
-        self.type_alias.get(&name).map(|t| t.clone())
+        // TODO: return Type::Ptr here if we are inside a struct.
+        self.type_alias.get(&name).map(|t| t.clone()).unwrap_or(Type::Invalid)
     }
 
     fn get_type_from_primitive(&self, token: &Token) -> Type {
@@ -180,18 +175,17 @@ impl<'a> TypeHelper<'a> {
         for (index, field) in strct.fields.iter().enumerate() {
             let name = field.name.unwrap_value();
             let typ = self.get_type(&field.typ);
-            let typ = typ.map(|t| t.downgrade()).unwrap_or(TypePtr::new());
             fields.insert(name.clone(), Field { index, typ });
         }
 
-        Type::from_concrete(ConcreteType::Struct(Struct { fields }))
+        Type::Struct(Struct { fields })
     }
 
-    pub fn get_selector(&self, selector: &ast::Selector) -> Option<Type> {
+    pub fn get_selector(&self, selector: &ast::Selector) -> Type {
         let pkg_name = if let ast::ExprKind::Ident(pkg) = &selector.source.kind {
             pkg.unwrap_str()
         } else {
-            return None;
+            return Type::Invalid;
         };
 
         let name = Name {
@@ -200,46 +194,41 @@ impl<'a> TypeHelper<'a> {
         };
         let dep_header = self.dependencies.get(&name);
 
-        dep_header.map(|t| (*t).clone())
+        dep_header.map(|t| (*t).clone()).unwrap_or(Type::Invalid)
     }
 
-    fn get_type_by_name(&self, name: &Name) -> Option<Type> {
-        self.type_alias.get(name).cloned()
+    fn get_type_by_name(&self, name: &Name) -> Type {
+        self.type_alias.get(name).map(|t| t.clone()).unwrap_or(Type::Invalid)
     }
 
-    fn get_fn_type(&self, header: &ast::FnHeader) -> Option<Type> {
+    fn get_fn_type(&self, header: &ast::FnHeader) -> Type {
         let mut arguments = Vec::new();
 
         for (index, arg) in header.params.iter().enumerate() {
             let typ = self.get_type(&arg.typ);
-            if typ.is_none() {
-                return None;
+            if typ.is_invalid() {
+                return Type::Invalid;
             }
-            let typ = typ.unwrap();
 
             arguments.push(Argument {
                 index,
                 name: arg.name.unwrap_value().clone(),
-                typ: typ.downgrade(),
+                typ,
             });
         }
 
         let return_type = if let Some(t) = &header.ret_type {
-            if let Some(typ) = self.get_type(t) {
-                Some(typ.downgrade())
-            } else {
-                None
-            }
+            Some(Box::new(self.get_type(t)))
         } else {
             None
         };
 
         let native = header.native;
 
-        Some(Type::from_concrete(ConcreteType::Fn(FnType {
+        Type::Fn(FnType {
             native,
             arguments,
             return_type,
-        })))
+        })
     }
 }

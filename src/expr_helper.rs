@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use crate::{
     ast,
+    errors::Error,
     semantic::{
-        BinOp, Binary, ConcreteType, Expr, ExprKind, FieldValue, FloatType, FunctionCall, Header, IntType, Name,
-        Selector, StructLit, Type, Unary, UnaryOp,
+        BinOp, Binary, Expr, ExprKind, FieldValue, FloatType, FunctionCall, Header, IntType, Name, Selector, StructLit,
+        Type, Unary, UnaryOp,
     },
     token::TokenKind,
-    type_helper::ITypeHelper, errors::Error,
+    type_helper::ITypeHelper,
 };
 
 pub struct ExprHelper<'a, 'b> {
@@ -53,7 +54,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
             for func in header.functions.iter() {
                 expr_helper.add_symbol(Symbol {
                     name: func.name.clone(),
-                    typ: func.typ.clone(),
+                    typ: Type::Fn(func.typ.clone()),
                 });
             }
         }
@@ -121,11 +122,14 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     ast::Type::Struct(_) => self.type_helper.get(&struct_lit.typ),
                     ast::Type::Ident(id) => self.type_helper.get_by_name(id.unwrap_str()),
                     ast::Type::Selector(s) => self.type_helper.get_selector(s),
-                }
-                .ok_or(Error::UndeclaredSymbol)?;
+                };
 
-                let struct_fields = if let ConcreteType::Struct(strct) = &*typ.borrow() {
-                    strct.fields.clone()
+                if typ.is_invalid() {
+                    return Err(Error::UndeclaredSymbol);
+                }
+
+                let struct_fields = if let Type::Struct(strct) = &typ {
+                    &strct.fields
                 } else {
                     return Err(Error::NotAStruct);
                 };
@@ -139,7 +143,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     let type_field = type_field.unwrap();
 
                     let val = self.analyze_expr(&field.value, expected, is_global_var)?;
-                    if val.typ != type_field.typ.upgrade().unwrap() {
+                    if val.typ != type_field.typ {
                         return Err(Error::MismatchType);
                     }
 
@@ -156,8 +160,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 })
             }
             ast::ExprKind::IntegerLit(val) => {
-                let concrete_type = expected.borrow();
-                if let ConcreteType::Int(IntType { signed, size }) = &*concrete_type {
+                if let Type::Int(IntType { signed, size }) = expected {
                     let kind = match (signed, size) {
                         (true, 8) => ExprKind::I8(val.value.as_ref().unwrap().parse().unwrap()),
                         (true, 16) => ExprKind::I16(val.value.as_ref().unwrap().parse().unwrap()),
@@ -183,8 +186,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 }
             }
             ast::ExprKind::FloatLit(val) => {
-                let concrete_type = expected.borrow();
-                if let ConcreteType::Float(FloatType { size }) = &*concrete_type {
+                if let Type::Float(FloatType { size }) = expected {
                     let kind = match size {
                         32 => ExprKind::F32(val.value.as_ref().unwrap().parse().unwrap()),
                         64 => ExprKind::F64(val.value.as_ref().unwrap().parse().unwrap()),
@@ -225,13 +227,13 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     | TokenKind::GT
                     | TokenKind::LT
                     | TokenKind::GTEq
-                    | TokenKind::LTEq => a_typ == b_typ && a_typ.borrow().is_number(),
+                    | TokenKind::LTEq => a_typ == b_typ && a_typ.is_number(),
                     TokenKind::Mod | TokenKind::BitAnd | TokenKind::BitOr | TokenKind::BitXor => {
-                        a_typ == b_typ && a_typ.borrow().is_int()
+                        a_typ == b_typ && a_typ.is_int()
                     }
-                    TokenKind::Shl | TokenKind::Shr => a_typ.borrow().is_int() && b_typ.borrow().is_int(),
+                    TokenKind::Shl | TokenKind::Shr => a_typ.is_int() && b_typ.is_int(),
                     TokenKind::And | TokenKind::Or => {
-                        if !a_typ.borrow().is_bool() || !b_typ.borrow().is_bool() {
+                        if !a_typ.is_bool() || !b_typ.is_bool() {
                             return Err(Error::MismatchType);
                         }
                         true
@@ -304,9 +306,9 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 let val_type = val.typ.clone();
 
                 let matched = match unary.op.kind {
-                    TokenKind::Not => val_type.borrow().is_bool(),
-                    TokenKind::BitNot => val_type.borrow().is_int(),
-                    TokenKind::Plus | TokenKind::Minus => val_type.borrow().is_number(),
+                    TokenKind::Not => val_type.is_bool(),
+                    TokenKind::BitNot => val_type.is_int(),
+                    TokenKind::Plus | TokenKind::Minus => val_type.is_number(),
                     _ => unreachable!(),
                 };
 
@@ -341,8 +343,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
 
                 let func = self.analyze_expr(func_call.func.as_ref(), expected, is_global_var)?;
 
-                let fn_type = func.typ.borrow();
-                let fn_type = if let ConcreteType::Fn(fn_type) = &*fn_type {
+                let fn_type = if let Type::Fn(fn_type) = &func.typ {
                     fn_type
                 } else {
                     return Err(Error::NotAFn);
@@ -356,7 +357,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 for (i, arg) in func_call.args.iter().enumerate() {
                     let val = self.analyze_expr(arg, expected, is_global_var)?;
                     let val_type = val.typ.clone();
-                    let func_type = fn_type.arguments.get(i).unwrap().typ.upgrade().unwrap();
+                    let func_type = fn_type.arguments.get(i).unwrap().typ.clone();
                     if val_type != func_type {
                         return Err(Error::MismatchType);
                     }
@@ -365,7 +366,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 }
 
                 let return_type = if let Some(t) = &fn_type.return_type {
-                    t.upgrade().unwrap()
+                    t.as_ref().clone()
                 } else {
                     self.type_helper.get_void()
                 };
@@ -376,31 +377,28 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                         args,
                     }),
                     assignable: false,
-                    typ: return_type,
+                    typ: return_type.clone(),
                 })
             }
             ast::ExprKind::Cast(cast) => {
                 let typ = self.type_helper.get(&cast.target);
-                if let Some(typ) = typ {
-                    self.analyze_expr(cast.val.as_ref(), &typ, is_global_var)
-                } else {
-                    Err(Error::UndeclaredSymbol)
+                if typ.is_invalid() {
+                    return Err(Error::UndeclaredSymbol);
                 }
+                self.analyze_expr(cast.val.as_ref(), &typ, is_global_var)
             }
             ast::ExprKind::Selector(selector) => {
                 let val = self.analyze_expr(selector.source.as_ref(), expected, is_global_var)?;
-                let typ = val.typ.clone();
-                let typ = typ.borrow();
-                if let ConcreteType::Struct(strct) = &*typ {
+                if let Type::Struct(strct) = &val.typ {
                     if let Some(field) = strct.fields.get(selector.selection.value.as_ref().unwrap()) {
                         Ok(Expr {
                             kind: ExprKind::Selector(Selector {
-                                source: Box::new(val),
+                                source: Box::new(val.clone()),
                                 selection: selector.selection.value.as_ref().unwrap().clone(),
                                 selection_index: field.index,
                             }),
                             assignable: true,
-                            typ: field.typ.upgrade().unwrap(),
+                            typ: field.typ.clone(),
                         })
                     } else {
                         Err(Error::NotAStruct)

@@ -52,30 +52,30 @@ impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
 
         let mut fn_declarations: Vec<FnDecl> = Vec::new();
         for fn_decl in type_decls.iter() {
+            self.expr_helper.add_block();
+
             let name = Name {
                 package: String::from(package_name),
                 name: String::from(fn_decl.name.unwrap_str()),
             };
 
             let func_symbol = self.expr_helper.find_symbol(&name).unwrap();
-            let func_type = func_symbol.typ.clone();
-            let ftype = func_type.borrow();
-            let ftype = ftype.unwrap_func();
+            let ftype = func_symbol.typ.unwrap_func().clone();
 
             for arg in ftype.arguments.iter() {
                 self.expr_helper.add_symbol(Symbol {
                     name: Name {
-                        package: String::new(),
+                        package: String::from(package_name),
                         name: String::from(&arg.name),
                     },
-                    typ: arg.typ.upgrade().unwrap().clone(),
+                    typ: arg.typ.clone(),
                 });
             }
 
             let native = fn_decl.header.native;
 
             let statement = if let Some(body) = &fn_decl.body {
-                Some(self.analyze_block_stmt(package_name, body, ftype)?)
+                Some(self.analyze_block_stmt(package_name, body, &ftype)?)
             } else {
                 None
             };
@@ -84,7 +84,7 @@ impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
                 header: FnHeader {
                     name,
                     native,
-                    typ: func_type.clone(),
+                    typ: ftype.clone(),
                 },
                 body: statement,
             });
@@ -106,7 +106,10 @@ impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
                 // TODO jauhararifin: this implementation is similar to the one in the value
                 // processor. Maybe can consider make it dryer.
 
-                let typ = self.type_helper.get(&stmt.typ).ok_or(Error::UndeclaredSymbol)?;
+                let typ = self.type_helper.get(&stmt.typ);
+                if typ.is_invalid() {
+                    return Err(Error::UndeclaredSymbol);
+                }
 
                 let name = Name {
                     package: String::from(package_name),
@@ -174,12 +177,11 @@ impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
             }
             ast::Statement::Return(stmt) => {
                 if let Some(expected_ret_type) = &ftype.return_type {
-                    let t = expected_ret_type.upgrade().unwrap();
                     if let Some(ret_val) = &stmt.value {
                         let val = self
                             .expr_helper
                             .analyze_expr(&ret_val, &self.type_helper.get_void(), false)?;
-                        if val.typ != t {
+                        if &val.typ != expected_ret_type.as_ref() {
                             return Err(Error::MismatchType);
                         }
 
