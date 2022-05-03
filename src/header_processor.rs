@@ -10,23 +10,6 @@ use crate::{
     util, errors::Error,
 };
 
-// #[derive(Debug)]
-// pub enum Error {
-//     EmptyPackage,
-//     MissingPackage,
-//     ImportCycle,
-//     RedeclaredSymbol,
-//     UndeclaredSymbol,
-//     UndeclaredField,
-//     UnresolvedType,
-//     MismatchType,
-//     CyclicType,
-//     NotAStruct,
-//     NotAFn,
-//     UnsupportedOperationInConstant,
-//     FnCallArgNumMismatch,
-// }
-
 pub trait HeaderProcessor {
     fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error>;
 }
