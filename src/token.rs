@@ -14,6 +14,10 @@ impl Token {
         self.value.as_ref().unwrap()
     }
 
+    pub fn unwrap_str(&self) -> &str {
+        self.unwrap_value().as_str()
+    }
+
     pub fn clone_value(&self) -> String {
         self.unwrap_value().clone()
     }

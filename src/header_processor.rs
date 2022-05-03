@@ -10,6 +10,7 @@ use crate::{
     },
     token::TokenKind,
     type_helper::{ITypeHelper, TypeHelper},
+    util,
 };
 
 #[derive(Debug)]
@@ -42,12 +43,16 @@ impl SimpleHeaderProcessor {
 
     fn build<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
         let dependency_graph = self.build_package_dependency(roots);
-        let plan = self.build_processing_plan(&dependency_graph)?;
+
+        let plan = util::build_processing_plan(&dependency_graph).map_err(|err| match err {
+            util::PlanError::ImportCycle => Error::ImportCycle,
+            util::PlanError::MissingDependency => Error::MissingPackage,
+        })?;
 
         let mut pack_to_ast: HashMap<&str, Vec<&Root>> = HashMap::new();
         for root in roots.iter() {
             pack_to_ast
-                .entry(&root.package_name.unwrap_value().as_str())
+                .entry(&root.package_name.unwrap_str())
                 .or_default()
                 .push(root);
         }
@@ -65,71 +70,17 @@ impl SimpleHeaderProcessor {
     fn build_package_dependency<'a>(&self, roots: &'a [Root]) -> HashMap<&'a str, HashSet<&'a str>> {
         let mut dependency_graph: HashMap<&str, HashSet<&str>> = HashMap::new();
         for root in roots.iter() {
-            let deps = dependency_graph
-                .entry(root.package_name.unwrap_value().as_str())
-                .or_default();
+            let deps = dependency_graph.entry(root.package_name.unwrap_str()).or_default();
             for import in root.imports.iter() {
-                deps.insert(import.package_name.unwrap_value().as_str());
+                deps.insert(import.package_name.unwrap_str());
             }
         }
         dependency_graph
     }
 
-    fn build_processing_plan<'a>(
-        &self,
-        dependency_graph: &HashMap<&'a str, HashSet<&'a str>>,
-    ) -> Result<Vec<&'a str>, Error> {
-        if dependency_graph.is_empty() {
-            return Err(Error::EmptyPackage);
-        }
-
-        let mut plan = Vec::new();
-        let mut plan_set = HashSet::new();
-
-        // TODO: make it more deterministic. maybe use ordered hash map for the iteration.
-        for pack in dependency_graph.keys() {
-            if plan_set.contains(pack) {
-                continue;
-            }
-
-            let mut stack = vec![*pack];
-            let mut in_stack = HashSet::new();
-            in_stack.insert(*pack);
-
-            while let Some(p) = stack.pop() {
-                stack.push(p);
-                let deps = dependency_graph.get(p).ok_or(Error::MissingPackage)?;
-
-                let mut has_unresolved = false;
-                for dep in deps.iter() {
-                    if plan_set.contains(dep) {
-                        continue;
-                    }
-                    if in_stack.contains(dep) {
-                        return Err(Error::ImportCycle); // TODO: put more information here.
-                    }
-
-                    stack.push(*dep);
-                    in_stack.insert(*dep);
-                    has_unresolved = true;
-                }
-
-                if !has_unresolved {
-                    plan.push(p);
-                    plan_set.insert(p);
-                    stack.pop();
-                }
-            }
-        }
-
-        Ok(plan)
-    }
-
     fn build_header(&self, roots: &[&Root], dependencies: &[Header]) -> Result<Header, Error> {
         let mut processor = SingleHeaderProcessor::new(dependencies);
-        for root in roots.into_iter() {
-            processor.process(root)?;
-        }
+        processor.process(roots)?;
         Ok(processor.build())
     }
 }
@@ -160,12 +111,12 @@ impl<'a> SingleHeaderProcessor<'a> {
         }
     }
 
-    fn process(&mut self, root: &'a Root) -> Result<(), Error> {
-        self.package_name = Some(root.package_name.unwrap_value().clone());
+    fn process(&mut self, roots: &'a [&Root]) -> Result<(), Error> {
+        self.package_name = Some(roots[0].package_name.unwrap_value().clone());
 
         let type_helper = TypeHelper::from_headers(self.dependencies);
 
-        let mut type_processor = TypeProcessor::new(root, &type_helper);
+        let mut type_processor = TypeProcessor::new(roots, &type_helper);
         let type_aliases = type_processor.setup()?;
         for (name, typ) in type_aliases.iter() {
             self.types.push(TypeDecl {
@@ -174,7 +125,7 @@ impl<'a> SingleHeaderProcessor<'a> {
             });
         }
 
-        let mut value_processor = ValueProcessor::new(root, &type_helper);
+        let mut value_processor = ValueProcessor::new(roots, &type_helper);
         value_processor.setup()?;
         let (fn_headers, var_headers) = value_processor.build_headers();
         for var_header in var_headers.into_iter() {
@@ -198,97 +149,60 @@ impl<'a> SingleHeaderProcessor<'a> {
 }
 
 struct TypeProcessor<'a> {
-    root: &'a ast::Root,
+    roots: &'a [&'a ast::Root],
     type_helper: &'a dyn ITypeHelper<'a>,
 }
 
 impl<'a> TypeProcessor<'a> {
-    fn new(root: &'a ast::Root, type_helper: &'a dyn ITypeHelper<'a>) -> Self {
-        Self { root, type_helper }
+    fn new(roots: &'a [&ast::Root], type_helper: &'a dyn ITypeHelper<'a>) -> Self {
+        Self { roots, type_helper }
     }
 
     fn setup(&mut self) -> Result<HashMap<&str, Type>, Error> {
-        let plan = self.build_setup_plan()?;
+        let dependency_graph = self.build_package_dependency()?;
+        let plan = util::build_processing_plan(&dependency_graph).map_err(|err| match err {
+            util::PlanError::ImportCycle => Error::ImportCycle,
+            util::PlanError::MissingDependency => Error::MissingPackage,
+        })?;
+
         Ok(self.setup_types(&plan[..]))
     }
 
-    fn build_setup_plan(&mut self) -> Result<Vec<&'a str>, Error> {
-        let type_decls: Vec<&'a ast::TypeDecl> = self
-            .root
-            .declarations
-            .iter()
-            .filter_map(|decl| decl.try_unwrap_type())
-            .collect();
+    fn build_package_dependency(&self) -> Result<HashMap<&'a str, HashSet<&'a str>>, Error> {
+        let mut dependency_graph: HashMap<&str, HashSet<&str>> = HashMap::new();
 
-        let mut name_to_type = HashMap::new();
-        for type_decl in type_decls.iter() {
-            let name = type_decl.name.unwrap_value();
-            if name_to_type.contains_key(name.as_str()) {
+        let type_decls = self
+            .roots
+            .iter()
+            .flat_map(|r| &r.declarations)
+            .filter_map(|decl| decl.try_unwrap_type());
+
+        for type_decl in type_decls {
+            let name = type_decl.name.unwrap_str();
+
+            if dependency_graph.contains_key(name) {
                 return Err(Error::RedeclaredSymbol);
             }
-            name_to_type.insert(name.as_str(), &type_decl.typ);
-        }
 
-        let mut plan: Vec<&'a str> = vec![];
-        let mut visited = HashSet::new();
-
-        for type_decl in type_decls.iter() {
-            if visited.contains(type_decl.name.unwrap_value().as_str()) {
-                continue;
-            }
-
-            let chain = self.traverse_type_alias(&name_to_type, *type_decl)?;
-
-            for item in chain.into_iter().rev() {
-                if !visited.contains(&item) {
-                    plan.push(item);
-                    visited.insert(item);
-                }
+            if let ast::Type::Ident(ident) = &type_decl.typ {
+                dependency_graph.insert(name, HashSet::from([ident.unwrap_str()]));
+            } else {
+                dependency_graph.insert(name, HashSet::new());
             }
         }
 
-        Ok(plan)
-    }
-
-    fn traverse_type_alias(
-        &self,
-        name_to_type: &HashMap<&'a str, &'a ast::Type>,
-        type_decl: &'a ast::TypeDecl,
-    ) -> Result<Vec<&'a str>, Error> {
-        let mut chain: Vec<&'a str> = vec![];
-        let mut chain_set = HashSet::new();
-
-        let mut current_type = &type_decl.name;
-        loop {
-            let name = current_type.unwrap_value().as_str();
-
-            if chain_set.contains(name) {
-                return Err(Error::CyclicType);
-            }
-
-            chain.push(name);
-            chain_set.insert(name);
-
-            let current_type_decl = name_to_type.get(name).ok_or(Error::UndeclaredSymbol)?;
-
-            match &current_type_decl {
-                ast::Type::Primitive(_) | ast::Type::Struct(_) => break,
-                ast::Type::Ident(token) => current_type = token,
-                ast::Type::Selector(_) => break,
-            }
-        }
-
-        Ok(chain)
+        Ok(dependency_graph)
     }
 
     fn setup_types(&mut self, plan: &[&str]) -> HashMap<&str, Type> {
         let mut type_decls: HashMap<&str, &ast::TypeDecl> = self
-            .root
-            .declarations
+            .roots
             .iter()
+            .flat_map(|decl| &decl.declarations)
             .filter_map(|decl| decl.try_unwrap_type())
-            .map(|decl| (decl.name.unwrap_value().as_str(), decl))
+            .map(|decl| (decl.name.unwrap_str(), decl))
             .collect();
+
         let type_decls: Vec<&ast::TypeDecl> = plan.iter().map(|v| type_decls.remove(*v).unwrap()).collect();
 
         let mut type_alias = HashMap::new();
@@ -313,10 +227,10 @@ impl<'a> TypeProcessor<'a> {
 }
 
 struct ValueProcessor<'a, 'b> {
-    root_ast: &'a ast::Root,
+    roots: &'a [&'a ast::Root],
     type_helper: &'b dyn ITypeHelper<'a>,
 
-    symbol_table: Vec<HashMap<String, Symbol>>,
+    symbol_table: Vec<HashMap<&'a str, Symbol>>,
 }
 
 #[derive(Clone, Debug)]
@@ -325,9 +239,9 @@ struct Symbol {
 }
 
 impl<'a, 'b> ValueProcessor<'a, 'b> {
-    fn new(root_ast: &'a ast::Root, type_helper: &'b dyn ITypeHelper<'a>) -> Self {
+    fn new(roots: &'a [&'a ast::Root], type_helper: &'b dyn ITypeHelper<'a>) -> Self {
         Self {
-            root_ast,
+            roots,
             type_helper,
             symbol_table: Vec::new(),
         }
@@ -340,13 +254,13 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             for (name, symbol) in table.iter() {
                 if let ConcreteType::Fn(fn_type) = &*symbol.typ.borrow() {
                     fn_result.push(FnHeader {
-                        name: name.clone(),
+                        name: String::from(*name),
                         native: fn_type.native,
                         typ: symbol.typ.clone(),
                     })
                 } else {
                     var_result.push(VarHeader {
-                        name: name.clone(),
+                        name: String::from(*name),
                         typ: symbol.typ.clone(),
                     })
                 }
@@ -362,29 +276,24 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
     }
 
     fn setup_values(&mut self) -> Result<(), Error> {
-        let type_decls: Vec<&ast::Var> = self
-            .root_ast
-            .declarations
+        let var_decls: Vec<&ast::Var> = self
+            .roots
             .iter()
-            .filter_map(|decl| {
-                if let ast::Declaration::Var(t) = decl {
-                    Some(t)
-                } else {
-                    None
-                }
-            })
+            .flat_map(|root| &root.declarations)
+            .filter_map(|decl| decl.try_unwrap_var())
             .collect();
 
         self.add_symbol_table_block();
-        for type_decl in type_decls.iter() {
-            let name = type_decl.name.value.as_ref().unwrap();
-            let typ = self.type_helper.get(&type_decl.typ).ok_or(Error::UnresolvedType)?;
+
+        for var in var_decls.iter() {
+            let name = var.name.unwrap_str();
+            let typ = self.type_helper.get(&var.typ).ok_or(Error::UnresolvedType)?;
 
             if self.find_symbol(name).is_some() {
                 return Err(Error::RedeclaredSymbol);
             }
 
-            if let Some(val) = &type_decl.value {
+            if let Some(val) = &var.value {
                 let value = self.analyze_expr(val, Some(&typ), true)?;
                 let value_type = value.typ.clone();
                 if &value_type != &typ {
@@ -714,21 +623,15 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
     }
 
     fn setup_functions(&mut self) -> Result<(), Error> {
-        let type_decls: Vec<&ast::FnDecl> = self
-            .root_ast
-            .declarations
+        let fn_decls = self
+            .roots
             .iter()
-            .filter_map(|decl| {
-                if let ast::Declaration::Fn(t) = decl {
-                    Some(t)
-                } else {
-                    None
-                }
-            })
-            .collect();
+            .flat_map(|root| &root.declarations)
+            .filter_map(|decl| decl.try_unwrap_func());
 
         self.add_symbol_table_block();
-        for type_decl in type_decls.iter() {
+
+        for type_decl in fn_decls {
             let name = type_decl.name.value.as_ref().unwrap();
             if self.find_symbol(name).is_some() {
                 return Err(Error::RedeclaredSymbol);
@@ -749,14 +652,14 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
         self.symbol_table.push(HashMap::new());
     }
 
-    fn add_symbol(&mut self, name: &String, typ: Type) {
+    fn add_symbol(&mut self, name: &'a str, typ: Type) {
         self.symbol_table
             .last_mut()
             .unwrap()
-            .insert(name.clone(), Symbol { typ: typ.clone() });
+            .insert(name, Symbol { typ: typ.clone() });
     }
 
-    fn find_symbol(&self, name: &String) -> Option<Symbol> {
+    fn find_symbol(&self, name: &str) -> Option<Symbol> {
         for table in self.symbol_table.iter().rev() {
             if let Some(v) = table.get(name) {
                 return Some(v.clone());

@@ -31,6 +31,22 @@ impl Declaration {
             None
         }
     }
+    
+    pub fn try_unwrap_var(&self) -> Option<&Var> {
+        if let Self::Var(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+
+    pub fn try_unwrap_func(&self) -> Option<&FnDecl> {
+        if let Self::Fn(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
