@@ -287,7 +287,7 @@ impl<'a, 'b> ValueProcessor<'a, 'b> {
             }
         }
 
-        todo!();
+        (fn_result, var_result)
     }
 
     fn setup(&mut self) -> Result<(), Error> {

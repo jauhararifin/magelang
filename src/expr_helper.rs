@@ -36,11 +36,13 @@ pub struct Symbol {
 
 impl<'a, 'b> ExprHelper<'a, 'b> {
     pub fn empty(package_name: &'a str, type_helper: &'b dyn ITypeHelper<'a>) -> Self {
-        Self {
+        let mut expr_helper = Self {
             package_name,
             type_helper,
             symbol_table: Vec::new(),
-        }
+        };
+        expr_helper.add_block();
+        expr_helper
     }
 
     pub fn from_headers(package_name: &'a str, type_helper: &'b dyn ITypeHelper<'a>, headers: &'a [Header]) -> Self {
@@ -51,6 +53,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
         };
 
         expr_helper.add_block();
+
         for header in headers.iter() {
             for var in header.vars.iter() {
                 expr_helper.add_symbol(Symbol {
@@ -71,7 +74,14 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
 
     // TODO: maybe can use iterator.
     pub fn get_all_symbols(&self) -> Vec<Symbol> {
-        todo!();
+        let mut symbols = HashMap::new();
+        for table in self.symbol_table.iter() {
+            for (name, sym) in table.iter() {
+                symbols.insert(name, sym.clone());
+            }
+        }
+
+        symbols.into_values().collect()
     }
 
     pub fn add_block(&mut self) {

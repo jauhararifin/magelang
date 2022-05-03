@@ -3,6 +3,7 @@ use crate::ast::{
     Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
 };
 use crate::lexer::{Error as LexerError, Lexer};
+use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
 
 #[derive(Debug)]
@@ -118,7 +119,8 @@ enum ParsingState {
     },
     StructLitExpr,
     StructLitField {
-        type_expr: Expr,
+        typ: Type,
+        pos: Pos,
         fields: Vec<Field>,
     },
     SelectorExpr,
@@ -220,7 +222,7 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::CallExprParams { func, args } => self.parse_call_expr_params(func, args, data),
             ParsingState::PrimaryExpr => self.parse_primary_expr(data),
             ParsingState::StructLitExpr => self.parse_struct_lit_expr(data),
-            ParsingState::StructLitField { type_expr, fields } => self.parse_struct_lit_field(type_expr, fields, data),
+            ParsingState::StructLitField { typ, pos, fields } => self.parse_struct_lit_field(typ, pos, fields, data),
             ParsingState::FieldName => self.parse_field_name(),
             ParsingState::FieldValue { name } => self.parse_field_value(name, data),
         }
@@ -1039,44 +1041,46 @@ impl<T: Lexer> SimpleParser<T> {
             panic!("invalid data when parsing struct lit expr: {:?}", data)
         };
 
-        if self.check(&TokenKind::OpenBlock)?.is_some() {
-            self.stack.push(ParsingState::StructLitField {
-                type_expr: expr,
-                fields: vec![],
-            });
-            Ok(Ast::Empty)
+        if let Some(typ) = self.expr_to_type(&expr) {
+            if self.check(&TokenKind::OpenBlock)?.is_some() {
+                self.stack.push(ParsingState::StructLitField {
+                    typ,
+                    pos: expr.pos,
+                    fields: vec![],
+                });
+                Ok(Ast::Empty)
+            } else {
+                Ok(Ast::Expr(expr))
+            }
         } else {
             Ok(Ast::Expr(expr))
         }
     }
 
-    fn parse_struct_lit_field(&mut self, type_expr: Expr, mut fields: Vec<Field>, data: Ast) -> Result<Ast, Error> {
+    fn expr_to_type(&self, type_expr: &Expr) -> Option<Type> {
+        match &type_expr.kind {
+            ExprKind::Ident(ident) => Some(Type::Ident(ident.clone())),
+            ExprKind::Selector(selector) => Some(Type::Selector(selector.clone())),
+            _ => None,
+        }
+    }
+
+    fn parse_struct_lit_field(&mut self, typ: Type, pos: Pos, mut fields: Vec<Field>, data: Ast) -> Result<Ast, Error> {
         if let Ast::Field(field) = data {
             fields.push(field);
         }
 
         if self.check(&TokenKind::CloseBlock)?.is_some() {
             return Ok(Ast::Expr(Expr {
-                pos: type_expr.pos,
-                kind: ExprKind::StructLit(StructLit {
-                    typ: self.expr_to_type(type_expr)?,
-                    fields,
-                }),
+                pos,
+                kind: ExprKind::StructLit(StructLit { typ, fields }),
             }));
         }
 
-        self.stack.push(ParsingState::StructLitField { type_expr, fields });
+        self.stack.push(ParsingState::StructLitField { typ, pos, fields });
         self.stack.push(ParsingState::FieldName);
 
         Ok(Ast::Empty)
-    }
-
-    fn expr_to_type(&self, type_expr: Expr) -> Result<Type, Error> {
-        match type_expr.kind {
-            ExprKind::Ident(ident) => Ok(Type::Ident(ident)),
-            ExprKind::Selector(selector) => Ok(Type::Selector(selector)),
-            _ => Err(Error::UnexpectedStructType { expr: type_expr }),
-        }
     }
 
     fn parse_field_name(&mut self) -> Result<Ast, Error> {
