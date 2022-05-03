@@ -1,5 +1,5 @@
 // use magelang::analyzer::{Analyzer, SimpleAnalyzer};
-use magelang::compiler::{Compiler, SimpleCompiler};
+// use magelang::compiler::{Compiler, SimpleCompiler};
 use magelang::header_processor::{SimpleHeaderProcessor, HeaderProcessor};
 use magelang::lexer::SimpleLexer;
 use magelang::parser::{Parser, SimpleParser};

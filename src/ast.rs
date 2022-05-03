@@ -31,7 +31,7 @@ impl Declaration {
             None
         }
     }
-    
+
     pub fn try_unwrap_var(&self) -> Option<&Var> {
         if let Self::Var(t) = self {
             Some(t)
@@ -88,19 +88,13 @@ pub enum Type {
     Primitive(Token),
     Ident(Token),
     Struct(Struct),
-    Selector(TypeSelector),
+    Selector(Selector),
     // TODO: add tuple.
 }
 
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub fields: Vec<Param>,
-}
-
-#[derive(Debug, Clone)]
-pub struct TypeSelector {
-    pub package: Token,
-    pub name: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -164,8 +158,7 @@ pub enum ExprKind {
 
 #[derive(Debug, Clone)]
 pub struct StructLit {
-    // TODO jauhararifin: support inline struct.
-    pub name: Token,
+    pub typ: Type,
     pub fields: Vec<Field>,
 }
 

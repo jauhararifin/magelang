@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ast,
-    semantic::{Argument, ConcreteType, Field, FloatType, FnType, Header, IntType, Struct, Type, TypePtr},
+    semantic::{Argument, ConcreteType, Field, FloatType, FnType, Header, IntType, Name, Struct, Type, TypePtr},
     token::{Token, TokenKind},
 };
 
@@ -24,10 +24,12 @@ pub enum Error {
 }
 
 pub trait ITypeHelper<'a> {
-    fn add_type(&mut self, name: &'a str, typ: &Type);
+    fn add_type(&mut self, name: &'a Name, typ: &Type);
     fn get(&self, typ: &ast::Type) -> Option<Type>;
     fn get_fn(&self, fn_header: &ast::FnHeader) -> Option<Type>;
-    fn get_by_name(&self, typ: &str) -> Option<Type>;
+    fn get_selector(&self, selector: &ast::Selector) -> Option<Type>;
+    fn get_qual(&self, typ: &Name) -> Option<Type>;
+    fn get_by_name(&self, name: &'a str) -> Option<Type>;
 
     fn get_i32(&self) -> Type;
     fn get_f64(&self) -> Type;
@@ -37,7 +39,8 @@ pub trait ITypeHelper<'a> {
 
 // TODO: this TypeProcessor is so ugly, refactor it!!!
 pub struct TypeHelper<'a> {
-    dependencies: HashMap<&'a str, HashMap<&'a str, &'a Type>>,
+    package_name: String,
+    dependencies: HashMap<&'a Name, &'a Type>,
 
     type_i8: Type,
     type_i16: Type,
@@ -52,7 +55,7 @@ pub struct TypeHelper<'a> {
     type_bool: Type,
     type_void: Type,
 
-    type_alias: HashMap<&'a str, Type>,
+    type_alias: HashMap<&'a Name, Type>,
 }
 
 impl<'a> ITypeHelper<'a> for TypeHelper<'a> {
@@ -60,16 +63,27 @@ impl<'a> ITypeHelper<'a> for TypeHelper<'a> {
         self.get_type(typ)
     }
 
-    fn get_by_name(&self, name: &str) -> Option<Type> {
+    fn get_qual(&self, name: &Name) -> Option<Type> {
         self.get_type_by_name(name)
     }
 
-    fn add_type(&mut self, name: &'a str, typ: &Type) {
+    fn get_by_name(&self, name: &'a str) -> Option<Type> {
+        self.get_qual(&Name {
+            package: self.package_name.clone(),
+            name: String::from(name),
+        })
+    }
+
+    fn add_type(&mut self, name: &'a Name, typ: &Type) {
         self.add_type_alias(name, typ)
     }
 
     fn get_fn(&self, fn_header: &ast::FnHeader) -> Option<Type> {
         self.get_fn_type(fn_header)
+    }
+
+    fn get_selector(&self, selector: &ast::Selector) -> Option<Type> {
+        self.get_selector(selector)
     }
 
     fn get_i32(&self) -> Type {
@@ -90,24 +104,24 @@ impl<'a> ITypeHelper<'a> for TypeHelper<'a> {
 }
 
 impl<'a> TypeHelper<'a> {
-    pub fn empty() -> Self {
-        Self::new(HashMap::new())
+    pub fn empty(package_name: &'a str) -> Self {
+        Self::new(String::from(package_name), HashMap::new())
     }
 
-    pub fn from_headers(headers: &'a [Header]) -> Self {
-        let mut dependencies: HashMap<&'a str, HashMap<&'a str, &'a Type>> = HashMap::new();
-        for header in headers.iter() {
-            let entry = dependencies.entry(header.package_name.as_str()).or_default();
-            for type_decl in header.types.iter() {
-                entry.insert(type_decl.name.as_str(), &type_decl.typ);
-            }
-        }
-
-        Self::new(dependencies)
+    pub fn from_headers(package_name: &'a str, headers: &'a [Header]) -> Self {
+        Self::new(
+            String::from(package_name),
+            headers
+                .iter()
+                .flat_map(|h| &h.types)
+                .map(|t| (&t.name, &t.typ))
+                .collect(),
+        )
     }
 
-    fn new(dependencies: HashMap<&'a str, HashMap<&'a str, &'a Type>>) -> Self {
+    fn new(package_name: String, dependencies: HashMap<&'a Name, &'a Type>) -> Self {
         Self {
+            package_name,
             dependencies,
 
             type_i8: Type::from_concrete(ConcreteType::Int(IntType { signed: true, size: 8 })),
@@ -136,7 +150,7 @@ impl<'a> TypeHelper<'a> {
         }
     }
 
-    pub fn add_type_alias(&mut self, name: &'a str, typ: &Type) {
+    pub fn add_type_alias(&mut self, name: &'a Name, typ: &Type) {
         self.type_alias.insert(name, typ.clone());
     }
 
@@ -150,8 +164,14 @@ impl<'a> TypeHelper<'a> {
     }
 
     fn get_type_from_ident(&self, token: &Token) -> Option<Type> {
-        let name = token.unwrap_value();
-        self.type_alias.get(name.as_str()).map(|t| t.clone())
+        // TODO: instead of cloning the package and name like this, can we borrow instead? or maybe
+        // move the value temporarily?
+
+        let name = Name {
+            package: self.package_name.clone(),
+            name: token.clone_value(),
+        };
+        self.type_alias.get(&name).map(|t| t.clone())
     }
 
     fn get_type_from_primitive(&self, token: &Token) -> Type {
@@ -184,20 +204,23 @@ impl<'a> TypeHelper<'a> {
         Type::from_concrete(ConcreteType::Struct(Struct { fields }))
     }
 
-    fn get_selector(&self, selector: &ast::TypeSelector) -> Option<Type> {
-        let pkg_name = selector.package.unwrap_value();
-        let name = selector.name.unwrap_value();
-
-        let dep_header = self.dependencies.get(pkg_name.as_str());
-        if dep_header.is_none() {
+    pub fn get_selector(&self, selector: &ast::Selector) -> Option<Type> {
+        let pkg_name = if let ast::ExprKind::Ident(pkg) = &selector.source.kind {
+            pkg.unwrap_str()
+        } else {
             return None;
-        }
-        let dep_header = dep_header.unwrap();
+        };
 
-        dep_header.get(name.as_str()).map(|t| (*t).clone())
+        let name = Name {
+            package: String::from(pkg_name),
+            name: String::from(selector.selection.unwrap_str()),
+        };
+        let dep_header = self.dependencies.get(&name);
+
+        dep_header.map(|t| (*t).clone())
     }
 
-    fn get_type_by_name(&self, name: &str) -> Option<Type> {
+    fn get_type_by_name(&self, name: &Name) -> Option<Type> {
         self.type_alias.get(name).cloned()
     }
 

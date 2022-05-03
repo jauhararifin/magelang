@@ -1,7 +1,6 @@
 use crate::ast::{
     Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FnHeader, FunctionCall, If,
-    Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, TypeSelector, Unary, Var,
-    While,
+    Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
 };
 use crate::lexer::{Error as LexerError, Lexer};
 use crate::token::{Token, TokenKind};
@@ -9,6 +8,7 @@ use crate::token::{Token, TokenKind};
 #[derive(Debug)]
 pub enum Error {
     UnexpectedToken { expected: Vec<TokenKind>, found: Token },
+    UnexpectedStructType { expr: Expr },
     Lexer(LexerError),
 }
 
@@ -111,17 +111,18 @@ enum ParsingState {
     CastExprType {
         val: Expr,
     },
-    SelectorExpr,
     CallExpr,
     CallExprParams {
         func: Expr,
         args: Vec<Expr>,
     },
-    PrimaryExpr,
-    StructLitExpr {
-        name: Token,
+    StructLitExpr,
+    StructLitField {
+        type_expr: Expr,
         fields: Vec<Field>,
     },
+    SelectorExpr,
+    PrimaryExpr,
     FieldName,
     FieldValue {
         name: Token,
@@ -218,7 +219,8 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::CallExpr => self.parse_call_expr(data),
             ParsingState::CallExprParams { func, args } => self.parse_call_expr_params(func, args, data),
             ParsingState::PrimaryExpr => self.parse_primary_expr(data),
-            ParsingState::StructLitExpr { name, fields } => self.parse_struct_lit_expr(name, fields, data),
+            ParsingState::StructLitExpr => self.parse_struct_lit_expr(data),
+            ParsingState::StructLitField { type_expr, fields } => self.parse_struct_lit_field(type_expr, fields, data),
             ParsingState::FieldName => self.parse_field_name(),
             ParsingState::FieldValue { name } => self.parse_field_value(name, data),
         }
@@ -568,8 +570,12 @@ impl<T: Lexer> SimpleParser<T> {
                 let token = self.lexer.next()?;
 
                 if self.check(&TokenKind::Dot)?.is_some() {
-                    let name = self.expect(TokenKind::Ident)?;
-                    Ok(Ast::Type(Type::Selector(TypeSelector { package: token, name })))
+                    let selection = self.expect(TokenKind::Ident)?;
+                    let source = Box::new(Expr {
+                        pos: token.pos.clone(),
+                        kind: ExprKind::Ident(token),
+                    });
+                    Ok(Ast::Type(Type::Selector(Selector { source, selection })))
                 } else {
                     Ok(Ast::Type(Type::Ident(token)))
                 }
@@ -843,9 +849,10 @@ impl<T: Lexer> SimpleParser<T> {
         // plus, minus
         // mul, div, mod
         // cast
-        // selector
         // unary not, minus, plus, bit_not
         // call
+        // struct_lit
+        // selector
         // primary: braces, ident, literals
         if let Ast::Expr(expr) = data {
             return Ok(Ast::Expr(expr));
@@ -854,7 +861,6 @@ impl<T: Lexer> SimpleParser<T> {
         self.stack.push(ParsingState::Expr);
         self.stack.push(ParsingState::BinaryExpr);
         self.stack.push(ParsingState::CastExpr);
-        self.stack.push(ParsingState::SelectorExpr);
         self.stack.push(ParsingState::UnaryExpr);
 
         Ok(Ast::Empty)
@@ -965,6 +971,8 @@ impl<T: Lexer> SimpleParser<T> {
             self.stack.push(ParsingState::UnaryExprVal { op });
         } else {
             self.stack.push(ParsingState::CallExpr);
+            self.stack.push(ParsingState::StructLitExpr);
+            self.stack.push(ParsingState::SelectorExpr);
             self.stack.push(ParsingState::PrimaryExpr);
         }
         Ok(Ast::Empty)
@@ -1024,6 +1032,71 @@ impl<T: Lexer> SimpleParser<T> {
         Ok(Ast::Empty)
     }
 
+    fn parse_struct_lit_expr(&mut self, data: Ast) -> Result<Ast, Error> {
+        let expr = if let Ast::Expr(expr) = data {
+            expr
+        } else {
+            panic!("invalid data when parsing struct lit expr: {:?}", data)
+        };
+
+        if self.check(&TokenKind::OpenBlock)?.is_some() {
+            self.stack.push(ParsingState::StructLitField {
+                type_expr: expr,
+                fields: vec![],
+            });
+            Ok(Ast::Empty)
+        } else {
+            Ok(Ast::Expr(expr))
+        }
+    }
+
+    fn parse_struct_lit_field(&mut self, type_expr: Expr, mut fields: Vec<Field>, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Field(field) = data {
+            fields.push(field);
+        }
+
+        if self.check(&TokenKind::CloseBlock)?.is_some() {
+            return Ok(Ast::Expr(Expr {
+                pos: type_expr.pos,
+                kind: ExprKind::StructLit(StructLit {
+                    typ: self.expr_to_type(type_expr)?,
+                    fields,
+                }),
+            }));
+        }
+
+        self.stack.push(ParsingState::StructLitField { type_expr, fields });
+        self.stack.push(ParsingState::FieldName);
+
+        Ok(Ast::Empty)
+    }
+
+    fn expr_to_type(&self, type_expr: Expr) -> Result<Type, Error> {
+        match type_expr.kind {
+            ExprKind::Ident(ident) => Ok(Type::Ident(ident)),
+            ExprKind::Selector(selector) => Ok(Type::Selector(selector)),
+            _ => Err(Error::UnexpectedStructType { expr: type_expr }),
+        }
+    }
+
+    fn parse_field_name(&mut self) -> Result<Ast, Error> {
+        let name = self.expect(TokenKind::Ident)?;
+        self.expect(TokenKind::Colon)?;
+        self.stack.push(ParsingState::ParamType { name });
+        Ok(Ast::Empty)
+    }
+
+    fn parse_field_value(&mut self, name: Token, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Expr(value) = data {
+            self.consume_endl()?;
+            self.check(&TokenKind::Comma)?;
+            return Ok(Ast::Field(Field { name, value }));
+        }
+        self.stack.push(ParsingState::FieldValue { name });
+        self.stack.push(ParsingState::Type);
+        Ok(Ast::Empty)
+    }
+
     fn parse_primary_expr(&mut self, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(expr) = data {
             self.expect(TokenKind::CloseBrace)?;
@@ -1051,15 +1124,6 @@ impl<T: Lexer> SimpleParser<T> {
             })),
             TokenKind::Ident => {
                 self.consume_endl()?;
-
-                if self.check(&TokenKind::OpenBlock)?.is_some() {
-                    self.stack.push(ParsingState::StructLitExpr {
-                        name: token,
-                        fields: Vec::new(),
-                    });
-                    return Ok(Ast::Empty);
-                }
-
                 Ok(Ast::Expr(Expr {
                     pos: token.pos,
                     kind: ExprKind::Ident(token),
@@ -1083,42 +1147,6 @@ impl<T: Lexer> SimpleParser<T> {
                 found: token,
             }),
         }
-    }
-
-    fn parse_struct_lit_expr(&mut self, name: Token, mut fields: Vec<Field>, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Field(field) = data {
-            fields.push(field);
-        }
-
-        if self.check(&TokenKind::CloseBlock)?.is_some() {
-            return Ok(Ast::Expr(Expr {
-                pos: name.pos,
-                kind: ExprKind::StructLit(StructLit { name, fields }),
-            }));
-        }
-
-        self.stack.push(ParsingState::StructLitExpr { name, fields });
-        self.stack.push(ParsingState::FieldName);
-
-        Ok(Ast::Empty)
-    }
-
-    fn parse_field_name(&mut self) -> Result<Ast, Error> {
-        let name = self.expect(TokenKind::Ident)?;
-        self.expect(TokenKind::Colon)?;
-        self.stack.push(ParsingState::ParamType { name });
-        Ok(Ast::Empty)
-    }
-
-    fn parse_field_value(&mut self, name: Token, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Expr(value) = data {
-            self.consume_endl()?;
-            self.check(&TokenKind::Comma)?;
-            return Ok(Ast::Field(Field { name, value }));
-        }
-        self.stack.push(ParsingState::FieldValue { name });
-        self.stack.push(ParsingState::Type);
-        Ok(Ast::Empty)
     }
 
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {

@@ -22,9 +22,15 @@ pub struct Unit {
     pub fn_declarations: Vec<FnDecl>,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct Name {
+    pub package: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct TypeDecl {
-    pub name: String,
+    pub name: Name,
     pub typ: Type,
 }
 
@@ -36,7 +42,7 @@ pub struct Var {
 
 #[derive(Debug, Clone)]
 pub struct VarHeader {
-    pub name: String,
+    pub name: Name,
     pub typ: Type,
 }
 
@@ -48,7 +54,7 @@ pub struct FnDecl {
 
 #[derive(Debug, Clone)]
 pub struct FnHeader {
-    pub name: String,
+    pub name: Name,
     pub native: bool,
     pub typ: Type, // This always in the Fn variant.
 }
@@ -72,7 +78,7 @@ impl PartialEq for Type {
     }
 }
 
-impl Eq for Type{}
+impl Eq for Type {}
 
 impl Clone for Type {
     fn clone(&self) -> Self {

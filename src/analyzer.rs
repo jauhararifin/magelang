@@ -15,6 +15,7 @@ use crate::{
         UnaryOp, Unit, Var, VarHeader, While, BOOL, F32, F64, I16, I32, I64, I8, U16, U32, U64, U8, VOID,
     },
     token::{Token, TokenKind},
+    type_helper::TypeHelper,
 };
 
 #[derive(Debug)]
@@ -39,64 +40,30 @@ pub enum Error {
 
 pub trait Analyzer {
     fn analyze(&mut self) -> Result<Unit, Error>;
-    fn analyze_header(&mut self) -> Result<Header, Error>;
 }
 
-pub struct SimpleAnalyzer {
-    root_ast: ast::Root,
+pub struct SimpleAnalyzer<'a> {
+    root_ast: &'a [&'a ast::Root],
+    headers: &'a [Header],
 }
 
-impl SimpleAnalyzer {
-    pub fn new(root_ast: ast::Root) -> Self {
-        Self { root_ast }
+impl<'a> SimpleAnalyzer<'a> {
+    pub fn new(root_ast: &'a [&'a ast::Root], headers: &'a [Header]) -> Self {
+        Self { root_ast, headers }
     }
 }
 
-impl Analyzer for SimpleAnalyzer {
+impl<'a> Analyzer for SimpleAnalyzer<'a> {
     fn analyze(&mut self) -> Result<Unit, Error> {
-        let mut type_processor = TypeProcessor::new(&self.root_ast);
-        type_processor.setup()?;
-
-        let mut value_processor = ValueProcessor::new(&self.root_ast, &type_processor);
-        value_processor.setup()?;
+        let type_helper = TypeHelper::from_headers(self.headers);
 
         let mut func_processor = FuncProcessor::new(&self.root_ast, &type_processor, &mut value_processor);
         let fn_declarations = func_processor.analyze()?;
 
         Ok(Unit {
-            package_name: self.root_ast.package_name.value.as_ref().unwrap().clone(),
-            type_declarations: Vec::new(),
+            package_name: self.root_ast[0].package_name.unwrap_value().clone(),
             var_declarations: Vec::new(),
             fn_declarations,
-        })
-    }
-
-    fn analyze_header(&mut self) -> Result<Header, Error> {
-        let package_name = self.root_ast.package_name.clone_value();
-
-        let mut type_processor = TypeProcessor::new(&self.root_ast);
-        type_processor.setup()?;
-        let types = type_processor
-            .type_alias
-            .iter()
-            .map(|(name, typ)| TypeDecl {
-                name: (*name).clone(),
-                typ: Rc::clone(&typ),
-            })
-            .collect();
-
-        let mut value_processor = ValueProcessor::new(&self.root_ast, &type_processor);
-        value_processor.setup()?;
-
-        let mut func_processor = FuncProcessor::new(&self.root_ast, &type_processor, &mut value_processor);
-        let fn_declarations = func_processor.analyze()?;
-        let functions = fn_declarations.iter().map(|func| func.header.clone()).collect();
-
-        Ok(Header {
-            package_name,
-            types,
-            vars: Vec::new(),
-            functions,
         })
     }
 }

@@ -1,9 +1,14 @@
+use std::collections::HashMap;
+
 #[derive(Debug)]
 pub struct Program {
-    pub executable: bool,
     pub values: Vec<Value>,
-    pub functions: Vec<Function>,
     pub entry_point: usize,
+}
+
+pub struct Object {
+    pub symbol_table: HashMap<String, usize>, // contain the mangled name of the symbols.
+    pub values: Vec<Value>,
 }
 
 #[derive(Debug)]
@@ -20,20 +25,9 @@ pub enum Value {
     F64(f64),
     Bool(bool),
     Void,
-    Struct(StructValue),
-    Fn(usize),  // pointer to function
-    Ptr(usize), // pointer to a value, doesn't have to be in heap
-}
-
-#[derive(Debug)]
-pub struct Function {
-    pub name: String,
-    pub instructions: Vec<Instruction>,
-}
-
-#[derive(Debug)]
-pub struct StructValue {
-    pub values: Vec<Value>,
+    Struct(Vec<Value>),
+    Fn(Vec<Instruction>),
+    Ptr(usize), // pointer to a value, doesn't have to be in heap. the value itself can be function.
 }
 
 #[derive(Debug)]
