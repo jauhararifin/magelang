@@ -10,61 +10,44 @@ use crate::{
     type_helper::{ITypeHelper, TypeHelper},
 };
 
-pub trait Analyzer {
-    fn analyze(&self, root: &ast::Root) -> Result<Unit, Error>;
+pub trait Analyzer<'a> {
+    fn analyze(&mut self, root: &'a ast::Root) -> Result<Unit, Error>;
 }
 
-pub struct SimpleAnalyzer<'a> {
-    headers: &'a [Header],
-}
+pub fn analyze_asts(roots: &[ast::Root], headers: &[Header]) -> Result<Vec<Unit>, Error> {
+    let package_name = roots[0].package_name.unwrap_str();
+    let type_helper = TypeHelper::from_headers(package_name, headers);
+    let mut expr_helper = ExprHelper::from_headers(package_name, &type_helper, headers);
 
-impl<'a> SimpleAnalyzer<'a> {
-    pub fn new(headers: &'a [Header]) -> Self {
-        Self { headers }
+    let mut analyzer = SimpleAnalyzer::new(&type_helper, &mut expr_helper);
+
+    let mut units = Vec::new();
+    for root in roots.iter() {
+        units.push(analyzer.analyze(root)?);
     }
+
+    Ok(units)
 }
 
-impl<'a> Analyzer for SimpleAnalyzer<'a> {
-    fn analyze(&self, root: &ast::Root) -> Result<Unit, Error> {
-        let type_helper = TypeHelper::from_headers(root.package_name.unwrap_str(), self.headers);
-        let mut expr_helper = ExprHelper::from_headers(root.package_name.unwrap_str(), &type_helper, self.headers);
-
-        let mut func_processor = FuncProcessor::new(&type_helper, &mut expr_helper);
-        let fn_declarations = func_processor.analyze(root)?;
-
-        Ok(Unit {
-            package_name: root.package_name.unwrap_value().clone(),
-            var_declarations: Vec::new(),
-            fn_declarations,
-        })
-    }
+pub struct SimpleAnalyzer<'a, 'b> {
+    type_helper: &'a dyn ITypeHelper<'a>,
+    expr_helper: &'a mut ExprHelper<'a, 'b>,
 }
 
-struct FuncProcessor<'a, 'b> {
-    type_helper: &'b dyn ITypeHelper<'a>,
-    expr_helper: &'b mut ExprHelper<'a, 'b>,
-}
-
-impl<'a, 'b> FuncProcessor<'a, 'b> {
-    fn new(type_helper: &'b dyn ITypeHelper<'a>, expr_helper: &'b mut ExprHelper<'a, 'b>) -> Self {
+impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
+    pub fn new(type_helper: &'a dyn ITypeHelper<'a>, expr_helper: &'a mut ExprHelper<'a, 'b>) -> Self {
         Self {
             type_helper,
             expr_helper,
         }
     }
 
-    fn analyze(&mut self, root_ast: &'a ast::Root) -> Result<Vec<FnDecl>, Error> {
+    fn analyze_ast(&mut self, root_ast: &'a ast::Root) -> Result<Vec<FnDecl>, Error> {
         let package_name = root_ast.package_name.unwrap_str();
         let type_decls: Vec<&ast::FnDecl> = root_ast
             .declarations
             .iter()
-            .filter_map(|decl| {
-                if let ast::Declaration::Fn(t) = decl {
-                    Some(t)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|decl| decl.try_unwrap_func())
             .collect();
 
         let mut fn_declarations: Vec<FnDecl> = Vec::new();
@@ -244,5 +227,17 @@ impl<'a, 'b> FuncProcessor<'a, 'b> {
             body.push(self.analyze_stmt(package_name, s, ftype)?);
         }
         Ok(Statement::Block(BlockStatement { body }))
+    }
+}
+
+impl<'a, 'b> Analyzer<'a> for SimpleAnalyzer<'a, 'b> {
+    fn analyze(&mut self, root: &'a ast::Root) -> Result<Unit, Error> {
+        let fn_declarations = self.analyze_ast(root)?;
+
+        Ok(Unit {
+            package_name: root.package_name.unwrap_value().clone(),
+            var_declarations: Vec::new(),
+            fn_declarations,
+        })
     }
 }

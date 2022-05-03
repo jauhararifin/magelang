@@ -1,4 +1,4 @@
-use magelang::analyzer::{Analyzer, SimpleAnalyzer};
+use magelang::analyzer::{Analyzer, SimpleAnalyzer, analyze_asts};
 // use magelang::compiler::{Compiler, SimpleCompiler};
 use magelang::header_processor::{HeaderProcessor, SimpleHeaderProcessor};
 use magelang::lexer::SimpleLexer;
@@ -25,14 +25,23 @@ fn main() {
 
     let header_processor = SimpleHeaderProcessor::new();
     let headers = header_processor.build_headers(root_asts.as_slice()).unwrap();
-    println!("{:?}", headers);
 
-    let analyzer = SimpleAnalyzer::new(&headers[..]);
+    // for header in headers.iter() {
+    //     println!("header {:?}", header.package_name);
+    //     for func in header.functions.iter() {
+    //         let typ = func.typ.borrow();
+    //         let typ = typ.unwrap_func();
+    //         println!("func {:?} {:?}", func.name, typ);
+    //         for arg in typ.arguments.iter() {
+    //             println!("arg {:?} {:?}", arg.name, arg.typ.upgrade());
+    //         }
+    //     }
+    //     println!("==========================================");
+    // }
 
-    for root in root_asts.iter() {
-        let semantic = analyzer.analyze(root).unwrap();
-        println!("semantic: {:?}", semantic);
-    }
+
+    let units = analyze_asts(&root_asts[..], &headers[..]).unwrap();
+    println!("{:?}", units);
 
     // let f = File::open("./examples/example1.mag").unwrap();
     // let lexer = SimpleLexer::new(f);
