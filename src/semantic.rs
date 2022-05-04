@@ -26,6 +26,8 @@ pub struct FnHeader {
 
 // TODO (jauhararifin): consider adding `Copy` trait to the  `Type`. Since the size is not so big,
 // maybe it is better to implement `Copy` trait instead of using `Rc<Type>` everywhere.
+// The only thing that causing expensive copy is the FnType which contains strings and vectors.
+// Maybe we can consider wrapping the strings and FnType instead.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
     Bool,
