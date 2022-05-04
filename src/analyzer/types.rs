@@ -37,7 +37,7 @@ impl TypeHelper {
             None
         };
 
-        let native = header.native;
+        let native = header.native_token.is_some();
 
         Type::Fn(FnType {
             native,

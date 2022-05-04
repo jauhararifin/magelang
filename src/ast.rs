@@ -2,17 +2,17 @@ use crate::pos::Pos;
 use crate::token::Token;
 
 #[derive(Debug, Clone)]
-pub struct Root {
-    pub declarations: Vec<Declaration>,
+pub struct RootNode {
+    pub declarations: Vec<DeclNode>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Declaration {
-    Fn(FnDecl),
+pub enum DeclNode {
+    Fn(FnDeclNode),
 }
 
-impl Declaration {
-    pub fn try_unwrap_func(&self) -> Option<&FnDecl> {
+impl DeclNode {
+    pub fn try_unwrap_func(&self) -> Option<&FnDeclNode> {
         if let Self::Fn(t) = self {
             Some(t)
         } else {
@@ -26,7 +26,7 @@ impl Declaration {
 }
 
 #[derive(Debug, Clone)]
-pub struct FnDecl {
+pub struct FnDeclNode {
     pub fn_token: Token,
     pub name: Token,
     pub header: FnHeader,
@@ -35,7 +35,7 @@ pub struct FnDecl {
 
 #[derive(Debug, Clone)]
 pub struct FnHeader {
-    pub native: bool,
+    pub native_token: Option<Token>,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
 }

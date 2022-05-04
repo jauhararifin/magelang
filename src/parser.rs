@@ -1,14 +1,13 @@
 use crate::ast::{
-    Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, FnDecl, FnHeader, FunctionCall, If, Param,
-    Return, Root, Statement, Type, Unary, Var, While,
+    Assign, Binary, BlockStatement, Cast, DeclNode, Expr, ExprKind, FnDeclNode, FnHeader, FunctionCall, If, Param,
+    Return, RootNode, Statement, Type, Unary, Var, While,
 };
 use crate::errors::Error;
 use crate::lexer::ILexer;
-use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
 
 pub trait Parser {
-    fn parse(&mut self) -> std::result::Result<Root, Error>;
+    fn parse(&mut self) -> std::result::Result<RootNode, Error>;
 }
 
 pub struct SimpleParser<T: ILexer> {
@@ -20,7 +19,7 @@ pub struct SimpleParser<T: ILexer> {
 enum ParsingState {
     Root,
     RootDecl {
-        declarations: Vec<Declaration>,
+        declarations: Vec<DeclNode>,
     },
     Var,
     VarType {
@@ -34,13 +33,13 @@ enum ParsingState {
     FnParam {
         fn_token: Token,
         name: Token,
-        native: bool,
+        native_token: Option<Token>,
         params: Vec<Param>,
     },
     FnReturn {
         fn_token: Token,
         name: Token,
-        native: bool,
+        native_token: Option<Token>,
         params: Vec<Param>,
     },
     FnBody {
@@ -99,8 +98,8 @@ enum ParsingState {
 
 #[derive(Debug)]
 enum Ast {
-    Root(Root),
-    FnDecl(FnDecl),
+    Root(RootNode),
+    FnDecl(FnDeclNode),
     Var(Var),
     Param(Param),
     Type(Type),
@@ -133,15 +132,15 @@ impl<T: ILexer> SimpleParser<T> {
             ParsingState::FnParam {
                 fn_token,
                 name,
-                native,
+                native_token,
                 params,
-            } => self.parse_fn_param(fn_token, name, native, params, data),
+            } => self.parse_fn_param(fn_token, name, native_token, params, data),
             ParsingState::FnReturn {
                 fn_token,
                 name,
-                native,
+                native_token,
                 params,
-            } => self.parse_fn_return(fn_token, name, native, params, data),
+            } => self.parse_fn_return(fn_token, name, native_token, params, data),
             ParsingState::FnBody {
                 fn_token,
                 name,
@@ -150,7 +149,7 @@ impl<T: ILexer> SimpleParser<T> {
             } => self.parse_fn_body(fn_token, name, params, ret_type, data),
             ParsingState::ParamName => self.parse_param_name(),
             ParsingState::ParamType { name } => self.parse_param_type(name, data),
-            ParsingState::Type => self.parse_type(data),
+            ParsingState::Type => self.parse_type(),
             ParsingState::Statement => self.parse_statement(data),
             ParsingState::BlockStatement { body } => self.parse_block_statement(body, data),
             ParsingState::AssignStatement => self.parse_assign_statement(data),
@@ -182,9 +181,9 @@ impl<T: ILexer> SimpleParser<T> {
         Ok(Ast::Empty)
     }
 
-    fn parse_root_decl(&mut self, mut declarations: Vec<Declaration>, data: Ast) -> Result<Ast, Error> {
+    fn parse_root_decl(&mut self, mut declarations: Vec<DeclNode>, data: Ast) -> Result<Ast, Error> {
         match data {
-            Ast::FnDecl(decl) => declarations.push(Declaration::Fn(decl)),
+            Ast::FnDecl(decl) => declarations.push(DeclNode::Fn(decl)),
             Ast::Empty => (),
             _ => panic!("got {:?} instead of declaration", data),
         }
@@ -193,7 +192,7 @@ impl<T: ILexer> SimpleParser<T> {
 
         let token = self.lexer.peek()?;
         match token.kind {
-            TokenKind::Eoi => Ok(Ast::Root(Root { declarations })),
+            TokenKind::Eoi => Ok(Ast::Root(RootNode { declarations })),
             TokenKind::Fn => {
                 self.stack.push(ParsingState::RootDecl { declarations });
                 self.stack.push(ParsingState::FnName);
@@ -254,14 +253,14 @@ impl<T: ILexer> SimpleParser<T> {
 
     fn parse_fn_name(&mut self) -> Result<Ast, Error> {
         let fn_token = self.expect(TokenKind::Fn)?;
-        let native = self.check(&TokenKind::Native)?.is_some();
+        let native_token = self.check(&TokenKind::Native)?;
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::OpenBrace)?;
 
         self.stack.push(ParsingState::FnParam {
             fn_token,
             name,
-            native,
+            native_token,
             params: Vec::new(),
         });
         Ok(Ast::Empty)
@@ -271,7 +270,7 @@ impl<T: ILexer> SimpleParser<T> {
         &mut self,
         fn_token: Token,
         name: Token,
-        native: bool,
+        native_token: Option<Token>,
         mut params: Vec<Param>,
         data: Ast,
     ) -> Result<Ast, Error> {
@@ -283,7 +282,7 @@ impl<T: ILexer> SimpleParser<T> {
 
         if self.check(&TokenKind::CloseBrace)?.is_some() {
             if self.check(&TokenKind::Colon)?.is_none() {
-                if !native {
+                if native_token.is_none() {
                     self.stack.push(ParsingState::FnBody {
                         fn_token,
                         name,
@@ -292,11 +291,11 @@ impl<T: ILexer> SimpleParser<T> {
                     });
                     return Ok(Ast::Empty);
                 }
-                return Ok(Ast::FnDecl(FnDecl {
+                return Ok(Ast::FnDecl(FnDeclNode {
                     fn_token,
                     name,
                     header: FnHeader {
-                        native,
+                        native_token,
                         params,
                         ret_type: None,
                     },
@@ -307,7 +306,7 @@ impl<T: ILexer> SimpleParser<T> {
             self.stack.push(ParsingState::FnReturn {
                 fn_token,
                 name,
-                native,
+                native_token,
                 params,
             });
             return Ok(Ast::Empty);
@@ -320,7 +319,7 @@ impl<T: ILexer> SimpleParser<T> {
         self.stack.push(ParsingState::FnParam {
             fn_token,
             name,
-            native,
+            native_token,
             params,
         });
         self.stack.push(ParsingState::ParamName);
@@ -332,12 +331,12 @@ impl<T: ILexer> SimpleParser<T> {
         &mut self,
         fn_token: Token,
         name: Token,
-        native: bool,
+        native_token: Option<Token>,
         params: Vec<Param>,
         data: Ast,
     ) -> Result<Ast, Error> {
         if let Ast::Type(typ) = data {
-            if !native {
+            if native_token.is_none() {
                 self.stack.push(ParsingState::FnBody {
                     fn_token,
                     name,
@@ -346,11 +345,11 @@ impl<T: ILexer> SimpleParser<T> {
                 });
                 return Ok(Ast::Empty);
             }
-            return Ok(Ast::FnDecl(FnDecl {
+            return Ok(Ast::FnDecl(FnDeclNode {
                 fn_token,
                 name,
                 header: FnHeader {
-                    native,
+                    native_token,
                     params,
                     ret_type: Some(typ),
                 },
@@ -361,7 +360,7 @@ impl<T: ILexer> SimpleParser<T> {
         self.stack.push(ParsingState::FnReturn {
             fn_token,
             name,
-            native,
+            native_token,
             params,
         });
         self.stack.push(ParsingState::Type);
@@ -378,11 +377,11 @@ impl<T: ILexer> SimpleParser<T> {
         data: Ast,
     ) -> Result<Ast, Error> {
         if let Ast::BlockStatement(body) = data {
-            return Ok(Ast::FnDecl(FnDecl {
+            return Ok(Ast::FnDecl(FnDeclNode {
                 fn_token,
                 name,
                 header: FnHeader {
-                    native: false,
+                    native_token: None,
                     params,
                     ret_type,
                 },
@@ -417,7 +416,7 @@ impl<T: ILexer> SimpleParser<T> {
         Ok(Ast::Empty)
     }
 
-    fn parse_type(&mut self, data: Ast) -> Result<Ast, Error> {
+    fn parse_type(&mut self) -> Result<Ast, Error> {
         let token = self.lexer.peek()?;
         return match &token.kind {
             TokenKind::I8
@@ -810,13 +809,6 @@ impl<T: ILexer> SimpleParser<T> {
         Ok(Ast::Empty)
     }
 
-    fn parse_field_name(&mut self) -> Result<Ast, Error> {
-        let name = self.expect(TokenKind::Ident)?;
-        self.expect(TokenKind::Colon)?;
-        self.stack.push(ParsingState::ParamType { name });
-        Ok(Ast::Empty)
-    }
-
     fn parse_primary_expr(&mut self, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(expr) = data {
             self.expect(TokenKind::CloseBrace)?;
@@ -907,7 +899,7 @@ impl<T: ILexer> SimpleParser<T> {
 }
 
 impl<T: ILexer> Parser for SimpleParser<T> {
-    fn parse(&mut self) -> std::result::Result<Root, Error> {
+    fn parse(&mut self) -> std::result::Result<RootNode, Error> {
         self.stack.push(ParsingState::Root);
 
         let mut data = Ast::Empty;

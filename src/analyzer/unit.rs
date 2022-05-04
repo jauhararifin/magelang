@@ -13,7 +13,7 @@ use super::{
     types::TypeHelper,
 };
 
-pub fn analyze_root(root: &ast::Root, headers: &[Header]) -> Result<Unit, Error> {
+pub fn analyze_root(root: &ast::RootNode, headers: &[Header]) -> Result<Unit, Error> {
     let type_helper = TypeHelper::new();
     let mut expr_helper = ExprHelper::from_headers(&type_helper, headers);
     let mut analyzer = UnitAnalyzer::new(&type_helper, &mut expr_helper);
@@ -34,15 +34,15 @@ impl<'a> UnitAnalyzer<'a> {
         }
     }
 
-    pub fn analyze(&mut self, root: &'a ast::Root) -> Result<Unit, Error> {
+    pub fn analyze(&mut self, root: &'a ast::RootNode) -> Result<Unit, Error> {
         let functions = self.analyze_ast(root)?;
         Ok(Unit { functions })
     }
 
-    fn analyze_ast(&mut self, root_ast: &'a ast::Root) -> Result<Vec<FnDecl>, Error> {
+    fn analyze_ast(&mut self, root_ast: &'a ast::RootNode) -> Result<Vec<FnDecl>, Error> {
         let mut results: Vec<FnDecl> = Vec::new();
 
-        let func_decls: Vec<&ast::FnDecl> = root_ast
+        let func_decls: Vec<&ast::FnDeclNode> = root_ast
             .declarations
             .iter()
             .filter_map(|decl| decl.try_unwrap_func())
@@ -63,7 +63,7 @@ impl<'a> UnitAnalyzer<'a> {
                 });
             }
 
-            let native = fn_decl.header.native;
+            let native = fn_decl.header.native_token.is_some();
 
             let statement = if let Some(body) = &fn_decl.body {
                 Some(self.analyze_block_stmt(body, &ftype)?)

@@ -14,7 +14,7 @@ impl HeaderCompiler {
         Self {}
     }
 
-    pub fn compile(&self, root: &ast::Root) -> Result<Header, Error> {
+    pub fn compile(&self, root: &ast::RootNode) -> Result<Header, Error> {
         let mut functions = Vec::new();
 
         let type_helper = TypeHelper::new();
