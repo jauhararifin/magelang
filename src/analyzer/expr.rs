@@ -5,15 +5,16 @@ use crate::{
     errors::Error,
     semantic::{
         BinOp, Binary, Expr, ExprKind, FieldValue, FloatType, FunctionCall, Header, IntType, Name, Selector, StructLit,
-        Type, Unary, UnaryOp,
+        TypeKind, Unary, UnaryOp,
     },
     token::TokenKind,
-    type_helper::ITypeHelper,
 };
+
+use super::types::{AstContext, TypeHelper};
 
 pub struct ExprHelper<'a, 'b> {
     package_name: &'a str,
-    type_helper: &'b dyn ITypeHelper<'a>,
+    type_helper: &'b TypeHelper,
 
     symbol_table: Vec<HashMap<Name, Symbol>>,
 }
@@ -21,11 +22,11 @@ pub struct ExprHelper<'a, 'b> {
 #[derive(Clone, Debug)]
 pub struct Symbol {
     pub name: Name,
-    pub typ: Type,
+    pub type_kind: TypeKind,
 }
 
 impl<'a, 'b> ExprHelper<'a, 'b> {
-    pub fn empty(package_name: &'a str, type_helper: &'b dyn ITypeHelper<'a>) -> Self {
+    pub fn empty(package_name: &'a str, type_helper: &'b TypeHelper) -> Self {
         let mut expr_helper = Self {
             package_name,
             type_helper,
@@ -35,7 +36,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
         expr_helper
     }
 
-    pub fn from_headers(package_name: &'a str, type_helper: &'b dyn ITypeHelper<'a>, headers: &'a [Header]) -> Self {
+    pub fn from_headers(package_name: &'a str, type_helper: &'b TypeHelper, headers: &'a [Header]) -> Self {
         let mut expr_helper = Self {
             package_name,
             type_helper,
@@ -48,30 +49,18 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
             for var in header.vars.iter() {
                 expr_helper.add_symbol(Symbol {
                     name: var.name.clone(),
-                    typ: var.typ.clone(),
+                    type_kind: var.type_kind.clone(),
                 });
             }
             for func in header.functions.iter() {
                 expr_helper.add_symbol(Symbol {
                     name: func.name.clone(),
-                    typ: Type::Fn(func.typ.clone()),
+                    type_kind: TypeKind::Fn(func.typ.clone()),
                 });
             }
         }
 
         expr_helper
-    }
-
-    // TODO: maybe can use iterator.
-    pub fn get_all_symbols(&self) -> Vec<Symbol> {
-        let mut symbols = HashMap::new();
-        for table in self.symbol_table.iter() {
-            for (name, sym) in table.iter() {
-                symbols.insert(name, sym.clone());
-            }
-        }
-
-        symbols.into_values().collect()
     }
 
     pub fn add_block(&mut self) {
@@ -93,7 +82,13 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
         self.symbol_table.iter().rev().find_map(|table| table.get(name))
     }
 
-    pub fn analyze_expr(&self, expr: &'a ast::Expr, expected: &Type, is_global_var: bool) -> Result<Expr, Error> {
+    pub fn analyze(
+        &self,
+        ctx: &AstContext,
+        expr: &'a ast::Expr,
+        expected: &TypeKind,
+        is_global_var: bool,
+    ) -> Result<Expr, Error> {
         match &expr.kind {
             ast::ExprKind::Ident(token) => {
                 let token_name = token.unwrap_str();
@@ -107,7 +102,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     Ok(Expr {
                         kind: ExprKind::Ident(String::from(token_name)),
                         assignable: true,
-                        typ: sym.typ.clone(),
+                        type_kind: sym.type_kind.clone(),
                     })
                 } else {
                     // TODO: currently, we can't reference symbol that is not declared previously.
@@ -117,18 +112,21 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 }
             }
             ast::ExprKind::StructLit(struct_lit) => {
-                let typ = match &struct_lit.typ {
+                let type_kind = match &struct_lit.typ {
                     ast::Type::Primitive(_) => return Err(Error::NotAStruct),
-                    ast::Type::Struct(_) => self.type_helper.get(&struct_lit.typ),
-                    ast::Type::Ident(id) => self.type_helper.get_by_name(id.unwrap_str()),
-                    ast::Type::Selector(s) => self.type_helper.get_selector(s),
+                    ast::Type::Struct(_) => self.type_helper.get(ctx, &struct_lit.typ),
+                    ast::Type::Ident(id) => self.type_helper.get_by_name(&Name {
+                        package: String::from(self.package_name),
+                        name: String::from(id.unwrap_str()),
+                    }),
+                    ast::Type::Selector(s) => self.type_helper.get_by_selector(ctx, s),
                 };
 
-                if typ.is_invalid() {
+                if type_kind.is_invalid() {
                     return Err(Error::UndeclaredSymbol);
                 }
 
-                let struct_fields = if let Type::Struct(strct) = &typ {
+                let struct_fields = if let TypeKind::Struct(strct) = &type_kind {
                     &strct.fields
                 } else {
                     return Err(Error::NotAStruct);
@@ -142,8 +140,8 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     }
                     let type_field = type_field.unwrap();
 
-                    let val = self.analyze_expr(&field.value, expected, is_global_var)?;
-                    if val.typ != type_field.typ {
+                    let val = self.analyze(ctx, &field.value, expected, is_global_var)?;
+                    if val.type_kind != type_field.type_kind {
                         return Err(Error::MismatchType);
                     }
 
@@ -156,11 +154,11 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 Ok(Expr {
                     kind: ExprKind::Struct(StructLit { fields }),
                     assignable: false,
-                    typ,
+                    type_kind,
                 })
             }
             ast::ExprKind::IntegerLit(val) => {
-                if let Type::Int(IntType { signed, size }) = expected {
+                if let TypeKind::Int(IntType { signed, size }) = expected {
                     let kind = match (signed, size) {
                         (true, 8) => ExprKind::I8(val.value.as_ref().unwrap().parse().unwrap()),
                         (true, 16) => ExprKind::I16(val.value.as_ref().unwrap().parse().unwrap()),
@@ -175,18 +173,18 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     Ok(Expr {
                         kind,
                         assignable: false,
-                        typ: expected.clone(),
+                        type_kind: expected.clone(),
                     })
                 } else {
                     Ok(Expr {
                         kind: ExprKind::I32(0),
                         assignable: false,
-                        typ: self.type_helper.get_i32(),
+                        type_kind: TypeKind::Int(IntType::signed(32)),
                     })
                 }
             }
             ast::ExprKind::FloatLit(val) => {
-                if let Type::Float(FloatType { size }) = expected {
+                if let TypeKind::Float(FloatType { size }) = expected {
                     let kind = match size {
                         32 => ExprKind::F32(val.value.as_ref().unwrap().parse().unwrap()),
                         64 => ExprKind::F64(val.value.as_ref().unwrap().parse().unwrap()),
@@ -195,13 +193,13 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     Ok(Expr {
                         kind,
                         assignable: false,
-                        typ: expected.clone(),
+                        type_kind: expected.clone(),
                     })
                 } else {
                     Ok(Expr {
                         kind: ExprKind::F64(0.0),
                         assignable: false,
-                        typ: self.type_helper.get_f64(),
+                        type_kind: TypeKind::Float(FloatType { size: 64 }),
                     })
                 }
             }
@@ -209,14 +207,14 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
             ast::ExprKind::BoolLit(val) => Ok(Expr {
                 kind: ExprKind::Bool(val.kind == TokenKind::True),
                 assignable: false,
-                typ: self.type_helper.get_bool(),
+                type_kind: TypeKind::Bool,
             }),
             ast::ExprKind::Binary(binary) => {
-                let a = self.analyze_expr(binary.a.as_ref(), expected, is_global_var)?;
-                let a_typ = a.typ.clone();
+                let a = self.analyze(ctx, binary.a.as_ref(), expected, is_global_var)?;
+                let a_typ = a.type_kind.clone();
 
-                let b = self.analyze_expr(binary.b.as_ref(), &a_typ, is_global_var)?;
-                let b_typ = b.typ.clone();
+                let b = self.analyze(ctx, binary.b.as_ref(), &a_typ, is_global_var)?;
+                let b_typ = b.type_kind.clone();
 
                 let matched = match binary.op.kind {
                     TokenKind::Eq | TokenKind::NotEq => a_typ == b_typ,
@@ -281,7 +279,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     | TokenKind::GTEq
                     | TokenKind::LTEq
                     | TokenKind::And
-                    | TokenKind::Or => self.type_helper.get_bool(),
+                    | TokenKind::Or => TypeKind::Bool,
                     TokenKind::Plus
                     | TokenKind::Minus
                     | TokenKind::Mul
@@ -298,12 +296,12 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 Ok(Expr {
                     kind,
                     assignable: false,
-                    typ: t.clone(),
+                    type_kind: t.clone(),
                 })
             }
             ast::ExprKind::Unary(unary) => {
-                let val = self.analyze_expr(unary.val.as_ref(), expected, is_global_var)?;
-                let val_type = val.typ.clone();
+                let val = self.analyze(ctx, unary.val.as_ref(), expected, is_global_var)?;
+                let val_type = val.type_kind.clone();
 
                 let matched = match unary.op.kind {
                     TokenKind::Not => val_type.is_bool(),
@@ -325,7 +323,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 };
 
                 let t = match unary.op.kind {
-                    TokenKind::Not => self.type_helper.get_bool(),
+                    TokenKind::Not => TypeKind::Bool,
                     TokenKind::BitNot | TokenKind::Plus | TokenKind::Minus => val_type.clone(),
                     _ => unreachable!(),
                 };
@@ -333,7 +331,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 Ok(Expr {
                     kind: ExprKind::Unary(Unary { op, val: Box::new(val) }),
                     assignable: false,
-                    typ: t,
+                    type_kind: t,
                 })
             }
             ast::ExprKind::FunctionCall(func_call) => {
@@ -341,9 +339,9 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     return Err(Error::UnsupportedOperationInConstant);
                 }
 
-                let func = self.analyze_expr(func_call.func.as_ref(), expected, is_global_var)?;
+                let func = self.analyze(ctx, func_call.func.as_ref(), expected, is_global_var)?;
 
-                let fn_type = if let Type::Fn(fn_type) = &func.typ {
+                let fn_type = if let TypeKind::Fn(fn_type) = &func.type_kind {
                     fn_type
                 } else {
                     return Err(Error::NotAFn);
@@ -355,9 +353,9 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
 
                 let mut args = Vec::new();
                 for (i, arg) in func_call.args.iter().enumerate() {
-                    let val = self.analyze_expr(arg, expected, is_global_var)?;
-                    let val_type = val.typ.clone();
-                    let func_type = fn_type.arguments.get(i).unwrap().typ.clone();
+                    let val = self.analyze(ctx, arg, expected, is_global_var)?;
+                    let val_type = val.type_kind.clone();
+                    let func_type = fn_type.arguments.get(i).unwrap().type_kind.clone();
                     if val_type != func_type {
                         return Err(Error::MismatchType);
                     }
@@ -368,7 +366,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                 let return_type = if let Some(t) = &fn_type.return_type {
                     t.as_ref().clone()
                 } else {
-                    self.type_helper.get_void()
+                    TypeKind::Void
                 };
 
                 Ok(Expr {
@@ -377,19 +375,19 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                         args,
                     }),
                     assignable: false,
-                    typ: return_type.clone(),
+                    type_kind: return_type.clone(),
                 })
             }
             ast::ExprKind::Cast(cast) => {
-                let typ = self.type_helper.get(&cast.target);
+                let typ = self.type_helper.get(ctx, &cast.target);
                 if typ.is_invalid() {
                     return Err(Error::UndeclaredSymbol);
                 }
-                self.analyze_expr(cast.val.as_ref(), &typ, is_global_var)
+                self.analyze(ctx, cast.val.as_ref(), &typ, is_global_var)
             }
             ast::ExprKind::Selector(selector) => {
-                let val = self.analyze_expr(selector.source.as_ref(), expected, is_global_var)?;
-                if let Type::Struct(strct) = &val.typ {
+                let val = self.analyze(ctx, selector.source.as_ref(), expected, is_global_var)?;
+                if let TypeKind::Struct(strct) = &val.type_kind {
                     if let Some(field) = strct.fields.get(selector.selection.value.as_ref().unwrap()) {
                         Ok(Expr {
                             kind: ExprKind::Selector(Selector {
@@ -398,7 +396,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                                 selection_index: field.index,
                             }),
                             assignable: true,
-                            typ: field.typ.clone(),
+                            type_kind: field.type_kind.clone(),
                         })
                     } else {
                         Err(Error::NotAStruct)

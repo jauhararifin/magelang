@@ -1,8 +1,9 @@
-use magelang::analyzer::{Analyzer, SimpleAnalyzer, analyze_asts};
+// use magelang::analyzer::{Analyzer, SimpleAnalyzer, analyze_asts};
 // use magelang::compiler::{Compiler, SimpleCompiler};
-use magelang::header_processor::{HeaderProcessor, SimpleHeaderProcessor};
+// use magelang::header_processor::{HeaderProcessor, SimpleHeaderProcessor};
 use magelang::lexer::SimpleLexer;
 use magelang::parser::{Parser, SimpleParser};
+use magelang::analyzer::HeaderCompiler;
 use std::env;
 use std::fs::File;
 
@@ -23,25 +24,29 @@ fn main() {
         root_asts.push(root_ast);
     }
 
-    let header_processor = SimpleHeaderProcessor::new();
-    let headers = header_processor.build_headers(root_asts.as_slice()).unwrap();
+    let header_processor = HeaderCompiler::new();
+    let headers = header_processor.compile(root_asts.as_slice()).unwrap();
 
-    // for header in headers.iter() {
-    //     println!("header {:?}", header.package_name);
-    //     for func in header.functions.iter() {
-    //         let typ = func.typ.borrow();
-    //         let typ = typ.unwrap_func();
-    //         println!("func {:?} {:?}", func.name, typ);
-    //         for arg in typ.arguments.iter() {
-    //             println!("arg {:?} {:?}", arg.name, arg.typ.upgrade());
-    //         }
-    //     }
-    //     println!("==========================================");
+    for header in headers.iter() {
+        println!("header {:?}", header.package_name);
+        println!("{:?}", header);
+        // for func in header.functions.iter() {
+        //     // let typ = func.typ.borrow();
+        //     let typ = typ.unwrap_func();
+        //     println!("func {:?} {:?}", func.name, typ);
+        //     for arg in typ.arguments.iter() {
+        //         println!("arg {:?} {:?}", arg.name, arg.typ.upgrade());
+        //     }
+        // }
+        println!("==========================================");
+    }
+
+
+    // let units = analyze_asts(&root_asts[..], &headers[..]).unwrap();
+    // for unit in units.iter() {
+    //     println!("{:?}", unit);
+    //     println!("=======================================");
     // }
-
-
-    let units = analyze_asts(&root_asts[..], &headers[..]).unwrap();
-    println!("{:?}", units);
 
     // let f = File::open("./examples/example1.mag").unwrap();
     // let lexer = SimpleLexer::new(f);

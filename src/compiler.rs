@@ -1,77 +1,75 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
-    bytecode::{Function, Instruction, Program, Value},
+    bytecode::{Instruction, Program, Value},
+    errors::Error,
+    mangler::mangle_function,
     parser,
-    pos::Pos,
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, ConcreteType, Expr, ExprKind, FnDecl, FunctionCall, If,
-        Return, Selector, Statement, Type, Unit, Var, While,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Name, Return,
+        Selector, Statement, Type, Unit, Var, While,
     },
-    token::Token,
 };
 
 pub trait Compiler {
     fn compile(&mut self) -> Result<Program, Error>;
 }
 
-#[derive(Debug)]
-pub enum Error {
-    ParseError(parser::Error),
-    RedeclaredSymbol(Token),
-    UndeclaredSymbol(Token),
-    CannotAssignToFunction(Token),
-    ReturnOnVoidFunc(Pos),
-    MissingReturnValue(Pos),
-    MissingMain,
-}
+// #[derive(Debug)]
+// pub enum Error {
+//     ParseError(parser::Error),
+//     RedeclaredSymbol(Token),
+//     UndeclaredSymbol(Token),
+//     CannotAssignToFunction(Token),
+//     ReturnOnVoidFunc(Pos),
+//     MissingReturnValue(Pos),
+//     MissingMain,
+// }
 
-impl From<parser::Error> for Error {
-    fn from(err: parser::Error) -> Self {
-        Error::ParseError(err)
-    }
-}
+// impl From<parser::Error> for Error {
+//     fn from(err: parser::Error) -> Self {
+//         Error::ParseError(err)
+//     }
+// }
 
 // TODO (jauhararifin): refactor this into non-recursive implementation.
 pub struct SimpleCompiler {
-    root: Unit,
+    unit: Unit,
 
     values: Vec<Value>,
     name_to_value_index: HashMap<String, usize>,
     // value_counter: usize,
-    functions: Vec<Function>,
+    functions: Vec<Value>,
     name_to_func_index: HashMap<String, usize>,
     function_counter: usize,
 }
 
 impl SimpleCompiler {
-    pub fn new(root: Unit) -> Self {
+    pub fn new(unit: Unit) -> Self {
         Self {
-            root,
+            unit,
 
             values: Vec::new(),
             name_to_value_index: HashMap::new(),
             // value_counter: 0,
+
             functions: Vec::new(),
             name_to_func_index: HashMap::new(),
             function_counter: 0,
         }
     }
 
-    fn compile_func(&self, fn_decl: &FnDecl) -> Result<Function, Error> {
+    fn compile_func(&self, fn_decl: &FnDecl) -> Result<Value, Error> {
         let mut instructions = Vec::new();
         let mut ctx = FnContext::new(&fn_decl)?;
 
         if fn_decl.header.native {
-            instructions.push(Instruction::CallNative(fn_decl.header.name.clone()));
+            instructions.push(Instruction::CallNative(mangle_function(&fn_decl.header.name)));
         } else {
             instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap())?);
         }
 
-        Ok(Function {
-            name: fn_decl.header.name.clone(),
-            instructions,
-        })
+        Ok(Value::Fn(instructions))
     }
 
     fn compile_statement(&self, ctx: &mut FnContext, expr: &Statement) -> Result<Vec<Instruction>, Error> {
@@ -103,7 +101,7 @@ impl SimpleCompiler {
     }
 
     fn compile_var(&self, ctx: &mut FnContext, var: &Var) -> Result<Vec<Instruction>, Error> {
-        let name = var.header.name.clone();
+        let name = var.header.clone();
         ctx.add_symbol(name);
 
         if let Some(value) = &var.value {
@@ -333,7 +331,11 @@ impl SimpleCompiler {
 
 impl Compiler for SimpleCompiler {
     fn compile(&mut self) -> Result<Program, Error> {
-        for fn_decl in self.root.fn_declarations.iter() {
+        for var_decl in self.unit.var_declarations.iter() {
+            var_decl.header.name
+        }
+
+        for fn_decl in self.unit.fn_declarations.iter() {
             let name = fn_decl.header.name.clone();
             self.name_to_func_index.insert(name, self.function_counter);
             self.function_counter += 1;
@@ -354,7 +356,7 @@ impl Compiler for SimpleCompiler {
 }
 
 struct FnContext {
-    symbol_tables: Vec<HashMap<String, Symbol>>,
+    symbol_tables: Vec<HashMap<Name, Symbol>>,
     counter: isize,
 }
 
@@ -365,10 +367,9 @@ struct Symbol {
 
 impl FnContext {
     fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
-        let fn_decl = fn_decl.header.typ.borrow();
-        let fn_decl = fn_decl.unwrap_func();
+        let fn_type = fn_decl.header.typ;
         let mut table = HashMap::new();
-        for (i, param) in fn_decl.arguments.iter().rev().enumerate() {
+        for (i, param) in fn_type.arguments.iter().rev().enumerate() {
             let name = param.name.clone();
             let index = -(i as isize + 1);
             table.insert(name, Symbol { index });

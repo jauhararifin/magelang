@@ -32,6 +32,10 @@ impl Declaration {
         }
     }
 
+    pub fn is_type(&self) -> bool {
+        self.try_unwrap_type().is_some()
+    }
+
     pub fn try_unwrap_var(&self) -> Option<&Var> {
         if let Self::Var(t) = self {
             Some(t)
@@ -40,12 +44,20 @@ impl Declaration {
         }
     }
 
+    pub fn is_var(&self) -> bool {
+        self.try_unwrap_var().is_some()
+    }
+
     pub fn try_unwrap_func(&self) -> Option<&FnDecl> {
         if let Self::Fn(t) = self {
             Some(t)
         } else {
             None
         }
+    }
+
+    pub fn is_func(&self) -> bool {
+        self.try_unwrap_func().is_some()
     }
 }
 

@@ -5,24 +5,23 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     ast::{self, Root},
     errors::Error,
-    expr_helper::{ExprHelper, Symbol},
-    semantic::{FnHeader, Header, Name, Type, TypeDecl, VarHeader},
-    type_helper::{ITypeHelper, TypeHelper},
+    semantic::{FnHeader, Header, Name, Type, VarHeader},
     util,
 };
 
-pub trait HeaderProcessor {
-    fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error>;
-}
+use super::{
+    expr_helper::{ExprHelper, Symbol},
+    type_helper::{AstContext, TypeHelper},
+};
 
-pub struct SimpleHeaderProcessor {}
+pub struct HeaderProcessor {}
 
-impl SimpleHeaderProcessor {
+impl HeaderProcessor {
     pub fn new() -> Self {
         Self {}
     }
 
-    fn build<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
+    pub fn build<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
         let dependency_graph = self.build_package_dependency(roots);
 
         let plan = util::build_processing_plan(&dependency_graph)?;
@@ -63,18 +62,12 @@ impl SimpleHeaderProcessor {
     }
 }
 
-impl HeaderProcessor for SimpleHeaderProcessor {
-    fn build_headers<'a>(&self, roots: &'a [Root]) -> Result<Vec<Header>, Error> {
-        self.build(roots)
-    }
-}
-
 struct SingleHeaderProcessor<'a> {
     roots: &'a [&'a Root],
     package_name: &'a str,
     dependencies: &'a [Header],
 
-    types: Vec<TypeDecl>,
+    types: Vec<Type>,
     vars: Vec<VarHeader>,
     functions: Vec<FnHeader>,
 }
@@ -99,14 +92,7 @@ impl<'a> SingleHeaderProcessor<'a> {
         let mut type_processor = TypeProcessor::new(self.roots, &type_helper);
         let type_aliases = type_processor.setup()?;
         for (name, typ) in type_aliases.iter() {
-            self.types.push(TypeDecl {
-                id: self.types.len(),
-                name: Name {
-                    package: String::from(self.package_name),
-                    name: String::from(*name),
-                },
-                typ: typ.clone(),
-            });
+            self.types.push(typ);
         }
 
         let mut value_processor = ValueProcessor::new(self.roots, &type_helper);
@@ -134,11 +120,11 @@ impl<'a> SingleHeaderProcessor<'a> {
 
 struct TypeProcessor<'a> {
     roots: &'a [&'a ast::Root],
-    type_helper: &'a dyn ITypeHelper<'a>,
+    type_helper: &'a TypeHelper,
 }
 
 impl<'a> TypeProcessor<'a> {
-    fn new(roots: &'a [&ast::Root], type_helper: &'a dyn ITypeHelper<'a>) -> Self {
+    fn new(roots: &'a [&ast::Root], type_helper: &'a TypeHelper) -> Self {
         Self { roots, type_helper }
     }
 
@@ -176,21 +162,24 @@ impl<'a> TypeProcessor<'a> {
     }
 
     fn setup_types(&mut self, plan: &[&str]) -> HashMap<&str, Type> {
-        let mut type_decls: HashMap<&str, &ast::TypeDecl> = self
-            .roots
-            .iter()
-            .flat_map(|decl| &decl.declarations)
-            .filter_map(|decl| decl.try_unwrap_type())
-            .map(|decl| (decl.name.unwrap_str(), decl))
-            .collect();
+        let mut type_decls: HashMap<&str, (&ast::TypeDecl, &ast::Root)> = HashMap::new();
+        for root in self.roots.iter() {
+            for type_decl in root.declarations.iter().filter_map(|decl| decl.try_unwrap_type()) {
+                type_decls.insert(type_decl.name.unwrap_str(), (type_decl, root));
+            }
+        }
 
-        let type_decls: Vec<&ast::TypeDecl> = plan.iter().map(|v| type_decls.remove(*v).unwrap()).collect();
+        let type_decls: Vec<(&ast::TypeDecl, &ast::Root)> =
+            plan.iter().map(|v| type_decls.remove(*v).unwrap()).collect();
 
         let mut type_alias = HashMap::new();
         for type_decl in type_decls.iter() {
-            let name = type_decl.name.value.as_ref().unwrap();
+            let name = type_decl.0.name.value.as_ref().unwrap();
             type_alias.insert(name.as_str(), Type::Invalid);
         }
+
+        let type_decls: Vec<(&'a ast::TypeDecl, AstContext)> =
+            type_decls.iter().map(|t| (t.0, AstContext::new(t.1))).collect();
 
         self.populate_types(&mut type_alias, type_decls.as_slice());
         self.populate_types(&mut type_alias, type_decls.as_slice());
@@ -198,10 +187,21 @@ impl<'a> TypeProcessor<'a> {
         type_alias
     }
 
-    fn populate_types(&mut self, type_alias: &mut HashMap<&'a str, Type>, type_decls: &[&'a ast::TypeDecl]) {
+    fn populate_types(
+        &mut self,
+        type_alias: &mut HashMap<&'a str, Type>,
+        type_decls: &[(&'a ast::TypeDecl, AstContext)],
+    ) {
         for type_decl in type_decls.iter() {
-            let name = type_decl.name.unwrap_value();
-            let typ = self.type_helper.get(&type_decl.typ);
+            let name = type_decl.0.name.unwrap_value();
+            let typ = self.type_helper.get(&type_decl.1, &type_decl.0.typ);
+            self.type_helper.add_type(
+                Name {
+                    package: self.roots[0].package_name.unwrap_value().clone(),
+                    name: name.clone(),
+                },
+                &typ,
+            );
             type_alias.insert(name.as_str(), typ);
         }
     }
@@ -211,12 +211,12 @@ struct ValueProcessor<'a, 'b> {
     roots: &'a [&'a ast::Root],
     package_name: &'a str,
 
-    type_helper: &'b dyn ITypeHelper<'a>,
+    type_helper: &'b TypeHelper,
     expr_helper: ExprHelper<'a, 'b>,
 }
 
 impl<'a, 'b> ValueProcessor<'a, 'b> {
-    fn new(roots: &'a [&'a ast::Root], type_helper: &'b dyn ITypeHelper<'a>) -> Self {
+    fn new(roots: &'a [&'a ast::Root], type_helper: &'b TypeHelper) -> Self {
         let package_name = roots[0].package_name.unwrap_str();
         let expr_helper = ExprHelper::empty(package_name, type_helper);
         Self {

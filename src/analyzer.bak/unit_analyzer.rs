@@ -1,18 +1,14 @@
 use crate::{
     ast,
     errors::Error,
-    expr_helper::{ExprHelper, Symbol},
     semantic::{
         Assign, AssignOp, BlockStatement, FnDecl, FnHeader, FnType, Header, If, Name, Return, Statement, Unit, Var,
         VarHeader, While,
     },
     token::TokenKind,
-    type_helper::{ITypeHelper, TypeHelper},
 };
 
-pub trait Analyzer<'a> {
-    fn analyze(&mut self, root: &'a ast::Root) -> Result<Unit, Error>;
-}
+use super::{type_helper::TypeHelper, expr_helper::{ExprHelper, Symbol}};
 
 pub fn analyze_asts(roots: &[ast::Root], headers: &[Header]) -> Result<Vec<Unit>, Error> {
     let package_name = roots[0].package_name.unwrap_str();
@@ -30,16 +26,25 @@ pub fn analyze_asts(roots: &[ast::Root], headers: &[Header]) -> Result<Vec<Unit>
 }
 
 pub struct SimpleAnalyzer<'a, 'b> {
-    type_helper: &'a dyn ITypeHelper<'a>,
+    type_helper: &'a TypeHelper,
     expr_helper: &'a mut ExprHelper<'a, 'b>,
 }
 
 impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
-    pub fn new(type_helper: &'a dyn ITypeHelper<'a>, expr_helper: &'a mut ExprHelper<'a, 'b>) -> Self {
+    pub fn new(type_helper: &'a TypeHelper, expr_helper: &'a mut ExprHelper<'a, 'b>) -> Self {
         Self {
             type_helper,
             expr_helper,
         }
+    }
+
+    fn analyze(&mut self, root: &'a ast::Root) -> Result<Unit, Error> {
+        let fn_declarations = self.analyze_ast(root)?;
+        Ok(Unit {
+            package_name: root.package_name.unwrap_value().clone(),
+            var_declarations: Vec::new(),
+            fn_declarations,
+        })
     }
 
     fn analyze_ast(&mut self, root_ast: &'a ast::Root) -> Result<Vec<FnDecl>, Error> {
@@ -229,17 +234,5 @@ impl<'a, 'b> SimpleAnalyzer<'a, 'b> {
             body.push(self.analyze_stmt(package_name, s, ftype)?);
         }
         Ok(Statement::Block(BlockStatement { body }))
-    }
-}
-
-impl<'a, 'b> Analyzer<'a> for SimpleAnalyzer<'a, 'b> {
-    fn analyze(&mut self, root: &'a ast::Root) -> Result<Unit, Error> {
-        let fn_declarations = self.analyze_ast(root)?;
-
-        Ok(Unit {
-            package_name: root.package_name.unwrap_value().clone(),
-            var_declarations: Vec::new(),
-            fn_declarations,
-        })
     }
 }

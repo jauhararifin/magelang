@@ -4,7 +4,7 @@ use std::collections::HashMap;
 pub struct Header {
     pub package_name: String,
 
-    pub types: Vec<TypeDecl>,
+    pub types: Vec<Type>,
     pub vars: Vec<VarHeader>,
     pub functions: Vec<FnHeader>,
 }
@@ -24,13 +24,6 @@ pub struct Name {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeDecl {
-    pub id: usize,
-    pub name: Name,
-    pub typ: Type,
-}
-
-#[derive(Debug, Clone)]
 pub struct Var {
     pub header: VarHeader,
     pub value: Option<Expr>,
@@ -39,7 +32,7 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct VarHeader {
     pub name: Name,
-    pub typ: Type,
+    pub type_kind: TypeKind,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +49,28 @@ pub struct FnHeader {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Type {
+pub struct Type {
+    pub name: Option<Name>,
+    pub kind: TypeKind,
+    // add method here.
+}
+
+impl Type {
+    pub fn anon(kind: TypeKind) -> Self {
+        Self { name: None, kind }
+    }
+
+    pub fn invalid() -> Self {
+        Self::anon(TypeKind::Invalid)
+    }
+
+    pub fn is_anonymous(&self) -> bool {
+        self.name.is_none()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum TypeKind {
     Invalid,
     Bool,
     Void,
@@ -65,31 +79,32 @@ pub enum Type {
     Fn(FnType),
     Struct(Struct),
     Ptr(Ptr),
+    Package(String),
 }
 
-impl Type {
+impl TypeKind {
     pub fn is_invalid(&self) -> bool {
-        matches!(self, Type::Invalid)
+        matches!(self, TypeKind::Invalid)
     }
 
     pub fn is_number(&self) -> bool {
-        matches!(self, Type::Int(_) | Type::Float(_))
+        matches!(self, TypeKind::Int(_) | TypeKind::Float(_))
     }
 
     pub fn is_int(&self) -> bool {
-        matches!(self, Type::Int(_))
+        matches!(self, TypeKind::Int(_))
     }
 
     pub fn is_bool(&self) -> bool {
-        matches!(self, Type::Bool)
+        matches!(self, TypeKind::Bool)
     }
 
     pub fn is_func(&self) -> bool {
-        matches!(self, Type::Fn(_))
+        matches!(self, TypeKind::Fn(_))
     }
 
     pub fn unwrap_func(&self) -> &FnType {
-        if let Type::Fn(f) = self {
+        if let TypeKind::Fn(f) = self {
             f
         } else {
             panic!("type is not a function type")
@@ -97,7 +112,7 @@ impl Type {
     }
 
     pub fn unwrap_struct(&self) -> &Struct {
-        if let Type::Struct(s) = self {
+        if let TypeKind::Struct(s) = self {
             s
         } else {
             panic!("type is not a struct type")
@@ -129,14 +144,14 @@ pub struct FloatType {
 pub struct FnType {
     pub native: bool,
     pub arguments: Vec<Argument>,
-    pub return_type: Option<Box<Type>>,
+    pub return_type: Option<Box<TypeKind>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Argument {
     pub index: usize,
     pub name: String,
-    pub typ: Type,
+    pub type_kind: TypeKind,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -147,12 +162,12 @@ pub struct Struct {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Field {
     pub index: usize,
-    pub typ: Type,
+    pub type_kind: TypeKind,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Ptr {
-    pub id: usize,
+    pub name: Name,
 }
 
 #[derive(Debug, Clone)]
@@ -216,12 +231,13 @@ pub struct BlockStatement {
 pub struct Expr {
     pub kind: ExprKind,
     pub assignable: bool,
-    pub typ: Type,
+    pub type_kind: TypeKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Ident(String),
+    Package(String),
     I8(i8),
     I16(i16),
     I32(i32),
