@@ -17,7 +17,7 @@ impl Linker {
             todo!();
         }
 
-        let main_func = objects[0].symbol_table.get("main");
+        let main_func = objects[0].symbol_table.get(&String::from("main"));
         if main_func.is_none() {
             return Err(Error::MissingMain);
         }

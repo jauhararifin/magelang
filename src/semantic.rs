@@ -18,18 +18,21 @@ pub struct FnDecl {
 
 #[derive(Debug, Clone)]
 pub struct FnHeader {
-    pub name: String,
+    pub name: Rc<String>,
     pub native: bool,
-    pub typ: FnType,
+    pub fn_type: Rc<FnType>,
+    pub typ: Rc<Type>,
 }
 
+// TODO (jauhararifin): consider adding `Copy` trait to the  `Type`. Since the size is not so big,
+// maybe it is better to implement `Copy` trait instead of using `Rc<Type>` everywhere.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
     Bool,
     Void,
     Int(IntType),
     Float(FloatType),
-    Fn(FnType),
+    Fn(Rc<FnType>),
 }
 
 impl Type {
@@ -49,7 +52,7 @@ impl Type {
         matches!(self, Type::Fn(_))
     }
 
-    pub fn unwrap_func(&self) -> &FnType {
+    pub fn unwrap_func(&self) -> &Rc<FnType> {
         if let Type::Fn(f) = self {
             f
         } else {
@@ -88,19 +91,19 @@ pub struct FnType {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Argument {
     pub index: usize,
-    pub name: String,
-    pub typ: Type,
+    pub name: Rc<String>,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Struct {
-    pub fields: HashMap<String, Field>,
+    pub fields: HashMap<Rc<String>, Field>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Field {
     pub index: usize,
-    pub typ: Type,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -122,8 +125,8 @@ pub struct Var {
 
 #[derive(Debug, Clone)]
 pub struct VarHeader {
-    pub name: String,
-    pub typ: Type,
+    pub name: Rc<String>,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -174,12 +177,12 @@ pub struct BlockStatement {
 pub struct Expr {
     pub kind: ExprKind,
     pub assignable: bool,
-    pub typ: Type,
+    pub typ: Rc<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    Ident(String),
+    Ident(Rc<String>),
     I8(i8),
     I16(i16),
     I32(i32),
@@ -259,13 +262,13 @@ pub struct FunctionCall {
 
 #[derive(Debug, Clone)]
 pub struct Cast {
-    pub target: Type,
+    pub target: Rc<Type>,
     pub val: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Selector {
     pub source: Box<Expr>,
-    pub selection: String,
+    pub selection: Rc<String>,
     pub selection_index: usize,
 }

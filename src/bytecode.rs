@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub struct Program {
@@ -8,7 +8,7 @@ pub struct Program {
 
 #[derive(Debug)]
 pub struct Object {
-    pub symbol_table: HashMap<String, usize>, // contain the mangled name of the symbols.
+    pub symbol_table: HashMap<Rc<String>, usize>, // contain the mangled name of the symbols.
     pub values: Vec<Value>,
 }
 
@@ -105,5 +105,5 @@ pub enum Instruction {
     Ret,         // return
 
     // call native method
-    CallNative(String),
+    CallNative(Rc<String>),
 }

@@ -141,7 +141,7 @@ impl<R: Read> Lexer<R> {
 
     fn consume_comment(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
         let (value, _) = self.consume_while_match(|c| c != '\n')?;
-        self.emit_token(TokenKind::Comment, Some(value), char_pos.pos);
+        self.emit_token(TokenKind::Comment, Some(Rc::new(value)), char_pos.pos);
         Ok(None)
     }
 
@@ -156,9 +156,9 @@ impl<R: Read> Lexer<R> {
         lit.push_str(value.as_str());
 
         if value.contains('.') {
-            self.emit_token(TokenKind::FloatLit, Some(lit), char_pos.pos);
+            self.emit_token(TokenKind::FloatLit, Some(Rc::new(lit)), char_pos.pos);
         } else {
-            self.emit_token(TokenKind::IntegerLit, Some(lit), char_pos.pos);
+            self.emit_token(TokenKind::IntegerLit, Some(Rc::new(lit)), char_pos.pos);
         }
         Ok(next)
     }
@@ -214,7 +214,7 @@ impl<R: Read> Lexer<R> {
             }
         }
 
-        self.emit_token(TokenKind::StringLit, Some(value), pos);
+        self.emit_token(TokenKind::StringLit, Some(Rc::new(value)), pos);
         Ok(None)
     }
 
@@ -244,7 +244,7 @@ impl<R: Read> Lexer<R> {
             "f64" => self.emit_token(TokenKind::F64, None, char_pos.pos),
             "true" => self.emit_token(TokenKind::True, None, char_pos.pos),
             "false" => self.emit_token(TokenKind::False, None, char_pos.pos),
-            _ => self.emit_token(TokenKind::Ident, Some(word), char_pos.pos),
+            _ => self.emit_token(TokenKind::Ident, Some(Rc::new(word)), char_pos.pos),
         }
 
         Ok(next)
@@ -342,7 +342,7 @@ impl<R: Read> Lexer<R> {
         Ok((result, None))
     }
 
-    fn emit_token(&mut self, kind: TokenKind, value: Option<String>, pos: Pos) {
+    fn emit_token(&mut self, kind: TokenKind, value: Option<Rc<String>>, pos: Pos) {
         self.tokens.push_back(Token { kind, value, pos })
     }
 }

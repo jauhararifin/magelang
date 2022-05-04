@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     ast::{BlockStatementNode, FnDeclNode, RootNode, StatementNode},
     errors::Error,
@@ -51,16 +53,17 @@ impl<'a> UnitAnalyzer<'a> {
         for fn_decl in func_decls.iter() {
             self.expr_helper.add_block();
 
-            let name = String::from(fn_decl.name.unwrap_str());
+            let name = fn_decl.name.clone_value();
 
             let func_symbol = self.expr_helper.find_symbol(&name).unwrap();
-            let ftype = func_symbol.typ.unwrap_func().clone();
+            let typ = Rc::clone(&func_symbol.typ);
+            let ftype = typ.unwrap_func();
 
             for arg in ftype.arguments.iter() {
-                self.expr_helper.add_symbol(Symbol {
-                    name: String::from(&arg.name),
+                self.expr_helper.add_symbol(Rc::new(Symbol {
+                    name: Rc::clone(&arg.name),
                     typ: arg.typ.clone(),
-                });
+                }));
             }
 
             let native = fn_decl.header.native_token.is_some();
@@ -75,7 +78,8 @@ impl<'a> UnitAnalyzer<'a> {
                 header: FnHeader {
                     name,
                     native,
-                    typ: ftype.clone(),
+                    fn_type: Rc::clone(&ftype),
+                    typ: Rc::clone(&typ),
                 },
                 body: statement,
             });
@@ -89,14 +93,15 @@ impl<'a> UnitAnalyzer<'a> {
     fn analyze_stmt(&mut self, stmt: &'a StatementNode, ftype: &FnType) -> Result<Statement, Error> {
         match stmt {
             StatementNode::Var(stmt) => {
-                let name = String::from(stmt.name.unwrap_str());
+                let name = stmt.name.clone_value();
+
                 if self.expr_helper.find_symbol(&name).is_some() {
                     return Err(Error::RedeclaredSymbol);
                 }
 
                 let typ = self.type_helper.get(&stmt.typ);
                 let value = if let Some(val) = &stmt.value {
-                    let value = self.expr_helper.analyze(val, &typ)?;
+                    let value = self.expr_helper.analyze(val, Rc::clone(&typ))?;
                     if &value.typ != &typ {
                         return Err(Error::MismatchType);
                     }
@@ -105,26 +110,23 @@ impl<'a> UnitAnalyzer<'a> {
                     None
                 };
 
-                self.expr_helper.add_symbol(Symbol {
-                    name: name.clone(),
-                    typ: typ.clone(),
-                });
+                self.expr_helper.add_symbol(Rc::new(Symbol {
+                    name: Rc::clone(&name),
+                    typ: Rc::clone(&typ),
+                }));
 
                 Ok(Statement::Var(Var {
-                    header: VarHeader {
-                        name: name.clone(),
-                        typ,
-                    },
+                    header: VarHeader { name, typ },
                     value,
                 }))
             }
             StatementNode::Assign(stmt) => {
-                let receiver = self.expr_helper.analyze(&stmt.receiver, &Type::Void)?;
+                let receiver = self.expr_helper.analyze(&stmt.receiver, Rc::new(Type::Void))?;
                 if !receiver.assignable {
                     return Err(Error::CannotAssignTo);
                 }
 
-                let value = self.expr_helper.analyze(&stmt.value, &receiver.typ)?;
+                let value = self.expr_helper.analyze(&stmt.value, Rc::clone(&receiver.typ))?;
 
                 if value.typ != receiver.typ {
                     return Err(Error::MismatchType);
@@ -150,8 +152,8 @@ impl<'a> UnitAnalyzer<'a> {
             StatementNode::Return(stmt) => {
                 if let Some(expected_ret_type) = &ftype.return_type {
                     if let Some(ret_val) = &stmt.value {
-                        let val = self.expr_helper.analyze(&ret_val, &Type::Void)?;
-                        if &val.typ != expected_ret_type.as_ref() {
+                        let val = self.expr_helper.analyze(&ret_val, Rc::new(Type::Void))?;
+                        if &val.typ != expected_ret_type {
                             return Err(Error::MismatchType);
                         }
 
@@ -168,17 +170,17 @@ impl<'a> UnitAnalyzer<'a> {
                 }
             }
             StatementNode::If(stmt) => {
-                let cond = self.expr_helper.analyze(&stmt.cond, &Type::Bool)?;
+                let cond = self.expr_helper.analyze(&stmt.cond, Rc::new(Type::Bool))?;
                 let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
                 Ok(Statement::If(If { cond, body }))
             }
             StatementNode::While(stmt) => {
-                let cond = self.expr_helper.analyze(&stmt.cond, &Type::Bool)?;
+                let cond = self.expr_helper.analyze(&stmt.cond, Rc::new(Type::Bool))?;
                 let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
                 Ok(Statement::While(While { cond, body }))
             }
             StatementNode::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
-            StatementNode::Expr(expr) => Ok(Statement::Expr(self.expr_helper.analyze(expr, &Type::Void)?)),
+            StatementNode::Expr(expr) => Ok(Statement::Expr(self.expr_helper.analyze(expr, Rc::new(Type::Void))?)),
         }
     }
 

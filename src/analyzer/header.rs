@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     analyzer::types::TypeHelper,
     ast::RootNode,
@@ -28,7 +30,7 @@ impl IHeaderCompiler for HeaderCompiler {
 
         let fn_decls = root.declarations.iter().filter_map(|decl| decl.try_unwrap_func());
         for func in fn_decls {
-            let name = String::from(func.name.unwrap_str());
+            let name = func.name.clone_value();
 
             if expr_helper.find_symbol(&name).is_some() {
                 return Err(Error::RedeclaredSymbol);
@@ -40,10 +42,11 @@ impl IHeaderCompiler for HeaderCompiler {
             functions.push(FnHeader {
                 name: name.clone(),
                 native: fn_type.native,
-                typ: fn_type.clone(),
+                fn_type: Rc::clone(fn_type),
+                typ: Rc::clone(&typ),
             });
 
-            expr_helper.add_symbol(Symbol { name, typ });
+            expr_helper.add_symbol(Rc::new(Symbol { name, typ }));
         }
 
         Ok(Header { functions })

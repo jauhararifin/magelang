@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{ExprNode, ExprNodeKind},
@@ -11,13 +11,13 @@ use super::types::TypeHelper;
 
 pub struct ExprHelper<'a> {
     type_helper: &'a TypeHelper,
-    symbol_table: Vec<HashMap<String, Symbol>>,
+    symbol_table: Vec<HashMap<Rc<String>, Rc<Symbol>>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Symbol {
-    pub name: String,
-    pub typ: Type,
+    pub name: Rc<String>,
+    pub typ: Rc<Type>,
 }
 
 impl<'a> ExprHelper<'a> {
@@ -40,10 +40,10 @@ impl<'a> ExprHelper<'a> {
 
         for header in headers.iter() {
             for func in header.functions.iter() {
-                expr_helper.add_symbol(Symbol {
-                    name: func.name.clone(),
-                    typ: Type::Fn(func.typ.clone()),
-                });
+                expr_helper.add_symbol(Rc::new(Symbol {
+                    name: Rc::clone(&func.name),
+                    typ: Rc::clone(&func.typ),
+                }));
             }
         }
 
@@ -58,14 +58,14 @@ impl<'a> ExprHelper<'a> {
         self.symbol_table.pop();
     }
 
-    pub fn add_symbol(&mut self, symbol: Symbol) {
+    pub fn add_symbol(&mut self, symbol: Rc<Symbol>) {
         self.symbol_table
             .last_mut()
             .unwrap()
             .insert(symbol.name.clone(), symbol);
     }
 
-    pub fn find_symbol(&self, name: &String) -> Option<Symbol> {
+    pub fn find_symbol(&self, name: &String) -> Option<Rc<Symbol>> {
         self.symbol_table
             .iter()
             .rev()
@@ -73,15 +73,15 @@ impl<'a> ExprHelper<'a> {
             .map(|t| t.clone())
     }
 
-    pub fn analyze(&self, expr: &'a ExprNode, expected: &Type) -> Result<Expr, Error> {
+    pub fn analyze(&self, expr: &'a ExprNode, expected: Rc<Type>) -> Result<Expr, Error> {
         match &expr.kind {
             ExprNodeKind::Ident(token) => {
-                let token_name = token.unwrap_value();
-                let symbol = self.find_symbol(token_name);
+                let token_name = token.clone_value();
+                let symbol = self.find_symbol(token_name.as_ref());
 
                 if let Some(sym) = symbol {
                     Ok(Expr {
-                        kind: ExprKind::Ident(String::from(token_name)),
+                        kind: ExprKind::Ident(token_name),
                         assignable: true,
                         typ: sym.typ.clone(),
                     })
@@ -90,7 +90,7 @@ impl<'a> ExprHelper<'a> {
                 }
             }
             ExprNodeKind::IntegerLit(val) => {
-                if let Type::Int(IntType { signed, size }) = expected {
+                if let Type::Int(IntType { signed, size }) = expected.as_ref() {
                     let kind = match (signed, size) {
                         (true, 8) => ExprKind::I8(val.value.as_ref().unwrap().parse().unwrap()),
                         (true, 16) => ExprKind::I16(val.value.as_ref().unwrap().parse().unwrap()),
@@ -111,12 +111,12 @@ impl<'a> ExprHelper<'a> {
                     Ok(Expr {
                         kind: ExprKind::I32(0),
                         assignable: false,
-                        typ: Type::Int(IntType::signed(32)),
+                        typ: Rc::new(Type::Int(IntType::signed(32))),
                     })
                 }
             }
             ExprNodeKind::FloatLit(val) => {
-                if let Type::Float(FloatType { size }) = expected {
+                if let Type::Float(FloatType { size }) = expected.as_ref() {
                     let kind = match size {
                         32 => ExprKind::F32(val.value.as_ref().unwrap().parse().unwrap()),
                         64 => ExprKind::F64(val.value.as_ref().unwrap().parse().unwrap()),
@@ -131,21 +131,21 @@ impl<'a> ExprHelper<'a> {
                     Ok(Expr {
                         kind: ExprKind::F64(0.0),
                         assignable: false,
-                        typ: Type::Float(FloatType { size: 64 }),
+                        typ: Rc::new(Type::Float(FloatType { size: 64 })),
                     })
                 }
             }
             ExprNodeKind::BoolLit(val) => Ok(Expr {
                 kind: ExprKind::Bool(val.kind == TokenKind::True),
                 assignable: false,
-                typ: Type::Bool,
+                typ: Rc::new(Type::Bool),
             }),
             ExprNodeKind::Binary(binary) => {
                 let a = self.analyze(binary.a.as_ref(), expected)?;
-                let a_typ = a.typ.clone();
+                let a_typ = Rc::clone(&a.typ);
 
-                let b = self.analyze(binary.b.as_ref(), &a_typ)?;
-                let b_typ = b.typ.clone();
+                let b = self.analyze(binary.b.as_ref(), Rc::clone(&a_typ))?;
+                let b_typ = Rc::clone(&b.typ);
 
                 let matched = match binary.op.kind {
                     TokenKind::Eq | TokenKind::NotEq => a_typ == b_typ,
@@ -210,7 +210,7 @@ impl<'a> ExprHelper<'a> {
                     | TokenKind::GTEq
                     | TokenKind::LTEq
                     | TokenKind::And
-                    | TokenKind::Or => Type::Bool,
+                    | TokenKind::Or => Rc::new(Type::Bool),
                     TokenKind::Plus
                     | TokenKind::Minus
                     | TokenKind::Mul
@@ -254,8 +254,8 @@ impl<'a> ExprHelper<'a> {
                 };
 
                 let t = match unary.op.kind {
-                    TokenKind::Not => Type::Bool,
-                    TokenKind::BitNot | TokenKind::Plus | TokenKind::Minus => val_type.clone(),
+                    TokenKind::Not => Rc::new(Type::Bool),
+                    TokenKind::BitNot | TokenKind::Plus | TokenKind::Minus => Rc::clone(&val_type),
                     _ => unreachable!(),
                 };
 
@@ -266,9 +266,9 @@ impl<'a> ExprHelper<'a> {
                 })
             }
             ExprNodeKind::FunctionCall(func_call) => {
-                let func = self.analyze(func_call.func.as_ref(), expected)?;
+                let func = self.analyze(func_call.func.as_ref(), Rc::clone(&expected))?;
 
-                let fn_type = if let Type::Fn(fn_type) = &func.typ {
+                let fn_type = if let Type::Fn(fn_type) = func.typ.as_ref() {
                     fn_type
                 } else {
                     return Err(Error::NotAFn);
@@ -280,7 +280,7 @@ impl<'a> ExprHelper<'a> {
 
                 let mut args = Vec::new();
                 for (i, arg) in func_call.args.iter().enumerate() {
-                    let val = self.analyze(arg, expected)?;
+                    let val = self.analyze(arg, Rc::clone(&expected))?;
                     let val_type = val.typ.clone();
                     let func_type = fn_type.arguments.get(i).unwrap().typ.clone();
                     if val_type != func_type {
@@ -291,9 +291,9 @@ impl<'a> ExprHelper<'a> {
                 }
 
                 let return_type = if let Some(t) = &fn_type.return_type {
-                    t.as_ref().clone()
+                    Rc::clone(t)
                 } else {
-                    Type::Void
+                    Rc::new(Type::Void)
                 };
 
                 Ok(Expr {
@@ -302,12 +302,12 @@ impl<'a> ExprHelper<'a> {
                         args,
                     }),
                     assignable: false,
-                    typ: return_type.clone(),
+                    typ: return_type,
                 })
             }
             ExprNodeKind::Cast(cast) => {
                 let typ = self.type_helper.get(&cast.target);
-                self.analyze(cast.val.as_ref(), &typ)
+                self.analyze(cast.val.as_ref(), typ)
             }
             ExprNodeKind::Empty => unreachable!(),
         }

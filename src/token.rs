@@ -1,11 +1,11 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 use super::pos::Pos;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
-    pub value: Option<String>,
+    pub value: Option<Rc<String>>,
     pub pos: Pos,
 }
 
@@ -18,8 +18,8 @@ impl Token {
         self.unwrap_value().as_str()
     }
 
-    pub fn clone_value(&self) -> String {
-        self.unwrap_value().clone()
+    pub fn clone_value(&self) -> Rc<String> {
+        Rc::clone(self.value.as_ref().unwrap())
     }
 }
 

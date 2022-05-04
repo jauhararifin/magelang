@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     bytecode::{Instruction, Object, Value, ValueKind},
@@ -12,7 +12,7 @@ use crate::{
 pub struct SimpleCompiler {
     unit: Unit,
 
-    name_to_index: HashMap<String, usize>,
+    name_to_index: HashMap<Rc<String>, usize>,
 }
 
 impl SimpleCompiler {
@@ -30,7 +30,8 @@ impl SimpleCompiler {
         let mut values = Vec::new();
 
         for (id, fn_decl) in self.unit.functions.iter().enumerate() {
-            self.name_to_index.insert(fn_decl.header.name.clone(), id);
+            let name = Rc::clone(&fn_decl.header.name.clone());
+            self.name_to_index.insert(name, id);
         }
 
         for fn_decl in self.unit.functions.iter() {
@@ -87,7 +88,7 @@ impl SimpleCompiler {
     }
 
     fn compile_var(&self, ctx: &mut FnContext, var: &Var) -> Result<Vec<Instruction>, Error> {
-        let name = var.header.name.clone();
+        let name = Rc::clone(&var.header.name);
         ctx.add_symbol(name);
 
         if let Some(value) = &var.value {
@@ -330,7 +331,7 @@ impl SimpleCompiler {
 }
 
 struct FnContext {
-    symbol_tables: Vec<HashMap<String, Symbol>>,
+    symbol_tables: Vec<HashMap<Rc<String>, Rc<Symbol>>>,
     counter: isize,
 }
 
@@ -341,11 +342,11 @@ struct Symbol {
 
 impl FnContext {
     fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
-        let fn_type = &fn_decl.header.typ;
+        let fn_type = &fn_decl.header.fn_type;
         let mut table = HashMap::new();
         for (index, param) in fn_type.arguments.iter().rev().enumerate() {
             let name = param.name.clone();
-            table.insert(name, Symbol { index: index as isize });
+            table.insert(name, Rc::new(Symbol { index: index as isize }));
         }
 
         Ok(Self {
@@ -362,16 +363,19 @@ impl FnContext {
         self.symbol_tables.pop().unwrap().len()
     }
 
-    fn add_symbol(&mut self, name: String) {
+    fn add_symbol(&mut self, name: Rc<String>) {
         let index = self.counter;
-        self.symbol_tables.last_mut().unwrap().insert(name, Symbol { index });
+        self.symbol_tables
+            .last_mut()
+            .unwrap()
+            .insert(name, Rc::new(Symbol { index }));
         self.counter += 1;
     }
 
-    fn find_symbol(&self, name: &str) -> Option<Symbol> {
+    fn find_symbol(&self, name: &String) -> Option<Rc<Symbol>> {
         for block in self.symbol_tables.iter().rev() {
-            if let Some(index) = block.get(name) {
-                return Some(index.clone());
+            if let Some(sym) = block.get(name) {
+                return Some(Rc::clone(sym));
             }
         }
         None
