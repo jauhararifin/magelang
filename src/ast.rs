@@ -29,115 +29,115 @@ impl DeclNode {
 pub struct FnDeclNode {
     pub fn_token: Token,
     pub name: Token,
-    pub header: FnHeader,
-    pub body: Option<BlockStatement>,
+    pub header: FnHeaderNode,
+    pub body: Option<BlockStatementNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FnHeader {
+pub struct FnHeaderNode {
     pub native_token: Option<Token>,
-    pub params: Vec<Param>,
-    pub ret_type: Option<Type>,
+    pub params: Vec<ParamNode>,
+    pub ret_type: Option<TypeNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Var {
+pub struct VarNode {
     pub name: Token,
-    pub typ: Type,
-    pub value: Option<Expr>,
+    pub typ: TypeNode,
+    pub value: Option<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Param {
+pub struct ParamNode {
     pub name: Token,
-    pub typ: Type,
+    pub typ: TypeNode,
 }
 
 #[derive(Debug, Clone)]
-pub enum Type {
+pub enum TypeNode {
     Primitive(Token),
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement {
-    Var(Var),
-    Assign(Assign),
-    Return(Return),
-    If(If),
-    While(While),
-    Block(BlockStatement),
-    Expr(Expr),
+pub enum StatementNode {
+    Var(VarNode),
+    Assign(AssignNode),
+    Return(ReturnNode),
+    If(IfNode),
+    While(WhileNode),
+    Block(BlockStatementNode),
+    Expr(ExprNode),
 }
 
 #[derive(Debug, Clone)]
-pub struct Assign {
-    pub receiver: Expr,
+pub struct AssignNode {
+    pub receiver: ExprNode,
     pub op: Token,
-    pub value: Expr,
+    pub value: ExprNode,
 }
 
 #[derive(Debug, Clone)]
-pub struct Return {
+pub struct ReturnNode {
     pub ret: Token,
-    pub value: Option<Expr>,
+    pub value: Option<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct If {
-    pub cond: Expr,
-    pub body: BlockStatement,
+pub struct IfNode {
+    pub cond: ExprNode,
+    pub body: BlockStatementNode,
 }
 
 #[derive(Debug, Clone)]
-pub struct While {
-    pub cond: Expr,
-    pub body: BlockStatement,
+pub struct WhileNode {
+    pub cond: ExprNode,
+    pub body: BlockStatementNode,
 }
 
 #[derive(Debug, Clone)]
-pub struct Expr {
-    pub kind: ExprKind,
+pub struct ExprNode {
+    pub kind: ExprNodeKind,
     pub pos: Pos,
 }
 
 #[derive(Debug, Clone)]
-pub enum ExprKind {
+pub enum ExprNodeKind {
     Ident(Token),
     IntegerLit(Token),
     FloatLit(Token),
     BoolLit(Token),
-    Binary(Binary),
-    Unary(Unary),
-    FunctionCall(FunctionCall),
-    Cast(Cast),
+    Binary(BinaryNode),
+    Unary(UnaryNode),
+    FunctionCall(FunctionCallNode),
+    Cast(CastNode),
 }
 
 #[derive(Debug, Clone)]
-pub struct Binary {
+pub struct BinaryNode {
     pub op: Token,
-    pub a: Box<Expr>,
-    pub b: Box<Expr>,
+    pub a: Box<ExprNode>,
+    pub b: Box<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Unary {
+pub struct UnaryNode {
     pub op: Token,
-    pub val: Box<Expr>,
+    pub val: Box<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FunctionCall {
-    pub func: Box<Expr>,
-    pub args: Vec<Expr>,
+pub struct FunctionCallNode {
+    pub func: Box<ExprNode>,
+    pub args: Vec<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Cast {
-    pub target: Type,
-    pub val: Box<Expr>,
+pub struct CastNode {
+    pub target: TypeNode,
+    pub val: Box<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct BlockStatement {
-    pub body: Vec<Statement>,
+pub struct BlockStatementNode {
+    pub body: Vec<StatementNode>,
 }

@@ -86,9 +86,9 @@ impl<'a> UnitAnalyzer<'a> {
         Ok(results)
     }
 
-    fn analyze_stmt(&mut self, stmt: &'a ast::Statement, ftype: &FnType) -> Result<Statement, Error> {
+    fn analyze_stmt(&mut self, stmt: &'a ast::StatementNode, ftype: &FnType) -> Result<Statement, Error> {
         match stmt {
-            ast::Statement::Var(stmt) => {
+            ast::StatementNode::Var(stmt) => {
                 let name = String::from(stmt.name.unwrap_str());
                 if self.expr_helper.find_symbol(&name).is_some() {
                     return Err(Error::RedeclaredSymbol);
@@ -118,7 +118,7 @@ impl<'a> UnitAnalyzer<'a> {
                     value,
                 }))
             }
-            ast::Statement::Assign(stmt) => {
+            ast::StatementNode::Assign(stmt) => {
                 let receiver = self.expr_helper.analyze(&stmt.receiver, &Type::Void)?;
                 if !receiver.assignable {
                     return Err(Error::CannotAssignTo);
@@ -147,7 +147,7 @@ impl<'a> UnitAnalyzer<'a> {
 
                 Ok(Statement::Assign(Assign { receiver, op, value }))
             }
-            ast::Statement::Return(stmt) => {
+            ast::StatementNode::Return(stmt) => {
                 if let Some(expected_ret_type) = &ftype.return_type {
                     if let Some(ret_val) = &stmt.value {
                         let val = self.expr_helper.analyze(&ret_val, &Type::Void)?;
@@ -167,22 +167,22 @@ impl<'a> UnitAnalyzer<'a> {
                     }
                 }
             }
-            ast::Statement::If(stmt) => {
+            ast::StatementNode::If(stmt) => {
                 let cond = self.expr_helper.analyze(&stmt.cond, &Type::Bool)?;
                 let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
                 Ok(Statement::If(If { cond, body }))
             }
-            ast::Statement::While(stmt) => {
+            ast::StatementNode::While(stmt) => {
                 let cond = self.expr_helper.analyze(&stmt.cond, &Type::Bool)?;
                 let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
                 Ok(Statement::While(While { cond, body }))
             }
-            ast::Statement::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
-            ast::Statement::Expr(expr) => Ok(Statement::Expr(self.expr_helper.analyze(expr, &Type::Void)?)),
+            ast::StatementNode::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
+            ast::StatementNode::Expr(expr) => Ok(Statement::Expr(self.expr_helper.analyze(expr, &Type::Void)?)),
         }
     }
 
-    fn analyze_block_stmt(&mut self, stmt: &'a ast::BlockStatement, ftype: &FnType) -> Result<Statement, Error> {
+    fn analyze_block_stmt(&mut self, stmt: &'a ast::BlockStatementNode, ftype: &FnType) -> Result<Statement, Error> {
         let mut body = Vec::new();
         for s in stmt.body.iter() {
             body.push(self.analyze_stmt(s, ftype)?);

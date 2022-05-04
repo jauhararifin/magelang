@@ -73,9 +73,9 @@ impl<'a> ExprHelper<'a> {
             .map(|t| t.clone())
     }
 
-    pub fn analyze(&self, expr: &'a ast::Expr, expected: &Type) -> Result<Expr, Error> {
+    pub fn analyze(&self, expr: &'a ast::ExprNode, expected: &Type) -> Result<Expr, Error> {
         match &expr.kind {
-            ast::ExprKind::Ident(token) => {
+            ast::ExprNodeKind::Ident(token) => {
                 let token_name = token.unwrap_value();
                 let symbol = self.find_symbol(token_name);
 
@@ -89,7 +89,7 @@ impl<'a> ExprHelper<'a> {
                     Err(Error::UndeclaredSymbol)
                 }
             }
-            ast::ExprKind::IntegerLit(val) => {
+            ast::ExprNodeKind::IntegerLit(val) => {
                 if let Type::Int(IntType { signed, size }) = expected {
                     let kind = match (signed, size) {
                         (true, 8) => ExprKind::I8(val.value.as_ref().unwrap().parse().unwrap()),
@@ -115,7 +115,7 @@ impl<'a> ExprHelper<'a> {
                     })
                 }
             }
-            ast::ExprKind::FloatLit(val) => {
+            ast::ExprNodeKind::FloatLit(val) => {
                 if let Type::Float(FloatType { size }) = expected {
                     let kind = match size {
                         32 => ExprKind::F32(val.value.as_ref().unwrap().parse().unwrap()),
@@ -135,12 +135,12 @@ impl<'a> ExprHelper<'a> {
                     })
                 }
             }
-            ast::ExprKind::BoolLit(val) => Ok(Expr {
+            ast::ExprNodeKind::BoolLit(val) => Ok(Expr {
                 kind: ExprKind::Bool(val.kind == TokenKind::True),
                 assignable: false,
                 type_kind: Type::Bool,
             }),
-            ast::ExprKind::Binary(binary) => {
+            ast::ExprNodeKind::Binary(binary) => {
                 let a = self.analyze(binary.a.as_ref(), expected)?;
                 let a_typ = a.type_kind.clone();
 
@@ -230,7 +230,7 @@ impl<'a> ExprHelper<'a> {
                     type_kind: t.clone(),
                 })
             }
-            ast::ExprKind::Unary(unary) => {
+            ast::ExprNodeKind::Unary(unary) => {
                 let val = self.analyze(unary.val.as_ref(), expected)?;
                 let val_type = val.type_kind.clone();
 
@@ -265,7 +265,7 @@ impl<'a> ExprHelper<'a> {
                     type_kind: t,
                 })
             }
-            ast::ExprKind::FunctionCall(func_call) => {
+            ast::ExprNodeKind::FunctionCall(func_call) => {
                 let func = self.analyze(func_call.func.as_ref(), expected)?;
 
                 let fn_type = if let Type::Fn(fn_type) = &func.type_kind {
@@ -305,7 +305,7 @@ impl<'a> ExprHelper<'a> {
                     type_kind: return_type.clone(),
                 })
             }
-            ast::ExprKind::Cast(cast) => {
+            ast::ExprNodeKind::Cast(cast) => {
                 let typ = self.type_helper.get(&cast.target);
                 self.analyze(cast.val.as_ref(), &typ)
             }

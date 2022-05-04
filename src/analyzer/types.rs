@@ -13,13 +13,13 @@ impl TypeHelper {
 }
 
 impl TypeHelper {
-    pub fn get(&self, typ: &ast::Type) -> Type {
+    pub fn get(&self, typ: &ast::TypeNode) -> Type {
         match &typ {
-            ast::Type::Primitive(token) => self.get_type_kind_from_primitive(token),
+            ast::TypeNode::Primitive(token) => self.get_type_kind_from_primitive(token),
         }
     }
 
-    pub fn get_fn(&self, header: &ast::FnHeader) -> Type {
+    pub fn get_fn(&self, header: &ast::FnHeaderNode) -> Type {
         let mut arguments = Vec::new();
 
         for (index, arg) in header.params.iter().enumerate() {

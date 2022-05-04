@@ -13,7 +13,7 @@ pub enum Error {
     Io(io::Error),
     // parser error
     UnexpectedToken { expected: Vec<TokenKind>, found: Token },
-    UnexpectedStructType { expr: ast::Expr },
+    UnexpectedStructType { expr: ast::ExprNode },
     // analyzer
     EmptyPackage,
     MissingPackage,
