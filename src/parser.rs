@@ -3,7 +3,7 @@ use crate::ast::{
     Return, Root, Statement, Type, Unary, Var, While,
 };
 use crate::errors::Error;
-use crate::lexer::Lexer;
+use crate::lexer::ILexer;
 use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
 
@@ -11,7 +11,7 @@ pub trait Parser {
     fn parse(&mut self) -> std::result::Result<Root, Error>;
 }
 
-pub struct SimpleParser<T: Lexer> {
+pub struct SimpleParser<T: ILexer> {
     lexer: T,
     stack: Vec<ParsingState>,
 }
@@ -114,7 +114,7 @@ enum Ast {
     Empty,
 }
 
-impl<T: Lexer> SimpleParser<T> {
+impl<T: ILexer> SimpleParser<T> {
     pub fn new(lexer: T) -> Self {
         Self {
             lexer,
@@ -906,7 +906,7 @@ impl<T: Lexer> SimpleParser<T> {
     }
 }
 
-impl<T: Lexer> Parser for SimpleParser<T> {
+impl<T: ILexer> Parser for SimpleParser<T> {
     fn parse(&mut self) -> std::result::Result<Root, Error> {
         self.stack.push(ParsingState::Root);
 

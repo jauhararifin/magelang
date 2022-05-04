@@ -7,12 +7,12 @@ use unicode_reader::CodePoints;
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub trait Lexer {
+pub trait ILexer {
     fn next(&mut self) -> Result<Token>;
     fn peek(&mut self) -> Result<&Token>;
 }
 
-pub struct SimpleLexer<R: Read> {
+pub struct Lexer<R: Read> {
     reader: CodePoints<Bytes<R>>,
 
     current_line: usize,
@@ -29,7 +29,7 @@ struct CharPos {
     pos: Pos,
 }
 
-impl<R: Read> SimpleLexer<R> {
+impl<R: Read> Lexer<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader: CodePoints::from(reader),
@@ -42,7 +42,27 @@ impl<R: Read> SimpleLexer<R> {
             token_eoi: None,
         }
     }
+}
 
+impl<T: Read> ILexer for Lexer<T> {
+    fn next(&mut self) -> Result<Token> {
+        self.advance()?;
+        if let Some(token) = self.tokens.pop_front() {
+            return Ok(token);
+        }
+        Ok(self.token_eoi.as_ref().unwrap().clone())
+    }
+
+    fn peek(&mut self) -> Result<&Token> {
+        self.advance()?;
+        if let Some(token) = self.tokens.front() {
+            return Ok(token);
+        }
+        Ok(self.token_eoi.as_ref().unwrap())
+    }
+}
+
+impl<R: Read> Lexer<R> {
     fn advance(&mut self) -> Result<()> {
         if let Some(_) = self.token_eoi {
             return Ok(());
@@ -322,24 +342,6 @@ impl<R: Read> SimpleLexer<R> {
     }
 }
 
-impl<T: Read> Lexer for SimpleLexer<T> {
-    fn next(&mut self) -> Result<Token> {
-        self.advance()?;
-        if let Some(token) = self.tokens.pop_front() {
-            return Ok(token);
-        }
-        Ok(self.token_eoi.as_ref().unwrap().clone())
-    }
-
-    fn peek(&mut self) -> Result<&Token> {
-        self.advance()?;
-        if let Some(token) = self.tokens.front() {
-            return Ok(token);
-        }
-        Ok(self.token_eoi.as_ref().unwrap())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -357,7 +359,7 @@ mod tests {
             }
             "#
         .as_bytes();
-        let mut lexer = SimpleLexer::new(simple_fn);
+        let mut lexer = Lexer::new(simple_fn);
 
         let result = lexer.next().unwrap();
         assert_eq!(

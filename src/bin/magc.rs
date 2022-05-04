@@ -1,6 +1,6 @@
 use magelang::analyzer::{analyze_root, HeaderCompiler};
 use magelang::compiler::SimpleCompiler;
-use magelang::lexer::SimpleLexer;
+use magelang::lexer::Lexer;
 use magelang::linker::Linker;
 use magelang::parser::{Parser, SimpleParser};
 use magelang::vm::Executor;
@@ -17,7 +17,7 @@ fn main() {
 
     let file_name = args.get(1).unwrap();
     let f = File::open(file_name).unwrap();
-    let lexer = SimpleLexer::new(f);
+    let lexer = Lexer::new(f);
     let mut parser = SimpleParser::new(lexer);
     let root_ast = parser.parse().unwrap();
     let header_compiler = HeaderCompiler::new();
