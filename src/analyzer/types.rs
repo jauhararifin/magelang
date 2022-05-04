@@ -19,6 +19,10 @@ impl<'a> AstContext<'a> {
             .collect();
         Self { imports }
     }
+
+    pub fn get(&self, name: &'a str) -> Option<&'a str> {
+        self.imports.get(name).map(|f| *f)
+    }
 }
 
 pub struct TypeHelper {

@@ -15,5 +15,6 @@ fn main() {
     var a: i64 = 98
     var b: i64 = 14
     var c: i64 = gcd(a, b)
+    debug.print_int(c)
 }
 

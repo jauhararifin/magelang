@@ -185,7 +185,7 @@ impl HeaderCompiler {
                 name: String::from(var.name.unwrap_str()),
             };
 
-            if expr_helper.find_symbol(&name).is_some() {
+            if expr_helper.find_symbol(ctx, &name).is_some() {
                 return Err(Error::RedeclaredSymbol);
             }
 
@@ -231,7 +231,7 @@ impl HeaderCompiler {
                 name: String::from(func.name.unwrap_str()),
             };
 
-            if expr_helper.find_symbol(&name).is_some() {
+            if expr_helper.find_symbol(ctx, &name).is_some() {
                 return Err(Error::RedeclaredSymbol);
             }
 

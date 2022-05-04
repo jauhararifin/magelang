@@ -78,8 +78,25 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
             .insert(symbol.name.clone(), symbol);
     }
 
-    pub fn find_symbol(&self, name: &Name) -> Option<&Symbol> {
-        self.symbol_table.iter().rev().find_map(|table| table.get(name))
+    pub fn find_symbol(&self, ctx: &AstContext, name: &Name) -> Option<Symbol> {
+        let result = self.symbol_table.iter().rev().find_map(|table| table.get(name));
+        if result.is_some() {
+            return Some(result.unwrap().clone())
+        }
+
+        if self.package_name == name.package {
+            let pkg = ctx.get(name.name.as_str());
+            if let Some(pkg) = pkg {
+                Some(Symbol {
+                    name: name.clone(),
+                    type_kind: TypeKind::Package(String::from(pkg)),
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn analyze(
@@ -96,7 +113,7 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                     package: String::from(self.package_name),
                     name: String::from(token_name),
                 };
-                let symbol = self.find_symbol(&name);
+                let symbol = self.find_symbol(ctx, &name);
 
                 if let Some(sym) = symbol {
                     Ok(Expr {
@@ -387,6 +404,11 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
             }
             ast::ExprKind::Selector(selector) => {
                 let val = self.analyze(ctx, selector.source.as_ref(), expected, is_global_var)?;
+
+                if let TypeKind::Package(s) = &val.type_kind {
+                    todo!();
+                }
+
                 if let TypeKind::Struct(strct) = &val.type_kind {
                     if let Some(field) = strct.fields.get(selector.selection.value.as_ref().unwrap()) {
                         Ok(Expr {
@@ -399,10 +421,10 @@ impl<'a, 'b> ExprHelper<'a, 'b> {
                             type_kind: field.type_kind.clone(),
                         })
                     } else {
-                        Err(Error::NotAStruct)
+                        Err(Error::UndeclaredField)
                     }
                 } else {
-                    Err(Error::NotAStruct)
+                    todo!("asdf {:?}", selector);
                 }
             }
         }
