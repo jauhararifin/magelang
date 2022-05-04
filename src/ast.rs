@@ -78,18 +78,20 @@ pub struct AssignNode {
 
 #[derive(Debug, Clone)]
 pub struct ReturnNode {
-    pub ret: Token,
+    pub return_token: Token,
     pub value: Option<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
 pub struct IfNode {
+    pub if_token: Token,
     pub cond: ExprNode,
     pub body: BlockStatementNode,
 }
 
 #[derive(Debug, Clone)]
 pub struct WhileNode {
+    pub while_token: Token,
     pub cond: ExprNode,
     pub body: BlockStatementNode,
 }
@@ -102,6 +104,7 @@ pub struct ExprNode {
 
 #[derive(Debug, Clone)]
 pub enum ExprNodeKind {
+    Empty,
     Ident(Token),
     IntegerLit(Token),
     FloatLit(Token),
@@ -114,8 +117,8 @@ pub enum ExprNodeKind {
 
 #[derive(Debug, Clone)]
 pub struct BinaryNode {
-    pub op: Token,
     pub a: Box<ExprNode>,
+    pub op: Token,
     pub b: Box<ExprNode>,
 }
 
@@ -133,8 +136,9 @@ pub struct FunctionCallNode {
 
 #[derive(Debug, Clone)]
 pub struct CastNode {
-    pub target: TypeNode,
     pub val: Box<ExprNode>,
+    pub as_token: Token,
+    pub target: TypeNode,
 }
 
 #[derive(Debug, Clone)]

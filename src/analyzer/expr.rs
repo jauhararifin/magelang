@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use crate::{
     ast,
@@ -309,6 +309,7 @@ impl<'a> ExprHelper<'a> {
                 let typ = self.type_helper.get(&cast.target);
                 self.analyze(cast.val.as_ref(), &typ)
             }
+            ast::ExprNodeKind::Empty => unreachable!(),
         }
     }
 }
