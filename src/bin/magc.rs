@@ -1,6 +1,7 @@
 use magelang::analyzer::{analyze_root, HeaderCompiler};
 use magelang::compiler::SimpleCompiler;
 use magelang::lexer::SimpleLexer;
+use magelang::linker::Linker;
 use magelang::parser::{Parser, SimpleParser};
 use std::env;
 use std::fs::File;
@@ -27,5 +28,9 @@ fn main() {
     let mut compiler = SimpleCompiler::new(unit);
     let object = compiler.compile().unwrap();
 
-    println!("{:?}", object);
+    let linker = Linker::new();
+    let objects = vec![object];
+    let program = linker.link(&objects[..]).unwrap();
+
+    println!("{:?}", program);
 }

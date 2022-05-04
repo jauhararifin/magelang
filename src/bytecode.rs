@@ -12,7 +12,7 @@ pub struct Object {
     pub values: Vec<Value>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Value {
     pub id: usize, // filled in runtime
     pub kind: ValueKind,
@@ -24,7 +24,7 @@ impl Value {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ValueKind {
     I8(i8),
     I16(i16),
@@ -43,11 +43,12 @@ pub enum ValueKind {
     Ptr(usize), // pointer to a value, doesn't have to be in heap. the value itself can be function.
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instruction {
     Constant(Value), // push constant value to stack.
 
     // number operations
+    // TODO: use variant.
     Add,
     Sub,
     Div,
@@ -82,7 +83,7 @@ pub enum Instruction {
     GetLocal(isize), // push the n-th local value to stack.
 
     SetGlobal(usize),
-    GetGlobal(usize),
+    GetGlobal(usize), // if primitive, copy the value. otherwise, use ptr.
 
     // pop stack, and get n-th prop.
     GetProp(usize),

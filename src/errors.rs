@@ -30,6 +30,7 @@ pub enum Error {
     FnCallArgNumMismatch,
     CannotAssignTo,
     MissingReturnValue,
+    MissingMain,
 }
 
 impl From<io::Error> for Error {
