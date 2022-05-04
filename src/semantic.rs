@@ -61,6 +61,14 @@ impl Type {
             panic!("type is not a function type")
         }
     }
+
+    pub fn try_unwrap_func(&self) -> Option<&Rc<FnType>> {
+        if let Type::Fn(f) = self {
+            Some(f)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -73,14 +81,27 @@ impl IntType {
     pub fn signed(size: u8) -> Self {
         Self { signed: true, size }
     }
+
     pub fn unsigned(size: u8) -> Self {
         Self { signed: false, size }
+    }
+}
+
+impl Into<Type> for IntType {
+    fn into(self) -> Type {
+        Type::Int(self)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FloatType {
     pub size: u8,
+}
+
+impl Into<Type> for FloatType {
+    fn into(self) -> Type {
+        Type::Float(self)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -260,6 +281,12 @@ pub enum UnaryOp {
 pub struct FunctionCall {
     pub func: Box<Expr>,
     pub args: Vec<Expr>,
+}
+
+impl Into<ExprKind> for FunctionCall {
+    fn into(self) -> ExprKind {
+        ExprKind::FunctionCall(self)
+    }
 }
 
 #[derive(Debug, Clone)]

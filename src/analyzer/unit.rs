@@ -56,12 +56,12 @@ impl<'a> UnitAnalyzer<'a> {
             let name = fn_decl.name.clone_value();
 
             let func_symbol = self.expr_helper.find_symbol(&name).unwrap();
-            let typ = Rc::clone(&func_symbol.typ);
+            let typ = func_symbol.typ.clone();
             let ftype = typ.unwrap_func();
 
             for arg in ftype.arguments.iter() {
                 self.expr_helper.add_symbol(Rc::new(Symbol {
-                    name: Rc::clone(&arg.name),
+                    name: arg.name.clone(),
                     typ: arg.typ.clone(),
                 }));
             }
@@ -78,8 +78,8 @@ impl<'a> UnitAnalyzer<'a> {
                 header: FnHeader {
                     name,
                     native,
-                    fn_type: Rc::clone(&ftype),
-                    typ: Rc::clone(&typ),
+                    fn_type: ftype.clone(),
+                    typ: typ.clone(),
                 },
                 body: statement,
             });
@@ -101,7 +101,7 @@ impl<'a> UnitAnalyzer<'a> {
 
                 let typ = self.type_helper.get(&stmt.typ);
                 let value = if let Some(val) = &stmt.value {
-                    let value = self.expr_helper.analyze(val, Rc::clone(&typ))?;
+                    let value = self.expr_helper.analyze(val, typ.clone())?;
                     if &value.typ != &typ {
                         return Err(Error::MismatchType);
                     }
@@ -111,8 +111,8 @@ impl<'a> UnitAnalyzer<'a> {
                 };
 
                 self.expr_helper.add_symbol(Rc::new(Symbol {
-                    name: Rc::clone(&name),
-                    typ: Rc::clone(&typ),
+                    name: name.clone(),
+                    typ: typ.clone(),
                 }));
 
                 Ok(Statement::Var(Var {
@@ -126,7 +126,7 @@ impl<'a> UnitAnalyzer<'a> {
                     return Err(Error::CannotAssignTo);
                 }
 
-                let value = self.expr_helper.analyze(&stmt.value, Rc::clone(&receiver.typ))?;
+                let value = self.expr_helper.analyze(&stmt.value, receiver.typ.clone())?;
 
                 if value.typ != receiver.typ {
                     return Err(Error::MismatchType);

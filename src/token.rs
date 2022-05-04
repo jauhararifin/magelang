@@ -19,7 +19,7 @@ impl Token {
     }
 
     pub fn clone_value(&self) -> Rc<String> {
-        Rc::clone(self.value.as_ref().unwrap())
+        self.value.as_ref().unwrap().clone()
     }
 }
 

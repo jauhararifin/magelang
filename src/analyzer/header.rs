@@ -42,8 +42,8 @@ impl IHeaderCompiler for HeaderCompiler {
             functions.push(FnHeader {
                 name: name.clone(),
                 native: fn_type.native,
-                fn_type: Rc::clone(fn_type),
-                typ: Rc::clone(&typ),
+                fn_type: fn_type.clone(),
+                typ: typ.clone(),
             });
 
             expr_helper.add_symbol(Rc::new(Symbol { name, typ }));

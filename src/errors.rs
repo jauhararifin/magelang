@@ -1,8 +1,8 @@
-use std::io;
+use std::{io, num::{ParseIntError, ParseFloatError}, rc::Rc};
 
 use crate::{
     pos::Pos,
-    token::{Token, TokenKind},
+    token::{Token, TokenKind}, semantic::{Type, Expr},
 };
 
 #[derive(Debug)]
@@ -16,6 +16,10 @@ pub enum Error {
     UnexpectedToken { expected: Vec<TokenKind>, found: Token },
 
     // analyzer
+    InvalidIntLit { token: Token, err: ParseIntError },
+    InvalidFloatLit { token: Token, err: ParseFloatError },
+    CannotCast { pos: Pos, expr: Expr, target_type: Rc<Type> },
+
     UndeclaredSymbol,
     RedeclaredSymbol,
     MismatchType,
@@ -31,3 +35,4 @@ impl From<io::Error> for Error {
         Error::Io(err)
     }
 }
+
