@@ -1,5 +1,0 @@
-package "debug"
-
-var jauhar: i32 = 10
-
-fn native print_int(val: i32)

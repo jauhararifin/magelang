@@ -35,8 +35,6 @@ impl fmt::Debug for Token {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TokenKind {
-    Package,
-    Import,
     // keywords
     Fn,
     Native,
@@ -44,16 +42,11 @@ pub enum TokenKind {
     If,
     While,
     Return,
-    Type,
-    Struct,
-    Tuple,
-    Continue,
-    Break,
     // constant
     Ident,
-    StringLit,
     IntegerLit,
     FloatLit,
+    StringLit, // not used yet.
     True,
     False,
     // symbols
@@ -76,7 +69,6 @@ pub enum TokenKind {
     Eoi,
     Comma,
     Colon,
-    Dot,
     As,
     // operators
     Plus,

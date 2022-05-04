@@ -1,47 +1,18 @@
 use std::collections::HashMap;
 
 use crate::{
-    bytecode::{Instruction, Program, Value},
+    bytecode::{Instruction, Object, Value, ValueKind},
     errors::Error,
-    mangler::mangle_function,
-    parser,
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Name, Return,
-        Selector, Statement, Type, Unit, Var, While,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Selector,
+        Statement, Type, Unit, Var, While,
     },
 };
 
-pub trait Compiler {
-    fn compile(&mut self) -> Result<Program, Error>;
-}
-
-// #[derive(Debug)]
-// pub enum Error {
-//     ParseError(parser::Error),
-//     RedeclaredSymbol(Token),
-//     UndeclaredSymbol(Token),
-//     CannotAssignToFunction(Token),
-//     ReturnOnVoidFunc(Pos),
-//     MissingReturnValue(Pos),
-//     MissingMain,
-// }
-
-// impl From<parser::Error> for Error {
-//     fn from(err: parser::Error) -> Self {
-//         Error::ParseError(err)
-//     }
-// }
-
-// TODO (jauhararifin): refactor this into non-recursive implementation.
 pub struct SimpleCompiler {
     unit: Unit,
 
-    values: Vec<Value>,
-    name_to_value_index: HashMap<String, usize>,
-    // value_counter: usize,
-    functions: Vec<Value>,
-    name_to_func_index: HashMap<String, usize>,
-    function_counter: usize,
+    name_to_index: HashMap<String, usize>,
 }
 
 impl SimpleCompiler {
@@ -49,14 +20,27 @@ impl SimpleCompiler {
         Self {
             unit,
 
-            values: Vec::new(),
-            name_to_value_index: HashMap::new(),
-            // value_counter: 0,
-
-            functions: Vec::new(),
-            name_to_func_index: HashMap::new(),
-            function_counter: 0,
+            name_to_index: HashMap::new(),
         }
+    }
+}
+
+impl SimpleCompiler {
+    pub fn compile(&mut self) -> Result<Object, Error> {
+        let mut values = Vec::new();
+
+        for (id, fn_decl) in self.unit.functions.iter().enumerate() {
+            self.name_to_index.insert(fn_decl.header.name.clone(), id);
+        }
+
+        for fn_decl in self.unit.functions.iter() {
+            values.push(self.compile_func(fn_decl)?);
+        }
+
+        Ok(Object {
+            symbol_table: std::mem::take(&mut self.name_to_index),
+            values,
+        })
     }
 
     fn compile_func(&self, fn_decl: &FnDecl) -> Result<Value, Error> {
@@ -64,12 +48,15 @@ impl SimpleCompiler {
         let mut ctx = FnContext::new(&fn_decl)?;
 
         if fn_decl.header.native {
-            instructions.push(Instruction::CallNative(mangle_function(&fn_decl.header.name)));
+            instructions.push(Instruction::CallNative(fn_decl.header.name.clone()));
         } else {
             instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap())?);
         }
 
-        Ok(Value::Fn(instructions))
+        Ok(Value {
+            id: 0,
+            kind: ValueKind::Fn(instructions),
+        })
     }
 
     fn compile_statement(&self, ctx: &mut FnContext, expr: &Statement) -> Result<Vec<Instruction>, Error> {
@@ -81,8 +68,6 @@ impl SimpleCompiler {
             Statement::If(stmt) => self.compile_if(ctx, stmt),
             Statement::While(stmt) => self.compile_while(ctx, stmt),
             Statement::Expr(expr) => self.compile_expr_stmt(ctx, expr),
-            Statement::Continue => todo!(),
-            Statement::Break => todo!(),
         }
     }
 
@@ -101,13 +86,13 @@ impl SimpleCompiler {
     }
 
     fn compile_var(&self, ctx: &mut FnContext, var: &Var) -> Result<Vec<Instruction>, Error> {
-        let name = var.header.clone();
+        let name = var.header.name.clone();
         ctx.add_symbol(name);
 
         if let Some(value) = &var.value {
             self.compile_expr(ctx, value)
         } else {
-            Ok(vec![Instruction::Constant(self.empty_value(&var.header.typ)?)])
+            Ok(vec![Instruction::Constant(self.empty_value(&var.header.type_kind)?)])
         }
     }
 
@@ -143,7 +128,6 @@ impl SimpleCompiler {
     fn compile_assign_receiver(&self, ctx: &mut FnContext, expr: &Expr) -> Result<Vec<Instruction>, Error> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_assign_ident_expr(ctx, name),
-            ExprKind::Selector(selector) => self.compile_assign_selector_expr(ctx, &selector),
             _ => unreachable!(),
         }
     }
@@ -151,7 +135,7 @@ impl SimpleCompiler {
     fn compile_assign_ident_expr(&self, ctx: &mut FnContext, name: &String) -> Result<Vec<Instruction>, Error> {
         if let Some(index_type) = ctx.find_symbol(name) {
             Ok(vec![Instruction::SetLocal(index_type.index)])
-        } else if let Some(index) = self.name_to_value_index.get(name) {
+        } else if let Some(index) = self.name_to_index.get(name) {
             Ok(vec![Instruction::SetGlobal(index.clone())])
         } else {
             unreachable!();
@@ -228,34 +212,47 @@ impl SimpleCompiler {
     fn compile_expr(&self, ctx: &FnContext, expr: &Expr) -> Result<Vec<Instruction>, Error> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_ident(ctx, name),
-            ExprKind::I8(val) => Ok(vec![Instruction::Constant(Value::I8(val.clone()))]),
-            ExprKind::I16(val) => Ok(vec![Instruction::Constant(Value::I16(val.clone()))]),
-            ExprKind::I32(val) => Ok(vec![Instruction::Constant(Value::I32(val.clone()))]),
-            ExprKind::I64(val) => Ok(vec![Instruction::Constant(Value::I64(val.clone()))]),
-            ExprKind::U8(val) => Ok(vec![Instruction::Constant(Value::U8(val.clone()))]),
-            ExprKind::U16(val) => Ok(vec![Instruction::Constant(Value::U16(val.clone()))]),
-            ExprKind::U32(val) => Ok(vec![Instruction::Constant(Value::U32(val.clone()))]),
-            ExprKind::U64(val) => Ok(vec![Instruction::Constant(Value::U64(val.clone()))]),
-            ExprKind::F32(val) => Ok(vec![Instruction::Constant(Value::F32(val.clone()))]),
-            ExprKind::F64(val) => Ok(vec![Instruction::Constant(Value::F64(val.clone()))]),
-            ExprKind::Bool(val) => Ok(vec![Instruction::Constant(Value::Bool(val.clone()))]),
-            ExprKind::String(_) => todo!(),
-            ExprKind::Struct(_) => todo!(),
+            ExprKind::I8(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I8(val.clone())))]),
+            ExprKind::I16(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I16(
+                val.clone(),
+            )))]),
+            ExprKind::I32(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I32(
+                val.clone(),
+            )))]),
+            ExprKind::I64(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I64(
+                val.clone(),
+            )))]),
+            ExprKind::U8(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U8(val.clone())))]),
+            ExprKind::U16(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U16(
+                val.clone(),
+            )))]),
+            ExprKind::U32(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U32(
+                val.clone(),
+            )))]),
+            ExprKind::U64(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U64(
+                val.clone(),
+            )))]),
+            ExprKind::F32(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::F32(
+                val.clone(),
+            )))]),
+            ExprKind::F64(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::F64(
+                val.clone(),
+            )))]),
+            ExprKind::Bool(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::Bool(
+                val.clone(),
+            )))]),
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
             ExprKind::Unary(_) => todo!(),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
             ExprKind::Cast(_) => todo!(),
-            ExprKind::Selector(_) => todo!(),
         }
     }
 
     fn compile_ident(&self, ctx: &FnContext, name: &String) -> Result<Vec<Instruction>, Error> {
         if let Some(index_type) = ctx.find_symbol(name) {
             Ok(vec![Instruction::GetLocal(index_type.index)])
-        } else if let Some(index) = self.name_to_value_index.get(name) {
+        } else if let Some(index) = self.name_to_index.get(name) {
             Ok(vec![Instruction::GetGlobal(index.clone())])
-        } else if let Some(index) = self.name_to_func_index.get(name) {
-            Ok(vec![Instruction::Constant(Value::Fn(index.clone()))])
         } else {
             unreachable!();
         }
@@ -303,60 +300,33 @@ impl SimpleCompiler {
     }
 
     fn empty_value(&self, typ: &Type) -> Result<Value, Error> {
-        Ok(match &*typ.borrow() {
-            ConcreteType::Int(int_type) => match (int_type.signed, int_type.size) {
-                (true, 8) => Value::I8(0),
-                (true, 16) => Value::I16(0),
-                (true, 32) => Value::I32(0),
-                (true, 64) => Value::I64(0),
-                (false, 8) => Value::U8(0),
-                (false, 16) => Value::U16(0),
-                (false, 32) => Value::U32(0),
-                (false, 64) => Value::U64(0),
+        Ok(match typ {
+            Type::Int(int_type) => match (int_type.signed, int_type.size) {
+                (true, 8) => Value::constant(ValueKind::I8(0)),
+                (true, 16) => Value::constant(ValueKind::I16(0)),
+                (true, 32) => Value::constant(ValueKind::I32(0)),
+                (true, 64) => Value::constant(ValueKind::I64(0)),
+                (false, 8) => Value::constant(ValueKind::U8(0)),
+                (false, 16) => Value::constant(ValueKind::U16(0)),
+                (false, 32) => Value::constant(ValueKind::U32(0)),
+                (false, 64) => Value::constant(ValueKind::U64(0)),
                 _ => unreachable!(),
             },
-            ConcreteType::Float(float_type) => match float_type.size {
-                32 => Value::F32(0.0),
-                64 => Value::F64(0.0),
+            Type::Float(float_type) => match float_type.size {
+                32 => Value::constant(ValueKind::F32(0.0)),
+                64 => Value::constant(ValueKind::F64(0.0)),
                 _ => unreachable!(),
             },
-            ConcreteType::Bool => Value::Bool(false),
-            ConcreteType::Void => Value::Void,
-            ConcreteType::Fn(_) => todo!(),
-            ConcreteType::Struct(_) => todo!(),
+            Type::Bool => Value::constant(ValueKind::Bool(false)),
+            Type::Void => Value::constant(ValueKind::Void),
+            Type::Fn(_) => todo!(),
             _ => unreachable!(),
         })
     }
 }
 
-impl Compiler for SimpleCompiler {
-    fn compile(&mut self) -> Result<Program, Error> {
-        for var_decl in self.unit.var_declarations.iter() {
-            var_decl.header.name
-        }
-
-        for fn_decl in self.unit.fn_declarations.iter() {
-            let name = fn_decl.header.name.clone();
-            self.name_to_func_index.insert(name, self.function_counter);
-            self.function_counter += 1;
-
-            let func = self.compile_func(fn_decl)?;
-            self.functions.push(func);
-        }
-
-        let main_func = self.name_to_func_index.get("main").ok_or(Error::MissingMain)?;
-
-        Ok(Program {
-            executable: true,
-            values: std::mem::take(&mut self.values),
-            functions: std::mem::take(&mut self.functions),
-            entry_point: main_func.clone(),
-        })
-    }
-}
-
 struct FnContext {
-    symbol_tables: Vec<HashMap<Name, Symbol>>,
+    symbol_tables: Vec<HashMap<String, Symbol>>,
     counter: isize,
 }
 
@@ -367,7 +337,7 @@ struct Symbol {
 
 impl FnContext {
     fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
-        let fn_type = fn_decl.header.typ;
+        let fn_type = &fn_decl.header.typ;
         let mut table = HashMap::new();
         for (i, param) in fn_type.arguments.iter().rev().enumerate() {
             let name = param.name.clone();

@@ -2,37 +2,12 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Header {
-    pub package_name: String,
-
-    pub types: Vec<Type>,
-    pub vars: Vec<VarHeader>,
     pub functions: Vec<FnHeader>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Unit {
-    pub package_name: String,
-
-    pub var_declarations: Vec<Var>,
-    pub fn_declarations: Vec<FnDecl>,
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Name {
-    pub package: String,
-    pub name: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct Var {
-    pub header: VarHeader,
-    pub value: Option<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct VarHeader {
-    pub name: Name,
-    pub type_kind: TypeKind,
+    pub functions: Vec<FnDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,79 +18,42 @@ pub struct FnDecl {
 
 #[derive(Debug, Clone)]
 pub struct FnHeader {
-    pub name: Name,
+    pub name: String,
     pub native: bool,
     pub typ: FnType,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Type {
-    pub name: Option<Name>,
-    pub kind: TypeKind,
-    // add method here.
-}
-
-impl Type {
-    pub fn anon(kind: TypeKind) -> Self {
-        Self { name: None, kind }
-    }
-
-    pub fn invalid() -> Self {
-        Self::anon(TypeKind::Invalid)
-    }
-
-    pub fn is_anonymous(&self) -> bool {
-        self.name.is_none()
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum TypeKind {
-    Invalid,
+pub enum Type {
     Bool,
     Void,
     Int(IntType),
     Float(FloatType),
     Fn(FnType),
-    Struct(Struct),
-    Ptr(Ptr),
-    Package(String),
 }
 
-impl TypeKind {
-    pub fn is_invalid(&self) -> bool {
-        matches!(self, TypeKind::Invalid)
-    }
-
+impl Type {
     pub fn is_number(&self) -> bool {
-        matches!(self, TypeKind::Int(_) | TypeKind::Float(_))
+        matches!(self, Type::Int(_) | Type::Float(_))
     }
 
     pub fn is_int(&self) -> bool {
-        matches!(self, TypeKind::Int(_))
+        matches!(self, Type::Int(_))
     }
 
     pub fn is_bool(&self) -> bool {
-        matches!(self, TypeKind::Bool)
+        matches!(self, Type::Bool)
     }
 
     pub fn is_func(&self) -> bool {
-        matches!(self, TypeKind::Fn(_))
+        matches!(self, Type::Fn(_))
     }
 
     pub fn unwrap_func(&self) -> &FnType {
-        if let TypeKind::Fn(f) = self {
+        if let Type::Fn(f) = self {
             f
         } else {
             panic!("type is not a function type")
-        }
-    }
-
-    pub fn unwrap_struct(&self) -> &Struct {
-        if let TypeKind::Struct(s) = self {
-            s
-        } else {
-            panic!("type is not a struct type")
         }
     }
 }
@@ -144,14 +82,14 @@ pub struct FloatType {
 pub struct FnType {
     pub native: bool,
     pub arguments: Vec<Argument>,
-    pub return_type: Option<Box<TypeKind>>,
+    pub return_type: Option<Box<Type>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Argument {
     pub index: usize,
     pub name: String,
-    pub type_kind: TypeKind,
+    pub type_kind: Type,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -162,12 +100,7 @@ pub struct Struct {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Field {
     pub index: usize,
-    pub type_kind: TypeKind,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Ptr {
-    pub name: Name,
+    pub type_kind: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -179,8 +112,18 @@ pub enum Statement {
     While(While),
     Block(BlockStatement),
     Expr(Expr),
-    Continue,
-    Break,
+}
+
+#[derive(Debug, Clone)]
+pub struct Var {
+    pub header: VarHeader,
+    pub value: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct VarHeader {
+    pub name: String,
+    pub type_kind: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -231,13 +174,12 @@ pub struct BlockStatement {
 pub struct Expr {
     pub kind: ExprKind,
     pub assignable: bool,
-    pub type_kind: TypeKind,
+    pub type_kind: Type,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Ident(String),
-    Package(String),
     I8(i8),
     I16(i16),
     I32(i32),
@@ -249,14 +191,10 @@ pub enum ExprKind {
     F32(f32),
     F64(f64),
     Bool(bool),
-    String(String),
-    Struct(StructLit),
     Binary(Binary),
     Unary(Unary),
     FunctionCall(FunctionCall),
     Cast(Cast),
-    Selector(Selector),
-    // TODO: add struct literal.
 }
 
 #[derive(Debug, Clone)]

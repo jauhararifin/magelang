@@ -6,13 +6,26 @@ pub struct Program {
     pub entry_point: usize,
 }
 
+#[derive(Debug)]
 pub struct Object {
     pub symbol_table: HashMap<String, usize>, // contain the mangled name of the symbols.
     pub values: Vec<Value>,
 }
 
 #[derive(Debug)]
-pub enum Value {
+pub struct Value {
+    pub id: usize, // filled in runtime
+    pub kind: ValueKind,
+}
+
+impl Value {
+    pub fn constant(kind: ValueKind) -> Self {
+        Self{id: 0, kind}
+    }
+}
+
+#[derive(Debug)]
+pub enum ValueKind {
     I8(i8),
     I16(i16),
     I32(i32),

@@ -1,6 +1,6 @@
 use crate::ast::{
-    Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, Field, FnDecl, FnHeader, FunctionCall, If,
-    Import, Param, Return, Root, Selector, Statement, Struct, StructLit, Type, TypeDecl, Unary, Var, While,
+    Assign, Binary, BlockStatement, Cast, Declaration, Expr, ExprKind, FnDecl, FnHeader, FunctionCall, If, Param,
+    Return, Root, Statement, Type, Unary, Var, While,
 };
 use crate::errors::Error;
 use crate::lexer::Lexer;
@@ -20,12 +20,8 @@ pub struct SimpleParser<T: Lexer> {
 enum ParsingState {
     Root,
     RootDecl {
-        package_token: Token,
-        package_name: Token,
-        imports: Vec<Import>,
         declarations: Vec<Declaration>,
     },
-    Import,
     Var,
     VarType {
         name: Token,
@@ -57,14 +53,7 @@ enum ParsingState {
     ParamType {
         name: Token,
     },
-    TypeDecl,
-    TypeDeclType {
-        name: Token,
-    },
     Type,
-    StructType {
-        fields: Vec<Param>,
-    },
     Statement,
     BlockStatement {
         body: Vec<Statement>,
@@ -105,31 +94,16 @@ enum ParsingState {
         func: Expr,
         args: Vec<Expr>,
     },
-    StructLitExpr,
-    StructLitField {
-        typ: Type,
-        pos: Pos,
-        fields: Vec<Field>,
-    },
-    SelectorExpr,
     PrimaryExpr,
-    FieldName,
-    FieldValue {
-        name: Token,
-    },
 }
 
 #[derive(Debug)]
 enum Ast {
     Root(Root),
-    Import(Import),
     FnDecl(FnDecl),
     Var(Var),
-    TypeDecl(TypeDecl),
     Param(Param),
-    Field(Field),
     Type(Type),
-    Struct(Struct),
     Statement(Statement),
     Assign(Assign),
     If(If),
@@ -151,13 +125,7 @@ impl<T: Lexer> SimpleParser<T> {
     fn parse_state(&mut self, state: ParsingState, data: Ast) -> Result<Ast, Error> {
         match state {
             ParsingState::Root => self.parse_root(),
-            ParsingState::RootDecl {
-                package_token,
-                package_name,
-                imports,
-                declarations,
-            } => self.parse_root_decl(package_token, package_name, imports, declarations, data),
-            ParsingState::Import => self.parse_import(),
+            ParsingState::RootDecl { declarations } => self.parse_root_decl(declarations, data),
             ParsingState::Var => self.parse_var(),
             ParsingState::VarType { name } => self.parse_var_type(name, data),
             ParsingState::VarValue { name, typ } => self.parse_var_value(name, typ, data),
@@ -182,10 +150,7 @@ impl<T: Lexer> SimpleParser<T> {
             } => self.parse_fn_body(fn_token, name, params, ret_type, data),
             ParsingState::ParamName => self.parse_param_name(),
             ParsingState::ParamType { name } => self.parse_param_type(name, data),
-            ParsingState::TypeDecl => self.parse_type_decl(),
-            ParsingState::TypeDeclType { name } => self.parse_type_decl_type(name, data),
             ParsingState::Type => self.parse_type(data),
-            ParsingState::StructType { fields } => self.parse_struct_type(fields, data),
             ParsingState::Statement => self.parse_statement(data),
             ParsingState::BlockStatement { body } => self.parse_block_statement(body, data),
             ParsingState::AssignStatement => self.parse_assign_statement(data),
@@ -205,43 +170,21 @@ impl<T: Lexer> SimpleParser<T> {
             ParsingState::BinaryExprOperand { a, op } => self.parse_binary_expr_operand(a, op, data),
             ParsingState::CastExpr => self.parse_cast_expr(data),
             ParsingState::CastExprType { val } => self.parse_cast_expr_type(val, data),
-            ParsingState::SelectorExpr => self.parse_selector_expr(data),
             ParsingState::CallExpr => self.parse_call_expr(data),
             ParsingState::CallExprParams { func, args } => self.parse_call_expr_params(func, args, data),
             ParsingState::PrimaryExpr => self.parse_primary_expr(data),
-            ParsingState::StructLitExpr => self.parse_struct_lit_expr(data),
-            ParsingState::StructLitField { typ, pos, fields } => self.parse_struct_lit_field(typ, pos, fields, data),
-            ParsingState::FieldName => self.parse_field_name(),
-            ParsingState::FieldValue { name } => self.parse_field_value(name, data),
         }
     }
 
     fn parse_root(&mut self) -> Result<Ast, Error> {
         self.consume_endl()?;
-        let package_token = self.expect(TokenKind::Package)?;
-        let package = self.expect(TokenKind::StringLit)?;
-        self.stack.push(ParsingState::RootDecl {
-            package_token,
-            package_name: package,
-            imports: vec![],
-            declarations: vec![],
-        });
+        self.stack.push(ParsingState::RootDecl { declarations: vec![] });
         Ok(Ast::Empty)
     }
 
-    fn parse_root_decl(
-        &mut self,
-        package_token: Token,
-        package_name: Token,
-        mut imports: Vec<Import>,
-        mut declarations: Vec<Declaration>,
-        data: Ast,
-    ) -> Result<Ast, Error> {
+    fn parse_root_decl(&mut self, mut declarations: Vec<Declaration>, data: Ast) -> Result<Ast, Error> {
         match data {
-            Ast::Var(decl) => declarations.push(Declaration::Var(decl)),
-            Ast::Import(import) => imports.push(import),
             Ast::FnDecl(decl) => declarations.push(Declaration::Fn(decl)),
-            Ast::TypeDecl(decl) => declarations.push(Declaration::Type(decl)),
             Ast::Empty => (),
             _ => panic!("got {:?} instead of declaration", data),
         }
@@ -250,50 +193,10 @@ impl<T: Lexer> SimpleParser<T> {
 
         let token = self.lexer.peek()?;
         match token.kind {
-            TokenKind::Eoi => Ok(Ast::Root(Root {
-                package_token,
-                package_name,
-                imports,
-                declarations,
-            })),
-            TokenKind::Import => {
-                self.stack.push(ParsingState::RootDecl {
-                    package_token,
-                    package_name,
-                    imports,
-                    declarations,
-                });
-                self.stack.push(ParsingState::Import);
-                Ok(Ast::Empty)
-            }
+            TokenKind::Eoi => Ok(Ast::Root(Root { declarations })),
             TokenKind::Fn => {
-                self.stack.push(ParsingState::RootDecl {
-                    package_token,
-                    package_name,
-                    imports,
-                    declarations,
-                });
+                self.stack.push(ParsingState::RootDecl { declarations });
                 self.stack.push(ParsingState::FnName);
-                Ok(Ast::Empty)
-            }
-            TokenKind::Var => {
-                self.stack.push(ParsingState::RootDecl {
-                    package_token,
-                    package_name,
-                    imports,
-                    declarations,
-                });
-                self.stack.push(ParsingState::Var);
-                Ok(Ast::Empty)
-            }
-            TokenKind::Type => {
-                self.stack.push(ParsingState::RootDecl {
-                    package_token,
-                    package_name,
-                    imports,
-                    declarations,
-                });
-                self.stack.push(ParsingState::TypeDecl);
                 Ok(Ast::Empty)
             }
             _ => {
@@ -304,17 +207,6 @@ impl<T: Lexer> SimpleParser<T> {
                 })
             }
         }
-    }
-
-    fn parse_import(&mut self) -> Result<Ast, Error> {
-        let import_token = self.expect(TokenKind::Import)?;
-        let name = self.expect(TokenKind::Ident)?;
-        let package_name = self.expect(TokenKind::StringLit)?;
-        Ok(Ast::Import(Import {
-            import_token,
-            name,
-            package_name,
-        }))
     }
 
     fn parse_var(&mut self) -> Result<Ast, Error> {
@@ -525,51 +417,9 @@ impl<T: Lexer> SimpleParser<T> {
         Ok(Ast::Empty)
     }
 
-    fn parse_type_decl(&mut self) -> Result<Ast, Error> {
-        self.expect(TokenKind::Type)?;
-        let name = self.expect(TokenKind::Ident)?;
-        self.stack.push(ParsingState::TypeDeclType { name });
-        Ok(Ast::Empty)
-    }
-
-    fn parse_type_decl_type(&mut self, name: Token, data: Ast) -> Result<Ast, Error> {
-        match data {
-            Ast::Type(typ) => Ok(Ast::TypeDecl(TypeDecl { name, typ })),
-            Ast::Empty => {
-                self.stack.push(ParsingState::TypeDeclType { name });
-                self.stack.push(ParsingState::Type);
-                Ok(Ast::Empty)
-            }
-            _ => panic!("invalid data when parsing type decl type: {:?}", data),
-        }
-    }
-
     fn parse_type(&mut self, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Struct(typ) = data {
-            return Ok(Ast::Type(Type::Struct(typ)));
-        }
-
         let token = self.lexer.peek()?;
         return match &token.kind {
-            TokenKind::Struct => {
-                self.stack.push(ParsingState::Type);
-                self.stack.push(ParsingState::StructType { fields: Vec::new() });
-                Ok(Ast::Empty)
-            }
-            TokenKind::Ident => {
-                let token = self.lexer.next()?;
-
-                if self.check(&TokenKind::Dot)?.is_some() {
-                    let selection = self.expect(TokenKind::Ident)?;
-                    let source = Box::new(Expr {
-                        pos: token.pos.clone(),
-                        kind: ExprKind::Ident(token),
-                    });
-                    Ok(Ast::Type(Type::Selector(Selector { source, selection })))
-                } else {
-                    Ok(Ast::Type(Type::Ident(token)))
-                }
-            }
             TokenKind::I8
             | TokenKind::I16
             | TokenKind::I32
@@ -588,7 +438,6 @@ impl<T: Lexer> SimpleParser<T> {
                 let token = self.lexer.next()?;
                 Err(Error::UnexpectedToken {
                     expected: vec![
-                        TokenKind::Ident,
                         TokenKind::I8,
                         TokenKind::I16,
                         TokenKind::I32,
@@ -600,49 +449,11 @@ impl<T: Lexer> SimpleParser<T> {
                         TokenKind::F32,
                         TokenKind::F64,
                         TokenKind::Bool,
-                        TokenKind::Struct,
                     ],
                     found: token,
                 })
             }
         };
-    }
-
-    fn parse_struct_type(&mut self, mut fields: Vec<Param>, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Param(field) = data {
-            fields.push(field);
-            self.consume_endl()?;
-
-            let is_end = if self.check(&TokenKind::CloseBlock)?.is_some() {
-                true
-            } else {
-                self.expect(TokenKind::Comma)?;
-                self.consume_endl()?;
-                self.check(&TokenKind::CloseBlock)?.is_some()
-            };
-
-            if is_end {
-                return Ok(Ast::Struct(Struct { fields }));
-            } else {
-                self.stack.push(ParsingState::StructType { fields });
-                self.stack.push(ParsingState::ParamName);
-                return Ok(Ast::Empty);
-            }
-        }
-
-        self.expect(TokenKind::Struct)?;
-        self.consume_endl()?;
-
-        self.expect(TokenKind::OpenBlock)?;
-        self.consume_endl()?;
-
-        if self.check(&TokenKind::CloseBlock)?.is_some() {
-            return Ok(Ast::Struct(Struct { fields }));
-        } else {
-            self.stack.push(ParsingState::StructType { fields });
-            self.stack.push(ParsingState::ParamName);
-            return Ok(Ast::Empty);
-        }
     }
 
     fn parse_statement(&mut self, data: Ast) -> Result<Ast, Error> {
@@ -667,8 +478,6 @@ impl<T: Lexer> SimpleParser<T> {
             TokenKind::If => ParsingState::IfStatement,
             TokenKind::Return => ParsingState::ReturnStatement,
             TokenKind::OpenBlock => ParsingState::BlockStatement { body: vec![] },
-            TokenKind::Continue => return Ok(Ast::Statement(Statement::Continue)),
-            TokenKind::Break => return Ok(Ast::Statement(Statement::Break)),
             _ => ParsingState::AssignStatement,
         };
 
@@ -932,25 +741,6 @@ impl<T: Lexer> SimpleParser<T> {
         })
     }
 
-    fn parse_selector_expr(&mut self, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Expr(source) = data {
-            if self.check(&TokenKind::Dot)?.is_some() {
-                let selection = self.expect(TokenKind::Ident)?;
-                Ok(Ast::Expr(Expr {
-                    pos: source.pos,
-                    kind: ExprKind::Selector(Selector {
-                        source: Box::new(source),
-                        selection,
-                    }),
-                }))
-            } else {
-                Ok(Ast::Expr(source))
-            }
-        } else {
-            panic!("invalid data when parsing selector expr: {:?}", data)
-        }
-    }
-
     fn parse_unary_expr(&mut self) -> Result<Ast, Error> {
         if let Some(op) = self.check_one_of(vec![
             TokenKind::Not,
@@ -961,8 +751,6 @@ impl<T: Lexer> SimpleParser<T> {
             self.stack.push(ParsingState::UnaryExprVal { op });
         } else {
             self.stack.push(ParsingState::CallExpr);
-            self.stack.push(ParsingState::StructLitExpr);
-            self.stack.push(ParsingState::SelectorExpr);
             self.stack.push(ParsingState::PrimaryExpr);
         }
         Ok(Ast::Empty)
@@ -1022,70 +810,10 @@ impl<T: Lexer> SimpleParser<T> {
         Ok(Ast::Empty)
     }
 
-    fn parse_struct_lit_expr(&mut self, data: Ast) -> Result<Ast, Error> {
-        let expr = if let Ast::Expr(expr) = data {
-            expr
-        } else {
-            panic!("invalid data when parsing struct lit expr: {:?}", data)
-        };
-
-        if let Some(typ) = self.expr_to_type(&expr) {
-            if self.check(&TokenKind::OpenBlock)?.is_some() {
-                self.stack.push(ParsingState::StructLitField {
-                    typ,
-                    pos: expr.pos,
-                    fields: vec![],
-                });
-                Ok(Ast::Empty)
-            } else {
-                Ok(Ast::Expr(expr))
-            }
-        } else {
-            Ok(Ast::Expr(expr))
-        }
-    }
-
-    fn expr_to_type(&self, type_expr: &Expr) -> Option<Type> {
-        match &type_expr.kind {
-            ExprKind::Ident(ident) => Some(Type::Ident(ident.clone())),
-            ExprKind::Selector(selector) => Some(Type::Selector(selector.clone())),
-            _ => None,
-        }
-    }
-
-    fn parse_struct_lit_field(&mut self, typ: Type, pos: Pos, mut fields: Vec<Field>, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Field(field) = data {
-            fields.push(field);
-        }
-
-        if self.check(&TokenKind::CloseBlock)?.is_some() {
-            return Ok(Ast::Expr(Expr {
-                pos,
-                kind: ExprKind::StructLit(StructLit { typ, fields }),
-            }));
-        }
-
-        self.stack.push(ParsingState::StructLitField { typ, pos, fields });
-        self.stack.push(ParsingState::FieldName);
-
-        Ok(Ast::Empty)
-    }
-
     fn parse_field_name(&mut self) -> Result<Ast, Error> {
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::Colon)?;
         self.stack.push(ParsingState::ParamType { name });
-        Ok(Ast::Empty)
-    }
-
-    fn parse_field_value(&mut self, name: Token, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Expr(value) = data {
-            self.consume_endl()?;
-            self.check(&TokenKind::Comma)?;
-            return Ok(Ast::Field(Field { name, value }));
-        }
-        self.stack.push(ParsingState::FieldValue { name });
-        self.stack.push(ParsingState::Type);
         Ok(Ast::Empty)
     }
 
@@ -1105,10 +833,6 @@ impl<T: Lexer> SimpleParser<T> {
             TokenKind::FloatLit => Ok(Ast::Expr(Expr {
                 pos: token.pos,
                 kind: ExprKind::FloatLit(token),
-            })),
-            TokenKind::StringLit => Ok(Ast::Expr(Expr {
-                pos: token.pos,
-                kind: ExprKind::StringLit(token),
             })),
             TokenKind::True | TokenKind::False => Ok(Ast::Expr(Expr {
                 pos: token.pos,

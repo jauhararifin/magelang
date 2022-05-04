@@ -3,51 +3,15 @@ use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub struct Root {
-    pub package_token: Token,
-    pub package_name: Token,
-    pub imports: Vec<Import>,
     pub declarations: Vec<Declaration>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Import {
-    pub import_token: Token,
-    pub name: Token,
-    pub package_name: Token,
 }
 
 #[derive(Debug, Clone)]
 pub enum Declaration {
     Fn(FnDecl),
-    Var(Var),
-    Type(TypeDecl),
 }
 
 impl Declaration {
-    pub fn try_unwrap_type(&self) -> Option<&TypeDecl> {
-        if let Self::Type(t) = self {
-            Some(t)
-        } else {
-            None
-        }
-    }
-
-    pub fn is_type(&self) -> bool {
-        self.try_unwrap_type().is_some()
-    }
-
-    pub fn try_unwrap_var(&self) -> Option<&Var> {
-        if let Self::Var(t) = self {
-            Some(t)
-        } else {
-            None
-        }
-    }
-
-    pub fn is_var(&self) -> bool {
-        self.try_unwrap_var().is_some()
-    }
-
     pub fn try_unwrap_func(&self) -> Option<&FnDecl> {
         if let Self::Fn(t) = self {
             Some(t)
@@ -84,12 +48,6 @@ pub struct Var {
 }
 
 #[derive(Debug, Clone)]
-pub struct TypeDecl {
-    pub name: Token,
-    pub typ: Type,
-}
-
-#[derive(Debug, Clone)]
 pub struct Param {
     pub name: Token,
     pub typ: Type,
@@ -98,15 +56,6 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub enum Type {
     Primitive(Token),
-    Ident(Token),
-    Struct(Struct),
-    Selector(Selector),
-    // TODO: add tuple.
-}
-
-#[derive(Debug, Clone)]
-pub struct Struct {
-    pub fields: Vec<Param>,
 }
 
 #[derive(Debug, Clone)]
@@ -118,8 +67,6 @@ pub enum Statement {
     While(While),
     Block(BlockStatement),
     Expr(Expr),
-    Continue,
-    Break,
 }
 
 #[derive(Debug, Clone)]
@@ -156,28 +103,13 @@ pub struct Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     Ident(Token),
-    StructLit(StructLit),
     IntegerLit(Token),
     FloatLit(Token),
-    StringLit(Token),
     BoolLit(Token),
     Binary(Binary),
     Unary(Unary),
     FunctionCall(FunctionCall),
     Cast(Cast),
-    Selector(Selector),
-}
-
-#[derive(Debug, Clone)]
-pub struct StructLit {
-    pub typ: Type,
-    pub fields: Vec<Field>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Field {
-    pub name: Token,
-    pub value: Expr,
 }
 
 #[derive(Debug, Clone)]
@@ -203,12 +135,6 @@ pub struct FunctionCall {
 pub struct Cast {
     pub target: Type,
     pub val: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Selector {
-    pub source: Box<Expr>,
-    pub selection: Token,
 }
 
 #[derive(Debug, Clone)]
