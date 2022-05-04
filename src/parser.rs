@@ -6,17 +6,17 @@ use crate::errors::Error;
 use crate::lexer::ILexer;
 use crate::token::{Token, TokenKind};
 
-pub trait Parser {
+pub trait IParser {
     fn parse(&mut self) -> std::result::Result<RootNode, Error>;
 }
 
-pub struct SimpleParser<T: ILexer> {
+pub struct Parser<T: ILexer> {
     lexer: T,
-    stack: Vec<ParsingState>,
+    stack: Vec<State>,
 }
 
 #[derive(Debug)]
-enum ParsingState {
+enum State {
     Root,
     RootDecl {
         declarations: Vec<DeclNode>,
@@ -137,7 +137,7 @@ enum Ast {
     Empty,
 }
 
-impl<T: ILexer> SimpleParser<T> {
+impl<T: ILexer> Parser<T> {
     pub fn new(lexer: T) -> Self {
         Self {
             lexer,
@@ -145,79 +145,79 @@ impl<T: ILexer> SimpleParser<T> {
         }
     }
 
-    fn parse_state(&mut self, state: ParsingState, data: Ast) -> Result<Ast, Error> {
+    fn parse_state(&mut self, state: State, data: Ast) -> Result<Ast, Error> {
         match state {
-            ParsingState::Root => self.parse_root(),
-            ParsingState::RootDecl { declarations } => self.parse_root_decl(declarations, data),
-            ParsingState::Var => self.parse_var(),
-            ParsingState::VarType { name } => self.parse_var_type(name, data),
-            ParsingState::VarValue { name, typ } => self.parse_var_value(name, typ, data),
-            ParsingState::FnName => self.parse_fn_name(),
-            ParsingState::FnParam {
+            State::Root => self.parse_root(),
+            State::RootDecl { declarations } => self.parse_root_decl(declarations, data),
+            State::Var => self.parse_var(),
+            State::VarType { name } => self.parse_var_type(name, data),
+            State::VarValue { name, typ } => self.parse_var_value(name, typ, data),
+            State::FnName => self.parse_fn_name(),
+            State::FnParam {
                 fn_token,
                 name,
                 native_token,
                 params,
             } => self.parse_fn_param(fn_token, name, native_token, params, data),
-            ParsingState::FnReturn {
+            State::FnReturn {
                 fn_token,
                 name,
                 native_token,
                 params,
             } => self.parse_fn_return(fn_token, name, native_token, params, data),
-            ParsingState::FnBody {
+            State::FnBody {
                 fn_token,
                 name,
                 params,
                 ret_type,
             } => self.parse_fn_body(fn_token, name, params, ret_type, data),
-            ParsingState::ParamName => self.parse_param_name(),
-            ParsingState::ParamType { name } => self.parse_param_type(name, data),
-            ParsingState::Type => self.parse_type(),
-            ParsingState::Statement => self.parse_statement(data),
-            ParsingState::BlockStatement { body } => self.parse_block_statement(body, data),
-            ParsingState::AssignStatement => self.parse_assign_statement(data),
-            ParsingState::AssignStatementValue { receiver, op } => {
+            State::ParamName => self.parse_param_name(),
+            State::ParamType { name } => self.parse_param_type(name, data),
+            State::Type => self.parse_type(),
+            State::Statement => self.parse_statement(data),
+            State::BlockStatement { body } => self.parse_block_statement(body, data),
+            State::AssignStatement => self.parse_assign_statement(data),
+            State::AssignStatementValue { receiver, op } => {
                 self.parse_assign_value_statement(receiver, op, data)
             }
-            ParsingState::IfStatement => self.parse_if_statement(),
-            ParsingState::IfStatementCond { if_token } => self.parse_if_statement_cond(if_token, data),
-            ParsingState::IfStatementBody { if_token, cond } => self.parse_if_statement_body(if_token, cond, data),
-            ParsingState::WhileStatement => self.parse_while_statement(),
-            ParsingState::WhileStatementCond { while_token } => self.parse_while_statement_cond(while_token, data),
-            ParsingState::WhileStatementBody { while_token, cond } => {
+            State::IfStatement => self.parse_if_statement(),
+            State::IfStatementCond { if_token } => self.parse_if_statement_cond(if_token, data),
+            State::IfStatementBody { if_token, cond } => self.parse_if_statement_body(if_token, cond, data),
+            State::WhileStatement => self.parse_while_statement(),
+            State::WhileStatementCond { while_token } => self.parse_while_statement_cond(while_token, data),
+            State::WhileStatementBody { while_token, cond } => {
                 self.parse_while_statement_body(while_token, cond, data)
             }
-            ParsingState::ReturnStatement => self.parse_return_statement(),
-            ParsingState::ReturnStatementValue { return_token } => {
+            State::ReturnStatement => self.parse_return_statement(),
+            State::ReturnStatementValue { return_token } => {
                 self.parse_return_value_statement(return_token, data)
             }
-            ParsingState::Expr { allow_empty } => self.parse_expr(allow_empty, data),
-            ParsingState::UnaryExpr { allow_empty } => self.parse_unary_expr(allow_empty),
-            ParsingState::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
-            ParsingState::BinaryExpr { allow_empty } => self.parse_binary_expr(allow_empty, data),
-            ParsingState::BinaryExprOperand { allow_empty, a, op } => {
+            State::Expr { allow_empty } => self.parse_expr(allow_empty, data),
+            State::UnaryExpr { allow_empty } => self.parse_unary_expr(allow_empty),
+            State::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
+            State::BinaryExpr { allow_empty } => self.parse_binary_expr(allow_empty, data),
+            State::BinaryExprOperand { allow_empty, a, op } => {
                 self.parse_binary_expr_operand(allow_empty, a, op, data)
             }
-            ParsingState::CastExpr { allow_empty } => self.parse_cast_expr(allow_empty, data),
-            ParsingState::CastExprType {
+            State::CastExpr { allow_empty } => self.parse_cast_expr(allow_empty, data),
+            State::CastExprType {
                 allow_empty,
                 val,
                 as_token,
             } => self.parse_cast_expr_type(allow_empty, val, as_token, data),
-            ParsingState::CallExpr { allow_empty } => self.parse_call_expr(allow_empty, data),
-            ParsingState::CallExprParams {
+            State::CallExpr { allow_empty } => self.parse_call_expr(allow_empty, data),
+            State::CallExprParams {
                 allow_empty,
                 func,
                 args,
             } => self.parse_call_expr_params(allow_empty, func, args, data),
-            ParsingState::PrimaryExpr { allow_empty } => self.parse_primary_expr(allow_empty, data),
+            State::PrimaryExpr { allow_empty } => self.parse_primary_expr(allow_empty, data),
         }
     }
 
     fn parse_root(&mut self) -> Result<Ast, Error> {
         self.consume_endl()?;
-        self.stack.push(ParsingState::RootDecl { declarations: vec![] });
+        self.stack.push(State::RootDecl { declarations: vec![] });
         Ok(Ast::Empty)
     }
 
@@ -225,7 +225,7 @@ impl<T: ILexer> SimpleParser<T> {
         match data {
             Ast::FnDecl(decl) => declarations.push(DeclNode::Fn(decl)),
             Ast::Empty => (),
-            _ => panic!("got {:?} instead of declaration", data),
+            _ => unreachable!("got {:?} instead of declaration", data),
         }
 
         self.consume_endl()?;
@@ -234,8 +234,8 @@ impl<T: ILexer> SimpleParser<T> {
         match token.kind {
             TokenKind::Eoi => Ok(Ast::Root(RootNode { declarations })),
             TokenKind::Fn => {
-                self.stack.push(ParsingState::RootDecl { declarations });
-                self.stack.push(ParsingState::FnName);
+                self.stack.push(State::RootDecl { declarations });
+                self.stack.push(State::FnName);
                 Ok(Ast::Empty)
             }
             _ => {
@@ -252,34 +252,34 @@ impl<T: ILexer> SimpleParser<T> {
         self.expect(TokenKind::Var)?;
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::Colon)?;
-        self.stack.push(ParsingState::VarType { name });
+        self.stack.push(State::VarType { name });
         Ok(Ast::Empty)
     }
 
     fn parse_var_type(&mut self, name: Token, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Empty => {
-                self.stack.push(ParsingState::VarType { name });
-                self.stack.push(ParsingState::Type);
+                self.stack.push(State::VarType { name });
+                self.stack.push(State::Type);
                 Ast::Empty
             }
             Ast::Type(typ) => {
                 if self.check(&TokenKind::Assign)?.is_some() {
-                    self.stack.push(ParsingState::VarValue { name, typ });
+                    self.stack.push(State::VarValue { name, typ });
                     Ast::Empty
                 } else {
                     Ast::Var(VarNode { name, typ, value: None })
                 }
             }
-            _ => panic!("invalid data when parsing var type statement: {:?}", data),
+            _ => unreachable!("invalid data when parsing var type statement: {:?}", data),
         })
     }
 
     fn parse_var_value(&mut self, name: Token, typ: TypeNode, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Empty => {
-                self.stack.push(ParsingState::VarValue { name, typ });
-                self.stack.push(ParsingState::Expr { allow_empty: false });
+                self.stack.push(State::VarValue { name, typ });
+                self.stack.push(State::Expr { allow_empty: false });
                 Ast::Empty
             }
             Ast::Expr(expr) => Ast::Var(VarNode {
@@ -287,7 +287,7 @@ impl<T: ILexer> SimpleParser<T> {
                 typ,
                 value: Some(expr),
             }),
-            _ => panic!("invalid data when parsing var value statement: {:?}", data),
+            _ => unreachable!("invalid data when parsing var value statement: {:?}", data),
         })
     }
 
@@ -297,7 +297,7 @@ impl<T: ILexer> SimpleParser<T> {
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::OpenBrace)?;
 
-        self.stack.push(ParsingState::FnParam {
+        self.stack.push(State::FnParam {
             fn_token,
             name,
             native_token,
@@ -323,7 +323,7 @@ impl<T: ILexer> SimpleParser<T> {
         if self.check(&TokenKind::CloseBrace)?.is_some() {
             if self.check(&TokenKind::Colon)?.is_none() {
                 if native_token.is_none() {
-                    self.stack.push(ParsingState::FnBody {
+                    self.stack.push(State::FnBody {
                         fn_token,
                         name,
                         params,
@@ -343,7 +343,7 @@ impl<T: ILexer> SimpleParser<T> {
                 }));
             }
 
-            self.stack.push(ParsingState::FnReturn {
+            self.stack.push(State::FnReturn {
                 fn_token,
                 name,
                 native_token,
@@ -356,13 +356,13 @@ impl<T: ILexer> SimpleParser<T> {
             self.expect(TokenKind::Comma)?;
         }
 
-        self.stack.push(ParsingState::FnParam {
+        self.stack.push(State::FnParam {
             fn_token,
             name,
             native_token,
             params,
         });
-        self.stack.push(ParsingState::ParamName);
+        self.stack.push(State::ParamName);
 
         Ok(Ast::Empty)
     }
@@ -377,7 +377,7 @@ impl<T: ILexer> SimpleParser<T> {
     ) -> Result<Ast, Error> {
         if let Ast::Type(typ) = data {
             if native_token.is_none() {
-                self.stack.push(ParsingState::FnBody {
+                self.stack.push(State::FnBody {
                     fn_token,
                     name,
                     params,
@@ -397,13 +397,13 @@ impl<T: ILexer> SimpleParser<T> {
             }));
         }
 
-        self.stack.push(ParsingState::FnReturn {
+        self.stack.push(State::FnReturn {
             fn_token,
             name,
             native_token,
             params,
         });
-        self.stack.push(ParsingState::Type);
+        self.stack.push(State::Type);
 
         Ok(Ast::Empty)
     }
@@ -429,13 +429,13 @@ impl<T: ILexer> SimpleParser<T> {
             }));
         }
 
-        self.stack.push(ParsingState::FnBody {
+        self.stack.push(State::FnBody {
             fn_token,
             name,
             params,
             ret_type,
         });
-        self.stack.push(ParsingState::BlockStatement { body: vec![] });
+        self.stack.push(State::BlockStatement { body: vec![] });
 
         Ok(Ast::Empty)
     }
@@ -443,7 +443,7 @@ impl<T: ILexer> SimpleParser<T> {
     fn parse_param_name(&mut self) -> Result<Ast, Error> {
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::Colon)?;
-        self.stack.push(ParsingState::ParamType { name });
+        self.stack.push(State::ParamType { name });
         Ok(Ast::Empty)
     }
 
@@ -451,8 +451,8 @@ impl<T: ILexer> SimpleParser<T> {
         if let Ast::Type(typ) = data {
             return Ok(Ast::Param(ParamNode { name, typ }));
         }
-        self.stack.push(ParsingState::ParamType { name });
-        self.stack.push(ParsingState::Type);
+        self.stack.push(State::ParamType { name });
+        self.stack.push(State::Type);
         Ok(Ast::Empty)
     }
 
@@ -506,21 +506,21 @@ impl<T: ILexer> SimpleParser<T> {
             Ast::Expr(stmt) => return Ok(Ast::Statement(StatementNode::Expr(stmt))),
             Ast::Statement(stmt) => return Ok(Ast::Statement(stmt)),
             Ast::Empty => (),
-            _ => panic!("invalid data when parsing statement: {:?}", data),
+            _ => unreachable!("invalid data when parsing statement: {:?}", data),
         }
 
         self.consume_endl()?;
 
         let next_parser = match &self.lexer.peek()?.kind {
-            TokenKind::Var => ParsingState::Var,
-            TokenKind::While => ParsingState::WhileStatement,
-            TokenKind::If => ParsingState::IfStatement,
-            TokenKind::Return => ParsingState::ReturnStatement,
-            TokenKind::OpenBlock => ParsingState::BlockStatement { body: vec![] },
-            _ => ParsingState::AssignStatement,
+            TokenKind::Var => State::Var,
+            TokenKind::While => State::WhileStatement,
+            TokenKind::If => State::IfStatement,
+            TokenKind::Return => State::ReturnStatement,
+            TokenKind::OpenBlock => State::BlockStatement { body: vec![] },
+            _ => State::AssignStatement,
         };
 
-        self.stack.push(ParsingState::Statement);
+        self.stack.push(State::Statement);
         self.stack.push(next_parser);
 
         Ok(Ast::Empty)
@@ -536,7 +536,7 @@ impl<T: ILexer> SimpleParser<T> {
             Ast::Statement(statement) => {
                 body.push(statement);
             }
-            _ => panic!("invalid data when parsing block statement: {:?}", data),
+            _ => unreachable!("invalid data when parsing block statement: {:?}", data),
         }
 
         self.consume_endl()?;
@@ -544,8 +544,8 @@ impl<T: ILexer> SimpleParser<T> {
         let result = if self.check(&TokenKind::CloseBlock)?.is_some() {
             Ast::BlockStatement(BlockStatementNode { body })
         } else {
-            self.stack.push(ParsingState::BlockStatement { body });
-            self.stack.push(ParsingState::Statement);
+            self.stack.push(State::BlockStatement { body });
+            self.stack.push(State::Statement);
             Ast::Empty
         };
 
@@ -568,18 +568,18 @@ impl<T: ILexer> SimpleParser<T> {
                     TokenKind::ShlAssign,
                 ])?;
                 if let Some(op) = op {
-                    self.stack.push(ParsingState::AssignStatementValue { receiver, op });
+                    self.stack.push(State::AssignStatementValue { receiver, op });
                     Ok(Ast::Empty)
                 } else {
                     Ok(Ast::Expr(receiver))
                 }
             }
             Ast::Empty => {
-                self.stack.push(ParsingState::AssignStatement);
-                self.stack.push(ParsingState::Expr { allow_empty: false });
+                self.stack.push(State::AssignStatement);
+                self.stack.push(State::Expr { allow_empty: false });
                 Ok(Ast::Empty)
             }
-            _ => panic!("invalid data when parsing assign statement: {:?}", data),
+            _ => unreachable!("invalid data when parsing assign statement: {:?}", data),
         }
     }
 
@@ -587,63 +587,63 @@ impl<T: ILexer> SimpleParser<T> {
         match data {
             Ast::Expr(value) => Ok(Ast::Assign(AssignNode { receiver, op, value })),
             Ast::Empty => {
-                self.stack.push(ParsingState::AssignStatementValue { receiver, op });
-                self.stack.push(ParsingState::Expr { allow_empty: false });
+                self.stack.push(State::AssignStatementValue { receiver, op });
+                self.stack.push(State::Expr { allow_empty: false });
                 Ok(Ast::Empty)
             }
-            _ => panic!("invalid data when parsing assign value statement: {:?}", data),
+            _ => unreachable!("invalid data when parsing assign value statement: {:?}", data),
         }
     }
 
     fn parse_if_statement(&mut self) -> Result<Ast, Error> {
         let if_token = self.expect(TokenKind::If)?;
-        self.stack.push(ParsingState::IfStatementCond { if_token });
-        self.stack.push(ParsingState::Expr { allow_empty: false });
+        self.stack.push(State::IfStatementCond { if_token });
+        self.stack.push(State::Expr { allow_empty: false });
         Ok(Ast::Empty)
     }
 
     fn parse_if_statement_cond(&mut self, if_token: Token, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(cond) = data {
-            self.stack.push(ParsingState::IfStatementBody { if_token, cond });
+            self.stack.push(State::IfStatementBody { if_token, cond });
             Ok(Ast::Empty)
         } else {
-            panic!("invalid data when parsing if statement cond: {:?}", data);
+            unreachable!("invalid data when parsing if statement cond: {:?}", data);
         }
     }
 
     fn parse_if_statement_body(&mut self, if_token: Token, cond: ExprNode, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Empty => {
-                self.stack.push(ParsingState::IfStatementBody { if_token, cond });
-                self.stack.push(ParsingState::BlockStatement { body: vec![] });
+                self.stack.push(State::IfStatementBody { if_token, cond });
+                self.stack.push(State::BlockStatement { body: vec![] });
                 Ast::Empty
             }
             Ast::BlockStatement(body) => Ast::If(IfNode { if_token, cond, body }),
-            _ => panic!("invalid data when parsing if statement body: {:?}", data),
+            _ => unreachable!("invalid data when parsing if statement body: {:?}", data),
         })
     }
 
     fn parse_while_statement(&mut self) -> Result<Ast, Error> {
         let while_token = self.expect(TokenKind::While)?;
-        self.stack.push(ParsingState::WhileStatementCond { while_token });
-        self.stack.push(ParsingState::Expr { allow_empty: false });
+        self.stack.push(State::WhileStatementCond { while_token });
+        self.stack.push(State::Expr { allow_empty: false });
         Ok(Ast::Empty)
     }
 
     fn parse_while_statement_cond(&mut self, while_token: Token, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(cond) = data {
-            self.stack.push(ParsingState::WhileStatementBody { while_token, cond });
+            self.stack.push(State::WhileStatementBody { while_token, cond });
             Ok(Ast::Empty)
         } else {
-            panic!("invalid data when parsing while statement cond: {:?}", data)
+            unreachable!("invalid data when parsing while statement cond: {:?}", data)
         }
     }
 
     fn parse_while_statement_body(&mut self, while_token: Token, cond: ExprNode, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Empty => {
-                self.stack.push(ParsingState::WhileStatementBody { while_token, cond });
-                self.stack.push(ParsingState::BlockStatement { body: vec![] });
+                self.stack.push(State::WhileStatementBody { while_token, cond });
+                self.stack.push(State::BlockStatement { body: vec![] });
                 Ast::Empty
             }
             Ast::BlockStatement(body) => Ast::While(WhileNode {
@@ -651,14 +651,14 @@ impl<T: ILexer> SimpleParser<T> {
                 cond,
                 body,
             }),
-            _ => panic!("invalid data when parsing while statement body: {:?}", data),
+            _ => unreachable!("invalid data when parsing while statement body: {:?}", data),
         })
     }
 
     fn parse_return_statement(&mut self) -> Result<Ast, Error> {
         let return_token = self.expect(TokenKind::Return)?;
-        self.stack.push(ParsingState::ReturnStatementValue { return_token });
-        self.stack.push(ParsingState::Expr { allow_empty: true });
+        self.stack.push(State::ReturnStatementValue { return_token });
+        self.stack.push(State::Expr { allow_empty: true });
         Ok(Ast::Empty)
     }
 
@@ -671,7 +671,7 @@ impl<T: ILexer> SimpleParser<T> {
             };
             return Ok(Ast::Return(ReturnNode { return_token, value }));
         } else {
-            panic!("got invalid data while parsing return value statement: {:?}", data);
+            unreachable!("got invalid data while parsing return value statement: {:?}", data);
         }
     }
 
@@ -690,17 +690,15 @@ impl<T: ILexer> SimpleParser<T> {
         // cast
         // unary not, minus, plus, bit_not
         // call
-        // struct_lit
-        // selector
         // primary: braces, ident, literals
         if let Ast::Expr(expr) = data {
             return Ok(Ast::Expr(expr));
         }
 
-        self.stack.push(ParsingState::Expr { allow_empty });
-        self.stack.push(ParsingState::BinaryExpr { allow_empty });
-        self.stack.push(ParsingState::CastExpr { allow_empty });
-        self.stack.push(ParsingState::UnaryExpr { allow_empty });
+        self.stack.push(State::Expr { allow_empty });
+        self.stack.push(State::BinaryExpr { allow_empty });
+        self.stack.push(State::CastExpr { allow_empty });
+        self.stack.push(State::UnaryExpr { allow_empty });
 
         Ok(Ast::Empty)
     }
@@ -721,7 +719,7 @@ impl<T: ILexer> SimpleParser<T> {
         if let Ast::Expr(expr) = data {
             for target_op in binary_precedence.into_iter().rev() {
                 if let Some(op) = self.check_one_of(target_op)? {
-                    self.stack.push(ParsingState::BinaryExprOperand {
+                    self.stack.push(State::BinaryExprOperand {
                         allow_empty,
                         a: expr,
                         op,
@@ -731,7 +729,7 @@ impl<T: ILexer> SimpleParser<T> {
             }
             Ok(Ast::Expr(expr))
         } else {
-            panic!("invalid data when parsing binary expr: {:?}", data)
+            unreachable!("invalid data when parsing binary expr: {:?}", data)
         }
     }
 
@@ -752,18 +750,18 @@ impl<T: ILexer> SimpleParser<T> {
                 }),
             }),
             Ast::Empty => {
-                self.stack.push(ParsingState::BinaryExprOperand { allow_empty, a, op });
-                self.stack.push(ParsingState::Expr { allow_empty });
+                self.stack.push(State::BinaryExprOperand { allow_empty, a, op });
+                self.stack.push(State::Expr { allow_empty });
                 Ast::Empty
             }
-            _ => panic!("invalid data when parsing binary expr operand: {:?}", data),
+            _ => unreachable!("invalid data when parsing binary expr operand: {:?}", data),
         })
     }
 
     fn parse_cast_expr(&mut self, allow_empty: bool, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(val) = data {
             if let Some(as_token) = self.check(&TokenKind::As)? {
-                self.stack.push(ParsingState::CastExprType {
+                self.stack.push(State::CastExprType {
                     allow_empty,
                     val,
                     as_token,
@@ -773,7 +771,7 @@ impl<T: ILexer> SimpleParser<T> {
                 Ok(Ast::Expr(val))
             }
         } else {
-            panic!("invalid data when parsing cast expr: {:?}", data)
+            unreachable!("invalid data when parsing cast expr: {:?}", data)
         }
     }
 
@@ -794,15 +792,15 @@ impl<T: ILexer> SimpleParser<T> {
                 }),
             }),
             Ast::Empty => {
-                self.stack.push(ParsingState::CastExprType {
+                self.stack.push(State::CastExprType {
                     allow_empty,
                     val,
                     as_token,
                 });
-                self.stack.push(ParsingState::Type);
+                self.stack.push(State::Type);
                 Ast::Empty
             }
-            _ => panic!("invalid data when parsing cast expr type: {:?}", data),
+            _ => unreachable!("invalid data when parsing cast expr type: {:?}", data),
         })
     }
 
@@ -813,10 +811,10 @@ impl<T: ILexer> SimpleParser<T> {
             TokenKind::Plus,
             TokenKind::BitNot,
         ])? {
-            self.stack.push(ParsingState::UnaryExprVal { op });
+            self.stack.push(State::UnaryExprVal { op });
         } else {
-            self.stack.push(ParsingState::CallExpr { allow_empty });
-            self.stack.push(ParsingState::PrimaryExpr { allow_empty });
+            self.stack.push(State::CallExpr { allow_empty });
+            self.stack.push(State::PrimaryExpr { allow_empty });
         }
         Ok(Ast::Empty)
     }
@@ -824,22 +822,22 @@ impl<T: ILexer> SimpleParser<T> {
     fn parse_unary_expr_val(&mut self, op: Token, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Empty => {
-                self.stack.push(ParsingState::UnaryExprVal { op });
-                self.stack.push(ParsingState::Expr { allow_empty: false });
+                self.stack.push(State::UnaryExprVal { op });
+                self.stack.push(State::Expr { allow_empty: false });
                 Ast::Empty
             }
             Ast::Expr(val) => Ast::Expr(ExprNode {
                 pos: op.pos.clone(),
                 kind: ExprNodeKind::Unary(UnaryNode { op, val: Box::new(val) }),
             }),
-            _ => panic!("invalid data when parsing unary expr val: {:?}", data),
+            _ => unreachable!("invalid data when parsing unary expr val: {:?}", data),
         })
     }
 
     fn parse_call_expr(&mut self, allow_empty: bool, data: Ast) -> Result<Ast, Error> {
         if let Ast::Expr(func) = data {
             if self.check(&TokenKind::OpenBrace)?.is_some() {
-                self.stack.push(ParsingState::CallExprParams {
+                self.stack.push(State::CallExprParams {
                     allow_empty,
                     func,
                     args: vec![],
@@ -849,7 +847,7 @@ impl<T: ILexer> SimpleParser<T> {
                 Ok(Ast::Expr(func))
             }
         } else {
-            panic!("invalid data when parsing call expr: {:?}", data)
+            unreachable!("invalid data when parsing call expr: {:?}", data)
         }
     }
 
@@ -866,12 +864,12 @@ impl<T: ILexer> SimpleParser<T> {
 
         if let Some(token) = self.check_one_of(vec![TokenKind::Comma, TokenKind::CloseBrace])? {
             if token.kind == TokenKind::Comma {
-                self.stack.push(ParsingState::CallExprParams {
+                self.stack.push(State::CallExprParams {
                     allow_empty,
                     func,
                     args,
                 });
-                self.stack.push(ParsingState::Expr { allow_empty });
+                self.stack.push(State::Expr { allow_empty });
                 return Ok(Ast::Empty);
             }
 
@@ -884,12 +882,12 @@ impl<T: ILexer> SimpleParser<T> {
             }));
         }
 
-        self.stack.push(ParsingState::CallExprParams {
+        self.stack.push(State::CallExprParams {
             allow_empty,
             func,
             args,
         });
-        self.stack.push(ParsingState::Expr { allow_empty });
+        self.stack.push(State::Expr { allow_empty });
         Ok(Ast::Empty)
     }
 
@@ -922,8 +920,8 @@ impl<T: ILexer> SimpleParser<T> {
             }
             TokenKind::OpenBrace => {
                 self.lexer.next()?;
-                self.stack.push(ParsingState::PrimaryExpr { allow_empty: false });
-                self.stack.push(ParsingState::Expr { allow_empty: false });
+                self.stack.push(State::PrimaryExpr { allow_empty: false });
+                self.stack.push(State::Expr { allow_empty: false });
                 Ok(Ast::Empty)
             }
             _ => {
@@ -991,9 +989,9 @@ impl<T: ILexer> SimpleParser<T> {
     }
 }
 
-impl<T: ILexer> Parser for SimpleParser<T> {
+impl<T: ILexer> IParser for Parser<T> {
     fn parse(&mut self) -> std::result::Result<RootNode, Error> {
-        self.stack.push(ParsingState::Root);
+        self.stack.push(State::Root);
 
         let mut data = Ast::Empty;
         while let Some(state) = self.stack.pop() {
@@ -1004,6 +1002,6 @@ impl<T: ILexer> Parser for SimpleParser<T> {
             return Ok(result);
         }
 
-        panic!("invalid parsing result");
+        unreachable!("invalid parsing result");
     }
 }

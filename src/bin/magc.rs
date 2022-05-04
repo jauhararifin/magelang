@@ -2,7 +2,7 @@ use magelang::analyzer::{analyze_root, HeaderCompiler};
 use magelang::compiler::SimpleCompiler;
 use magelang::lexer::Lexer;
 use magelang::linker::Linker;
-use magelang::parser::{Parser, SimpleParser};
+use magelang::parser::{IParser, Parser};
 use magelang::vm::Executor;
 use std::env;
 use std::fs::File;
@@ -18,7 +18,7 @@ fn main() {
     let file_name = args.get(1).unwrap();
     let f = File::open(file_name).unwrap();
     let lexer = Lexer::new(f, file_name);
-    let mut parser = SimpleParser::new(lexer);
+    let mut parser = Parser::new(lexer);
     let root_ast = parser.parse().unwrap();
     let header_compiler = HeaderCompiler::new();
     let header = header_compiler.compile(&root_ast).unwrap();
