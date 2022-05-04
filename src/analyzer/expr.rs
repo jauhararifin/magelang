@@ -17,7 +17,7 @@ pub struct ExprHelper<'a> {
 #[derive(Clone, Debug)]
 pub struct Symbol {
     pub name: String,
-    pub type_kind: Type,
+    pub typ: Type,
 }
 
 impl<'a> ExprHelper<'a> {
@@ -42,7 +42,7 @@ impl<'a> ExprHelper<'a> {
             for func in header.functions.iter() {
                 expr_helper.add_symbol(Symbol {
                     name: func.name.clone(),
-                    type_kind: Type::Fn(func.typ.clone()),
+                    typ: Type::Fn(func.typ.clone()),
                 });
             }
         }
@@ -83,7 +83,7 @@ impl<'a> ExprHelper<'a> {
                     Ok(Expr {
                         kind: ExprKind::Ident(String::from(token_name)),
                         assignable: true,
-                        type_kind: sym.type_kind.clone(),
+                        typ: sym.typ.clone(),
                     })
                 } else {
                     Err(Error::UndeclaredSymbol)
@@ -105,13 +105,13 @@ impl<'a> ExprHelper<'a> {
                     Ok(Expr {
                         kind,
                         assignable: false,
-                        type_kind: expected.clone(),
+                        typ: expected.clone(),
                     })
                 } else {
                     Ok(Expr {
                         kind: ExprKind::I32(0),
                         assignable: false,
-                        type_kind: Type::Int(IntType::signed(32)),
+                        typ: Type::Int(IntType::signed(32)),
                     })
                 }
             }
@@ -125,27 +125,27 @@ impl<'a> ExprHelper<'a> {
                     Ok(Expr {
                         kind,
                         assignable: false,
-                        type_kind: expected.clone(),
+                        typ: expected.clone(),
                     })
                 } else {
                     Ok(Expr {
                         kind: ExprKind::F64(0.0),
                         assignable: false,
-                        type_kind: Type::Float(FloatType { size: 64 }),
+                        typ: Type::Float(FloatType { size: 64 }),
                     })
                 }
             }
             ExprNodeKind::BoolLit(val) => Ok(Expr {
                 kind: ExprKind::Bool(val.kind == TokenKind::True),
                 assignable: false,
-                type_kind: Type::Bool,
+                typ: Type::Bool,
             }),
             ExprNodeKind::Binary(binary) => {
                 let a = self.analyze(binary.a.as_ref(), expected)?;
-                let a_typ = a.type_kind.clone();
+                let a_typ = a.typ.clone();
 
                 let b = self.analyze(binary.b.as_ref(), &a_typ)?;
-                let b_typ = b.type_kind.clone();
+                let b_typ = b.typ.clone();
 
                 let matched = match binary.op.kind {
                     TokenKind::Eq | TokenKind::NotEq => a_typ == b_typ,
@@ -227,12 +227,12 @@ impl<'a> ExprHelper<'a> {
                 Ok(Expr {
                     kind,
                     assignable: false,
-                    type_kind: t.clone(),
+                    typ: t.clone(),
                 })
             }
             ExprNodeKind::Unary(unary) => {
                 let val = self.analyze(unary.val.as_ref(), expected)?;
-                let val_type = val.type_kind.clone();
+                let val_type = val.typ.clone();
 
                 let matched = match unary.op.kind {
                     TokenKind::Not => val_type.is_bool(),
@@ -262,13 +262,13 @@ impl<'a> ExprHelper<'a> {
                 Ok(Expr {
                     kind: ExprKind::Unary(Unary { op, val: Box::new(val) }),
                     assignable: false,
-                    type_kind: t,
+                    typ: t,
                 })
             }
             ExprNodeKind::FunctionCall(func_call) => {
                 let func = self.analyze(func_call.func.as_ref(), expected)?;
 
-                let fn_type = if let Type::Fn(fn_type) = &func.type_kind {
+                let fn_type = if let Type::Fn(fn_type) = &func.typ {
                     fn_type
                 } else {
                     return Err(Error::NotAFn);
@@ -281,8 +281,8 @@ impl<'a> ExprHelper<'a> {
                 let mut args = Vec::new();
                 for (i, arg) in func_call.args.iter().enumerate() {
                     let val = self.analyze(arg, expected)?;
-                    let val_type = val.type_kind.clone();
-                    let func_type = fn_type.arguments.get(i).unwrap().type_kind.clone();
+                    let val_type = val.typ.clone();
+                    let func_type = fn_type.arguments.get(i).unwrap().typ.clone();
                     if val_type != func_type {
                         return Err(Error::MismatchType);
                     }
@@ -302,7 +302,7 @@ impl<'a> ExprHelper<'a> {
                         args,
                     }),
                     assignable: false,
-                    type_kind: return_type.clone(),
+                    typ: return_type.clone(),
                 })
             }
             ExprNodeKind::Cast(cast) => {

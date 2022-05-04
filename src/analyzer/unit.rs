@@ -54,12 +54,12 @@ impl<'a> UnitAnalyzer<'a> {
             let name = String::from(fn_decl.name.unwrap_str());
 
             let func_symbol = self.expr_helper.find_symbol(&name).unwrap();
-            let ftype = func_symbol.type_kind.unwrap_func().clone();
+            let ftype = func_symbol.typ.unwrap_func().clone();
 
             for arg in ftype.arguments.iter() {
                 self.expr_helper.add_symbol(Symbol {
                     name: String::from(&arg.name),
-                    type_kind: arg.type_kind.clone(),
+                    typ: arg.typ.clone(),
                 });
             }
 
@@ -94,10 +94,10 @@ impl<'a> UnitAnalyzer<'a> {
                     return Err(Error::RedeclaredSymbol);
                 }
 
-                let type_kind = self.type_helper.get(&stmt.typ);
+                let typ = self.type_helper.get(&stmt.typ);
                 let value = if let Some(val) = &stmt.value {
-                    let value = self.expr_helper.analyze(val, &type_kind)?;
-                    if &value.type_kind != &type_kind {
+                    let value = self.expr_helper.analyze(val, &typ)?;
+                    if &value.typ != &typ {
                         return Err(Error::MismatchType);
                     }
                     Some(value)
@@ -107,13 +107,13 @@ impl<'a> UnitAnalyzer<'a> {
 
                 self.expr_helper.add_symbol(Symbol {
                     name: name.clone(),
-                    type_kind: type_kind.clone(),
+                    typ: typ.clone(),
                 });
 
                 Ok(Statement::Var(Var {
                     header: VarHeader {
                         name: name.clone(),
-                        type_kind,
+                        typ,
                     },
                     value,
                 }))
@@ -124,9 +124,9 @@ impl<'a> UnitAnalyzer<'a> {
                     return Err(Error::CannotAssignTo);
                 }
 
-                let value = self.expr_helper.analyze(&stmt.value, &receiver.type_kind)?;
+                let value = self.expr_helper.analyze(&stmt.value, &receiver.typ)?;
 
-                if value.type_kind != receiver.type_kind {
+                if value.typ != receiver.typ {
                     return Err(Error::MismatchType);
                 }
 
@@ -151,7 +151,7 @@ impl<'a> UnitAnalyzer<'a> {
                 if let Some(expected_ret_type) = &ftype.return_type {
                     if let Some(ret_val) = &stmt.value {
                         let val = self.expr_helper.analyze(&ret_val, &Type::Void)?;
-                        if &val.type_kind != expected_ret_type.as_ref() {
+                        if &val.typ != expected_ret_type.as_ref() {
                             return Err(Error::MismatchType);
                         }
 

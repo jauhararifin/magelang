@@ -17,7 +17,7 @@ impl TypeHelper {
 impl TypeHelper {
     pub fn get(&self, typ: &TypeNode) -> Type {
         match &typ {
-            TypeNode::Primitive(token) => self.get_type_kind_from_primitive(token),
+            TypeNode::Primitive(token) => self.get_type_from_primitive(token),
         }
     }
 
@@ -25,11 +25,11 @@ impl TypeHelper {
         let mut arguments = Vec::new();
 
         for (index, arg) in header.params.iter().enumerate() {
-            let type_kind = self.get(&arg.typ);
+            let typ = self.get(&arg.typ);
             arguments.push(Argument {
                 index,
                 name: arg.name.unwrap_value().clone(),
-                type_kind,
+                typ,
             });
         }
 
@@ -50,7 +50,7 @@ impl TypeHelper {
 }
 
 impl TypeHelper {
-    fn get_type_kind_from_primitive(&self, token: &Token) -> Type {
+    fn get_type_from_primitive(&self, token: &Token) -> Type {
         match &token.kind {
             TokenKind::I8 => Type::Int(IntType::signed(8)),
             TokenKind::I16 => Type::Int(IntType::signed(16)),

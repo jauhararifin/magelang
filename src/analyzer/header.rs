@@ -1,7 +1,8 @@
 use crate::{
     analyzer::types::TypeHelper,
+    ast::RootNode,
     errors::Error,
-    semantic::{FnHeader, Header}, ast::RootNode,
+    semantic::{FnHeader, Header},
 };
 
 use super::expr::{ExprHelper, Symbol};
@@ -33,16 +34,16 @@ impl IHeaderCompiler for HeaderCompiler {
                 return Err(Error::RedeclaredSymbol);
             }
 
-            let type_kind = type_helper.get_fn(&func.header);
+            let typ = type_helper.get_fn(&func.header);
 
-            let fn_type = type_kind.unwrap_func();
+            let fn_type = typ.unwrap_func();
             functions.push(FnHeader {
                 name: name.clone(),
                 native: fn_type.native,
                 typ: fn_type.clone(),
             });
 
-            expr_helper.add_symbol(Symbol { name, type_kind });
+            expr_helper.add_symbol(Symbol { name, typ });
         }
 
         Ok(Header { functions })

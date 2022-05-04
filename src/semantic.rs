@@ -89,7 +89,7 @@ pub struct FnType {
 pub struct Argument {
     pub index: usize,
     pub name: String,
-    pub type_kind: Type,
+    pub typ: Type,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -100,7 +100,7 @@ pub struct Struct {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Field {
     pub index: usize,
-    pub type_kind: Type,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -123,7 +123,7 @@ pub struct Var {
 #[derive(Debug, Clone)]
 pub struct VarHeader {
     pub name: String,
-    pub type_kind: Type,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -174,7 +174,7 @@ pub struct BlockStatement {
 pub struct Expr {
     pub kind: ExprKind,
     pub assignable: bool,
-    pub type_kind: Type,
+    pub typ: Type,
 }
 
 #[derive(Debug, Clone)]

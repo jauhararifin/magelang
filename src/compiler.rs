@@ -93,7 +93,7 @@ impl SimpleCompiler {
         if let Some(value) = &var.value {
             self.compile_expr(ctx, value)
         } else {
-            Ok(vec![Instruction::Constant(self.empty_value(&var.header.type_kind)?)])
+            Ok(vec![Instruction::Constant(self.empty_value(&var.header.typ)?)])
         }
     }
 
