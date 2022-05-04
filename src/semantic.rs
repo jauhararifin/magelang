@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub struct Header {
@@ -82,7 +82,7 @@ pub struct FloatType {
 pub struct FnType {
     pub native: bool,
     pub arguments: Vec<Argument>,
-    pub return_type: Option<Box<Type>>,
+    pub return_type: Option<Rc<Type>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

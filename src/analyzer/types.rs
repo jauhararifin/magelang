@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     ast::{FnHeaderNode, TypeNode},
     semantic::{Argument, FloatType, FnType, IntType, Type},
@@ -32,7 +34,7 @@ impl TypeHelper {
         }
 
         let return_type = if let Some(t) = &header.ret_type {
-            Some(Box::new(self.get(t)))
+            Some(Rc::new(self.get(t)))
         } else {
             None
         };
