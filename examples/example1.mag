@@ -10,8 +10,8 @@ fn gcd(a: i64, b: i64): i64 {
 }
 
 fn main() {
-    var a: i64 = 98
-    var b: i64 = 14
+    var a: i64 = 1260
+    var b: i64 = 165
     var c: i64 = gcd(a, b)
     print_int(c)
 }

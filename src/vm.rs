@@ -256,7 +256,7 @@ impl Executor {
                     curr_func_id = ctx.memory_id;
                 }
                 Instruction::CallNative(name) => {
-                    println!("Call Native: {}", name)
+                    self.run_native_function(name.as_str());
                 },
             }
 
@@ -270,5 +270,17 @@ impl Executor {
     fn add_value(&mut self, value: Value) {
         self.memory.insert(self.mem_id, value);
         self.mem_id += 1;
+    }
+
+    fn run_native_function(&self, name: &str) {
+        match name {
+            "print_int" => {
+                let val = self.value_stack.last().unwrap();
+                if let ValueKind::I64(v) = val.kind {
+                    println!("{}", v);
+                }
+            },
+            _ => todo!(),
+        }
     }
 }

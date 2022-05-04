@@ -49,6 +49,7 @@ impl SimpleCompiler {
 
         if fn_decl.header.native {
             instructions.push(Instruction::CallNative(fn_decl.header.name.clone()));
+            instructions.push(Instruction::Ret);
         } else {
             instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap())?);
         }
@@ -349,7 +350,7 @@ impl FnContext {
 
         Ok(Self {
             symbol_tables: vec![table],
-            counter: 0,
+            counter: fn_type.arguments.len() as isize,
         })
     }
 
