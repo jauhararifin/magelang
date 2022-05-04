@@ -1,5 +1,5 @@
 use crate::{
-    ast,
+    ast::{FnHeaderNode, TypeNode},
     semantic::{Argument, FloatType, FnType, IntType, Type},
     token::{Token, TokenKind},
 };
@@ -13,13 +13,13 @@ impl TypeHelper {
 }
 
 impl TypeHelper {
-    pub fn get(&self, typ: &ast::TypeNode) -> Type {
+    pub fn get(&self, typ: &TypeNode) -> Type {
         match &typ {
-            ast::TypeNode::Primitive(token) => self.get_type_kind_from_primitive(token),
+            TypeNode::Primitive(token) => self.get_type_kind_from_primitive(token),
         }
     }
 
-    pub fn get_fn(&self, header: &ast::FnHeaderNode) -> Type {
+    pub fn get_fn(&self, header: &FnHeaderNode) -> Type {
         let mut arguments = Vec::new();
 
         for (index, arg) in header.params.iter().enumerate() {

@@ -1,5 +1,5 @@
 use crate::{
-    ast,
+    ast::{BlockStatementNode, FnDeclNode, RootNode, StatementNode},
     errors::Error,
     semantic::{
         Assign, AssignOp, BlockStatement, FnDecl, FnHeader, FnType, Header, If, Return, Statement, Type, Unit, Var,
@@ -13,7 +13,7 @@ use super::{
     types::TypeHelper,
 };
 
-pub fn analyze_root(root: &ast::RootNode, headers: &[Header]) -> Result<Unit, Error> {
+pub fn analyze_root(root: &RootNode, headers: &[Header]) -> Result<Unit, Error> {
     let type_helper = TypeHelper::new();
     let mut expr_helper = ExprHelper::from_headers(&type_helper, headers);
     let mut analyzer = UnitAnalyzer::new(&type_helper, &mut expr_helper);
@@ -34,15 +34,15 @@ impl<'a> UnitAnalyzer<'a> {
         }
     }
 
-    pub fn analyze(&mut self, root: &'a ast::RootNode) -> Result<Unit, Error> {
+    pub fn analyze(&mut self, root: &'a RootNode) -> Result<Unit, Error> {
         let functions = self.analyze_ast(root)?;
         Ok(Unit { functions })
     }
 
-    fn analyze_ast(&mut self, root_ast: &'a ast::RootNode) -> Result<Vec<FnDecl>, Error> {
+    fn analyze_ast(&mut self, root_ast: &'a RootNode) -> Result<Vec<FnDecl>, Error> {
         let mut results: Vec<FnDecl> = Vec::new();
 
-        let func_decls: Vec<&ast::FnDeclNode> = root_ast
+        let func_decls: Vec<&FnDeclNode> = root_ast
             .declarations
             .iter()
             .filter_map(|decl| decl.try_unwrap_func())
@@ -86,9 +86,9 @@ impl<'a> UnitAnalyzer<'a> {
         Ok(results)
     }
 
-    fn analyze_stmt(&mut self, stmt: &'a ast::StatementNode, ftype: &FnType) -> Result<Statement, Error> {
+    fn analyze_stmt(&mut self, stmt: &'a StatementNode, ftype: &FnType) -> Result<Statement, Error> {
         match stmt {
-            ast::StatementNode::Var(stmt) => {
+            StatementNode::Var(stmt) => {
                 let name = String::from(stmt.name.unwrap_str());
                 if self.expr_helper.find_symbol(&name).is_some() {
                     return Err(Error::RedeclaredSymbol);
@@ -118,7 +118,7 @@ impl<'a> UnitAnalyzer<'a> {
                     value,
                 }))
             }
-            ast::StatementNode::Assign(stmt) => {
+            StatementNode::Assign(stmt) => {
                 let receiver = self.expr_helper.analyze(&stmt.receiver, &Type::Void)?;
                 if !receiver.assignable {
                     return Err(Error::CannotAssignTo);
@@ -147,7 +147,7 @@ impl<'a> UnitAnalyzer<'a> {
 
                 Ok(Statement::Assign(Assign { receiver, op, value }))
             }
-            ast::StatementNode::Return(stmt) => {
+            StatementNode::Return(stmt) => {
                 if let Some(expected_ret_type) = &ftype.return_type {
                     if let Some(ret_val) = &stmt.value {
                         let val = self.expr_helper.analyze(&ret_val, &Type::Void)?;
@@ -167,22 +167,22 @@ impl<'a> UnitAnalyzer<'a> {
                     }
                 }
             }
-            ast::StatementNode::If(stmt) => {
+            StatementNode::If(stmt) => {
                 let cond = self.expr_helper.analyze(&stmt.cond, &Type::Bool)?;
                 let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
                 Ok(Statement::If(If { cond, body }))
             }
-            ast::StatementNode::While(stmt) => {
+            StatementNode::While(stmt) => {
                 let cond = self.expr_helper.analyze(&stmt.cond, &Type::Bool)?;
                 let body = Box::new(self.analyze_block_stmt(&stmt.body, ftype)?);
                 Ok(Statement::While(While { cond, body }))
             }
-            ast::StatementNode::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
-            ast::StatementNode::Expr(expr) => Ok(Statement::Expr(self.expr_helper.analyze(expr, &Type::Void)?)),
+            StatementNode::Block(stmt) => self.analyze_block_stmt(stmt, ftype),
+            StatementNode::Expr(expr) => Ok(Statement::Expr(self.expr_helper.analyze(expr, &Type::Void)?)),
         }
     }
 
-    fn analyze_block_stmt(&mut self, stmt: &'a ast::BlockStatementNode, ftype: &FnType) -> Result<Statement, Error> {
+    fn analyze_block_stmt(&mut self, stmt: &'a BlockStatementNode, ftype: &FnType) -> Result<Statement, Error> {
         let mut body = Vec::new();
         for s in stmt.body.iter() {
             body.push(self.analyze_stmt(s, ftype)?);

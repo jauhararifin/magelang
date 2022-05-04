@@ -3,5 +3,5 @@ mod types;
 mod expr;
 mod unit;
 
-pub use header::HeaderCompiler;
+pub use header::{HeaderCompiler, IHeaderCompiler};
 pub use unit::analyze_root;

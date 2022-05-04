@@ -1,7 +1,6 @@
 use std::io;
 
 use crate::{
-    ast,
     pos::Pos,
     token::{Token, TokenKind},
 };
@@ -9,13 +8,13 @@ use crate::{
 #[derive(Debug)]
 pub enum Error {
     // lexer error
+    Io(io::Error),
     UnexpectedChar { char: char, pos: Pos },
     UnexpectedSymbol { symbol: String, pos: Pos },
-    UnexpectedEoi{ pos: Pos },
-    Io(io::Error),
+
     // parser error
     UnexpectedToken { expected: Vec<TokenKind>, found: Token },
-    UnexpectedStructType { expr: ast::ExprNode },
+
     // analyzer
     EmptyPackage,
     MissingPackage,

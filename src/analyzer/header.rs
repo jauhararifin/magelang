@@ -1,11 +1,14 @@
 use crate::{
     analyzer::types::TypeHelper,
-    ast,
     errors::Error,
-    semantic::{FnHeader, Header},
+    semantic::{FnHeader, Header}, ast::RootNode,
 };
 
 use super::expr::{ExprHelper, Symbol};
+
+pub trait IHeaderCompiler {
+    fn compile_header(&self, root: &RootNode) -> Result<Header, Error>;
+}
 
 pub struct HeaderCompiler {}
 
@@ -13,14 +16,16 @@ impl HeaderCompiler {
     pub fn new() -> Self {
         Self {}
     }
+}
 
-    pub fn compile(&self, root: &ast::RootNode) -> Result<Header, Error> {
+impl IHeaderCompiler for HeaderCompiler {
+    fn compile_header(&self, root: &RootNode) -> Result<Header, Error> {
         let mut functions = Vec::new();
 
         let type_helper = TypeHelper::new();
         let mut expr_helper = ExprHelper::empty(&type_helper);
-        let fn_decls = root.declarations.iter().filter_map(|decl| decl.try_unwrap_func());
 
+        let fn_decls = root.declarations.iter().filter_map(|decl| decl.try_unwrap_func());
         for func in fn_decls {
             let name = String::from(func.name.unwrap_str());
 

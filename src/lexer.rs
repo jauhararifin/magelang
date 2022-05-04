@@ -353,8 +353,7 @@ mod tests {
 
     #[test]
     fn test_simple_fn() {
-        let simple_fn = r#"
-            fn gcd(a: i32, b: i64): i64 {
+        let simple_fn = r#"fn gcd(a: i32, b: i64): i64 {
                 while b != 0 {
                     var t = b;
                     b = a % b;
