@@ -1,9 +1,13 @@
 Features:
+- support const
+- support public and private accessibility
+- support continue & break
 - array support
 - method and closure support
 - generic support
 - interface support
 - module
+- auto infer type
 
 Rust stuff:
 - figure out how to mutate struct field with immutable &self.
