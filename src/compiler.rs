@@ -157,7 +157,10 @@ impl SimpleCompiler {
         let mut instructions = if let Some(value) = &stmt.value {
             self.compile_expr(ctx, value)?
         } else {
-            vec![]
+            vec![Instruction::Constant(Value {
+                id: 0,
+                kind: ValueKind::Void,
+            })]
         };
 
         instructions.push(Instruction::Ret);
@@ -293,8 +296,8 @@ impl SimpleCompiler {
             instructions.extend(self.compile_expr(ctx, arg)?);
         }
         instructions.extend(self.compile_expr(ctx, &fn_call.func)?);
-        instructions.push(Instruction::Call);
-        instructions.push(Instruction::Pop(fn_call.args.len()));
+        instructions.push(Instruction::Call(fn_call.args.len()));
+        // instructions.push(Instruction::Pop(fn_call.args.len()));
 
         Ok(instructions)
     }
@@ -339,10 +342,9 @@ impl FnContext {
     fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
         let fn_type = &fn_decl.header.typ;
         let mut table = HashMap::new();
-        for (i, param) in fn_type.arguments.iter().rev().enumerate() {
+        for (index, param) in fn_type.arguments.iter().rev().enumerate() {
             let name = param.name.clone();
-            let index = -(i as isize + 1);
-            table.insert(name, Symbol { index });
+            table.insert(name, Symbol { index: index as isize });
         }
 
         Ok(Self {

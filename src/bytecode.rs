@@ -12,7 +12,7 @@ pub struct Object {
     pub values: Vec<Value>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Value {
     pub id: usize, // filled in runtime
     pub kind: ValueKind,
@@ -20,11 +20,11 @@ pub struct Value {
 
 impl Value {
     pub fn constant(kind: ValueKind) -> Self {
-        Self{id: 0, kind}
+        Self { id: 0, kind }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ValueKind {
     I8(i8),
     I16(i16),
@@ -43,7 +43,9 @@ pub enum ValueKind {
     Ptr(usize), // pointer to a value, doesn't have to be in heap. the value itself can be function.
 }
 
-#[derive(Debug, Clone)]
+impl Eq for ValueKind {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Constant(Value), // push constant value to stack.
 
@@ -99,8 +101,8 @@ pub enum Instruction {
 
     Pop(usize), // pop n items from the stack
 
-    Call, // pop 1 value, and use it as function pointer.
-    Ret,  // return
+    Call(usize), // pop 1 value and use it as function pointer. then pop n values to make it as the arguments.
+    Ret,         // return
 
     // call native method
     CallNative(String),
