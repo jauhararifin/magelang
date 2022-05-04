@@ -9,7 +9,9 @@ use crate::{
 #[derive(Debug)]
 pub enum Error {
     // lexer error
-    UnexpectedSymbol { symbol: char, pos: Pos },
+    UnexpectedChar { char: char, pos: Pos },
+    UnexpectedSymbol { symbol: String, pos: Pos },
+    UnexpectedEoi{ pos: Pos },
     Io(io::Error),
     // parser error
     UnexpectedToken { expected: Vec<TokenKind>, found: Token },

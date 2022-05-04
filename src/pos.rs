@@ -1,20 +1,20 @@
-use std::fmt;
+use std::{fmt, rc::Rc};
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Pos {
-    // TODO: add file path information.
+    pub file_name: Rc<String>,
     pub line: usize,
     pub col: usize,
 }
 
 impl fmt::Debug for Pos {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
+        write!(f, "{}:{}:{}", self.file_name, self.line, self.col)
     }
 }
 
 impl fmt::Display for Pos {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "line {}, col {}", self.line, self.col)
+        write!(f, "file {}, line {}, col {}", self.file_name, self.line, self.col)
     }
 }

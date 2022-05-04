@@ -3,6 +3,7 @@ use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Bytes, Read};
+use std::rc::Rc;
 use unicode_reader::CodePoints;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -14,6 +15,7 @@ pub trait ILexer {
 
 pub struct Lexer<R: Read> {
     reader: CodePoints<Bytes<R>>,
+    file_name: Rc<String>,
 
     current_line: usize,
     current_col: usize,
@@ -23,16 +25,17 @@ pub struct Lexer<R: Read> {
     token_eoi: Option<Token>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 struct CharPos {
     val: char,
     pos: Pos,
 }
 
 impl<R: Read> Lexer<R> {
-    pub fn new(reader: R) -> Self {
+    pub fn new(reader: R, file_name: &str) -> Self {
         Self {
             reader: CodePoints::from(reader),
+            file_name: Rc::new(String::from(file_name)),
 
             current_line: 1,
             current_col: 1,
@@ -69,7 +72,7 @@ impl<R: Read> Lexer<R> {
         }
 
         while self.tokens.len() == 0 {
-            let mut char_pos = self.next_char_pos;
+            let mut char_pos = self.next_char_pos.take();
             if char_pos.is_none() {
                 char_pos = self.next_char()?;
             }
@@ -96,6 +99,7 @@ impl<R: Read> Lexer<R> {
         let char_pos = CharPos {
             val: next_char,
             pos: Pos {
+                file_name: self.file_name.clone(),
                 line: self.current_line,
                 col: self.current_col,
             },
@@ -116,6 +120,7 @@ impl<R: Read> Lexer<R> {
             kind: TokenKind::Eoi,
             value: None,
             pos: Pos {
+                file_name: self.file_name.clone(),
                 line: self.current_line,
                 col: self.current_col,
             },
@@ -178,8 +183,8 @@ impl<R: Read> Lexer<R> {
             let c = char_pos.val;
 
             if c == '\n' {
-                return Err(Error::UnexpectedSymbol {
-                    symbol: '\n',
+                return Err(Error::UnexpectedChar {
+                    char: '\n',
                     pos: char_pos.pos,
                 });
             }
@@ -188,8 +193,8 @@ impl<R: Read> Lexer<R> {
                 if let Some(v) = backslash_chars.get(&c) {
                     value.push(*v);
                 } else {
-                    return Err(Error::UnexpectedSymbol {
-                        symbol: c,
+                    return Err(Error::UnexpectedChar {
+                        char: c,
                         pos: char_pos.pos,
                     });
                 }
@@ -198,8 +203,8 @@ impl<R: Read> Lexer<R> {
                 after_backslash = true;
             } else if c == opening_quote {
                 if after_backslash {
-                    return Err(Error::UnexpectedSymbol {
-                        symbol: c,
+                    return Err(Error::UnexpectedChar {
+                        char: c,
                         pos: char_pos.pos,
                     });
                 }
@@ -286,8 +291,9 @@ impl<R: Read> Lexer<R> {
             (",", TokenKind::Comma),
         ]);
 
+        let pos = char_pos.pos.clone();
+
         let mut char_pos = char_pos;
-        let pos = char_pos.pos;
         let mut matched_str = String::new();
         let mut current_str = char_pos.val.to_string();
 
@@ -313,14 +319,13 @@ impl<R: Read> Lexer<R> {
 
         if let Some(kind) = operators.get(matched_str.as_str()) {
             self.emit_token(kind.clone(), None, pos);
+            Ok(next)
         } else {
-            return Err(Error::UnexpectedSymbol {
-                symbol: char_pos.val,
-                pos: char_pos.pos,
-            });
+            Err(Error::UnexpectedSymbol {
+                symbol: matched_str,
+                pos,
+            })
         }
-
-        Ok(next)
     }
 
     fn consume_while_match<F: Fn(char) -> bool>(&mut self, matcher: F) -> Result<(String, Option<CharPos>)> {
@@ -359,7 +364,7 @@ mod tests {
             }
             "#
         .as_bytes();
-        let mut lexer = Lexer::new(simple_fn);
+        let mut lexer = Lexer::new(simple_fn, "anonymous");
 
         let result = lexer.next().unwrap();
         assert_eq!(
@@ -367,7 +372,11 @@ mod tests {
             Token {
                 kind: TokenKind::Fn,
                 value: None,
-                pos: Pos { line: 1, col: 1 }
+                pos: Pos {
+                    file_name: Rc::new("anonymous".to_string()),
+                    line: 1,
+                    col: 1
+                }
             },
         );
     }

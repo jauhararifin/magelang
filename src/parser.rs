@@ -1,6 +1,6 @@
 use crate::ast::{
-    AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, ExprNodeKind, FnDeclNode, FnHeaderNode, FunctionCallNode, IfNode, ParamNode,
-    ReturnNode, RootNode, StatementNode, TypeNode, UnaryNode, VarNode, WhileNode,
+    AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, ExprNodeKind, FnDeclNode, FnHeaderNode,
+    FunctionCallNode, IfNode, ParamNode, ReturnNode, RootNode, StatementNode, TypeNode, UnaryNode, VarNode, WhileNode,
 };
 use crate::errors::Error;
 use crate::lexer::ILexer;
@@ -693,7 +693,7 @@ impl<T: ILexer> SimpleParser<T> {
     fn parse_binary_expr_operand(&mut self, a: ExprNode, op: Token, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Expr(expr) => Ast::Expr(ExprNode {
-                pos: a.pos,
+                pos: a.pos.clone(),
                 kind: ExprNodeKind::Binary(BinaryNode {
                     a: Box::new(a),
                     op,
@@ -725,7 +725,7 @@ impl<T: ILexer> SimpleParser<T> {
     fn parse_cast_expr_type(&mut self, val: ExprNode, data: Ast) -> Result<Ast, Error> {
         Ok(match data {
             Ast::Type(target) => Ast::Expr(ExprNode {
-                pos: val.pos,
+                pos: val.pos.clone(),
                 kind: ExprNodeKind::Cast(CastNode {
                     target,
                     val: Box::new(val),
@@ -763,7 +763,7 @@ impl<T: ILexer> SimpleParser<T> {
                 Ast::Empty
             }
             Ast::Expr(val) => Ast::Expr(ExprNode {
-                pos: op.pos,
+                pos: op.pos.clone(),
                 kind: ExprNodeKind::Unary(UnaryNode { op, val: Box::new(val) }),
             }),
             _ => panic!("invalid data when parsing unary expr val: {:?}", data),
@@ -796,7 +796,7 @@ impl<T: ILexer> SimpleParser<T> {
             }
 
             return Ok(Ast::Expr(ExprNode {
-                pos: func.pos,
+                pos: func.pos.clone(),
                 kind: ExprNodeKind::FunctionCall(FunctionCallNode {
                     func: Box::new(func),
                     args,
@@ -817,23 +817,23 @@ impl<T: ILexer> SimpleParser<T> {
 
         let token = self.lexer.next()?;
 
-        match token.kind {
+        match &token.kind {
             TokenKind::IntegerLit => Ok(Ast::Expr(ExprNode {
-                pos: token.pos,
+                pos: token.pos.clone(),
                 kind: ExprNodeKind::IntegerLit(token),
             })),
             TokenKind::FloatLit => Ok(Ast::Expr(ExprNode {
-                pos: token.pos,
+                pos: token.pos.clone(),
                 kind: ExprNodeKind::FloatLit(token),
             })),
             TokenKind::True | TokenKind::False => Ok(Ast::Expr(ExprNode {
-                pos: token.pos,
+                pos: token.pos.clone(),
                 kind: ExprNodeKind::BoolLit(token),
             })),
             TokenKind::Ident => {
                 self.consume_endl()?;
                 Ok(Ast::Expr(ExprNode {
-                    pos: token.pos,
+                    pos: token.pos.clone(),
                     kind: ExprNodeKind::Ident(token),
                 }))
             }

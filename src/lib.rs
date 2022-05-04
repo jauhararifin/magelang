@@ -10,3 +10,4 @@ pub mod token;
 pub mod vm;
 pub mod errors;
 pub mod linker;
+pub mod parser2;

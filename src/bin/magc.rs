@@ -17,7 +17,7 @@ fn main() {
 
     let file_name = args.get(1).unwrap();
     let f = File::open(file_name).unwrap();
-    let lexer = Lexer::new(f);
+    let lexer = Lexer::new(f, file_name);
     let mut parser = SimpleParser::new(lexer);
     let root_ast = parser.parse().unwrap();
     let header_compiler = HeaderCompiler::new();
