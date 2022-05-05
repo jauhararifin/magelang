@@ -98,6 +98,12 @@ pub struct FloatType {
     pub size: u8,
 }
 
+impl FloatType {
+    pub fn new(size: u8) -> Self {
+        Self { size }
+    }
+}
+
 impl Into<Type> for FloatType {
     fn into(self) -> Type {
         Type::Float(self)

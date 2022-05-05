@@ -22,23 +22,18 @@ impl TypeHelper {
     }
 
     pub fn get_fn(&self, header: &FnHeaderNode) -> Rc<Type> {
-        let mut arguments = Vec::new();
-
-        for (index, arg) in header.params.iter().enumerate() {
-            let typ = self.get(&arg.typ);
-            arguments.push(Argument {
+        let arguments = header
+            .params
+            .iter()
+            .enumerate()
+            .map(|(index, arg)| Argument {
                 index,
                 name: arg.name.clone_value(),
-                typ,
-            });
-        }
+                typ: self.get(&arg.typ),
+            })
+            .collect();
 
-        let return_type = if let Some(t) = &header.ret_type {
-            Some(self.get(t))
-        } else {
-            None
-        };
-
+        let return_type = header.ret_type.as_ref().map(|t| self.get(t));
         let native = header.native_token.is_some();
 
         Rc::new(Type::Fn(Rc::new(FnType {
@@ -47,21 +42,19 @@ impl TypeHelper {
             return_type,
         })))
     }
-}
 
-impl TypeHelper {
     fn get_type_from_primitive(&self, token: &Token) -> Rc<Type> {
         Rc::new(match &token.kind {
-            TokenKind::I8 => Type::Int(IntType::signed(8)),
-            TokenKind::I16 => Type::Int(IntType::signed(16)),
-            TokenKind::I32 => Type::Int(IntType::signed(32)),
-            TokenKind::I64 => Type::Int(IntType::signed(64)),
-            TokenKind::U8 => Type::Int(IntType::unsigned(8)),
-            TokenKind::U16 => Type::Int(IntType::unsigned(16)),
-            TokenKind::U32 => Type::Int(IntType::unsigned(32)),
-            TokenKind::U64 => Type::Int(IntType::unsigned(64)),
-            TokenKind::F32 => Type::Float(FloatType { size: 32 }),
-            TokenKind::F64 => Type::Float(FloatType { size: 64 }),
+            TokenKind::I8 => IntType::signed(8).into(),
+            TokenKind::I16 => IntType::signed(16).into(),
+            TokenKind::I32 => IntType::signed(32).into(),
+            TokenKind::I64 => IntType::signed(64).into(),
+            TokenKind::U8 => IntType::unsigned(8).into(),
+            TokenKind::U16 => IntType::unsigned(16).into(),
+            TokenKind::U32 => IntType::unsigned(32).into(),
+            TokenKind::U64 => IntType::unsigned(64).into(),
+            TokenKind::F32 => FloatType::new(32).into(),
+            TokenKind::F64 => FloatType::new(64).into(),
             TokenKind::Bool => Type::Bool,
             _ => unreachable!(),
         })
