@@ -12,19 +12,8 @@ pub struct Object {
     pub values: Vec<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Value {
-    pub kind: ValueKind,
-}
-
-impl Value {
-    pub fn constant(kind: ValueKind) -> Self {
-        Self { kind }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
-pub enum ValueKind {
+pub enum Value {
     I8(i8),
     I16(i16),
     I32(i32),
@@ -37,62 +26,60 @@ pub enum ValueKind {
     F64(f64),
     Bool(bool),
     Void,
-    Struct(Vec<Value>),
     Fn(Vec<Instruction>),
     Ptr(usize), // pointer to a value, doesn't have to be in heap. the value itself can be function.
+                // TODO: support struct
+                // Struct(Vec<Value>),
 }
 
-impl Eq for ValueKind {}
+impl Eq for Value {}
 
-impl From<bool> for ValueKind {
+impl From<bool> for Value {
     fn from(v: bool) -> Self {
-        ValueKind::Bool(v)
+        Value::Bool(v)
     }
 }
 
+// note that this is not used for runtime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Nop,
     Constant(Value), // push constant value to stack.
 
     // number operations
-    Add(bool, u8), // (signed, size)
-    Sub(bool, u8),
-    Div(bool, u8),
-    Mul(bool, u8),
-    Mod(bool, u8),
-
-    AddFloat(u8),
-    SubFloat(u8),
-    DivFloat(u8),
-    MulFloat(u8),
-
-    // shift operations
-    Shl(u8),
-    Shr(u8),
-
-    // binary comparison operation
+    Add(BitSize),
+    Sub(BitSize),
+    Div(BitSize),
+    Mul(BitSize),
+    Mod(BitSize),
+    SDiv(BitSize),
+    SMul(BitSize),
+    SMod(BitSize),
+    AddFloat(BitSize),
+    SubFloat(BitSize),
+    DivFloat(BitSize),
+    MulFloat(BitSize),
+    Shl(BitSize),
+    Shr(BitSize),
     Eq,
     NEq,
-
-    LT(bool, u8),
-    LTEq(bool, u8),
-    GT(bool, u8),
-    GTEq(bool, u8),
-
-    LTFloat(u8),
-    LTEqFloat(u8),
-    GTFloat(u8),
-    GTEqFloat(u8),
-
-    // unary comparison operation
-    Not(u8),
-
-    // bitwise operation
-    And(u8),
-    Or(u8),
-    Xor(u8),
-    Neg(u8),
+    LT(BitSize),
+    LTEq(BitSize),
+    GT(BitSize),
+    GTEq(BitSize),
+    SLT(BitSize),
+    SLTEq(BitSize),
+    SGT(BitSize),
+    SGTEq(BitSize),
+    LTFloat(BitSize),
+    LTEqFloat(BitSize),
+    GTFloat(BitSize),
+    GTEqFloat(BitSize),
+    Not(BitSize),
+    And(BitSize),
+    Or(BitSize),
+    Xor(BitSize),
+    Neg(BitSize),
 
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
@@ -103,25 +90,50 @@ pub enum Instruction {
     GetLocal(isize), // push the n-th local value to stack.
 
     SetGlobal(usize),
-    GetGlobal(usize), // if primitive, copy the value. otherwise, use ptr.
+    GetGlobal(usize),
 
     // pop stack, and get n-th prop.
-    GetProp(usize),
+    // GetProp(usize),
     // pop stack, get its n-th property, and set it to the top of the stack.
     // if you have statement like this: a.b.c.d.e = 10;
     // then -> Constant(10), GetLocal(a), GetProp(b), GetProp(c), GetProp(d),
     // SetProp(e).
-    SetProp(usize),
-
+    // SetProp(usize),
     Jump(isize), // jump offset
     JumpIfTrue(isize),
     JumpIfFalse(isize),
 
     Pop(usize), // pop n items from the stack
 
-    Call(usize), // pop 1 value and use it as function pointer. then pop n values to make it as the arguments.
-    Ret,         // return
+    Call, // pop 1 value and use it as function pointer.
+    Ret,  // return
 
     // call native method
     CallNative(Rc<String>),
+}
+
+impl From<Value> for Instruction {
+    fn from(v: Value) -> Self {
+        Self::Constant(v)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BitSize {
+    B8,
+    B16,
+    B32,
+    B64,
+}
+
+impl From<u8> for BitSize {
+    fn from(size: u8) -> Self {
+        match size {
+            8 => Self::B8,
+            16 => Self::B16,
+            32 => Self::B32,
+            64 => Self::B64,
+            _ => panic!("got invalid size: {}", size),
+        }
+    }
 }
