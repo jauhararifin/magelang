@@ -57,10 +57,10 @@ impl<'a> CompilerHelper<'a> {
 
         if fn_decl.header.native {
             instructions.push(Instruction::CallNative(fn_decl.header.name.clone()));
-            instructions.push(Instruction::Ret);
         } else {
             instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap()));
         }
+        instructions.push(Instruction::Ret);
 
         Function {
             name: fn_decl.header.name.as_ref().clone(),
@@ -450,7 +450,7 @@ impl FnContext {
     fn new(fn_decl: &FnDecl) -> Self {
         let fn_type = &fn_decl.header.fn_type;
         let mut table = HashMap::new();
-        for (index, param) in fn_type.arguments.iter().rev().enumerate() {
+        for (index, param) in fn_type.arguments.iter().enumerate() {
             let name = param.name.clone();
             table.insert(
                 name,
@@ -463,7 +463,7 @@ impl FnContext {
         Self {
             symbol_tables: vec![table],
             argument_size: fn_type.arguments.len() as isize,
-            counter: fn_type.arguments.len() as isize,
+            counter: 0,
         }
     }
 

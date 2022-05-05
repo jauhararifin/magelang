@@ -216,7 +216,7 @@ impl<T: ILexer> Parser<T> {
     }
 
     fn parse_root(&mut self) -> Result<Ast, Error> {
-        self.consume_endl()?;
+        self.consume_endl_and_comment()?;
         self.stack.push(State::RootDecl { declarations: vec![] });
         Ok(Ast::Empty)
     }
@@ -228,7 +228,7 @@ impl<T: ILexer> Parser<T> {
             _ => unreachable!("got {:?} instead of declaration", data),
         }
 
-        self.consume_endl()?;
+        self.consume_endl_and_comment()?;
 
         let token = self.lexer.peek()?;
         match token.kind {
@@ -509,7 +509,7 @@ impl<T: ILexer> Parser<T> {
             _ => unreachable!("invalid data when parsing statement: {:?}", data),
         }
 
-        self.consume_endl()?;
+        self.consume_endl_and_comment()?;
 
         let next_parser = match &self.lexer.peek()?.kind {
             TokenKind::Var => State::Var,
@@ -527,7 +527,7 @@ impl<T: ILexer> Parser<T> {
     }
 
     fn parse_block_statement(&mut self, mut body: Vec<StatementNode>, data: Ast) -> Result<Ast, Error> {
-        self.consume_endl()?;
+        self.consume_endl_and_comment()?;
 
         match data {
             Ast::Empty => {
@@ -539,7 +539,7 @@ impl<T: ILexer> Parser<T> {
             _ => unreachable!("invalid data when parsing block statement: {:?}", data),
         }
 
-        self.consume_endl()?;
+        self.consume_endl_and_comment()?;
 
         let result = if self.check(&TokenKind::CloseBlock)?.is_some() {
             Ast::BlockStatement(BlockStatementNode { body })
@@ -981,8 +981,8 @@ impl<T: ILexer> Parser<T> {
         Ok(None)
     }
 
-    fn consume_endl(&mut self) -> Result<(), Error> {
-        while let TokenKind::Endl = self.lexer.peek()?.kind {
+    fn consume_endl_and_comment(&mut self) -> Result<(), Error> {
+        while matches!(self.lexer.peek()?.kind, TokenKind::Endl | TokenKind::Comment) {
             self.lexer.next()?;
         }
         Ok(())

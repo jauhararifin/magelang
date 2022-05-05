@@ -10,7 +10,10 @@ impl Debug for RuntimeValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
             match &self.typ {
+                ValueType::Void => write!(f, "{:?}@{}", self.typ, self.data),
+                ValueType::Bool => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const bool)),
                 ValueType::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
+                ValueType::FnId => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
                 _ => todo!(),
             }
         }
@@ -32,6 +35,82 @@ pub enum ValueType {
     F32,
     F64,
     FnId,
+}
+
+pub trait IntoValueType {
+    fn into_value_type() -> ValueType;
+}
+
+impl IntoValueType for () {
+    fn into_value_type() -> ValueType {
+        ValueType::Void
+    }
+}
+
+impl IntoValueType for i8 {
+    fn into_value_type() -> ValueType {
+        ValueType::I8
+    }
+}
+
+impl IntoValueType for i16 {
+    fn into_value_type() -> ValueType {
+        ValueType::I16
+    }
+}
+
+impl IntoValueType for i32 {
+    fn into_value_type() -> ValueType {
+        ValueType::I32
+    }
+}
+
+impl IntoValueType for i64 {
+    fn into_value_type() -> ValueType {
+        ValueType::I64
+    }
+}
+
+impl IntoValueType for u8 {
+    fn into_value_type() -> ValueType {
+        ValueType::U8
+    }
+}
+
+impl IntoValueType for u16 {
+    fn into_value_type() -> ValueType {
+        ValueType::U16
+    }
+}
+
+impl IntoValueType for u32 {
+    fn into_value_type() -> ValueType {
+        ValueType::U32
+    }
+}
+
+impl IntoValueType for u64 {
+    fn into_value_type() -> ValueType {
+        ValueType::U64
+    }
+}
+
+impl IntoValueType for f32 {
+    fn into_value_type() -> ValueType {
+        ValueType::F32
+    }
+}
+
+impl IntoValueType for f64 {
+    fn into_value_type() -> ValueType {
+        ValueType::F64
+    }
+}
+
+impl IntoValueType for bool {
+    fn into_value_type() -> ValueType {
+        ValueType::Bool
+    }
 }
 
 impl ValueType {

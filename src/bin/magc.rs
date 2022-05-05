@@ -34,7 +34,7 @@ fn main() {
     let objects = vec![object];
     let program = linker.link(&objects[..]).unwrap();
 
-    println!("program {:?}", program);
+    // println!("program {:?}", program);
 
     let mut executor = Executor::load(program);
     executor.run();
