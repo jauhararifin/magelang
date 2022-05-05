@@ -96,6 +96,7 @@ impl Executor {
             // println!("{:?}", ins);
 
             match ins {
+                Instruction::Nop => (),
                 Instruction::Constant(val) => {
                     self.value_stack.push(val.clone());
                 }

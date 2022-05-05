@@ -44,8 +44,15 @@ pub enum ValueKind {
 
 impl Eq for ValueKind {}
 
+impl From<bool> for ValueKind {
+    fn from(v: bool) -> Self {
+        ValueKind::Bool(v)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
+    Nop,
     Constant(Value), // push constant value to stack.
 
     // number operations

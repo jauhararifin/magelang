@@ -3,8 +3,8 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{
     bytecode::{Instruction, Object, Value, ValueKind},
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Statement,
-        Type, Unit, Var, While,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Return,
+        Statement, Type, Unary, UnaryOp, Unit, Var, While,
     },
 };
 
@@ -121,7 +121,7 @@ impl<'a> SimpleCompiler<'a> {
                 AssignOp::BitXorAssign => Instruction::Xor,
                 AssignOp::ShlAssign => Instruction::Shl,
                 AssignOp::ShrAssign => Instruction::Shr,
-                _ => unreachable!("{:?}", stmt.op),
+                _ => unreachable!(),
             };
 
             receiver.extend(instructions);
@@ -130,7 +130,6 @@ impl<'a> SimpleCompiler<'a> {
         }
 
         instructions.extend(self.compile_assign_receiver(ctx, &stmt.receiver));
-
         instructions
     }
 
@@ -222,9 +221,9 @@ impl<'a> SimpleCompiler<'a> {
             ExprKind::F64(val) => vec![Instruction::Constant(Value::constant(ValueKind::F64(val.clone())))],
             ExprKind::Bool(val) => vec![Instruction::Constant(Value::constant(ValueKind::Bool(val.clone())))],
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
-            ExprKind::Unary(_) => todo!(),
+            ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
-            ExprKind::Cast(_) => todo!(),
+            ExprKind::Cast(cast) => self.compile_cast(ctx, cast),
         }
     }
 
@@ -239,8 +238,44 @@ impl<'a> SimpleCompiler<'a> {
     }
 
     fn compile_binary(&self, ctx: &FnContext, binary: &Binary) -> Vec<Instruction> {
-        let mut instructions = self.compile_expr(ctx, binary.a.as_ref());
-        instructions.extend(self.compile_expr(ctx, binary.b.as_ref()));
+        let a = self.compile_expr(ctx, binary.a.as_ref());
+        let b = self.compile_expr(ctx, binary.b.as_ref());
+
+        if matches!(binary.op, BinOp::And) {
+            // 1. a
+            // 2. jump_if_true (5.)
+            // 3. false
+            // 4. jump (6.)
+            // 5. b
+            return [
+                &a[..],
+                &[
+                    Instruction::JumpIfTrue(3),
+                    Instruction::Constant(Value::constant(false.into())),
+                    Instruction::Jump(b.len() as isize + 1),
+                ],
+                &b[..],
+            ]
+            .concat();
+        }
+
+        if matches!(binary.op, BinOp::Or) {
+            // 1. a
+            // 2. jump_if_false (5.)
+            // 3. true
+            // 4. jump (6.)
+            // 5. b
+            return [
+                &a[..],
+                &[
+                    Instruction::JumpIfFalse(3),
+                    Instruction::Constant(Value::constant(true.into())),
+                    Instruction::Jump(b.len() as isize + 1),
+                ],
+                &b[..],
+            ]
+            .concat();
+        }
 
         let ins = match binary.op {
             BinOp::Plus => Instruction::Add,
@@ -253,18 +288,40 @@ impl<'a> SimpleCompiler<'a> {
             BinOp::BitXor => Instruction::Xor,
             BinOp::Shl => Instruction::Shl,
             BinOp::Shr => Instruction::Shr,
-            BinOp::And => todo!(),
-            BinOp::Or => todo!(),
             BinOp::GT => Instruction::GT,
             BinOp::LT => Instruction::LT,
             BinOp::GTEq => Instruction::GTEq,
             BinOp::LTEq => Instruction::LTEq,
             BinOp::Eq => Instruction::Eq,
             BinOp::NotEq => Instruction::NEq,
+            _ => unreachable!(),
         };
-        instructions.push(ins);
+        [&a[..], &b[..], &[ins]].concat()
+    }
 
-        instructions
+    fn compile_unary(&self, ctx: &FnContext, unary: &Unary) -> Vec<Instruction> {
+        let instructions = self.compile_expr(ctx, unary.val.as_ref());
+
+        match unary.op {
+            UnaryOp::Plus => instructions,
+            UnaryOp::Minus => [
+                &[
+                    Instruction::Constant(self.empty_value(unary.val.typ.as_ref())),
+                    Instruction::Sub,
+                ],
+                &instructions[..],
+            ]
+            .concat(),
+            UnaryOp::BitNot => [&instructions[..], &[Instruction::Not]].concat(),
+            UnaryOp::Not => {
+                vec![
+                    Instruction::JumpIfTrue(3),
+                    Instruction::Constant(Value::constant(true.into())),
+                    Instruction::Jump(2),
+                    Instruction::Constant(Value::constant(false.into())),
+                ]
+            }
+        }
     }
 
     fn compile_func_call(&self, ctx: &FnContext, fn_call: &FunctionCall) -> Vec<Instruction> {
@@ -274,9 +331,12 @@ impl<'a> SimpleCompiler<'a> {
         }
         instructions.extend(self.compile_expr(ctx, &fn_call.func));
         instructions.push(Instruction::Call(fn_call.args.len()));
-        // instructions.push(Instruction::Pop(fn_call.args.len()));
 
         instructions
+    }
+
+    fn compile_cast(&self, _ctx: &FnContext, _cast: &Cast) -> Vec<Instruction> {
+        todo!();
     }
 
     fn empty_value(&self, typ: &Type) -> Value {
@@ -299,7 +359,7 @@ impl<'a> SimpleCompiler<'a> {
             },
             Type::Bool => Value::constant(ValueKind::Bool(false)),
             Type::Void => Value::constant(ValueKind::Void),
-            Type::Fn(_) => todo!(),
+            Type::Fn(_) => unreachable!("cannot create empty function on the runtime."),
         }
     }
 }
