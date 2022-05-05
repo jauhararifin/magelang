@@ -4,4 +4,4 @@ mod expr;
 mod unit;
 
 pub use header::{HeaderCompiler, IHeaderCompiler};
-pub use unit::analyze_root;
+pub use unit::UnitAnalyzer;

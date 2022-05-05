@@ -1,4 +1,4 @@
-use magelang::analyzer::{analyze_root, HeaderCompiler, IHeaderCompiler};
+use magelang::analyzer::{UnitAnalyzer, HeaderCompiler, IHeaderCompiler};
 use magelang::compiler::SimpleCompiler;
 use magelang::lexer::Lexer;
 use magelang::linker::Linker;
@@ -24,7 +24,8 @@ fn main() {
     let header = header_compiler.compile_header(&root_ast).unwrap();
 
     let headers = vec![header];
-    let unit = analyze_root(&root_ast, &headers[..]).unwrap();
+    let unit_analyzer = UnitAnalyzer::new();
+    let unit = unit_analyzer.analyze(&root_ast, &headers[..]).unwrap();
 
     let mut compiler = SimpleCompiler::new(unit);
     let object = compiler.compile().unwrap();
