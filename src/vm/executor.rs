@@ -1,6 +1,6 @@
 use crate::bytecode::{self, BitSize, Instruction, Program};
 
-use super::{native::{INativeExecutor, NativeExecutor}, stack::RuntimeStack};
+use super::{native::{INativeExecutor, NativeExecutor}, stack::RuntimeStack, errors::Error};
 
 pub struct Executor {
     runtime_stack: RuntimeStack,
@@ -20,9 +20,9 @@ struct CallFrame {
 }
 
 impl Executor {
-    pub fn load(program: Program) -> Self {
-        Self {
-            runtime_stack: RuntimeStack::new(16 * 1024),
+    pub fn load(program: Program) -> Result<Self, Error> {
+        Ok(Self {
+            runtime_stack: RuntimeStack::allocate(16 * 1024)?,
             call_stack: vec![],
             current_frame: CallFrame {
                 func_id: program.entry_point,
@@ -33,7 +33,7 @@ impl Executor {
             functions: program.functions,
 
             native_executor: Box::new(NativeExecutor::new()),
-        }
+        })
     }
 
     pub fn run(&mut self) {

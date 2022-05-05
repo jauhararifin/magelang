@@ -1,23 +1,35 @@
-use std::mem::size_of;
+use std::{
+    alloc::{alloc, dealloc, Layout},
+    mem::size_of,
+};
 
-use super::value::{IntoValueType, RuntimeValue, ValueType};
+use super::{
+    errors::Error,
+    value::{IntoValueType, RuntimeValue, ValueType},
+};
 
 pub struct RuntimeStack {
     pub values: Vec<RuntimeValue>,
     pub top_ptr: usize,
-    pub data: Vec<u8>,
+    pub layout: Layout,
+    pub data: usize, // pointer to the stack values.
 }
 
 impl RuntimeStack {
-    pub fn new(size: usize) -> Self {
-        let data = vec![0; size];
-        Self {
-            values: Vec::new(),
-            top_ptr: data.as_ptr() as usize,
-            data,
-        }
-    }
+    pub fn allocate(size: usize) -> Result<Self, Error> {
+        let layout = Layout::array::<u8>(size)?;
+        let data = unsafe { alloc(layout) } as usize;
 
+        Ok(Self {
+            values: Vec::new(),
+            top_ptr: data as usize,
+            layout,
+            data,
+        })
+    }
+}
+
+impl RuntimeStack {
     pub fn top_index(&self) -> usize {
         self.values.len()
     }
@@ -59,7 +71,7 @@ impl RuntimeStack {
         if let Some(val) = self.values.last() {
             self.top_ptr = val.data + val.typ.size();
         } else {
-            self.top_ptr = self.data.as_ptr() as usize;
+            self.top_ptr = self.data as usize;
         }
     }
 
@@ -81,5 +93,11 @@ impl RuntimeStack {
         unsafe {
             std::ptr::copy::<u8>(source.data as *const u8, target.data as *mut u8, size);
         }
+    }
+}
+
+impl Drop for RuntimeStack {
+    fn drop(&mut self) {
+        unsafe { dealloc(self.data as *mut u8, self.layout) }
     }
 }

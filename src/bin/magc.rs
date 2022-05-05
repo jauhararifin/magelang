@@ -36,7 +36,7 @@ fn main() {
 
     // println!("program {:?}", program);
 
-    let mut executor = Executor::load(program);
+    let mut executor = Executor::load(program).unwrap();
     executor.run();
 
     // let mut executor = Executor::new();
