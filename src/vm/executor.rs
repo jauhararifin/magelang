@@ -1,16 +1,6 @@
-// pub struct Executor {
-//     memory: HashMap<usize, Value>,
-//     mem_id: usize,
-//
-//     value_stack: Vec<Value>,
-// }
+use crate::bytecode::{self, Program, Instruction, BitSize};
 
-use std::{
-    fmt::{Debug, Display},
-    mem::size_of,
-};
-
-use crate::bytecode::{self, BitSize, Instruction, Program};
+use super::stack::RuntimeStack;
 
 pub struct Executor {
     runtime_stack: RuntimeStack,
@@ -20,64 +10,10 @@ pub struct Executor {
     entry_point: usize,
 }
 
-#[derive(Clone)]
-struct RuntimeValue {
-    typ: ValueType,
-    data: usize, // pointer.
-}
-
-impl Debug for RuntimeValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            match &self.typ {
-                ValueType::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
-                _ => todo!(),
-            }
-        }
-    }
-}
-
 struct CallFrame {
     func_id: usize,
     instruction_index: usize,
     base_stack: usize,
-}
-
-#[derive(Debug, Clone)]
-enum ValueType {
-    Void,
-    Bool,
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    F32,
-    F64,
-    FnId,
-}
-
-impl ValueType {
-    fn size(&self) -> usize {
-        match &self {
-            ValueType::Void => 0,
-            ValueType::Bool => 1,
-            ValueType::I8 => 1,
-            ValueType::I16 => 2,
-            ValueType::I32 => 4,
-            ValueType::I64 => 8,
-            ValueType::U8 => 1,
-            ValueType::U16 => 2,
-            ValueType::U32 => 4,
-            ValueType::U64 => 8,
-            ValueType::F32 => 4,
-            ValueType::F64 => 8,
-            ValueType::FnId => size_of::<usize>(),
-        }
-    }
 }
 
 impl Executor {
@@ -181,85 +117,5 @@ impl Executor {
 
     fn execute_pop(&mut self, count: usize) {
         self.runtime_stack.clear(count);
-    }
-}
-
-struct RuntimeStack {
-    values: Vec<RuntimeValue>,
-    top_ptr: usize,
-    data: Vec<u8>,
-}
-
-impl RuntimeStack {
-    fn new(size: usize) -> Self {
-        let data = vec![0; size];
-        Self {
-            values: Vec::new(),
-            top_ptr: data.as_ptr() as usize,
-            data,
-        }
-    }
-
-    fn pop_i64(&mut self) -> i64 {
-        self.top_ptr -= ValueType::I64.size();
-        let val = self.values.pop().unwrap();
-        unsafe { *(val.data as *const i64) }
-    }
-
-    fn clear(&mut self, count: usize) {
-        self.values.resize(
-            self.values.len() - count,
-            RuntimeValue {
-                typ: ValueType::Void,
-                data: 0,
-            },
-        );
-
-        if let Some(val) = self.values.last() {
-            self.top_ptr = val.data + val.typ.size();
-        } else {
-            self.top_ptr = self.data.as_ptr() as usize;
-        }
-    }
-
-    fn get_and_push(&mut self, index: isize) {
-        let val = unsafe { self.values.get_unchecked(index as usize).clone() };
-        unsafe {
-            std::ptr::copy::<u8>(val.data as *const u8, self.top_ptr as *mut u8, val.typ.size());
-        }
-        self.top_ptr += val.typ.size();
-        self.values.push(val);
-    }
-
-    fn push_i64(&mut self, v: i64) {
-        let ptr = self.top_ptr as *mut i64;
-        unsafe { *ptr = v }
-
-        let typ = ValueType::I64;
-        self.top_ptr += typ.size();
-        self.values.push(RuntimeValue {
-            typ,
-            data: ptr as usize,
-        });
-    }
-
-    fn push_fn_id(&mut self, v: usize) {
-        let ptr = self.top_ptr as *mut usize;
-        unsafe { *ptr = v }
-
-        let typ = ValueType::FnId;
-        self.top_ptr += typ.size();
-        self.values.push(RuntimeValue {
-            typ,
-            data: ptr as usize,
-        });
-    }
-
-    fn push_void(&mut self) {
-        let typ = ValueType::Void;
-        self.values.push(RuntimeValue {
-            typ,
-            data: self.top_ptr,
-        });
     }
 }

@@ -4,7 +4,6 @@ use magelang::lexer::Lexer;
 use magelang::linker::Linker;
 use magelang::parser::{IParser, Parser};
 use magelang::vm::Executor;
-// use magelang::vm::Executor;
 use std::env;
 use std::fs::File;
 
