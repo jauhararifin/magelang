@@ -108,19 +108,29 @@ impl<'a> SimpleCompiler<'a> {
     fn compile_assign(&self, ctx: &mut FnContext, stmt: &Assign) -> Vec<Instruction> {
         let mut instructions = self.compile_expr(ctx, &stmt.value);
 
+        let (signed, size, is_float) = match stmt.receiver.typ.as_ref() {
+            Type::Int(t) => (t.signed, t.size, false),
+            Type::Float(t) => (false, t.size, true),
+            _ => unreachable!(),
+        };
+
         if !matches!(stmt.op, AssignOp::Assign) {
             let mut receiver = self.compile_expr(ctx, &stmt.receiver);
-            let op = match stmt.op {
-                AssignOp::PlusAssign => Instruction::Add,
-                AssignOp::MinusAssign => Instruction::Sub,
-                AssignOp::MulAssign => Instruction::Mul,
-                AssignOp::DivAssign => Instruction::Div,
-                AssignOp::ModAssign => Instruction::Mod,
-                AssignOp::BitAndAssign => Instruction::And,
-                AssignOp::BitOrAssign => Instruction::Or,
-                AssignOp::BitXorAssign => Instruction::Xor,
-                AssignOp::ShlAssign => Instruction::Shl,
-                AssignOp::ShrAssign => Instruction::Shr,
+            let op = match (is_float, stmt.op) {
+                (false, AssignOp::PlusAssign) => Instruction::Add(signed, size),
+                (false, AssignOp::MinusAssign) => Instruction::Sub(signed, size),
+                (false, AssignOp::MulAssign) => Instruction::Mul(signed, size),
+                (false, AssignOp::DivAssign) => Instruction::Div(signed, size),
+                (true, AssignOp::PlusAssign) => Instruction::AddFloat(size),
+                (true, AssignOp::MinusAssign) => Instruction::SubFloat(size),
+                (true, AssignOp::MulAssign) => Instruction::MulFloat(size),
+                (true, AssignOp::DivAssign) => Instruction::DivFloat(size),
+                (_, AssignOp::ModAssign) => Instruction::Mod(signed, size),
+                (_, AssignOp::BitAndAssign) => Instruction::And(size),
+                (_, AssignOp::BitOrAssign) => Instruction::Or(size),
+                (_, AssignOp::BitXorAssign) => Instruction::Xor(size),
+                (_, AssignOp::ShlAssign) => Instruction::Shl(size),
+                (_, AssignOp::ShrAssign) => Instruction::Shr(size),
                 _ => unreachable!(),
             };
 
@@ -277,23 +287,38 @@ impl<'a> SimpleCompiler<'a> {
             .concat();
         }
 
-        let ins = match binary.op {
-            BinOp::Plus => Instruction::Add,
-            BinOp::Minus => Instruction::Sub,
-            BinOp::Mul => Instruction::Mul,
-            BinOp::Div => Instruction::Div,
-            BinOp::Mod => Instruction::Mod,
-            BinOp::BitAnd => Instruction::And,
-            BinOp::BitOr => Instruction::Or,
-            BinOp::BitXor => Instruction::Xor,
-            BinOp::Shl => Instruction::Shl,
-            BinOp::Shr => Instruction::Shr,
-            BinOp::GT => Instruction::GT,
-            BinOp::LT => Instruction::LT,
-            BinOp::GTEq => Instruction::GTEq,
-            BinOp::LTEq => Instruction::LTEq,
-            BinOp::Eq => Instruction::Eq,
-            BinOp::NotEq => Instruction::NEq,
+        let (signed, size, is_float) = match binary.a.typ.as_ref() {
+            Type::Int(t) => (t.signed, t.size, false),
+            Type::Float(t) => (false, t.size, true),
+            Type::Bool => (false, 0, false),
+            _ => unreachable!(),
+        };
+
+        let ins = match (is_float, binary.op) {
+            (true, BinOp::Plus) => Instruction::Add(signed, size),
+            (true, BinOp::Minus) => Instruction::Sub(signed, size),
+            (true, BinOp::Mul) => Instruction::Mul(signed, size),
+            (true, BinOp::Div) => Instruction::Div(signed, size),
+            (false, BinOp::Plus) => Instruction::AddFloat(size),
+            (false, BinOp::Minus) => Instruction::SubFloat(size),
+            (false, BinOp::Mul) => Instruction::MulFloat(size),
+            (false, BinOp::Div) => Instruction::DivFloat(size),
+            (_, BinOp::Mod) => Instruction::Mod(signed, size),
+            (_, BinOp::BitAnd) => Instruction::And(size),
+            (_, BinOp::BitOr) => Instruction::Or(size),
+            (_, BinOp::BitXor) => Instruction::Xor(size),
+            (_, BinOp::Shl) => Instruction::Shl(size),
+            (_, BinOp::Shr) => Instruction::Shr(size),
+            (true, BinOp::GT) => Instruction::GT(signed, size),
+            (true, BinOp::LT) => Instruction::LT(signed, size),
+            (true, BinOp::GTEq) => Instruction::GTEq(signed, size),
+            (true, BinOp::LTEq) => Instruction::LTEq(signed, size),
+            (false, BinOp::GT) => Instruction::GTFloat(size),
+            (false, BinOp::LT) => Instruction::LTFloat(size),
+            (false, BinOp::GTEq) => Instruction::GTEqFloat(size),
+            (false, BinOp::LTEq) => Instruction::LTEqFloat(size),
+            (_, BinOp::Eq) => Instruction::Eq,
+            (_, BinOp::NotEq) => Instruction::NEq,
             _ => unreachable!(),
         };
         [&a[..], &b[..], &[ins]].concat()
@@ -302,17 +327,28 @@ impl<'a> SimpleCompiler<'a> {
     fn compile_unary(&self, ctx: &FnContext, unary: &Unary) -> Vec<Instruction> {
         let instructions = self.compile_expr(ctx, unary.val.as_ref());
 
+        let (signed, size, is_float) = match unary.val.typ.as_ref() {
+            Type::Int(t) => (t.signed, t.size, false),
+            Type::Float(t) => (false, t.size, true),
+            Type::Bool => (false, 0, false),
+            _ => unreachable!(),
+        };
+
         match unary.op {
             UnaryOp::Plus => instructions,
             UnaryOp::Minus => [
                 &[
                     Instruction::Constant(self.empty_value(unary.val.typ.as_ref())),
-                    Instruction::Sub,
+                    if is_float {
+                        Instruction::SubFloat(size)
+                    } else {
+                        Instruction::Sub(signed, size)
+                    },
                 ],
                 &instructions[..],
             ]
             .concat(),
-            UnaryOp::BitNot => [&instructions[..], &[Instruction::Not]].concat(),
+            UnaryOp::BitNot => [&instructions[..], &[Instruction::Not(size)]].concat(),
             UnaryOp::Not => {
                 vec![
                     Instruction::JumpIfTrue(3),

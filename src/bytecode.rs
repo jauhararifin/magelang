@@ -56,37 +56,49 @@ pub enum Instruction {
     Constant(Value), // push constant value to stack.
 
     // number operations
-    // TODO: use variant.
-    Add,
-    Sub,
-    Div,
-    Mul,
-    Mod,
+    Add(bool, u8), // (signed, size)
+    Sub(bool, u8),
+    Div(bool, u8),
+    Mul(bool, u8),
+    Mod(bool, u8),
+
+    AddFloat(u8),
+    SubFloat(u8),
+    DivFloat(u8),
+    MulFloat(u8),
 
     // shift operations
-    Shl,
-    Shr,
+    Shl(u8),
+    Shr(u8),
 
     // binary comparison operation
     Eq,
     NEq,
-    LT,
-    LTEq,
-    GT,
-    GTEq,
+
+    LT(bool, u8),
+    LTEq(bool, u8),
+    GT(bool, u8),
+    GTEq(bool, u8),
+
+    LTFloat(u8),
+    LTEqFloat(u8),
+    GTFloat(u8),
+    GTEqFloat(u8),
+
     // unary comparison operation
-    Not,
+    Not(u8),
 
     // bitwise operation
-    And,
-    Or,
-    Xor,
-    Neg,
+    And(u8),
+    Or(u8),
+    Xor(u8),
+    Neg(u8),
 
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
     Alloc(Value),
 
+    // TODO: support struct-like data-type.
     SetLocal(isize), // pop stack, and set it into the n-th stack element.
     GetLocal(isize), // push the n-th local value to stack.
 
