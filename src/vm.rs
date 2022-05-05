@@ -1,279 +1,265 @@
-use std::collections::HashMap;
+// pub struct Executor {
+//     memory: HashMap<usize, Value>,
+//     mem_id: usize,
+//
+//     value_stack: Vec<Value>,
+// }
 
-use crate::bytecode::{Instruction, Program, Value, ValueKind};
+use std::{
+    fmt::{Debug, Display},
+    mem::size_of,
+};
+
+use crate::bytecode::{self, BitSize, Instruction, Program};
 
 pub struct Executor {
-    memory: HashMap<usize, Value>,
-    mem_id: usize,
-
-    value_stack: Vec<Value>,
+    runtime_stack: RuntimeStack,
+    call_stack: Vec<CallFrame>,
+    current_frame: CallFrame,
+    functions: Vec<bytecode::Function>,
+    entry_point: usize,
 }
 
-struct InstructionContext {
-    base: usize,
-    memory_id: usize,
-    instruction_idx: usize,
+#[derive(Clone)]
+struct RuntimeValue {
+    typ: ValueType,
+    data: usize, // pointer.
+}
+
+impl Debug for RuntimeValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            match &self.typ {
+                ValueType::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
+                _ => todo!(),
+            }
+        }
+    }
+}
+
+struct CallFrame {
+    func_id: usize,
+    instruction_index: usize,
+    base_stack: usize,
+}
+
+#[derive(Debug, Clone)]
+enum ValueType {
+    Void,
+    Bool,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
+    FnId,
+}
+
+impl ValueType {
+    fn size(&self) -> usize {
+        match &self {
+            ValueType::Void => 0,
+            ValueType::Bool => 1,
+            ValueType::I8 => 1,
+            ValueType::I16 => 2,
+            ValueType::I32 => 4,
+            ValueType::I64 => 8,
+            ValueType::U8 => 1,
+            ValueType::U16 => 2,
+            ValueType::U32 => 4,
+            ValueType::U64 => 8,
+            ValueType::F32 => 4,
+            ValueType::F64 => 8,
+            ValueType::FnId => size_of::<usize>(),
+        }
+    }
 }
 
 impl Executor {
-    pub fn new() -> Self {
+    pub fn load(program: Program) -> Self {
         Self {
-            memory: HashMap::new(),
-            mem_id: 0,
-            value_stack: Vec::new(),
+            runtime_stack: RuntimeStack::new(16 * 1024),
+            call_stack: vec![],
+            current_frame: CallFrame {
+                func_id: program.entry_point,
+                instruction_index: 0,
+                base_stack: 0,
+            },
+            functions: program.functions,
+            entry_point: program.entry_point,
         }
     }
-}
 
-macro_rules! num_binary  {
-    ($self:expr,$op:tt) => {
-        let a = $self.value_stack.pop().unwrap();
-        let b = $self.value_stack.pop().unwrap();
-        $self.value_stack.push(Value {
-            kind: match (a.kind, b.kind) {
-                (ValueKind::I8(a), ValueKind::I8(b)) => ValueKind::I8(a $op b),
-                (ValueKind::I16(a), ValueKind::I16(b)) => ValueKind::I16(a $op b),
-                (ValueKind::I32(a), ValueKind::I32(b)) => ValueKind::I32(a $op b),
-                (ValueKind::I64(a), ValueKind::I64(b)) => ValueKind::I64(a $op b),
-                (ValueKind::U8(a), ValueKind::U8(b)) => ValueKind::U8(a $op b),
-                (ValueKind::U16(a), ValueKind::U16(b)) => ValueKind::U16(a $op b),
-                (ValueKind::U32(a), ValueKind::U32(b)) => ValueKind::U32(a $op b),
-                (ValueKind::U64(a), ValueKind::U64(b)) => ValueKind::U64(a $op b),
-                (ValueKind::F32(a), ValueKind::F32(b)) => ValueKind::F32(a $op b),
-                (ValueKind::F64(a), ValueKind::F64(b)) => ValueKind::F64(a $op b),
-                _ => todo!(),
-            },
-        });
-    };
-}
-
-macro_rules! int_binary  {
-    ($self:expr,$op:tt) => {
-        let a = $self.value_stack.pop().unwrap();
-        let b = $self.value_stack.pop().unwrap();
-        $self.value_stack.push(Value {
-            kind: match (a.kind, b.kind) {
-                (ValueKind::I8(a), ValueKind::I8(b)) => ValueKind::I8(a $op b),
-                (ValueKind::I16(a), ValueKind::I16(b)) => ValueKind::I16(a $op b),
-                (ValueKind::I32(a), ValueKind::I32(b)) => ValueKind::I32(a $op b),
-                (ValueKind::I64(a), ValueKind::I64(b)) => ValueKind::I64(a $op b),
-                (ValueKind::U8(a), ValueKind::U8(b)) => ValueKind::U8(a $op b),
-                (ValueKind::U16(a), ValueKind::U16(b)) => ValueKind::U16(a $op b),
-                (ValueKind::U32(a), ValueKind::U32(b)) => ValueKind::U32(a $op b),
-                (ValueKind::U64(a), ValueKind::U64(b)) => ValueKind::U64(a $op b),
-                _ => todo!(),
-            },
-        });
-    };
-}
-
-impl Executor {
-    pub fn execute(&mut self, program: &Program) {
-        for val in program.values.iter() {
-            self.add_value(val.clone());
-        }
-
-        let entry_ins = self.memory.get(&program.entry_point).unwrap();
-        let entry_ins = if let ValueKind::Fn(instruction) = &entry_ins.kind {
-            instruction
-        } else {
-            todo!();
-        };
-
-        let mut instruction_ptr: (&[Instruction], usize) = (entry_ins, 0); // (value_ref, index)
-        let mut base_stack: usize = 0;
-        let mut curr_func_id: usize = program.entry_point;
-        let mut instruction_stack: Vec<InstructionContext> = Vec::new();
-
+    pub fn run(&mut self) {
         loop {
-            if instruction_ptr.0.len() <= instruction_ptr.1 {
-                break;
+            let func_id = self.current_frame.func_id;
+            let instruction_index = self.current_frame.instruction_index;
+
+            let instruction = unsafe {
+                self.functions
+                    .get_unchecked(func_id)
+                    .instructions
+                    .get_unchecked(instruction_index)
+                    .clone()
+            };
+
+            println!("executing: {:?}", instruction);
+
+            let advance = self.execute_instruction(instruction);
+
+            println!("stack:");
+            for val in self.runtime_stack.values.iter() {
+                println!("{:?}", val);
             }
-            let ins = &instruction_ptr.0[instruction_ptr.1];
+            println!("===================================");
 
-            // println!("{:?} {:?}", curr_func_id, instruction_ptr.1);
-            // println!("base stack: {}", base_stack);
-            // println!("{:?}", ins);
-
-            match ins {
-                Instruction::Nop => (),
-                Instruction::Constant(val) => {
-                    self.value_stack.push(val.clone());
-                }
-                Instruction::Add => {
-                    num_binary!(self, +);
-                }
-                Instruction::Sub => {
-                    num_binary!(self, -);
-                }
-                Instruction::Div => {
-                    num_binary!(self, /);
-                }
-                Instruction::Mul => {
-                    num_binary!(self, *);
-                }
-                Instruction::Mod => {
-                    int_binary!(self, %);
-                }
-                Instruction::Shl => {
-                    int_binary!(self, <<);
-                }
-                Instruction::Shr => {
-                    int_binary!(self, >>);
-                }
-                Instruction::Eq => {
-                    let a = self.value_stack.pop().unwrap();
-                    let b = self.value_stack.pop().unwrap();
-                    self.value_stack.push(Value {
-                        kind: ValueKind::Bool(a.kind == b.kind),
-                    });
-                }
-                Instruction::NEq => {
-                    let a = self.value_stack.pop().unwrap();
-                    let b = self.value_stack.pop().unwrap();
-                    self.value_stack.push(Value {
-                        kind: ValueKind::Bool(a.kind != b.kind),
-                    });
-                }
-                Instruction::LT => todo!(),
-                Instruction::LTEq => todo!(),
-                Instruction::GT => todo!(),
-                Instruction::GTEq => todo!(),
-                Instruction::Not => todo!(),
-                Instruction::And => todo!(),
-                Instruction::Or => todo!(),
-                Instruction::Xor => todo!(),
-                Instruction::Neg => todo!(),
-                Instruction::Alloc(val) => todo!(),
-                Instruction::SetLocal(offset) => {
-                    let val = self.value_stack.pop().unwrap();
-                    self.value_stack[(base_stack as isize + offset) as usize] = val;
-                }
-                Instruction::GetLocal(offset) => {
-                    let v = self.value_stack[(base_stack as isize + offset) as usize].clone();
-                    self.value_stack.push(v);
-                }
-                Instruction::SetGlobal(idx) => todo!(),
-                Instruction::GetGlobal(idx) => {
-                    let value = self.memory.get(idx).unwrap();
-                    let value = if let ValueKind::Fn(_) = &value.kind {
-                        Value {
-                            kind: ValueKind::Ptr(idx.clone()),
-                        }
-                    } else {
-                        Value {
-                            kind: value.kind.clone(),
-                        }
-                    };
-                    self.value_stack.push(value);
-                }
-                Instruction::GetProp(idx) => todo!(),
-                Instruction::SetProp(idx) => todo!(),
-                Instruction::Jump(offset) => {
-                    instruction_ptr.1 = ((instruction_ptr.1 as isize) + offset) as usize;
-                    continue;
-                },
-                Instruction::JumpIfTrue(offset) => todo!(),
-                Instruction::JumpIfFalse(offset) => {
-                    let val = self.value_stack.pop().unwrap();
-                    if let ValueKind::Bool(v) = &val.kind {
-                        if !*v {
-                            instruction_ptr.1 = ((instruction_ptr.1 as isize) + offset) as usize;
-                            continue;
-                        }
-                    } else {
-                        todo!();
-                    };
-                }
-                Instruction::Pop(num) => {
-                    let len = self.value_stack.len() - num;
-                    self.value_stack.resize(
-                        len,
-                        Value {
-                            kind: ValueKind::Void,
-                        },
-                    );
-                }
-                Instruction::Call(n_args) => {
-                    let fn_ptr = self.value_stack.pop().unwrap();
-
-                    let fn_ptr = if let ValueKind::Ptr(mem_id) = &fn_ptr.kind {
-                        mem_id
-                    } else {
-                        todo!();
-                    };
-
-                    let fn_value = self.memory.get(fn_ptr).unwrap();
-                    if let ValueKind::Fn(instructions) = &fn_value.kind {
-                        let ctx = InstructionContext {
-                            base: base_stack.clone(),
-                            memory_id: curr_func_id.clone(),
-                            instruction_idx: instruction_ptr.1.clone(),
-                        };
-                        instruction_stack.push(ctx);
-
-                        instruction_ptr = (&instructions[..], 0);
-                        base_stack = self.value_stack.len() - n_args;
-                        curr_func_id = fn_ptr.clone();
-
-                        continue;
-                    } else {
-                        todo!();
-                    }
-                }
-                Instruction::Ret => {
-                    let ctx = instruction_stack.pop();
-                    if ctx.is_none() {
-                        break;
-                    }
-                    let ctx = ctx.unwrap();
-
-                    let val = self.value_stack.pop().unwrap(); // return value
-                    self.value_stack.resize(
-                        base_stack,
-                        Value {
-                            kind: ValueKind::Void,
-                        },
-                    ); // clearing the stack.
-                    self.value_stack.push(val); // put the return value.
-
-                    let fn_value = self.memory.get(&ctx.memory_id).unwrap();
-                    let instructions = if let ValueKind::Fn(instructions) = &fn_value.kind {
-                        &instructions[..]
-                    } else {
-                        todo!();
-                    };
-
-                    instruction_ptr = (instructions, ctx.instruction_idx);
-                    base_stack = ctx.base;
-                    curr_func_id = ctx.memory_id;
-                }
-                Instruction::CallNative(name) => {
-                    self.run_native_function(name.as_str());
-                },
+            if advance {
+                self.current_frame.instruction_index += 1;
             }
-
-            // println!("{:?}", self.value_stack);
-            // println!("=======================================");
-
-            instruction_ptr.1 += 1;
         }
     }
 
-    fn add_value(&mut self, value: Value) {
-        self.memory.insert(self.mem_id, value);
-        self.mem_id += 1;
-    }
-
-    fn run_native_function(&self, name: &str) {
-        match name {
-            "print_int" => {
-                let val = self.value_stack.last().unwrap();
-                if let ValueKind::I64(v) = val.kind {
-                    println!("{}", v);
-                }
-            },
+    fn execute_instruction(&mut self, instruction: Instruction) -> bool {
+        match instruction {
+            Instruction::Nop => (),
+            Instruction::Constant(val) => self.execute_constant(val),
+            Instruction::GetLocal(offset) => self.execute_get_local(offset),
+            Instruction::Mod(variant) => self.execute_mod(variant),
+            Instruction::Pop(count) => self.execute_pop(count),
             _ => todo!(),
         }
+
+        true
+    }
+
+    fn execute_constant(&mut self, val: bytecode::Value) {
+        match val {
+            bytecode::Value::Void => self.runtime_stack.push_void(),
+            bytecode::Value::Bool(_) => todo!(),
+            bytecode::Value::I8(_) => todo!(),
+            bytecode::Value::I16(_) => todo!(),
+            bytecode::Value::I32(_) => todo!(),
+            bytecode::Value::I64(val) => self.runtime_stack.push_i64(val),
+            bytecode::Value::U8(_) => todo!(),
+            bytecode::Value::U16(_) => todo!(),
+            bytecode::Value::U32(_) => todo!(),
+            bytecode::Value::U64(_) => todo!(),
+            bytecode::Value::F32(_) => todo!(),
+            bytecode::Value::F64(_) => todo!(),
+            bytecode::Value::FnId(val) => self.runtime_stack.push_fn_id(val),
+        }
+    }
+
+    fn execute_get_local(&mut self, offset: isize) {
+        self.runtime_stack
+            .get_and_push(self.current_frame.base_stack as isize + offset);
+    }
+
+    fn execute_mod(&mut self, variant: BitSize) {
+        match variant {
+            BitSize::I8 => todo!(),
+            BitSize::I16 => todo!(),
+            BitSize::I32 => todo!(),
+            BitSize::I64 => {
+                let b = self.runtime_stack.pop_i64();
+                let a = self.runtime_stack.pop_i64();
+                self.runtime_stack.push_i64(a % b);
+            }
+            BitSize::U8 => todo!(),
+            BitSize::U16 => todo!(),
+            BitSize::U32 => todo!(),
+            BitSize::U64 => todo!(),
+            BitSize::F32 => todo!(),
+            BitSize::F64 => todo!(),
+        }
+    }
+
+    fn execute_pop(&mut self, count: usize) {
+        self.runtime_stack.clear(count);
+    }
+}
+
+struct RuntimeStack {
+    values: Vec<RuntimeValue>,
+    top_ptr: usize,
+    data: Vec<u8>,
+}
+
+impl RuntimeStack {
+    fn new(size: usize) -> Self {
+        let data = vec![0; size];
+        Self {
+            values: Vec::new(),
+            top_ptr: data.as_ptr() as usize,
+            data,
+        }
+    }
+
+    fn pop_i64(&mut self) -> i64 {
+        self.top_ptr -= ValueType::I64.size();
+        let val = self.values.pop().unwrap();
+        unsafe { *(val.data as *const i64) }
+    }
+
+    fn clear(&mut self, count: usize) {
+        self.values.resize(
+            self.values.len() - count,
+            RuntimeValue {
+                typ: ValueType::Void,
+                data: 0,
+            },
+        );
+
+        if let Some(val) = self.values.last() {
+            self.top_ptr = val.data + val.typ.size();
+        } else {
+            self.top_ptr = self.data.as_ptr() as usize;
+        }
+    }
+
+    fn get_and_push(&mut self, index: isize) {
+        let val = unsafe { self.values.get_unchecked(index as usize).clone() };
+        unsafe {
+            std::ptr::copy::<u8>(val.data as *const u8, self.top_ptr as *mut u8, val.typ.size());
+        }
+        self.top_ptr += val.typ.size();
+        self.values.push(val);
+    }
+
+    fn push_i64(&mut self, v: i64) {
+        let ptr = self.top_ptr as *mut i64;
+        unsafe { *ptr = v }
+
+        let typ = ValueType::I64;
+        self.top_ptr += typ.size();
+        self.values.push(RuntimeValue {
+            typ,
+            data: ptr as usize,
+        });
+    }
+
+    fn push_fn_id(&mut self, v: usize) {
+        let ptr = self.top_ptr as *mut usize;
+        unsafe { *ptr = v }
+
+        let typ = ValueType::FnId;
+        self.top_ptr += typ.size();
+        self.values.push(RuntimeValue {
+            typ,
+            data: ptr as usize,
+        });
+    }
+
+    fn push_void(&mut self) {
+        let typ = ValueType::Void;
+        self.values.push(RuntimeValue {
+            typ,
+            data: self.top_ptr,
+        });
     }
 }

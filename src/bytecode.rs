@@ -8,7 +8,7 @@ pub struct Program {
 
 #[derive(Debug)]
 pub struct Object {
-    pub functions: Vec<Function>,
+    pub functions: Vec<Function>, // list of functions.
 }
 
 #[derive(Debug, Clone)]
@@ -17,15 +17,97 @@ pub struct Function {
     pub instructions: Vec<Instruction>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    Void,
+    Bool(bool),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    FnId(usize),
+}
+
+impl Eq for Value {}
+
+impl From<bool> for Value {
+    fn from(v: bool) -> Self {
+        Self::Bool(v)
+    }
+}
+
+impl From<i8> for Value {
+    fn from(v: i8) -> Self {
+        Self::I8(v)
+    }
+}
+
+impl From<i16> for Value {
+    fn from(v: i16) -> Self {
+        Self::I16(v)
+    }
+}
+
+impl From<i32> for Value {
+    fn from(v: i32) -> Self {
+        Self::I32(v)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(v: i64) -> Self {
+        Self::I64(v)
+    }
+}
+
+impl From<u8> for Value {
+    fn from(v: u8) -> Self {
+        Self::U8(v)
+    }
+}
+
+impl From<u16> for Value {
+    fn from(v: u16) -> Self {
+        Self::U16(v)
+    }
+}
+
+impl From<u32> for Value {
+    fn from(v: u32) -> Self {
+        Self::U32(v)
+    }
+}
+
+impl From<u64> for Value {
+    fn from(v: u64) -> Self {
+        Self::U64(v)
+    }
+}
+
+impl From<f32> for Value {
+    fn from(v: f32) -> Self {
+        Self::F32(v)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(v: f64) -> Self {
+        Self::F64(v)
+    }
+}
+
 // note that this is not used for runtime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Nop,
 
-    Constant8(u8),
-    Constant16(u16),
-    Constant32(u32),
-    Constant64(u64),
+    Constant(Value),
 
     // number operations
     Add(BitSize),
@@ -97,19 +179,37 @@ pub enum Instruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BitSize {
-    B8,
-    B16,
-    B32,
-    B64,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
 }
 
-impl From<u8> for BitSize {
-    fn from(size: u8) -> Self {
+impl BitSize {
+    pub fn int(signed: bool, size: u8) -> Self {
+        match (signed, size) {
+            (true, 8) => Self::I8,
+            (true, 16) => Self::I16,
+            (true, 32) => Self::I32,
+            (true, 64) => Self::I64,
+            (false, 8) => Self::U8,
+            (false, 16) => Self::U16,
+            (false, 32) => Self::U32,
+            (false, 64) => Self::U64,
+            _ => panic!("got invalid size: {}", size),
+        }
+    }
+
+    pub fn float(size: u8) -> Self {
         match size {
-            8 => Self::B8,
-            16 => Self::B16,
-            32 => Self::B32,
-            64 => Self::B64,
+            32 => Self::F32,
+            64 => Self::F64,
             _ => panic!("got invalid size: {}", size),
         }
     }

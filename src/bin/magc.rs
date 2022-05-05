@@ -3,6 +3,7 @@ use magelang::compiler::Compiler;
 use magelang::lexer::Lexer;
 use magelang::linker::Linker;
 use magelang::parser::{IParser, Parser};
+use magelang::vm::Executor;
 // use magelang::vm::Executor;
 use std::env;
 use std::fs::File;
@@ -35,6 +36,9 @@ fn main() {
     let program = linker.link(&objects[..]).unwrap();
 
     println!("program {:?}", program);
+
+    let mut executor = Executor::load(program);
+    executor.run();
 
     // let mut executor = Executor::new();
     // executor.execute(&program);

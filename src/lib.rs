@@ -7,6 +7,6 @@ pub mod parser;
 pub mod pos;
 pub mod semantic;
 pub mod token;
-// pub mod vm;
+pub mod vm;
 pub mod errors;
 pub mod linker;

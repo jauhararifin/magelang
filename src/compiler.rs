@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    bytecode::{BitSize, Function, Instruction, Object},
+    bytecode::{BitSize, Function, Instruction, Object, Value},
     semantic::{
         Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Return,
         Statement, Type, Unary, UnaryOp, Unit, Var, While,
@@ -16,21 +16,23 @@ impl Compiler {
     }
 
     pub fn compile(&self, unit: &Unit) -> Object {
-        let mut compiler = SimpleCompiler::new(unit);
+        let mut compiler = CompilerHelper::new(unit);
         compiler.compile()
     }
 }
 
-struct SimpleCompiler<'a> {
+struct CompilerHelper<'a> {
     unit: &'a Unit,
-    name_to_index: HashMap<Rc<String>, usize>,
+    func_to_index: HashMap<Rc<String>, usize>,
+    global_to_index: HashMap<Rc<String>, usize>,
 }
 
-impl<'a> SimpleCompiler<'a> {
+impl<'a> CompilerHelper<'a> {
     fn new(unit: &'a Unit) -> Self {
         Self {
             unit,
-            name_to_index: HashMap::new(),
+            func_to_index: HashMap::new(),
+            global_to_index: HashMap::new(),
         }
     }
 
@@ -39,17 +41,14 @@ impl<'a> SimpleCompiler<'a> {
 
         for (id, fn_decl) in self.unit.functions.iter().enumerate() {
             let name = Rc::clone(&fn_decl.header.name.clone());
-            self.name_to_index.insert(name, id);
+            self.func_to_index.insert(name, id);
         }
 
         for fn_decl in self.unit.functions.iter() {
             functions.push(self.compile_func(fn_decl));
         }
 
-        Object {
-            // symbol_table: std::mem::take(&mut self.name_to_index),
-            functions,
-        }
+        Object { functions }
     }
 
     fn compile_func(&self, fn_decl: &FnDecl) -> Function {
@@ -110,8 +109,8 @@ impl<'a> SimpleCompiler<'a> {
         let mut instructions = self.compile_expr(ctx, &stmt.value);
 
         let (signed, size, is_float) = match stmt.receiver.typ.as_ref() {
-            Type::Int(t) => (t.signed, BitSize::from(t.size), false),
-            Type::Float(t) => (false, BitSize::from(t.size), true),
+            Type::Int(t) => (t.signed, BitSize::int(t.signed, t.size), false),
+            Type::Float(t) => (false, BitSize::float(t.size), true),
             _ => unreachable!(),
         };
 
@@ -159,7 +158,9 @@ impl<'a> SimpleCompiler<'a> {
     fn compile_assign_ident_expr(&self, ctx: &mut FnContext, name: &String) -> Vec<Instruction> {
         if let Some(index_type) = ctx.find_symbol(name) {
             vec![Instruction::SetLocal(index_type.index)]
-        } else if let Some(index) = self.name_to_index.get(name) {
+        } else if let Some(index) = self.func_to_index.get(name) {
+            unreachable!("cannot assign a value to a function {} at {}", name, index);
+        } else if let Some(index) = self.global_to_index.get(name) {
             vec![Instruction::SetGlobal(index.clone())]
         } else {
             unreachable!();
@@ -225,17 +226,17 @@ impl<'a> SimpleCompiler<'a> {
     fn compile_expr(&self, ctx: &FnContext, expr: &Expr) -> Vec<Instruction> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_ident(ctx, name),
-            ExprKind::I8(val) => vec![Instruction::Constant8(*val as u8)],
-            ExprKind::I16(val) => vec![Instruction::Constant16(*val as u16)],
-            ExprKind::I32(val) => vec![Instruction::Constant32(*val as u32)],
-            ExprKind::I64(val) => vec![Instruction::Constant64(*val as u64)],
-            ExprKind::U8(val) => vec![Instruction::Constant8(*val as u8)],
-            ExprKind::U16(val) => vec![Instruction::Constant16(*val as u16)],
-            ExprKind::U32(val) => vec![Instruction::Constant32(*val as u32)],
-            ExprKind::U64(val) => vec![Instruction::Constant64(*val as u64)],
-            ExprKind::F32(val) => vec![Instruction::Constant32(u32::from_be_bytes(val.to_be_bytes()))],
-            ExprKind::F64(val) => vec![Instruction::Constant64(u64::from_be_bytes(val.to_be_bytes()))],
-            ExprKind::Bool(val) => vec![Instruction::Constant8(*val as u8)],
+            ExprKind::I8(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::I16(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::I32(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::I64(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::U8(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::U16(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::U32(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::U64(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::F32(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::F64(val) => vec![Instruction::Constant((*val).into())],
+            ExprKind::Bool(val) => vec![Instruction::Constant((*val).into())],
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
             ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
@@ -246,7 +247,9 @@ impl<'a> SimpleCompiler<'a> {
     fn compile_ident(&self, ctx: &FnContext, name: &String) -> Vec<Instruction> {
         if let Some(index_type) = ctx.find_symbol(name) {
             vec![Instruction::GetLocal(index_type.index)]
-        } else if let Some(index) = self.name_to_index.get(name) {
+        } else if let Some(index) = self.func_to_index.get(name) {
+            vec![Instruction::Constant(Value::FnId(*index))]
+        } else if let Some(index) = self.global_to_index.get(name) {
             vec![Instruction::GetGlobal(index.clone())]
         } else {
             unreachable!();
@@ -267,7 +270,7 @@ impl<'a> SimpleCompiler<'a> {
                 &a[..],
                 &[
                     Instruction::JumpIfTrue(3),
-                    Instruction::Constant8(0),
+                    Instruction::Constant(false.into()),
                     Instruction::Jump(b.len() as isize + 1),
                 ],
                 &b[..],
@@ -285,7 +288,7 @@ impl<'a> SimpleCompiler<'a> {
                 &a[..],
                 &[
                     Instruction::JumpIfFalse(3),
-                    Instruction::Constant8(1),
+                    Instruction::Constant(true.into()),
                     Instruction::Jump(b.len() as isize + 1),
                 ],
                 &b[..],
@@ -294,9 +297,9 @@ impl<'a> SimpleCompiler<'a> {
         }
 
         let (signed, size, is_float) = match binary.a.typ.as_ref() {
-            Type::Int(t) => (t.signed, BitSize::from(t.size), false),
-            Type::Float(t) => (false, BitSize::from(t.size), true),
-            Type::Bool => (false, BitSize::from(8), false),
+            Type::Int(t) => (t.signed, BitSize::int(t.signed, t.size), false),
+            Type::Float(t) => (false, BitSize::float(t.size), true),
+            Type::Bool => (false, BitSize::U8, false),
             _ => unreachable!(),
         };
 
@@ -351,9 +354,9 @@ impl<'a> SimpleCompiler<'a> {
         let instructions = self.compile_expr(ctx, unary.val.as_ref());
 
         let (size, is_float) = match unary.val.typ.as_ref() {
-            Type::Int(t) => (BitSize::from(t.size), false),
-            Type::Float(t) => (BitSize::from(t.size), true),
-            Type::Bool => (BitSize::from(8), false),
+            Type::Int(t) => (BitSize::int(t.signed, t.size), false),
+            Type::Float(t) => (BitSize::float(t.size), true),
+            Type::Bool => (BitSize::U8, false),
             _ => unreachable!(),
         };
 
@@ -375,9 +378,9 @@ impl<'a> SimpleCompiler<'a> {
             UnaryOp::Not => {
                 vec![
                     Instruction::JumpIfTrue(3),
-                    Instruction::Constant8(1),
+                    Instruction::Constant(true.into()),
                     Instruction::Jump(2),
-                    Instruction::Constant8(0),
+                    Instruction::Constant(false.into()),
                 ]
             }
         }
@@ -390,7 +393,7 @@ impl<'a> SimpleCompiler<'a> {
         if let Some(return_type) = fn_type.return_type.as_ref() {
             instructions.push(Instruction::from(self.empty_value(return_type)));
         } else {
-            instructions.push(Instruction::Constant8(0)); // void
+            instructions.push(Instruction::Constant(Value::Void)); // void
         }
 
         for arg in fn_call.args.iter().rev() {
@@ -410,23 +413,23 @@ impl<'a> SimpleCompiler<'a> {
     fn empty_value(&self, typ: &Type) -> Instruction {
         match typ {
             Type::Int(int_type) => match (int_type.signed, int_type.size) {
-                (true, 8) => Instruction::Constant8(0),
-                (true, 16) => Instruction::Constant16(0),
-                (true, 32) => Instruction::Constant32(0),
-                (true, 64) => Instruction::Constant64(0),
-                (false, 8) => Instruction::Constant8(0),
-                (false, 16) => Instruction::Constant16(0),
-                (false, 32) => Instruction::Constant32(0),
-                (false, 64) => Instruction::Constant64(0),
+                (true, 8) => Instruction::Constant(0i8.into()),
+                (true, 16) => Instruction::Constant(0i16.into()),
+                (true, 32) => Instruction::Constant(0i32.into()),
+                (true, 64) => Instruction::Constant(0i64.into()),
+                (false, 8) => Instruction::Constant(0u8.into()),
+                (false, 16) => Instruction::Constant(0u16.into()),
+                (false, 32) => Instruction::Constant(0u32.into()),
+                (false, 64) => Instruction::Constant(0u64.into()),
                 _ => unreachable!(),
             },
             Type::Float(float_type) => match float_type.size {
-                32 => Instruction::Constant32(0),
-                64 => Instruction::Constant64(0),
+                32 => Instruction::Constant(0.0f32.into()),
+                64 => Instruction::Constant(0.0f64.into()),
                 _ => unreachable!(),
             },
-            Type::Bool => Instruction::Constant8(0),
-            Type::Void => Instruction::Constant8(0),
+            Type::Bool => Instruction::Constant(false.into()),
+            Type::Void => Instruction::Constant(Value::Void),
             Type::Fn(_) => unreachable!("cannot create empty function on the runtime."),
         }
     }
