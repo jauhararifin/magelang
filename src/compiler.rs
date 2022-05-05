@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    bytecode::{BitSize, Instruction, Object, Value},
+    bytecode::{BitSize, Function, Instruction, Object},
     semantic::{
         Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Return,
         Statement, Type, Unary, UnaryOp, Unit, Var, While,
@@ -35,7 +35,7 @@ impl<'a> SimpleCompiler<'a> {
     }
 
     fn compile(&mut self) -> Object {
-        let mut values = Vec::new();
+        let mut functions = Vec::new();
 
         for (id, fn_decl) in self.unit.functions.iter().enumerate() {
             let name = Rc::clone(&fn_decl.header.name.clone());
@@ -43,16 +43,16 @@ impl<'a> SimpleCompiler<'a> {
         }
 
         for fn_decl in self.unit.functions.iter() {
-            values.push(self.compile_func(fn_decl));
+            functions.push(self.compile_func(fn_decl));
         }
 
         Object {
-            symbol_table: std::mem::take(&mut self.name_to_index),
-            values,
+            // symbol_table: std::mem::take(&mut self.name_to_index),
+            functions,
         }
     }
 
-    fn compile_func(&self, fn_decl: &FnDecl) -> Value {
+    fn compile_func(&self, fn_decl: &FnDecl) -> Function {
         let mut instructions = Vec::new();
         let mut ctx = FnContext::new(&fn_decl);
 
@@ -63,7 +63,10 @@ impl<'a> SimpleCompiler<'a> {
             instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap()));
         }
 
-        Value::Fn(instructions)
+        Function {
+            name: fn_decl.header.name.as_ref().clone(),
+            instructions,
+        }
     }
 
     fn compile_statement(&self, ctx: &mut FnContext, expr: &Statement) -> Vec<Instruction> {
@@ -99,7 +102,7 @@ impl<'a> SimpleCompiler<'a> {
         if let Some(value) = &var.value {
             self.compile_expr(ctx, value)
         } else {
-            vec![Instruction::Constant(self.empty_value(&var.header.typ))]
+            vec![self.empty_value(&var.header.typ)]
         }
     }
 
@@ -167,7 +170,7 @@ impl<'a> SimpleCompiler<'a> {
         let mut instructions = Vec::new();
         if let Some(value) = &stmt.value {
             instructions.extend(self.compile_expr(ctx, value));
-            instructions.push(Instruction::SetLocal(-ctx.argument_size-1))
+            instructions.push(Instruction::SetLocal(-ctx.argument_size - 1))
         };
 
         instructions.push(Instruction::Ret);
@@ -222,17 +225,17 @@ impl<'a> SimpleCompiler<'a> {
     fn compile_expr(&self, ctx: &FnContext, expr: &Expr) -> Vec<Instruction> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_ident(ctx, name),
-            ExprKind::I8(val) => vec![Instruction::Constant(Value::I8(val.clone()))],
-            ExprKind::I16(val) => vec![Instruction::Constant(Value::I16(val.clone()))],
-            ExprKind::I32(val) => vec![Instruction::Constant(Value::I32(val.clone()))],
-            ExprKind::I64(val) => vec![Instruction::Constant(Value::I64(val.clone()))],
-            ExprKind::U8(val) => vec![Instruction::Constant(Value::U8(val.clone()))],
-            ExprKind::U16(val) => vec![Instruction::Constant(Value::U16(val.clone()))],
-            ExprKind::U32(val) => vec![Instruction::Constant(Value::U32(val.clone()))],
-            ExprKind::U64(val) => vec![Instruction::Constant(Value::U64(val.clone()))],
-            ExprKind::F32(val) => vec![Instruction::Constant(Value::F32(val.clone()))],
-            ExprKind::F64(val) => vec![Instruction::Constant(Value::F64(val.clone()))],
-            ExprKind::Bool(val) => vec![Instruction::Constant(Value::Bool(val.clone()))],
+            ExprKind::I8(val) => vec![Instruction::Constant8(*val as u8)],
+            ExprKind::I16(val) => vec![Instruction::Constant16(*val as u16)],
+            ExprKind::I32(val) => vec![Instruction::Constant32(*val as u32)],
+            ExprKind::I64(val) => vec![Instruction::Constant64(*val as u64)],
+            ExprKind::U8(val) => vec![Instruction::Constant8(*val as u8)],
+            ExprKind::U16(val) => vec![Instruction::Constant16(*val as u16)],
+            ExprKind::U32(val) => vec![Instruction::Constant32(*val as u32)],
+            ExprKind::U64(val) => vec![Instruction::Constant64(*val as u64)],
+            ExprKind::F32(val) => vec![Instruction::Constant32(u32::from_be_bytes(val.to_be_bytes()))],
+            ExprKind::F64(val) => vec![Instruction::Constant64(u64::from_be_bytes(val.to_be_bytes()))],
+            ExprKind::Bool(val) => vec![Instruction::Constant8(*val as u8)],
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
             ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
@@ -264,7 +267,7 @@ impl<'a> SimpleCompiler<'a> {
                 &a[..],
                 &[
                     Instruction::JumpIfTrue(3),
-                    Instruction::Constant(false.into()),
+                    Instruction::Constant8(0),
                     Instruction::Jump(b.len() as isize + 1),
                 ],
                 &b[..],
@@ -282,7 +285,7 @@ impl<'a> SimpleCompiler<'a> {
                 &a[..],
                 &[
                     Instruction::JumpIfFalse(3),
-                    Instruction::Constant(true.into()),
+                    Instruction::Constant8(1),
                     Instruction::Jump(b.len() as isize + 1),
                 ],
                 &b[..],
@@ -335,8 +338,10 @@ impl<'a> SimpleCompiler<'a> {
             (false, true, BinOp::LTEq) => Instruction::SLTEq(size),
             (true, _, BinOp::LTEq) => Instruction::LTEqFloat(size),
 
-            (_, _, BinOp::Eq) => Instruction::Eq,
-            (_, _, BinOp::NotEq) => Instruction::NEq,
+            (false, _, BinOp::Eq) => Instruction::Eq(size),
+            (true, _, BinOp::Eq) => Instruction::EqFloat(size),
+            (false, _, BinOp::NotEq) => Instruction::NEq(size),
+            (true, _, BinOp::NotEq) => Instruction::NEqFloat(size),
             _ => unreachable!(),
         };
         [&a[..], &b[..], &[ins]].concat()
@@ -356,7 +361,7 @@ impl<'a> SimpleCompiler<'a> {
             UnaryOp::Plus => instructions,
             UnaryOp::Minus => [
                 &[
-                    Instruction::Constant(self.empty_value(unary.val.typ.as_ref())),
+                    self.empty_value(unary.val.typ.as_ref()),
                     if is_float {
                         Instruction::SubFloat(size)
                     } else {
@@ -370,9 +375,9 @@ impl<'a> SimpleCompiler<'a> {
             UnaryOp::Not => {
                 vec![
                     Instruction::JumpIfTrue(3),
-                    Instruction::Constant(true.into()),
+                    Instruction::Constant8(1),
                     Instruction::Jump(2),
-                    Instruction::Constant(false.into()),
+                    Instruction::Constant8(0),
                 ]
             }
         }
@@ -385,7 +390,7 @@ impl<'a> SimpleCompiler<'a> {
         if let Some(return_type) = fn_type.return_type.as_ref() {
             instructions.push(Instruction::from(self.empty_value(return_type)));
         } else {
-            instructions.push(Instruction::from(Value::Void));
+            instructions.push(Instruction::Constant8(0)); // void
         }
 
         for arg in fn_call.args.iter().rev() {
@@ -402,26 +407,26 @@ impl<'a> SimpleCompiler<'a> {
         todo!();
     }
 
-    fn empty_value(&self, typ: &Type) -> Value {
+    fn empty_value(&self, typ: &Type) -> Instruction {
         match typ {
             Type::Int(int_type) => match (int_type.signed, int_type.size) {
-                (true, 8) => Value::I8(0),
-                (true, 16) => Value::I16(0),
-                (true, 32) => Value::I32(0),
-                (true, 64) => Value::I64(0),
-                (false, 8) => Value::U8(0),
-                (false, 16) => Value::U16(0),
-                (false, 32) => Value::U32(0),
-                (false, 64) => Value::U64(0),
+                (true, 8) => Instruction::Constant8(0),
+                (true, 16) => Instruction::Constant16(0),
+                (true, 32) => Instruction::Constant32(0),
+                (true, 64) => Instruction::Constant64(0),
+                (false, 8) => Instruction::Constant8(0),
+                (false, 16) => Instruction::Constant16(0),
+                (false, 32) => Instruction::Constant32(0),
+                (false, 64) => Instruction::Constant64(0),
                 _ => unreachable!(),
             },
             Type::Float(float_type) => match float_type.size {
-                32 => Value::F32(0.0),
-                64 => Value::F64(0.0),
+                32 => Instruction::Constant32(0),
+                64 => Instruction::Constant64(0),
                 _ => unreachable!(),
             },
-            Type::Bool => Value::Bool(false),
-            Type::Void => Value::Void,
+            Type::Bool => Instruction::Constant8(0),
+            Type::Void => Instruction::Constant8(0),
             Type::Fn(_) => unreachable!("cannot create empty function on the runtime."),
         }
     }
@@ -444,7 +449,12 @@ impl FnContext {
         let mut table = HashMap::new();
         for (index, param) in fn_type.arguments.iter().rev().enumerate() {
             let name = param.name.clone();
-            table.insert(name, Rc::new(Symbol { index: -(index as isize)-1 }));
+            table.insert(
+                name,
+                Rc::new(Symbol {
+                    index: -(index as isize) - 1,
+                }),
+            );
         }
 
         Self {

@@ -1,50 +1,31 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Program {
-    pub values: Vec<Value>,
+    pub functions: Vec<Function>,
     pub entry_point: usize,
 }
 
 #[derive(Debug)]
 pub struct Object {
-    pub symbol_table: HashMap<Rc<String>, usize>, // contain the mangled name of the symbols.
-    pub values: Vec<Value>,
+    pub functions: Vec<Function>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64),
-    F32(f32),
-    F64(f64),
-    Bool(bool),
-    Void,
-    Fn(Vec<Instruction>),
-    Ptr(usize), // pointer to a value, doesn't have to be in heap. the value itself can be function.
-                // TODO: support struct
-                // Struct(Vec<Value>),
-}
-
-impl Eq for Value {}
-
-impl From<bool> for Value {
-    fn from(v: bool) -> Self {
-        Value::Bool(v)
-    }
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub name: String,
+    pub instructions: Vec<Instruction>,
 }
 
 // note that this is not used for runtime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Nop,
-    Constant(Value), // push constant value to stack.
+
+    Constant8(u8),
+    Constant16(u16),
+    Constant32(u32),
+    Constant64(u64),
 
     // number operations
     Add(BitSize),
@@ -61,8 +42,8 @@ pub enum Instruction {
     MulFloat(BitSize),
     Shl(BitSize),
     Shr(BitSize),
-    Eq,
-    NEq,
+    Eq(BitSize),
+    NEq(BitSize),
     LT(BitSize),
     LTEq(BitSize),
     GT(BitSize),
@@ -71,6 +52,8 @@ pub enum Instruction {
     SLTEq(BitSize),
     SGT(BitSize),
     SGTEq(BitSize),
+    EqFloat(BitSize),
+    NEqFloat(BitSize),
     LTFloat(BitSize),
     LTEqFloat(BitSize),
     GTFloat(BitSize),
@@ -83,7 +66,7 @@ pub enum Instruction {
 
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
-    Alloc(Value),
+    // Alloc(Value),
 
     // TODO: support struct-like data-type.
     SetLocal(isize), // pop stack, and set it into the n-th stack element.
@@ -110,12 +93,6 @@ pub enum Instruction {
 
     // call native method
     CallNative(Rc<String>),
-}
-
-impl From<Value> for Instruction {
-    fn from(v: Value) -> Self {
-        Self::Constant(v)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

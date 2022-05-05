@@ -17,14 +17,14 @@ impl Linker {
             todo!();
         }
 
-        let main_func = objects[0].symbol_table.get(&String::from("main"));
+        let main_func = objects[0].functions.iter().enumerate().find(|func| func.1.name == "main");
         if main_func.is_none() {
             return Err(Error::MissingMain);
         }
 
         Ok(Program {
-            values: objects[0].values.iter().map(|v| v.clone()).collect(),
-            entry_point: main_func.unwrap().clone(),
+            functions: objects[0].functions.iter().map(|f| f.clone()).collect(),
+            entry_point: main_func.unwrap().0,
         })
     }
 }
