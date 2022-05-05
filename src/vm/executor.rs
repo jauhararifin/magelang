@@ -1,6 +1,6 @@
 use crate::bytecode::{self, BitSize, Instruction, Program};
 
-use super::stack::RuntimeStack;
+use super::{native::{INativeExecutor, NativeExecutor}, stack::RuntimeStack};
 
 pub struct Executor {
     runtime_stack: RuntimeStack,
@@ -8,6 +8,8 @@ pub struct Executor {
     current_frame: CallFrame,
     is_exited: bool,
     functions: Vec<bytecode::Function>,
+
+    native_executor: Box<dyn INativeExecutor>,
 }
 
 #[derive(Clone)]
@@ -29,6 +31,8 @@ impl Executor {
             },
             is_exited: false,
             functions: program.functions,
+
+            native_executor: Box::new(NativeExecutor::new()),
         }
     }
 
@@ -191,7 +195,7 @@ impl Executor {
         let last_call_stack = self.call_stack.pop();
         if last_call_stack.is_none() {
             self.is_exited = true;
-            return true
+            return true;
         }
 
         self.current_frame = last_call_stack.unwrap();
@@ -199,7 +203,7 @@ impl Executor {
     }
 
     fn execute_call_native(&mut self, native_func: &String) -> bool {
-        println!("calling native func {}", native_func);
+        self.native_executor.execute_native(native_func.as_str(), &self.runtime_stack);
         true
     }
 }
