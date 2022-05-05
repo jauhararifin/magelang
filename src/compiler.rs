@@ -2,31 +2,39 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     bytecode::{Instruction, Object, Value, ValueKind},
-    errors::Error,
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Selector,
-        Statement, Type, Unit, Var, While,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Expr, ExprKind, FnDecl, FunctionCall, If, Return, Statement,
+        Type, Unit, Var, While,
     },
 };
 
-pub struct SimpleCompiler {
-    unit: Unit,
+pub struct Compiler();
 
-    name_to_index: HashMap<Rc<String>, usize>,
-}
+impl Compiler {
+    pub fn new() -> Self {
+        Self()
+    }
 
-impl SimpleCompiler {
-    pub fn new(unit: Unit) -> Self {
-        Self {
-            unit,
-
-            name_to_index: HashMap::new(),
-        }
+    pub fn compile(&self, unit: &Unit) -> Object {
+        let mut compiler = SimpleCompiler::new(unit);
+        compiler.compile()
     }
 }
 
-impl SimpleCompiler {
-    pub fn compile(&mut self) -> Result<Object, Error> {
+struct SimpleCompiler<'a> {
+    unit: &'a Unit,
+    name_to_index: HashMap<Rc<String>, usize>,
+}
+
+impl<'a> SimpleCompiler<'a> {
+    fn new(unit: &'a Unit) -> Self {
+        Self {
+            unit,
+            name_to_index: HashMap::new(),
+        }
+    }
+
+    fn compile(&mut self) -> Object {
         let mut values = Vec::new();
 
         for (id, fn_decl) in self.unit.functions.iter().enumerate() {
@@ -35,33 +43,32 @@ impl SimpleCompiler {
         }
 
         for fn_decl in self.unit.functions.iter() {
-            values.push(self.compile_func(fn_decl)?);
+            values.push(self.compile_func(fn_decl));
         }
 
-        Ok(Object {
+        Object {
             symbol_table: std::mem::take(&mut self.name_to_index),
             values,
-        })
+        }
     }
 
-    fn compile_func(&self, fn_decl: &FnDecl) -> Result<Value, Error> {
+    fn compile_func(&self, fn_decl: &FnDecl) -> Value {
         let mut instructions = Vec::new();
-        let mut ctx = FnContext::new(&fn_decl)?;
+        let mut ctx = FnContext::new(&fn_decl);
 
         if fn_decl.header.native {
             instructions.push(Instruction::CallNative(fn_decl.header.name.clone()));
             instructions.push(Instruction::Ret);
         } else {
-            instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap())?);
+            instructions.extend(self.compile_statement(&mut ctx, fn_decl.body.as_ref().unwrap()));
         }
 
-        Ok(Value {
-            id: 0,
+        Value {
             kind: ValueKind::Fn(instructions),
-        })
+        }
     }
 
-    fn compile_statement(&self, ctx: &mut FnContext, expr: &Statement) -> Result<Vec<Instruction>, Error> {
+    fn compile_statement(&self, ctx: &mut FnContext, expr: &Statement) -> Vec<Instruction> {
         match expr {
             Statement::Block(stmt) => self.compile_block_stmt(ctx, stmt),
             Statement::Var(var) => self.compile_var(ctx, var),
@@ -73,36 +80,36 @@ impl SimpleCompiler {
         }
     }
 
-    fn compile_block_stmt(&self, ctx: &mut FnContext, stmt: &BlockStatement) -> Result<Vec<Instruction>, Error> {
-        let mut instructions = Vec::new();
+    fn compile_block_stmt(&self, ctx: &mut FnContext, stmt: &BlockStatement) -> Vec<Instruction> {
         ctx.add_block();
 
+        let mut instructions = Vec::new();
         for statement in stmt.body.iter() {
-            instructions.extend(self.compile_statement(ctx, statement)?);
+            instructions.extend(self.compile_statement(ctx, statement));
         }
 
         let num_locals = ctx.pop_block();
         instructions.push(Instruction::Pop(num_locals));
 
-        Ok(instructions)
+        instructions
     }
 
-    fn compile_var(&self, ctx: &mut FnContext, var: &Var) -> Result<Vec<Instruction>, Error> {
+    fn compile_var(&self, ctx: &mut FnContext, var: &Var) -> Vec<Instruction> {
         let name = Rc::clone(&var.header.name);
         ctx.add_symbol(name);
 
         if let Some(value) = &var.value {
             self.compile_expr(ctx, value)
         } else {
-            Ok(vec![Instruction::Constant(self.empty_value(&var.header.typ)?)])
+            vec![Instruction::Constant(self.empty_value(&var.header.typ))]
         }
     }
 
-    fn compile_assign(&self, ctx: &mut FnContext, stmt: &Assign) -> Result<Vec<Instruction>, Error> {
-        let mut instructions = self.compile_expr(ctx, &stmt.value)?;
+    fn compile_assign(&self, ctx: &mut FnContext, stmt: &Assign) -> Vec<Instruction> {
+        let mut instructions = self.compile_expr(ctx, &stmt.value);
 
         if !matches!(stmt.op, AssignOp::Assign) {
-            let mut receiver = self.compile_expr(ctx, &stmt.receiver)?;
+            let mut receiver = self.compile_expr(ctx, &stmt.receiver);
             let op = match stmt.op {
                 AssignOp::PlusAssign => Instruction::Add,
                 AssignOp::MinusAssign => Instruction::Sub,
@@ -122,61 +129,47 @@ impl SimpleCompiler {
             instructions = receiver;
         }
 
-        instructions.extend(self.compile_assign_receiver(ctx, &stmt.receiver)?);
+        instructions.extend(self.compile_assign_receiver(ctx, &stmt.receiver));
 
-        Ok(instructions)
+        instructions
     }
 
-    fn compile_assign_receiver(&self, ctx: &mut FnContext, expr: &Expr) -> Result<Vec<Instruction>, Error> {
+    fn compile_assign_receiver(&self, ctx: &mut FnContext, expr: &Expr) -> Vec<Instruction> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_assign_ident_expr(ctx, name),
             _ => unreachable!(),
         }
     }
 
-    fn compile_assign_ident_expr(&self, ctx: &mut FnContext, name: &String) -> Result<Vec<Instruction>, Error> {
+    fn compile_assign_ident_expr(&self, ctx: &mut FnContext, name: &String) -> Vec<Instruction> {
         if let Some(index_type) = ctx.find_symbol(name) {
-            Ok(vec![Instruction::SetLocal(index_type.index)])
+            vec![Instruction::SetLocal(index_type.index)]
         } else if let Some(index) = self.name_to_index.get(name) {
-            Ok(vec![Instruction::SetGlobal(index.clone())])
+            vec![Instruction::SetGlobal(index.clone())]
         } else {
             unreachable!();
         }
     }
 
-    fn compile_assign_selector_expr(
-        &self,
-        ctx: &mut FnContext,
-        selector: &Selector,
-    ) -> Result<Vec<Instruction>, Error> {
-        let mut instructions = self.compile_expr(ctx, selector.source.as_ref())?;
-        instructions.push(Instruction::SetProp(selector.selection_index));
-
-        Ok(instructions)
-    }
-
-    fn compile_return(&self, ctx: &mut FnContext, stmt: &Return) -> Result<Vec<Instruction>, Error> {
+    fn compile_return(&self, ctx: &mut FnContext, stmt: &Return) -> Vec<Instruction> {
         let mut instructions = if let Some(value) = &stmt.value {
-            self.compile_expr(ctx, value)?
+            self.compile_expr(ctx, value)
         } else {
-            vec![Instruction::Constant(Value {
-                id: 0,
-                kind: ValueKind::Void,
-            })]
+            vec![Instruction::Constant(Value { kind: ValueKind::Void })]
         };
 
         instructions.push(Instruction::Ret);
-        Ok(instructions)
+        instructions
     }
 
-    fn compile_if(&self, ctx: &mut FnContext, stmt: &If) -> Result<Vec<Instruction>, Error> {
+    fn compile_if(&self, ctx: &mut FnContext, stmt: &If) -> Vec<Instruction> {
         // 1. cond
         // 2. jump_if_false (4.)
         // 3. body
         // 4. <the next instruction>
 
-        let cond = self.compile_expr(ctx, &stmt.cond)?;
-        let body = self.compile_statement(ctx, stmt.body.as_ref())?;
+        let cond = self.compile_expr(ctx, &stmt.cond);
+        let body = self.compile_statement(ctx, stmt.body.as_ref());
         let exit = Instruction::JumpIfFalse(body.len() as isize + 1);
 
         let mut result = vec![];
@@ -184,18 +177,18 @@ impl SimpleCompiler {
         result.push(exit);
         result.extend(body);
 
-        Ok(result)
+        result
     }
 
-    fn compile_while(&self, ctx: &mut FnContext, stmt: &While) -> Result<Vec<Instruction>, Error> {
+    fn compile_while(&self, ctx: &mut FnContext, stmt: &While) -> Vec<Instruction> {
         // 1. cond
         // 2. jump_if_false (5.)
         // 3. body
         // 4. jump (1.)
         // 5. <the next instruction>
 
-        let cond = self.compile_expr(ctx, &stmt.cond)?;
-        let body = self.compile_statement(ctx, stmt.body.as_ref())?;
+        let cond = self.compile_expr(ctx, &stmt.cond);
+        let body = self.compile_statement(ctx, stmt.body.as_ref());
         let exit = Instruction::JumpIfFalse(body.len() as isize + 1 + 1);
         let go_back = Instruction::Jump(-(body.len() as isize + 1 + cond.len() as isize));
 
@@ -205,47 +198,29 @@ impl SimpleCompiler {
         result.extend(body);
         result.push(go_back);
 
-        Ok(result)
+        result
     }
 
-    fn compile_expr_stmt(&self, ctx: &mut FnContext, expr: &Expr) -> Result<Vec<Instruction>, Error> {
-        let mut instructions = self.compile_expr(ctx, expr)?;
+    fn compile_expr_stmt(&self, ctx: &mut FnContext, expr: &Expr) -> Vec<Instruction> {
+        let mut instructions = self.compile_expr(ctx, expr);
         instructions.push(Instruction::Pop(1));
-        Ok(instructions)
+        instructions
     }
 
-    fn compile_expr(&self, ctx: &FnContext, expr: &Expr) -> Result<Vec<Instruction>, Error> {
+    fn compile_expr(&self, ctx: &FnContext, expr: &Expr) -> Vec<Instruction> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_ident(ctx, name),
-            ExprKind::I8(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I8(val.clone())))]),
-            ExprKind::I16(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I16(
-                val.clone(),
-            )))]),
-            ExprKind::I32(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I32(
-                val.clone(),
-            )))]),
-            ExprKind::I64(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::I64(
-                val.clone(),
-            )))]),
-            ExprKind::U8(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U8(val.clone())))]),
-            ExprKind::U16(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U16(
-                val.clone(),
-            )))]),
-            ExprKind::U32(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U32(
-                val.clone(),
-            )))]),
-            ExprKind::U64(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::U64(
-                val.clone(),
-            )))]),
-            ExprKind::F32(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::F32(
-                val.clone(),
-            )))]),
-            ExprKind::F64(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::F64(
-                val.clone(),
-            )))]),
-            ExprKind::Bool(val) => Ok(vec![Instruction::Constant(Value::constant(ValueKind::Bool(
-                val.clone(),
-            )))]),
+            ExprKind::I8(val) => vec![Instruction::Constant(Value::constant(ValueKind::I8(val.clone())))],
+            ExprKind::I16(val) => vec![Instruction::Constant(Value::constant(ValueKind::I16(val.clone())))],
+            ExprKind::I32(val) => vec![Instruction::Constant(Value::constant(ValueKind::I32(val.clone())))],
+            ExprKind::I64(val) => vec![Instruction::Constant(Value::constant(ValueKind::I64(val.clone())))],
+            ExprKind::U8(val) => vec![Instruction::Constant(Value::constant(ValueKind::U8(val.clone())))],
+            ExprKind::U16(val) => vec![Instruction::Constant(Value::constant(ValueKind::U16(val.clone())))],
+            ExprKind::U32(val) => vec![Instruction::Constant(Value::constant(ValueKind::U32(val.clone())))],
+            ExprKind::U64(val) => vec![Instruction::Constant(Value::constant(ValueKind::U64(val.clone())))],
+            ExprKind::F32(val) => vec![Instruction::Constant(Value::constant(ValueKind::F32(val.clone())))],
+            ExprKind::F64(val) => vec![Instruction::Constant(Value::constant(ValueKind::F64(val.clone())))],
+            ExprKind::Bool(val) => vec![Instruction::Constant(Value::constant(ValueKind::Bool(val.clone())))],
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
             ExprKind::Unary(_) => todo!(),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
@@ -253,19 +228,19 @@ impl SimpleCompiler {
         }
     }
 
-    fn compile_ident(&self, ctx: &FnContext, name: &String) -> Result<Vec<Instruction>, Error> {
+    fn compile_ident(&self, ctx: &FnContext, name: &String) -> Vec<Instruction> {
         if let Some(index_type) = ctx.find_symbol(name) {
-            Ok(vec![Instruction::GetLocal(index_type.index)])
+            vec![Instruction::GetLocal(index_type.index)]
         } else if let Some(index) = self.name_to_index.get(name) {
-            Ok(vec![Instruction::GetGlobal(index.clone())])
+            vec![Instruction::GetGlobal(index.clone())]
         } else {
             unreachable!();
         }
     }
 
-    fn compile_binary(&self, ctx: &FnContext, binary: &Binary) -> Result<Vec<Instruction>, Error> {
-        let mut instructions = self.compile_expr(ctx, binary.a.as_ref())?;
-        instructions.extend(self.compile_expr(ctx, binary.b.as_ref())?);
+    fn compile_binary(&self, ctx: &FnContext, binary: &Binary) -> Vec<Instruction> {
+        let mut instructions = self.compile_expr(ctx, binary.a.as_ref());
+        instructions.extend(self.compile_expr(ctx, binary.b.as_ref()));
 
         let ins = match binary.op {
             BinOp::Plus => Instruction::Add,
@@ -289,23 +264,23 @@ impl SimpleCompiler {
         };
         instructions.push(ins);
 
-        Ok(instructions)
+        instructions
     }
 
-    fn compile_func_call(&self, ctx: &FnContext, fn_call: &FunctionCall) -> Result<Vec<Instruction>, Error> {
+    fn compile_func_call(&self, ctx: &FnContext, fn_call: &FunctionCall) -> Vec<Instruction> {
         let mut instructions = Vec::new();
         for arg in fn_call.args.iter() {
-            instructions.extend(self.compile_expr(ctx, arg)?);
+            instructions.extend(self.compile_expr(ctx, arg));
         }
-        instructions.extend(self.compile_expr(ctx, &fn_call.func)?);
+        instructions.extend(self.compile_expr(ctx, &fn_call.func));
         instructions.push(Instruction::Call(fn_call.args.len()));
         // instructions.push(Instruction::Pop(fn_call.args.len()));
 
-        Ok(instructions)
+        instructions
     }
 
-    fn empty_value(&self, typ: &Type) -> Result<Value, Error> {
-        Ok(match typ {
+    fn empty_value(&self, typ: &Type) -> Value {
+        match typ {
             Type::Int(int_type) => match (int_type.signed, int_type.size) {
                 (true, 8) => Value::constant(ValueKind::I8(0)),
                 (true, 16) => Value::constant(ValueKind::I16(0)),
@@ -325,8 +300,7 @@ impl SimpleCompiler {
             Type::Bool => Value::constant(ValueKind::Bool(false)),
             Type::Void => Value::constant(ValueKind::Void),
             Type::Fn(_) => todo!(),
-            _ => unreachable!(),
-        })
+        }
     }
 }
 
@@ -341,7 +315,7 @@ struct Symbol {
 }
 
 impl FnContext {
-    fn new(fn_decl: &FnDecl) -> Result<Self, Error> {
+    fn new(fn_decl: &FnDecl) -> Self {
         let fn_type = &fn_decl.header.fn_type;
         let mut table = HashMap::new();
         for (index, param) in fn_type.arguments.iter().rev().enumerate() {
@@ -349,10 +323,10 @@ impl FnContext {
             table.insert(name, Rc::new(Symbol { index: index as isize }));
         }
 
-        Ok(Self {
+        Self {
             symbol_tables: vec![table],
             counter: fn_type.arguments.len() as isize,
-        })
+        }
     }
 
     fn add_block(&mut self) {

@@ -30,7 +30,6 @@ macro_rules! num_binary  {
         let a = $self.value_stack.pop().unwrap();
         let b = $self.value_stack.pop().unwrap();
         $self.value_stack.push(Value {
-            id: 0,
             kind: match (a.kind, b.kind) {
                 (ValueKind::I8(a), ValueKind::I8(b)) => ValueKind::I8(a $op b),
                 (ValueKind::I16(a), ValueKind::I16(b)) => ValueKind::I16(a $op b),
@@ -53,7 +52,6 @@ macro_rules! int_binary  {
         let a = $self.value_stack.pop().unwrap();
         let b = $self.value_stack.pop().unwrap();
         $self.value_stack.push(Value {
-            id: 0,
             kind: match (a.kind, b.kind) {
                 (ValueKind::I8(a), ValueKind::I8(b)) => ValueKind::I8(a $op b),
                 (ValueKind::I16(a), ValueKind::I16(b)) => ValueKind::I16(a $op b),
@@ -126,7 +124,6 @@ impl Executor {
                     let a = self.value_stack.pop().unwrap();
                     let b = self.value_stack.pop().unwrap();
                     self.value_stack.push(Value {
-                        id: 0,
                         kind: ValueKind::Bool(a.kind == b.kind),
                     });
                 }
@@ -134,7 +131,6 @@ impl Executor {
                     let a = self.value_stack.pop().unwrap();
                     let b = self.value_stack.pop().unwrap();
                     self.value_stack.push(Value {
-                        id: 0,
                         kind: ValueKind::Bool(a.kind != b.kind),
                     });
                 }
@@ -161,12 +157,10 @@ impl Executor {
                     let value = self.memory.get(idx).unwrap();
                     let value = if let ValueKind::Fn(_) = &value.kind {
                         Value {
-                            id: 0,
                             kind: ValueKind::Ptr(idx.clone()),
                         }
                     } else {
                         Value {
-                            id: 0,
                             kind: value.kind.clone(),
                         }
                     };
@@ -195,7 +189,6 @@ impl Executor {
                     self.value_stack.resize(
                         len,
                         Value {
-                            id: 0,
                             kind: ValueKind::Void,
                         },
                     );
@@ -238,7 +231,6 @@ impl Executor {
                     self.value_stack.resize(
                         base_stack,
                         Value {
-                            id: 0,
                             kind: ValueKind::Void,
                         },
                     ); // clearing the stack.

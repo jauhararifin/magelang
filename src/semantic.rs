@@ -301,9 +301,3 @@ pub struct Cast {
     pub val: Box<Expr>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Selector {
-    pub source: Box<Expr>,
-    pub selection: Rc<String>,
-    pub selection_index: usize,
-}

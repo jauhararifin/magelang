@@ -14,13 +14,12 @@ pub struct Object {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Value {
-    pub id: usize, // filled in runtime
     pub kind: ValueKind,
 }
 
 impl Value {
     pub fn constant(kind: ValueKind) -> Self {
-        Self { id: 0, kind }
+        Self { kind }
     }
 }
 
