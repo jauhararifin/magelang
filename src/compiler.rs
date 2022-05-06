@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{
     bytecode::{Function, Instruction, Object, Value, Variant},
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Return,
+        Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Index, Return,
         Statement, Type, Unary, UnaryOp, Unit, Var, While,
     },
 };
@@ -144,6 +144,7 @@ impl<'a> CompilerHelper<'a> {
     fn compile_assign_receiver(&self, ctx: &mut FnContext, expr: &Expr) -> Vec<Instruction> {
         match &expr.kind {
             ExprKind::Ident(name) => self.compile_assign_ident_expr(ctx, name),
+            ExprKind::Index(index) => self.compile_assign_index_expr(ctx, index),
             _ => unreachable!(),
         }
     }
@@ -158,6 +159,35 @@ impl<'a> CompilerHelper<'a> {
             todo!("not support global variable yet");
         } else {
             unreachable!();
+        }
+    }
+
+    fn compile_assign_index_expr(&self, ctx: &mut FnContext, index: &Index) -> Vec<Instruction> {
+        let array_ptr = self.compile_expr(ctx, index.array.as_ref());
+        let element_size = vec![Instruction::Constant(Value::I64(
+            self.get_type_size(index.array.typ.as_ref()) as i64 / 8,
+        ))];
+        let array_index = self.compile_expr(ctx, index.index.as_ref());
+
+        return [
+            &array_ptr[..],
+            &element_size[..],
+            &array_index[..],
+            &[Instruction::Mul(Variant::I64)],
+            &[Instruction::Add(Variant::I64)],
+            &[Instruction::SetHeap],
+        ]
+        .concat();
+    }
+
+    fn get_type_size(&self, typ: &Type) -> usize {
+        match typ {
+            Type::Bool => 8,
+            Type::Void => 0,
+            Type::Int(t) => t.size as usize,
+            Type::Float(t) => t.size as usize,
+            Type::Fn(_) => todo!(),
+            Type::Array(_) => 64,
         }
     }
 
@@ -234,7 +264,7 @@ impl<'a> CompilerHelper<'a> {
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
             ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
-            ExprKind::Index(_) => todo!(),
+            ExprKind::Index(index) => self.compile_index(ctx, index),
             ExprKind::Array(_) => todo!(),
             ExprKind::Cast(cast) => self.compile_cast(ctx, cast),
         }
@@ -375,6 +405,24 @@ impl<'a> CompilerHelper<'a> {
         instructions
     }
 
+    fn compile_index(&self, ctx: &FnContext, index: &Index) -> Vec<Instruction> {
+        let array_ptr = self.compile_expr(ctx, index.array.as_ref());
+        let element_size = vec![Instruction::Constant(Value::I64(
+            self.get_type_size(index.array.typ.as_ref()) as i64 / 8,
+        ))];
+        let array_index = self.compile_expr(ctx, index.index.as_ref());
+
+        return [
+            &array_ptr[..],
+            &element_size[..],
+            &array_index[..],
+            &[Instruction::Mul(Variant::I64)],
+            &[Instruction::Add(Variant::I64)],
+            &[Instruction::GetHeap],
+        ]
+        .concat();
+    }
+
     fn compile_cast(&self, _ctx: &FnContext, _cast: &Cast) -> Vec<Instruction> {
         todo!();
     }
@@ -399,13 +447,9 @@ impl<'a> CompilerHelper<'a> {
             },
             Type::Bool => vec![Instruction::Constant(false.into())],
             Type::Void => vec![Instruction::Constant(Value::Void)],
-            Type::Array(_) => self.empty_array_value(),
+            Type::Array(_) => vec![Instruction::Constant(Value::Ptr(0))],
             Type::Fn(_) => unreachable!("cannot create empty function on the runtime."),
         }
-    }
-
-    fn empty_array_value(&self) -> Vec<Instruction> {
-        todo!();
     }
 }
 

@@ -338,7 +338,7 @@ impl<'a> ExprHelper<'a> {
         };
 
         let index = self.analyze(&index_node.index, Rc::new(IntType::signed(64).into()))?;
-        if !index.typ.is_int() {
+        if index.typ.as_ref() != &Type::Int(IntType::signed(64)) {
             return Err(Error::IndexIsNotAnInt { expr: index });
         }
 

@@ -134,8 +134,9 @@ pub enum Instruction {
     // Then, it will push a Value::Obj to the stack.
     // pop a usize from stack, and allocate heap with that size, then push stack with the pointer.
     Alloc(Variant), // [size] -> [ptr to heap]
+    // TODO: I think GetHeap need a variant
     GetHeap, // [heap_ptr] -> [copied_value_from_heap]
-    SetHeap, // [heap_ptr] [value] -> {}
+    SetHeap, // [value] [heap_ptr]-> {}
 
     // TODO: support struct-like data-type.
     SetLocal(isize), // pop stack, and set it into the n-th stack element.
