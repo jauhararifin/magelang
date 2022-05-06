@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Header {
@@ -222,6 +222,7 @@ pub enum ExprKind {
     Binary(Binary),
     Unary(Unary),
     FunctionCall(FunctionCall),
+    Index(Index),
     Cast(Cast),
 }
 
@@ -289,6 +290,12 @@ impl Into<ExprKind> for FunctionCall {
     fn into(self) -> ExprKind {
         ExprKind::FunctionCall(self)
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Index {
+    pub array: Box<Expr>,
+    pub index: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

@@ -82,6 +82,7 @@ impl<'a> ExprHelper<'a> {
             ExprNodeKind::Binary(binary) => self.analyze_binary_expr(binary, &expected),
             ExprNodeKind::Unary(unary) => self.analyze_unary_expr(unary, &expected),
             ExprNodeKind::FunctionCall(func_call) => self.analyze_func_call(func_call, &expected),
+            ExprNodeKind::Index(_) => todo!(),
             ExprNodeKind::Cast(cast) => self.analyze_cast(cast, &expected),
             ExprNodeKind::Empty => unreachable!(),
         }

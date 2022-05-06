@@ -234,6 +234,7 @@ impl<'a> CompilerHelper<'a> {
             ExprKind::Binary(binary) => self.compile_binary(ctx, binary),
             ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
+            ExprKind::Index(_) => todo!(),
             ExprKind::Cast(cast) => self.compile_cast(ctx, cast),
         }
     }

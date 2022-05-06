@@ -1,7 +1,7 @@
 use crate::ast::{
     ArrayTypeNode, AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, ExprNodeKind, FnDeclNode,
-    FnHeaderNode, FunctionCallNode, IfNode, ParamNode, ReturnNode, RootNode, StatementNode, TypeNode, UnaryNode,
-    VarNode, WhileNode,
+    FnHeaderNode, FunctionCallNode, IfNode, IndexNode, ParamNode, ReturnNode, RootNode, StatementNode, TypeNode,
+    UnaryNode, VarNode, WhileNode,
 };
 use crate::errors::Error;
 use crate::lexer::ILexer;
@@ -100,6 +100,14 @@ enum State {
     },
     BinaryExpr {
         allow_empty: bool,
+    },
+    IndexExpr {
+        allow_empty: bool,
+    },
+    IndexExprIndex {
+        allow_empty: bool,
+        array: ExprNode,
+        open_brack: Token,
     },
     BinaryExprOperand {
         allow_empty: bool,
@@ -201,6 +209,12 @@ impl<T: ILexer> Parser<T> {
             State::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
             State::BinaryExpr { allow_empty } => self.parse_binary_expr(allow_empty, data),
             State::BinaryExprOperand { allow_empty, a, op } => self.parse_binary_expr_operand(allow_empty, a, op, data),
+            State::IndexExpr { allow_empty } => self.parse_index_expr(allow_empty, data),
+            State::IndexExprIndex {
+                allow_empty,
+                array,
+                open_brack,
+            } => self.parse_index_expr_index(allow_empty, array, open_brack, data),
             State::CastExpr { allow_empty } => self.parse_cast_expr(allow_empty, data),
             State::CastExprType {
                 allow_empty,
@@ -716,6 +730,7 @@ impl<T: ILexer> Parser<T> {
         // shl, shr
         // plus, minus
         // mul, div, mod
+        // index
         // cast
         // unary not, minus, plus, bit_not
         // call
@@ -726,6 +741,7 @@ impl<T: ILexer> Parser<T> {
 
         self.stack.push(State::Expr { allow_empty });
         self.stack.push(State::BinaryExpr { allow_empty });
+        self.stack.push(State::IndexExpr { allow_empty });
         self.stack.push(State::CastExpr { allow_empty });
         self.stack.push(State::UnaryExpr { allow_empty });
 
@@ -785,6 +801,51 @@ impl<T: ILexer> Parser<T> {
             }
             _ => unreachable!("invalid data when parsing binary expr operand: {:?}", data),
         })
+    }
+
+    fn parse_index_expr(&mut self, allow_empty: bool, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Expr(expr) = data {
+            if let Some(open_brack) = self.check(&TokenKind::OpenBrack)? {
+                self.stack.push(State::IndexExprIndex {
+                    allow_empty,
+                    array: expr,
+                    open_brack,
+                });
+                Ok(Ast::Empty)
+            } else {
+                Ok(Ast::Expr(expr))
+            }
+        } else {
+            unreachable!("invalid data when parsing index expr: {:?}", data)
+        }
+    }
+
+    fn parse_index_expr_index(
+        &mut self,
+        allow_empty: bool,
+        array: ExprNode,
+        open_brack: Token,
+        data: Ast,
+    ) -> Result<Ast, Error> {
+        if let Ast::Expr(index) = data {
+            let array = Box::new(array);
+            let index = Box::new(index);
+            self.expect(TokenKind::CloseBrack)?;
+            Ok(Ast::Expr(ExprNode {
+                pos: array.pos.clone(),
+                kind: ExprNodeKind::Index(IndexNode { array, index }),
+            }))
+        } else if let Ast::Empty = data {
+            self.stack.push(State::IndexExprIndex {
+                allow_empty,
+                array,
+                open_brack,
+            });
+            self.stack.push(State::Expr { allow_empty });
+            Ok(Ast::Empty)
+        } else {
+            unreachable!("invalid data when parsing index expr: {:?}", data)
+        }
     }
 
     fn parse_cast_expr(&mut self, allow_empty: bool, data: Ast) -> Result<Ast, Error> {

@@ -120,6 +120,7 @@ pub enum ExprNodeKind {
     Binary(BinaryNode),
     Unary(UnaryNode),
     FunctionCall(FunctionCallNode),
+    Index(IndexNode),
     Cast(CastNode),
 }
 
@@ -140,6 +141,12 @@ pub struct UnaryNode {
 pub struct FunctionCallNode {
     pub func: Box<ExprNode>,
     pub args: Vec<ExprNode>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexNode {
+    pub array: Box<ExprNode>,
+    pub index: Box<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
