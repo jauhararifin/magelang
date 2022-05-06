@@ -13,8 +13,10 @@ impl Debug for RuntimeValue {
                 ValueType::Void => write!(f, "{:?}@{}", self.typ, self.data),
                 ValueType::Bool => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const bool)),
                 ValueType::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
+                ValueType::U64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const u64)),
                 ValueType::FnId => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
-                _ => todo!(),
+                ValueType::Ptr => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
+                k @ _ => todo!("{:?}", k),
             }
         }
     }
@@ -35,6 +37,7 @@ pub enum ValueType {
     F32,
     F64,
     FnId,
+    Ptr,
 }
 
 pub trait IntoValueType {
@@ -129,6 +132,7 @@ impl ValueType {
             ValueType::F32 => 4,
             ValueType::F64 => 8,
             ValueType::FnId => size_of::<usize>(),
+            ValueType::Ptr => size_of::<usize>(),
         }
     }
 }

@@ -53,10 +53,30 @@ impl RuntimeStack {
         self.top_ptr += size_of::<T>();
     }
 
+    pub fn push_from_ptr(&mut self, typ: ValueType, ptr: usize) {
+        let size = typ.size();
+        self.values.push(RuntimeValue {
+            typ,
+            data: self.top_ptr,
+        });
+
+        unsafe {
+            std::ptr::copy::<u8>(ptr as *const u8, self.top_ptr as *mut u8, size);
+        }
+
+        self.top_ptr += size;
+    }
+
     pub fn pop_value<T: Copy>(&mut self) -> T {
         let val = self.values.pop().unwrap();
         self.top_ptr -= val.typ.size();
         unsafe { *(val.data as *const T) }
+    }
+
+    pub fn pop_value_detail(&mut self) -> RuntimeValue {
+        let val = self.values.pop().unwrap();
+        self.top_ptr -= val.typ.size();
+        val
     }
 
     pub fn pop(&mut self, count: usize) {

@@ -1,8 +1,10 @@
+use std::alloc::{Layout, alloc};
 use std::cmp::PartialEq;
 use std::ops::{Add, Div, Mul, Rem, Shl, Shr, Sub, BitAnd, BitOr, BitXor, Not};
 
 use crate::bytecode::{self, Variant, Instruction, Program};
 
+use super::value::ValueType;
 use super::{
     control::{Controller, IController},
     errors::Error,
@@ -30,9 +32,10 @@ impl Executor {
 
     pub fn run(&mut self) {
         while let Some(instruction) = self.controller.fetch() {
+
             // println!(
             //     "{} {:?}@{:?}",
-            //     self.functions.get(func_id).unwrap().name,
+            //     self.controller..get(func_id).unwrap().name,
             //     func_id,
             //     instruction_index
             // );
@@ -44,8 +47,8 @@ impl Executor {
 
                 Instruction::Add(variant) => self.execute_add(variant),
                 Instruction::Sub(variant) => self.execute_sub(variant),
-                Instruction::Div(variant) => self.execute_mul(variant),
-                Instruction::Mul(variant) => self.execute_div(variant),
+                Instruction::Mul(variant) => self.execute_mul(variant),
+                Instruction::Div(variant) => self.execute_div(variant),
                 Instruction::Mod(variant) => self.execute_mod(variant),
                 Instruction::Shl(variant) => self.execute_shl(variant),
                 Instruction::Shr(variant) => self.execute_shr(variant),
@@ -60,9 +63,9 @@ impl Executor {
                 Instruction::Or(variant) => self.execute_bit_or(variant),
                 Instruction::Xor(variant) => self.execute_bit_xor(variant),
 
-                Instruction::Alloc => todo!(),
-                Instruction::GetHeap(_variant) => todo!(),
-                Instruction::SetHeap => todo!(),
+                Instruction::Alloc => self.execute_alloc(),
+                Instruction::GetHeap(variant) => self.execute_get_heap(variant),
+                Instruction::SetHeap => self.execute_set_heap(),
 
                 Instruction::SetLocal(offset) => self.execute_set_local(offset),
                 Instruction::GetLocal(offset) => self.execute_get_local(offset),
@@ -84,10 +87,6 @@ impl Executor {
             //     println!("{:?}", val);
             // }
             // println!("===================================");
-
-            // if advance {
-            //     self.current_frame.instruction_index += 1;
-            // }
         }
     }
 
@@ -106,7 +105,7 @@ impl Executor {
             bytecode::Value::F32(val) => self.runtime_stack.push_primitive(val),
             bytecode::Value::F64(val) => self.runtime_stack.push_primitive(val),
             bytecode::Value::FnId(val) => self.runtime_stack.push_fn_id(val),
-            _ => todo!(),
+            bytecode::Value::Ptr(val) => self.runtime_stack.push_value(ValueType::Ptr, val),
         }
         self.controller.advance();
     }
@@ -417,6 +416,47 @@ impl Executor {
         }
         self.controller.advance();
     }
+
+    fn execute_alloc(&mut self) {
+        let size: usize = self.runtime_stack.pop_value();
+
+        let layout = Layout::array::<u8>(size).unwrap();
+        let data = unsafe { alloc(layout) } as usize;
+
+        self.runtime_stack.push_value(ValueType::Ptr, data);
+        self.controller.advance();
+    }   
+
+    fn execute_get_heap(&mut self, variant: Variant) {
+        let ptr: usize = self.runtime_stack.pop_value();
+
+        let value_type = match variant {
+            Variant::I8 => ValueType::I8,
+            Variant::I16 => ValueType::I16,
+            Variant::I32 => ValueType::I32,
+            Variant::I64 => ValueType::I64,
+            Variant::U8 => ValueType::U8,
+            Variant::U16 => ValueType::U16,
+            Variant::U32 => ValueType::U32,
+            Variant::U64 => ValueType::U64,
+            Variant::F32 => ValueType::F32,
+            Variant::F64 => ValueType::F64,
+        };
+        self.runtime_stack.push_from_ptr(value_type, ptr);
+
+        self.controller.advance();
+    }   
+
+    fn execute_set_heap(&mut self) {
+        let ptr: usize = self.runtime_stack.pop_value();
+        let value = self.runtime_stack.pop_value_detail();
+
+        unsafe {
+            std::ptr::copy::<u8>(value.data as *const u8, ptr as *mut u8, value.typ.size());
+        }
+
+        self.controller.advance();
+    }   
 
     fn execute_jump_if_false(&mut self, offset: isize) {
         let v: bool = self.runtime_stack.pop_value();
