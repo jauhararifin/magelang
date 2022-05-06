@@ -70,6 +70,18 @@ impl Type {
             None
         }
     }
+
+    pub fn is_array(&self) -> bool {
+        matches!(self, Type::Array(_))
+    }
+
+    pub fn try_unwrap_array(&self) -> Option<&Rc<ArrayType>> {
+        if let Type::Array(f) = self {
+            Some(f)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

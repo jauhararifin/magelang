@@ -1,9 +1,11 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, ops::IndexMut, rc::Rc};
 
 use crate::{
-    ast::{BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, UnaryNode},
+    ast::{BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, UnaryNode},
     errors::Error,
-    semantic::{BinOp, Binary, Cast, Expr, ExprKind, FloatType, FunctionCall, Header, IntType, Type, Unary, UnaryOp},
+    semantic::{
+        BinOp, Binary, Cast, Expr, ExprKind, FloatType, FunctionCall, Header, Index, IntType, Type, Unary, UnaryOp,
+    },
     token::{Token, TokenKind},
 };
 
@@ -82,7 +84,7 @@ impl<'a> ExprHelper<'a> {
             ExprNodeKind::Binary(binary) => self.analyze_binary_expr(binary, &expected),
             ExprNodeKind::Unary(unary) => self.analyze_unary_expr(unary, &expected),
             ExprNodeKind::FunctionCall(func_call) => self.analyze_func_call(func_call, &expected),
-            ExprNodeKind::Index(_) => todo!(),
+            ExprNodeKind::Index(index_node) => self.analyze_index(index_node, &expected),
             ExprNodeKind::Cast(cast) => self.analyze_cast(cast, &expected),
             ExprNodeKind::Empty => unreachable!(),
         }
@@ -321,6 +323,31 @@ impl<'a> ExprHelper<'a> {
             kind: FunctionCall { func, args }.into(),
             assignable: false,
             typ: return_type,
+        })
+    }
+
+    fn analyze_index(&self, index_node: &IndexNode, expected: &Rc<Type>) -> Result<Expr, Error> {
+        let array = self.analyze(&index_node.array, Rc::new(Type::Void))?;
+
+        let array_type = if let Some(typ) = array.typ.try_unwrap_array() {
+            typ
+        } else {
+            return Err(Error::NotAnArray { expr: array });
+        };
+
+        let index = self.analyze(&index_node.index, Rc::new(IntType::signed(64).into()))?;
+        if !index.typ.is_int() {
+            return Err(Error::IndexIsNotAnInt { expr: index });
+        }
+
+        let typ = array_type.elem_type.clone();
+        Ok(Expr {
+            kind: ExprKind::Index(Index {
+                array: Box::new(array),
+                index: Box::new(index),
+            }),
+            assignable: true,
+            typ,
         })
     }
 

@@ -27,6 +27,8 @@ fn main() {
     let unit_analyzer = UnitAnalyzer::new();
     let unit = unit_analyzer.analyze(&root_ast, &headers[..]).unwrap();
 
+    println!("{:?}", unit);
+
     let compiler = Compiler::new();
     let object = compiler.compile(&unit);
 

@@ -43,6 +43,8 @@ pub enum Error {
         expr: Expr, 
         target_type: Rc<Type>,
     },
+    NotAnArray{expr: Expr},
+    IndexIsNotAnInt{expr: Expr},
 
     UndeclaredSymbol,
     RedeclaredSymbol,
