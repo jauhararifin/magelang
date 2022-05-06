@@ -1,0 +1,6 @@
+fn native print_int(v: i64)
+
+fn main() {
+    var a: [1]i32
+}
+

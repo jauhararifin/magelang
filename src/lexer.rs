@@ -269,6 +269,8 @@ impl<R: Read> Lexer<R> {
             (")", TokenKind::CloseBrace),
             ("{", TokenKind::OpenBlock),
             ("}", TokenKind::CloseBlock),
+            ("[", TokenKind::OpenBrack),
+            ("]", TokenKind::CloseBrack),
             ("*=", TokenKind::MulAssign),
             ("*", TokenKind::Mul),
             ("+=", TokenKind::PlusAssign),

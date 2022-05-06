@@ -51,7 +51,7 @@ impl HeaderCompiler {
             return Err(Error::RedeclaredSymbol);
         }
 
-        let typ = type_helper.get_fn(&func.header);
+        let typ = type_helper.get_fn(&func.header)?;
 
         let fn_type = typ.unwrap_func();
 

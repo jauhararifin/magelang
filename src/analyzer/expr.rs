@@ -324,7 +324,7 @@ impl<'a> ExprHelper<'a> {
     }
 
     fn analyze_cast(&self, cast: &CastNode, expected: &Rc<Type>) -> Result<Expr, Error> {
-        let target = self.type_helper.get(&cast.target).clone();
+        let target = self.type_helper.get(&cast.target)?.clone();
         let val = self.analyze(cast.val.as_ref(), expected.clone())?;
 
         let target_ok = matches!(target.as_ref(), Type::Bool | Type::Int(_) | Type::Float(_));

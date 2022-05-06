@@ -1,6 +1,7 @@
 use crate::ast::{
-    AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, ExprNodeKind, FnDeclNode, FnHeaderNode,
-    FunctionCallNode, IfNode, ParamNode, ReturnNode, RootNode, StatementNode, TypeNode, UnaryNode, VarNode, WhileNode,
+    ArrayTypeNode, AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, ExprNodeKind, FnDeclNode,
+    FnHeaderNode, FunctionCallNode, IfNode, ParamNode, ReturnNode, RootNode, StatementNode, TypeNode, UnaryNode,
+    VarNode, WhileNode,
 };
 use crate::errors::Error;
 use crate::lexer::ILexer;
@@ -53,6 +54,12 @@ enum State {
         name: Token,
     },
     Type,
+    TypePrimitive,
+    TypeArray,
+    TypeArrayElem {
+        open_brack: Token,
+        size: Token,
+    },
     Statement,
     BlockStatement {
         body: Vec<StatementNode>,
@@ -174,31 +181,26 @@ impl<T: ILexer> Parser<T> {
             State::ParamName => self.parse_param_name(),
             State::ParamType { name } => self.parse_param_type(name, data),
             State::Type => self.parse_type(),
+            State::TypePrimitive => self.parse_primitive_type(),
+            State::TypeArray => self.parse_array_type(),
+            State::TypeArrayElem { open_brack, size } => self.parse_array_elem(open_brack, size, data),
             State::Statement => self.parse_statement(data),
             State::BlockStatement { body } => self.parse_block_statement(body, data),
             State::AssignStatement => self.parse_assign_statement(data),
-            State::AssignStatementValue { receiver, op } => {
-                self.parse_assign_value_statement(receiver, op, data)
-            }
+            State::AssignStatementValue { receiver, op } => self.parse_assign_value_statement(receiver, op, data),
             State::IfStatement => self.parse_if_statement(),
             State::IfStatementCond { if_token } => self.parse_if_statement_cond(if_token, data),
             State::IfStatementBody { if_token, cond } => self.parse_if_statement_body(if_token, cond, data),
             State::WhileStatement => self.parse_while_statement(),
             State::WhileStatementCond { while_token } => self.parse_while_statement_cond(while_token, data),
-            State::WhileStatementBody { while_token, cond } => {
-                self.parse_while_statement_body(while_token, cond, data)
-            }
+            State::WhileStatementBody { while_token, cond } => self.parse_while_statement_body(while_token, cond, data),
             State::ReturnStatement => self.parse_return_statement(),
-            State::ReturnStatementValue { return_token } => {
-                self.parse_return_value_statement(return_token, data)
-            }
+            State::ReturnStatementValue { return_token } => self.parse_return_value_statement(return_token, data),
             State::Expr { allow_empty } => self.parse_expr(allow_empty, data),
             State::UnaryExpr { allow_empty } => self.parse_unary_expr(allow_empty),
             State::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
             State::BinaryExpr { allow_empty } => self.parse_binary_expr(allow_empty, data),
-            State::BinaryExprOperand { allow_empty, a, op } => {
-                self.parse_binary_expr_operand(allow_empty, a, op, data)
-            }
+            State::BinaryExprOperand { allow_empty, a, op } => self.parse_binary_expr_operand(allow_empty, a, op, data),
             State::CastExpr { allow_empty } => self.parse_cast_expr(allow_empty, data),
             State::CastExprType {
                 allow_empty,
@@ -470,29 +472,56 @@ impl<T: ILexer> Parser<T> {
             | TokenKind::F32
             | TokenKind::F64
             | TokenKind::Bool => {
-                let token = self.lexer.next()?;
-                Ok(Ast::Type(TypeNode::Primitive(token)))
+                self.stack.push(State::TypePrimitive);
+                Ok(Ast::Empty)
+            }
+            TokenKind::OpenBrack => {
+                self.stack.push(State::TypeArray);
+                Ok(Ast::Empty)
             }
             _ => {
                 let token = self.lexer.next()?;
-                Err(Error::UnexpectedToken {
-                    expected: vec![
-                        TokenKind::I8,
-                        TokenKind::I16,
-                        TokenKind::I32,
-                        TokenKind::I64,
-                        TokenKind::U8,
-                        TokenKind::U16,
-                        TokenKind::U32,
-                        TokenKind::U64,
-                        TokenKind::F32,
-                        TokenKind::F64,
-                        TokenKind::Bool,
-                    ],
-                    found: token,
-                })
+                let expected = vec![
+                    TokenKind::I8,
+                    TokenKind::I16,
+                    TokenKind::I32,
+                    TokenKind::I64,
+                    TokenKind::U8,
+                    TokenKind::U16,
+                    TokenKind::U32,
+                    TokenKind::U64,
+                    TokenKind::F32,
+                    TokenKind::F64,
+                    TokenKind::Bool,
+                    TokenKind::OpenBrack,
+                ];
+                Err(Error::UnexpectedToken { expected, found: token })
             }
         };
+    }
+
+    fn parse_primitive_type(&mut self) -> Result<Ast, Error> {
+        let token = self.lexer.next()?;
+        Ok(Ast::Type(TypeNode::Primitive(token)))
+    }
+
+    fn parse_array_type(&mut self) -> Result<Ast, Error> {
+        let open_brack = self.expect(TokenKind::OpenBrack)?;
+        let size = self.expect(TokenKind::IntegerLit)?;
+        self.expect(TokenKind::CloseBrack)?;
+
+        self.stack.push(State::TypeArrayElem { open_brack, size });
+        self.stack.push(State::Type);
+        Ok(Ast::Empty)
+    }
+
+    fn parse_array_elem(&mut self, open_brack: Token, size: Token, data: Ast) -> Result<Ast, Error> {
+        if let Ast::Type(elem) = data {
+            let elem = Box::new(elem);
+            Ok(Ast::Type(TypeNode::Array(ArrayTypeNode { open_brack, size, elem })))
+        } else {
+            unreachable!();
+        }
     }
 
     fn parse_statement(&mut self, data: Ast) -> Result<Ast, Error> {
@@ -912,12 +941,10 @@ impl<T: ILexer> Parser<T> {
                 pos: token.pos.clone(),
                 kind: ExprNodeKind::BoolLit(self.lexer.next()?),
             })),
-            TokenKind::Ident => {
-                Ok(Ast::Expr(ExprNode {
-                    pos: token.pos.clone(),
-                    kind: ExprNodeKind::Ident(self.lexer.next()?),
-                }))
-            }
+            TokenKind::Ident => Ok(Ast::Expr(ExprNode {
+                pos: token.pos.clone(),
+                kind: ExprNodeKind::Ident(self.lexer.next()?),
+            })),
             TokenKind::OpenBrace => {
                 self.lexer.next()?;
                 self.stack.push(State::PrimaryExpr { allow_empty: false });

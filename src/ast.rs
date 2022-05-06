@@ -56,6 +56,14 @@ pub struct ParamNode {
 #[derive(Debug, Clone)]
 pub enum TypeNode {
     Primitive(Token),
+    Array(ArrayTypeNode),
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayTypeNode {
+    pub open_brack: Token,
+    pub size: Token,
+    pub elem: Box<TypeNode>,
 }
 
 #[derive(Debug, Clone)]

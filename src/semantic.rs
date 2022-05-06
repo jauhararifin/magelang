@@ -35,6 +35,7 @@ pub enum Type {
     Int(IntType),
     Float(FloatType),
     Fn(Rc<FnType>),
+    Array(Rc<ArrayType>),
 }
 
 impl Type {
@@ -125,14 +126,9 @@ pub struct Argument {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Struct {
-    pub fields: HashMap<Rc<String>, Field>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Field {
-    pub index: usize,
-    pub typ: Rc<Type>,
+pub struct ArrayType {
+    pub size: usize,
+    pub elem_type: Rc<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -300,4 +296,3 @@ pub struct Cast {
     pub target: Rc<Type>,
     pub val: Box<Expr>,
 }
-

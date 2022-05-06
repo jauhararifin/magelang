@@ -54,6 +54,8 @@ pub enum TokenKind {
     CloseBrace,
     OpenBlock,
     CloseBlock,
+    OpenBrack,
+    CloseBrack,
     Assign,
     PlusAssign,
     MinusAssign,

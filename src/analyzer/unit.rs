@@ -119,7 +119,7 @@ impl<'a> UnitAnalyzerHelper<'a> {
             return Err(Error::RedeclaredSymbol);
         }
 
-        let typ = self.type_helper.get(&stmt.typ);
+        let typ = self.type_helper.get(&stmt.typ)?;
 
         let value = if let Some(val) = &stmt.value {
             let value = self.expr_helper.analyze(val, typ.clone())?;

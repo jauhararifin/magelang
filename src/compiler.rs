@@ -396,6 +396,7 @@ impl<'a> CompilerHelper<'a> {
             },
             Type::Bool => Instruction::Constant(false.into()),
             Type::Void => Instruction::Constant(Value::Void),
+            Type::Array(_) => todo!(),
             Type::Fn(_) => unreachable!("cannot create empty function on the runtime."),
         }
     }
