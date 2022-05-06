@@ -27,7 +27,7 @@ fn main() {
     let unit_analyzer = UnitAnalyzer::new();
     let unit = unit_analyzer.analyze(&root_ast, &headers[..]).unwrap();
 
-    println!("{:?}", unit);
+    // println!("{:?}", unit);
 
     let compiler = Compiler::new();
     let object = compiler.compile(&unit);
@@ -36,7 +36,7 @@ fn main() {
     let objects = vec![object];
     let program = linker.link(&objects[..]).unwrap();
 
-    // println!("program {:?}", program);
+    println!("program {:?}", program);
 
     let mut executor = Executor::load(program).unwrap();
     executor.run();

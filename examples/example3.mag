@@ -2,6 +2,7 @@ fn native print_int(v: i64)
 
 fn main() {
     var a: []i64
+    a = i64[10]
     a[0] = 10
     print_int(a[0])
 }

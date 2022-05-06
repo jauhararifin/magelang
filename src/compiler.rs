@@ -3,8 +3,8 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{
     bytecode::{Function, Instruction, Object, Value, Variant},
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Index, Return,
-        Statement, Type, Unary, UnaryOp, Unit, Var, While,
+        Array, Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FloatType, FnDecl, FunctionCall,
+        If, Index, IntType, Return, Statement, Type, Unary, UnaryOp, Unit, Var, While,
     },
 };
 
@@ -111,7 +111,12 @@ impl<'a> CompilerHelper<'a> {
         let variant = match stmt.receiver.typ.as_ref() {
             Type::Int(t) => Variant::int(t.signed, t.size),
             Type::Float(t) => Variant::float(t.size),
-            _ => unreachable!(),
+            Type::Array(t) => match t.elem_type.as_ref() {
+                Type::Int(t) => Variant::int(t.signed, t.size),
+                Type::Float(t) => Variant::float(t.size),
+                _ => todo!(),
+            },
+            _ => todo!(),
         };
 
         if !matches!(stmt.op, AssignOp::Assign) {
@@ -265,7 +270,7 @@ impl<'a> CompilerHelper<'a> {
             ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
             ExprKind::Index(index) => self.compile_index(ctx, index),
-            ExprKind::Array(_) => todo!(),
+            ExprKind::Array(array) => self.compile_array(ctx, array),
             ExprKind::Cast(cast) => self.compile_cast(ctx, cast),
         }
     }
@@ -406,11 +411,38 @@ impl<'a> CompilerHelper<'a> {
     }
 
     fn compile_index(&self, ctx: &FnContext, index: &Index) -> Vec<Instruction> {
+        let array_type = if let Type::Array(typ) = index.array.typ.as_ref() {
+            typ
+        } else {
+            unreachable!();
+        };
+
         let array_ptr = self.compile_expr(ctx, index.array.as_ref());
         let element_size = vec![Instruction::Constant(Value::I64(
-            self.get_type_size(index.array.typ.as_ref()) as i64 / 8,
+            self.get_type_size(array_type.elem_type.as_ref()) as i64 / 8,
         ))];
         let array_index = self.compile_expr(ctx, index.index.as_ref());
+
+        let variant = match array_type.elem_type.as_ref() {
+            Type::Int(IntType { signed, size }) => match (signed, size) {
+                (true, 8) => Variant::I8,
+                (true, 16) => Variant::I16,
+                (true, 32) => Variant::I32,
+                (true, 64) => Variant::I64,
+                (false, 8) => Variant::U8,
+                (false, 16) => Variant::U16,
+                (false, 32) => Variant::U32,
+                (false, 64) => Variant::U64,
+                _ => unreachable!(),
+            },
+            Type::Float(FloatType { size }) => match size {
+                32 => Variant::F32,
+                64 => Variant::F64,
+                _ => unreachable!(),
+            },
+            Type::Bool => Variant::U8,
+            typ @ _ => todo!("{:?}", typ),
+        };
 
         return [
             &array_ptr[..],
@@ -418,9 +450,20 @@ impl<'a> CompilerHelper<'a> {
             &array_index[..],
             &[Instruction::Mul(Variant::I64)],
             &[Instruction::Add(Variant::I64)],
-            &[Instruction::GetHeap],
+            &[Instruction::GetHeap(variant)],
         ]
         .concat();
+    }
+
+    fn compile_array(&self, ctx: &FnContext, array: &Array) -> Vec<Instruction> {
+        let mut instructions = self.compile_expr(ctx, array.size.as_ref());
+
+        let elem_size = self.get_type_size(&array.elem_type);
+        instructions.push(Instruction::Constant(Value::U64(elem_size as u64)));
+        instructions.push(Instruction::Mul(Variant::U64));
+        instructions.push(Instruction::Alloc);
+
+        instructions
     }
 
     fn compile_cast(&self, _ctx: &FnContext, _cast: &Cast) -> Vec<Instruction> {

@@ -312,7 +312,7 @@ pub struct Index {
 
 #[derive(Debug, Clone)]
 pub struct Array {
-    pub typ: Rc<Type>,
+    pub elem_type: Rc<Type>,
     pub size: Box<Expr>,
 }
 

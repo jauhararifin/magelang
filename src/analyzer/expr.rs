@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{ArrayNode, BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, TypeNode, UnaryNode},
+    ast::{ArrayNode, BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, UnaryNode},
     errors::Error,
     semantic::{
         Array, ArrayType, BinOp, Binary, Cast, Expr, ExprKind, FloatType, FunctionCall, Header, Index, IntType, Type,
@@ -363,7 +363,7 @@ impl<'a> ExprHelper<'a> {
 
         Ok(Expr {
             kind: ExprKind::Array(Array {
-                typ: Rc::clone(&elem_type),
+                elem_type: Rc::clone(&elem_type),
                 size: Box::new(size),
             }),
             assignable: true,

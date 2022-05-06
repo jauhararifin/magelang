@@ -60,8 +60,8 @@ impl Executor {
                 Instruction::Or(variant) => self.execute_bit_or(variant),
                 Instruction::Xor(variant) => self.execute_bit_xor(variant),
 
-                Instruction::Alloc(_variant) => todo!(),
-                Instruction::GetHeap => todo!(),
+                Instruction::Alloc => todo!(),
+                Instruction::GetHeap(_variant) => todo!(),
                 Instruction::SetHeap => todo!(),
 
                 Instruction::SetLocal(offset) => self.execute_set_local(offset),

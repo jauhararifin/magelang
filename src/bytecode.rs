@@ -133,9 +133,9 @@ pub enum Instruction {
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
     // pop a usize from stack, and allocate heap with that size, then push stack with the pointer.
-    Alloc(Variant), // [size] -> [ptr to heap]
+    Alloc, // [size] -> [ptr to heap]
     // TODO: I think GetHeap need a variant
-    GetHeap, // [heap_ptr] -> [copied_value_from_heap]
+    GetHeap(Variant), // [heap_ptr] -> [copied_value_from_heap]
     SetHeap, // [value] [heap_ptr]-> {}
 
     // TODO: support struct-like data-type.
