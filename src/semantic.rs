@@ -139,7 +139,6 @@ pub struct Argument {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ArrayType {
-    pub size: usize,
     pub elem_type: Rc<Type>,
 }
 
@@ -235,6 +234,7 @@ pub enum ExprKind {
     Unary(Unary),
     FunctionCall(FunctionCall),
     Index(Index),
+    Array(Array),
     Cast(Cast),
 }
 
@@ -308,6 +308,12 @@ impl Into<ExprKind> for FunctionCall {
 pub struct Index {
     pub array: Box<Expr>,
     pub index: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Array {
+    pub typ: Rc<Type>,
+    pub size: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

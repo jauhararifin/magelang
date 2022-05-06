@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    bytecode::{BitSize, Function, Instruction, Object, Value},
+    bytecode::{Function, Instruction, Object, Value, Variant},
     semantic::{
         Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FnDecl, FunctionCall, If, Return,
         Statement, Type, Unary, UnaryOp, Unit, Var, While,
@@ -101,7 +101,7 @@ impl<'a> CompilerHelper<'a> {
         if let Some(value) = &var.value {
             self.compile_expr(ctx, value)
         } else {
-            vec![self.empty_value(&var.header.typ)]
+            self.empty_value(&var.header.typ)
         }
     }
 
@@ -109,8 +109,8 @@ impl<'a> CompilerHelper<'a> {
         let mut instructions = self.compile_expr(ctx, &stmt.value);
 
         let variant = match stmt.receiver.typ.as_ref() {
-            Type::Int(t) => BitSize::int(t.signed, t.size),
-            Type::Float(t) => BitSize::float(t.size),
+            Type::Int(t) => Variant::int(t.signed, t.size),
+            Type::Float(t) => Variant::float(t.size),
             _ => unreachable!(),
         };
 
@@ -235,6 +235,7 @@ impl<'a> CompilerHelper<'a> {
             ExprKind::Unary(unary) => self.compile_unary(ctx, unary),
             ExprKind::FunctionCall(fn_call) => self.compile_func_call(ctx, fn_call),
             ExprKind::Index(_) => todo!(),
+            ExprKind::Array(_) => todo!(),
             ExprKind::Cast(cast) => self.compile_cast(ctx, cast),
         }
     }
@@ -293,9 +294,9 @@ impl<'a> CompilerHelper<'a> {
         }
 
         let variant = match binary.a.typ.as_ref() {
-            Type::Int(t) => BitSize::int(t.signed, t.size),
-            Type::Float(t) => BitSize::float(t.size),
-            Type::Bool => BitSize::U8,
+            Type::Int(t) => Variant::int(t.signed, t.size),
+            Type::Float(t) => Variant::float(t.size),
+            Type::Bool => Variant::U8,
             _ => unreachable!(),
         };
 
@@ -328,16 +329,17 @@ impl<'a> CompilerHelper<'a> {
         let instructions = self.compile_expr(ctx, unary.val.as_ref());
 
         let variant = match unary.val.typ.as_ref() {
-            Type::Int(t) => BitSize::int(t.signed, t.size),
-            Type::Float(t) => BitSize::float(t.size),
-            Type::Bool => BitSize::U8,
+            Type::Int(t) => Variant::int(t.signed, t.size),
+            Type::Float(t) => Variant::float(t.size),
+            Type::Bool => Variant::U8,
             _ => unreachable!(),
         };
 
         match unary.op {
             UnaryOp::Plus => instructions,
             UnaryOp::Minus => [
-                &[self.empty_value(unary.val.typ.as_ref()), Instruction::Sub(variant)],
+                self.empty_value(unary.val.typ.as_ref()).as_slice(),
+                &[Instruction::Sub(variant)],
                 &instructions[..],
             ]
             .concat(),
@@ -358,7 +360,7 @@ impl<'a> CompilerHelper<'a> {
 
         let fn_type = fn_call.func.typ.unwrap_func();
         if let Some(return_type) = fn_type.return_type.as_ref() {
-            instructions.push(Instruction::from(self.empty_value(return_type)));
+            instructions.extend(self.empty_value(return_type));
         } else {
             instructions.push(Instruction::Constant(Value::Void)); // void
         }
@@ -377,29 +379,33 @@ impl<'a> CompilerHelper<'a> {
         todo!();
     }
 
-    fn empty_value(&self, typ: &Type) -> Instruction {
+    fn empty_value(&self, typ: &Type) -> Vec<Instruction> {
         match typ {
             Type::Int(int_type) => match (int_type.signed, int_type.size) {
-                (true, 8) => Instruction::Constant(0i8.into()),
-                (true, 16) => Instruction::Constant(0i16.into()),
-                (true, 32) => Instruction::Constant(0i32.into()),
-                (true, 64) => Instruction::Constant(0i64.into()),
-                (false, 8) => Instruction::Constant(0u8.into()),
-                (false, 16) => Instruction::Constant(0u16.into()),
-                (false, 32) => Instruction::Constant(0u32.into()),
-                (false, 64) => Instruction::Constant(0u64.into()),
+                (true, 8) => vec![Instruction::Constant(0i8.into())],
+                (true, 16) => vec![Instruction::Constant(0i16.into())],
+                (true, 32) => vec![Instruction::Constant(0i32.into())],
+                (true, 64) => vec![Instruction::Constant(0i64.into())],
+                (false, 8) => vec![Instruction::Constant(0u8.into())],
+                (false, 16) => vec![Instruction::Constant(0u16.into())],
+                (false, 32) => vec![Instruction::Constant(0u32.into())],
+                (false, 64) => vec![Instruction::Constant(0u64.into())],
                 _ => unreachable!(),
             },
             Type::Float(float_type) => match float_type.size {
-                32 => Instruction::Constant(0.0f32.into()),
-                64 => Instruction::Constant(0.0f64.into()),
+                32 => vec![Instruction::Constant(0.0f32.into())],
+                64 => vec![Instruction::Constant(0.0f64.into())],
                 _ => unreachable!(),
             },
-            Type::Bool => Instruction::Constant(false.into()),
-            Type::Void => Instruction::Constant(Value::Void),
-            Type::Array(_) => todo!(),
+            Type::Bool => vec![Instruction::Constant(false.into())],
+            Type::Void => vec![Instruction::Constant(Value::Void)],
+            Type::Array(_) => self.empty_array_value(),
             Type::Fn(_) => unreachable!("cannot create empty function on the runtime."),
         }
+    }
+
+    fn empty_array_value(&self) -> Vec<Instruction> {
+        todo!();
     }
 }
 

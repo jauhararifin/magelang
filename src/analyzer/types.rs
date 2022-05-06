@@ -20,6 +20,7 @@ impl TypeHelper {
         match &typ {
             TypeNode::Primitive(token) => self.get_type_from_primitive(token),
             TypeNode::Array(array_type) => self.get_type_from_array(array_type),
+            _ => unreachable!("got invalid type: {:?}", typ),
         }
     }
 
@@ -66,17 +67,7 @@ impl TypeHelper {
     }
 
     fn get_type_from_array(&self, array_type: &ArrayTypeNode) -> Result<Rc<Type>, Error> {
-        let size: usize = array_type
-            .size
-            .unwrap_value()
-            .parse()
-            .map_err(|err| Error::InvalidIntLit {
-                token: array_type.size.clone(),
-                err,
-            })?;
-
         let elem_type = self.get(array_type.elem.as_ref())?;
-
-        Ok(Rc::new(Type::Array(Rc::new(ArrayType { size, elem_type }))))
+        Ok(Rc::new(Type::Array(Rc::new(ArrayType { elem_type }))))
     }
 }

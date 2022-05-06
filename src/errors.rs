@@ -45,6 +45,7 @@ pub enum Error {
     },
     NotAnArray{expr: Expr},
     IndexIsNotAnInt{expr: Expr},
+    ArraySizeIsNotAnInt{expr: Expr},
 
     UndeclaredSymbol,
     RedeclaredSymbol,

@@ -55,6 +55,7 @@ pub struct ParamNode {
 
 #[derive(Debug, Clone)]
 pub enum TypeNode {
+    Empty,
     Primitive(Token),
     Array(ArrayTypeNode),
 }
@@ -62,7 +63,6 @@ pub enum TypeNode {
 #[derive(Debug, Clone)]
 pub struct ArrayTypeNode {
     pub open_brack: Token,
-    pub size: Token,
     pub elem: Box<TypeNode>,
 }
 
@@ -121,6 +121,7 @@ pub enum ExprNodeKind {
     Unary(UnaryNode),
     FunctionCall(FunctionCallNode),
     Index(IndexNode),
+    Array(ArrayNode),
     Cast(CastNode),
 }
 
@@ -147,6 +148,12 @@ pub struct FunctionCallNode {
 pub struct IndexNode {
     pub array: Box<ExprNode>,
     pub index: Box<ExprNode>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayNode {
+    pub typ: TypeNode,
+    pub size: Box<ExprNode>,
 }
 
 #[derive(Debug, Clone)]

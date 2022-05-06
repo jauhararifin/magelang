@@ -32,6 +32,7 @@ pub enum Value {
     F32(f32),
     F64(f64),
     FnId(usize),
+    Ptr(usize),
 }
 
 impl Eq for Value {}
@@ -110,27 +111,31 @@ pub enum Instruction {
     Constant(Value),
 
     // number operations
-    Add(BitSize),
-    Sub(BitSize),
-    Div(BitSize),
-    Mul(BitSize),
-    Mod(BitSize),
-    Shl(BitSize),
-    Shr(BitSize),
-    Eq(BitSize),
-    NEq(BitSize),
-    LT(BitSize),
-    LTEq(BitSize),
-    GT(BitSize),
-    GTEq(BitSize),
-    Not(BitSize),
-    And(BitSize),
-    Or(BitSize),
-    Xor(BitSize),
+    // TODO: remove the variant. Split these into Add8, Add16, FAdd32, etc..
+    Add(Variant),
+    Sub(Variant),
+    Div(Variant),
+    Mul(Variant),
+    Mod(Variant),
+    Shl(Variant),
+    Shr(Variant),
+    Eq(Variant),
+    NEq(Variant),
+    LT(Variant),
+    LTEq(Variant),
+    GT(Variant),
+    GTEq(Variant),
+    Not(Variant),
+    And(Variant),
+    Or(Variant),
+    Xor(Variant),
 
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
-    // Alloc(Value),
+    // pop a usize from stack, and allocate heap with that size, then push stack with the pointer.
+    Alloc(Variant), // [size] -> [ptr to heap]
+    GetHeap, // [heap_ptr] -> [copied_value_from_heap]
+    SetHeap, // [heap_ptr] [value] -> {}
 
     // TODO: support struct-like data-type.
     SetLocal(isize), // pop stack, and set it into the n-th stack element.
@@ -161,7 +166,7 @@ pub enum Instruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BitSize {
+pub enum Variant {
     I8,
     I16,
     I32,
@@ -174,7 +179,7 @@ pub enum BitSize {
     F64,
 }
 
-impl BitSize {
+impl Variant {
     pub fn int(signed: bool, size: u8) -> Self {
         match (signed, size) {
             (true, 8) => Self::I8,

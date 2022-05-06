@@ -1,10 +1,11 @@
-use std::{collections::HashMap, ops::IndexMut, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, UnaryNode},
+    ast::{ArrayNode, BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, TypeNode, UnaryNode},
     errors::Error,
     semantic::{
-        BinOp, Binary, Cast, Expr, ExprKind, FloatType, FunctionCall, Header, Index, IntType, Type, Unary, UnaryOp,
+        Array, ArrayType, BinOp, Binary, Cast, Expr, ExprKind, FloatType, FunctionCall, Header, Index, IntType, Type,
+        Unary, UnaryOp,
     },
     token::{Token, TokenKind},
 };
@@ -84,7 +85,8 @@ impl<'a> ExprHelper<'a> {
             ExprNodeKind::Binary(binary) => self.analyze_binary_expr(binary, &expected),
             ExprNodeKind::Unary(unary) => self.analyze_unary_expr(unary, &expected),
             ExprNodeKind::FunctionCall(func_call) => self.analyze_func_call(func_call, &expected),
-            ExprNodeKind::Index(index_node) => self.analyze_index(index_node, &expected),
+            ExprNodeKind::Index(index_node) => self.analyze_index(index_node),
+            ExprNodeKind::Array(array_node) => self.analyze_array(array_node),
             ExprNodeKind::Cast(cast) => self.analyze_cast(cast, &expected),
             ExprNodeKind::Empty => unreachable!(),
         }
@@ -326,7 +328,7 @@ impl<'a> ExprHelper<'a> {
         })
     }
 
-    fn analyze_index(&self, index_node: &IndexNode, expected: &Rc<Type>) -> Result<Expr, Error> {
+    fn analyze_index(&self, index_node: &IndexNode) -> Result<Expr, Error> {
         let array = self.analyze(&index_node.array, Rc::new(Type::Void))?;
 
         let array_type = if let Some(typ) = array.typ.try_unwrap_array() {
@@ -348,6 +350,24 @@ impl<'a> ExprHelper<'a> {
             }),
             assignable: true,
             typ,
+        })
+    }
+
+    fn analyze_array(&self, array_node: &ArrayNode) -> Result<Expr, Error> {
+        let elem_type = self.type_helper.get(&array_node.typ)?;
+
+        let size = self.analyze(&array_node.size, Rc::new(IntType::signed(64).into()))?;
+        if !size.typ.is_int() {
+            return Err(Error::ArraySizeIsNotAnInt { expr: size });
+        }
+
+        Ok(Expr {
+            kind: ExprKind::Array(Array {
+                typ: Rc::clone(&elem_type),
+                size: Box::new(size),
+            }),
+            assignable: true,
+            typ: Rc::new(Type::Array(Rc::new(ArrayType { elem_type }))),
         })
     }
 
