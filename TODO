@@ -3,6 +3,7 @@ Features:
 - add module feature
 - auto infer type
 - do a better abstraction. now everything is a mess.
+- refactor the code to use less recursive function.
 - support continue & break
 - support const
 - support public and private accessibility

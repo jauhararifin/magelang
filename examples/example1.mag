@@ -14,6 +14,9 @@ fn main() {
     var b: i64 = 165
     var c: i64 = gcd(a, b)
     print_int(c)
+    var d: i64 = 10
+    var e: i64 = 20
+    print_int(d - e)
 }
 
 # 1260 165

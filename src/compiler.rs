@@ -108,34 +108,27 @@ impl<'a> CompilerHelper<'a> {
     fn compile_assign(&self, ctx: &mut FnContext, stmt: &Assign) -> Vec<Instruction> {
         let mut instructions = self.compile_expr(ctx, &stmt.value);
 
-        let (signed, size, is_float) = match stmt.receiver.typ.as_ref() {
-            Type::Int(t) => (t.signed, BitSize::int(t.signed, t.size), false),
-            Type::Float(t) => (false, BitSize::float(t.size), true),
+        let variant = match stmt.receiver.typ.as_ref() {
+            Type::Int(t) => BitSize::int(t.signed, t.size),
+            Type::Float(t) => BitSize::float(t.size),
             _ => unreachable!(),
         };
 
         if !matches!(stmt.op, AssignOp::Assign) {
             let mut receiver = self.compile_expr(ctx, &stmt.receiver);
-            let op = match (is_float, signed, &stmt.op) {
-                (false, _, AssignOp::PlusAssign) => Instruction::Add(size),
-                (false, _, AssignOp::MinusAssign) => Instruction::Sub(size),
-                (false, _, AssignOp::ModAssign) => Instruction::Mod(size),
+            let op = match &stmt.op {
+                AssignOp::PlusAssign => Instruction::Add(variant),
+                AssignOp::MinusAssign => Instruction::Sub(variant),
+                AssignOp::ModAssign => Instruction::Mod(variant),
 
-                (false, true, AssignOp::DivAssign) => Instruction::SDiv(size),
-                (false, false, AssignOp::DivAssign) => Instruction::Div(size),
-                (false, true, AssignOp::MulAssign) => Instruction::SMul(size),
-                (false, false, AssignOp::MulAssign) => Instruction::Mul(size),
+                AssignOp::DivAssign => Instruction::Div(variant),
+                AssignOp::MulAssign => Instruction::Mul(variant),
 
-                (true, _, AssignOp::PlusAssign) => Instruction::AddFloat(size),
-                (true, _, AssignOp::MinusAssign) => Instruction::SubFloat(size),
-                (true, _, AssignOp::MulAssign) => Instruction::MulFloat(size),
-                (true, _, AssignOp::DivAssign) => Instruction::DivFloat(size),
-
-                (false, _, AssignOp::BitAndAssign) => Instruction::And(size),
-                (false, _, AssignOp::BitOrAssign) => Instruction::Or(size),
-                (false, _, AssignOp::BitXorAssign) => Instruction::Xor(size),
-                (false, _, AssignOp::ShlAssign) => Instruction::Shl(size),
-                (false, _, AssignOp::ShrAssign) => Instruction::Shr(size),
+                AssignOp::BitAndAssign => Instruction::And(variant),
+                AssignOp::BitOrAssign => Instruction::Or(variant),
+                AssignOp::BitXorAssign => Instruction::Xor(variant),
+                AssignOp::ShlAssign => Instruction::Shl(variant),
+                AssignOp::ShrAssign => Instruction::Shr(variant),
                 _ => unreachable!(),
             };
 
@@ -160,8 +153,9 @@ impl<'a> CompilerHelper<'a> {
             vec![Instruction::SetLocal(index_type.index)]
         } else if let Some(index) = self.func_to_index.get(name) {
             unreachable!("cannot assign a value to a function {} at {}", name, index);
-        } else if let Some(index) = self.global_to_index.get(name) {
-            vec![Instruction::SetGlobal(index.clone())]
+        } else if let Some(_index) = self.global_to_index.get(name) {
+            // vec![Instruction::SetGlobal(index.clone())]
+            todo!("not support global variable yet");
         } else {
             unreachable!();
         }
@@ -249,8 +243,9 @@ impl<'a> CompilerHelper<'a> {
             vec![Instruction::GetLocal(index_type.index)]
         } else if let Some(index) = self.func_to_index.get(name) {
             vec![Instruction::Constant(Value::FnId(*index))]
-        } else if let Some(index) = self.global_to_index.get(name) {
-            vec![Instruction::GetGlobal(index.clone())]
+        } else if let Some(_index) = self.global_to_index.get(name) {
+            // vec![Instruction::GetGlobal(index.clone())]
+            todo!("not support global variable yet");
         } else {
             unreachable!();
         }
@@ -296,55 +291,33 @@ impl<'a> CompilerHelper<'a> {
             .concat();
         }
 
-        let (signed, size, is_float) = match binary.a.typ.as_ref() {
-            Type::Int(t) => (t.signed, BitSize::int(t.signed, t.size), false),
-            Type::Float(t) => (false, BitSize::float(t.size), true),
-            Type::Bool => (false, BitSize::U8, false),
+        let variant = match binary.a.typ.as_ref() {
+            Type::Int(t) => BitSize::int(t.signed, t.size),
+            Type::Float(t) => BitSize::float(t.size),
+            Type::Bool => BitSize::U8,
             _ => unreachable!(),
         };
 
-        let ins = match (is_float, signed, &binary.op) {
-            (false, _, BinOp::Plus) => Instruction::Add(size),
-            (true, _, BinOp::Plus) => Instruction::AddFloat(size),
+        let ins = match &binary.op {
+            BinOp::Plus => Instruction::Add(variant),
+            BinOp::Minus => Instruction::Sub(variant),
 
-            (true, _, BinOp::Minus) => Instruction::SubFloat(size),
-            (false, _, BinOp::Minus) => Instruction::Sub(size),
+            BinOp::Mod => Instruction::Mod(variant),
+            BinOp::BitAnd => Instruction::And(variant),
+            BinOp::BitOr => Instruction::Or(variant),
+            BinOp::BitXor => Instruction::Xor(variant),
+            BinOp::Shl => Instruction::Shl(variant),
+            BinOp::Shr => Instruction::Shr(variant),
 
-            (_, _, BinOp::Mod) => Instruction::Mod(size),
-            (_, _, BinOp::BitAnd) => Instruction::And(size),
-            (_, _, BinOp::BitOr) => Instruction::Or(size),
-            (_, _, BinOp::BitXor) => Instruction::Xor(size),
-            (_, _, BinOp::Shl) => Instruction::Shl(size),
-            (_, _, BinOp::Shr) => Instruction::Shr(size),
+            BinOp::Mul => Instruction::Mul(variant),
+            BinOp::Div => Instruction::Div(variant),
 
-            (false, false, BinOp::Mul) => Instruction::Mul(size),
-            (false, true, BinOp::Mul) => Instruction::SMul(size),
-            (true, _, BinOp::Mul) => Instruction::MulFloat(size),
-
-            (false, false, BinOp::Div) => Instruction::Div(size),
-            (false, true, BinOp::Div) => Instruction::SDiv(size),
-            (true, _, BinOp::Div) => Instruction::DivFloat(size),
-
-            (false, false, BinOp::GT) => Instruction::GT(size),
-            (false, true, BinOp::GT) => Instruction::SGT(size),
-            (true, _, BinOp::GT) => Instruction::GTFloat(size),
-
-            (false, false, BinOp::GTEq) => Instruction::GTEq(size),
-            (false, true, BinOp::GTEq) => Instruction::SGTEq(size),
-            (true, _, BinOp::GTEq) => Instruction::GTEqFloat(size),
-
-            (false, false, BinOp::LT) => Instruction::LT(size),
-            (false, true, BinOp::LT) => Instruction::SLT(size),
-            (true, _, BinOp::LT) => Instruction::LTFloat(size),
-
-            (false, false, BinOp::LTEq) => Instruction::LTEq(size),
-            (false, true, BinOp::LTEq) => Instruction::SLTEq(size),
-            (true, _, BinOp::LTEq) => Instruction::LTEqFloat(size),
-
-            (false, _, BinOp::Eq) => Instruction::Eq(size),
-            (true, _, BinOp::Eq) => Instruction::EqFloat(size),
-            (false, _, BinOp::NotEq) => Instruction::NEq(size),
-            (true, _, BinOp::NotEq) => Instruction::NEqFloat(size),
+            BinOp::GT => Instruction::GT(variant),
+            BinOp::GTEq => Instruction::GTEq(variant),
+            BinOp::LT => Instruction::LT(variant),
+            BinOp::LTEq => Instruction::LTEq(variant),
+            BinOp::Eq => Instruction::Eq(variant),
+            BinOp::NotEq => Instruction::NEq(variant),
             _ => unreachable!(),
         };
         [&a[..], &b[..], &[ins]].concat()
@@ -353,28 +326,21 @@ impl<'a> CompilerHelper<'a> {
     fn compile_unary(&self, ctx: &FnContext, unary: &Unary) -> Vec<Instruction> {
         let instructions = self.compile_expr(ctx, unary.val.as_ref());
 
-        let (size, is_float) = match unary.val.typ.as_ref() {
-            Type::Int(t) => (BitSize::int(t.signed, t.size), false),
-            Type::Float(t) => (BitSize::float(t.size), true),
-            Type::Bool => (BitSize::U8, false),
+        let variant = match unary.val.typ.as_ref() {
+            Type::Int(t) => BitSize::int(t.signed, t.size),
+            Type::Float(t) => BitSize::float(t.size),
+            Type::Bool => BitSize::U8,
             _ => unreachable!(),
         };
 
         match unary.op {
             UnaryOp::Plus => instructions,
             UnaryOp::Minus => [
-                &[
-                    self.empty_value(unary.val.typ.as_ref()),
-                    if is_float {
-                        Instruction::SubFloat(size)
-                    } else {
-                        Instruction::Sub(size)
-                    },
-                ],
+                &[self.empty_value(unary.val.typ.as_ref()), Instruction::Sub(variant)],
                 &instructions[..],
             ]
             .concat(),
-            UnaryOp::BitNot => [&instructions[..], &[Instruction::Not(size)]].concat(),
+            UnaryOp::BitNot => [&instructions[..], &[Instruction::Not(variant)]].concat(),
             UnaryOp::Not => {
                 vec![
                     Instruction::JumpIfTrue(3),

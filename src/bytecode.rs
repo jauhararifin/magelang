@@ -115,13 +115,6 @@ pub enum Instruction {
     Div(BitSize),
     Mul(BitSize),
     Mod(BitSize),
-    SDiv(BitSize),
-    SMul(BitSize),
-    SMod(BitSize),
-    AddFloat(BitSize),
-    SubFloat(BitSize),
-    DivFloat(BitSize),
-    MulFloat(BitSize),
     Shl(BitSize),
     Shr(BitSize),
     Eq(BitSize),
@@ -130,21 +123,10 @@ pub enum Instruction {
     LTEq(BitSize),
     GT(BitSize),
     GTEq(BitSize),
-    SLT(BitSize),
-    SLTEq(BitSize),
-    SGT(BitSize),
-    SGTEq(BitSize),
-    EqFloat(BitSize),
-    NEqFloat(BitSize),
-    LTFloat(BitSize),
-    LTEqFloat(BitSize),
-    GTFloat(BitSize),
-    GTEqFloat(BitSize),
     Not(BitSize),
     And(BitSize),
     Or(BitSize),
     Xor(BitSize),
-    Neg(BitSize),
 
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
@@ -154,8 +136,9 @@ pub enum Instruction {
     SetLocal(isize), // pop stack, and set it into the n-th stack element.
     GetLocal(isize), // push the n-th local value to stack.
 
-    SetGlobal(usize),
-    GetGlobal(usize),
+    // TODO: support global values.
+    // SetGlobal(usize),
+    // GetGlobal(usize),
 
     // pop stack, and get n-th prop.
     // GetProp(usize),
