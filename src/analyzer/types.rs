@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    ast::{ArrayTypeNode, FnHeaderNode, TypeNode},
+    ast::{ArrayTypeNode, ExprNode, ExprNodeKind, FnHeaderNode},
     errors::Error,
     semantic::{Argument, ArrayType, FloatType, FnType, IntType, Type},
     token::{Token, TokenKind},
@@ -16,11 +16,11 @@ impl TypeHelper {
 }
 
 impl TypeHelper {
-    pub fn get(&self, typ: &TypeNode) -> Result<Rc<Type>, Error> {
-        match &typ {
-            TypeNode::Primitive(token) => self.get_type_from_primitive(token),
-            TypeNode::Array(array_type) => self.get_type_from_array(array_type),
-            _ => unreachable!("got invalid type: {:?}", typ),
+    pub fn get(&self, typ: &ExprNode) -> Result<Rc<Type>, Error> {
+        match &typ.kind {
+            ExprNodeKind::PrimitiveType(token) => self.get_type_from_primitive(token),
+            ExprNodeKind::ArrayType(array_type) => self.get_type_from_array(array_type),
+            _ => Ok(Rc::new(Type::Invalid)),
         }
     }
 
@@ -68,6 +68,7 @@ impl TypeHelper {
 
     fn get_type_from_array(&self, array_type: &ArrayTypeNode) -> Result<Rc<Type>, Error> {
         let elem_type = self.get(array_type.elem.as_ref())?;
-        Ok(Rc::new(Type::Array(Rc::new(ArrayType { elem_type }))))
+        let dimension = array_type.dimension;
+        Ok(Rc::new(Type::Array(Rc::new(ArrayType { elem_type, dimension }))))
     }
 }

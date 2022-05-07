@@ -30,6 +30,7 @@ pub struct FnHeader {
 // Maybe we can consider wrapping the strings and FnType instead.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
+    Invalid,
     Bool,
     Void,
     Int(IntType),
@@ -39,6 +40,10 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn is_invalid(&self) -> bool {
+        matches!(self, Type::Invalid)
+    }
+
     pub fn is_number(&self) -> bool {
         matches!(self, Type::Int(_) | Type::Float(_))
     }
@@ -140,6 +145,7 @@ pub struct Argument {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ArrayType {
     pub elem_type: Rc<Type>,
+    pub dimension: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -218,6 +224,7 @@ pub struct Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
+    Invalid,
     Ident(Rc<String>),
     I8(i8),
     I16(i16),
@@ -236,6 +243,12 @@ pub enum ExprKind {
     Index(Index),
     Array(Array),
     Cast(Cast),
+}
+
+impl ExprKind {
+    pub fn is_invalid(&self) -> bool {
+        matches!(&self, Self::Invalid)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -307,13 +320,13 @@ impl Into<ExprKind> for FunctionCall {
 #[derive(Debug, Clone)]
 pub struct Index {
     pub array: Box<Expr>,
-    pub index: Box<Expr>,
+    pub index: Vec<Expr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Array {
     pub elem_type: Rc<Type>,
-    pub size: Box<Expr>,
+    pub size: Vec<Expr>,
 }
 
 #[derive(Debug, Clone)]

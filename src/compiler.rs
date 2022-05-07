@@ -174,7 +174,11 @@ impl<'a> CompilerHelper<'a> {
             unreachable!();
         };
 
+        let mut instructions = vec![];
+
         let array_ptr = self.compile_expr(ctx, index.array.as_ref());
+        instructions.extend(array_ptr);
+
         let element_size = vec![Instruction::Constant(Value::I64(
             self.get_type_size(array_type.elem_type.as_ref()) as i64 / 8,
         ))];
@@ -193,6 +197,7 @@ impl<'a> CompilerHelper<'a> {
 
     fn get_type_size(&self, typ: &Type) -> usize {
         match typ {
+            Type::Invalid => unreachable!(),
             Type::Bool => 8,
             Type::Void => 0,
             Type::Int(t) => t.size as usize,
@@ -260,6 +265,7 @@ impl<'a> CompilerHelper<'a> {
 
     fn compile_expr(&self, ctx: &FnContext, expr: &Expr) -> Vec<Instruction> {
         match &expr.kind {
+            ExprKind::Invalid => unreachable!(),
             ExprKind::Ident(name) => self.compile_ident(ctx, name),
             ExprKind::I8(val) => vec![Instruction::Constant((*val).into())],
             ExprKind::I16(val) => vec![Instruction::Constant((*val).into())],
@@ -488,6 +494,7 @@ impl<'a> CompilerHelper<'a> {
 
     fn empty_value(&self, typ: &Type) -> Vec<Instruction> {
         match typ {
+            Type::Invalid => unreachable!(),
             Type::Int(int_type) => match (int_type.signed, int_type.size) {
                 (true, 8) => vec![Instruction::Constant(0i8.into())],
                 (true, 16) => vec![Instruction::Constant(0i16.into())],

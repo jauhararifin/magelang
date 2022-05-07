@@ -1,6 +1,6 @@
 use std::{fmt, rc::Rc};
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Default)]
 pub struct Pos {
     pub file_name: Rc<String>,
     pub line: usize,

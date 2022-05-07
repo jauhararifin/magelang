@@ -1,8 +1,6 @@
-use crate::{token::Token, pos::Pos};
+use crate::{pos::Pos, token::Token};
 
-use super::TypeNode;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ExprNode {
     pub kind: ExprNodeKind,
     pub pos: Pos,
@@ -19,8 +17,16 @@ pub enum ExprNodeKind {
     Unary(UnaryNode),
     FunctionCall(FunctionCallNode),
     Index(IndexNode),
-    Array(ArrayNode),
     Cast(CastNode),
+    // type
+    PrimitiveType(Token),
+    ArrayType(ArrayTypeNode),
+}
+
+impl Default for ExprNodeKind {
+    fn default() -> Self {
+        Self::Empty
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -45,19 +51,19 @@ pub struct FunctionCallNode {
 #[derive(Debug, Clone)]
 pub struct IndexNode {
     pub array: Box<ExprNode>,
-    pub index: Box<ExprNode>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ArrayNode {
-    pub typ: TypeNode,
-    pub size: Box<ExprNode>,
+    pub index: Vec<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CastNode {
-    pub val: Box<ExprNode>,
+    pub value: Box<ExprNode>,
     pub as_token: Token,
-    pub target: TypeNode,
+    pub target: Box<ExprNode>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ArrayTypeNode {
+    pub open_brack: Token,
+    pub dimension: usize,
+    pub elem: Box<ExprNode>,
+}

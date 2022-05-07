@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{ArrayNode, BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, UnaryNode},
+    ast::{BinaryNode, CastNode, ExprNode, ExprNodeKind, FunctionCallNode, IndexNode, UnaryNode},
     errors::Error,
     semantic::{
         Array, ArrayType, BinOp, Binary, Cast, Expr, ExprKind, FloatType, FunctionCall, Header, Index, IntType, Type,
@@ -86,8 +86,12 @@ impl<'a> ExprHelper<'a> {
             ExprNodeKind::Unary(unary) => self.analyze_unary_expr(unary, &expected),
             ExprNodeKind::FunctionCall(func_call) => self.analyze_func_call(func_call, &expected),
             ExprNodeKind::Index(index_node) => self.analyze_index(index_node),
-            ExprNodeKind::Array(array_node) => self.analyze_array(array_node),
             ExprNodeKind::Cast(cast) => self.analyze_cast(cast, &expected),
+            ExprNodeKind::ArrayType(_) | ExprNodeKind::PrimitiveType(_) => Ok(Expr {
+                kind: ExprKind::Invalid,
+                assignable: false,
+                typ: Rc::new(Type::Invalid),
+            }),
             ExprNodeKind::Empty => unreachable!(),
         }
     }
@@ -330,57 +334,82 @@ impl<'a> ExprHelper<'a> {
 
     fn analyze_index(&self, index_node: &IndexNode) -> Result<Expr, Error> {
         let array = self.analyze(&index_node.array, Rc::new(Type::Void))?;
+        if array.kind.is_invalid() {
+            self.analyze_array_lit(index_node)
+        } else {
+            self.analyze_array_index(index_node, array)
+        }
+    }
 
+    fn analyze_array_index(&self, index_node: &IndexNode, array: Expr) -> Result<Expr, Error> {
         let array_type = if let Some(typ) = array.typ.try_unwrap_array() {
             typ
         } else {
             return Err(Error::NotAnArray { expr: array });
         };
 
-        let index = self.analyze(&index_node.index, Rc::new(IntType::signed(64).into()))?;
-        if index.typ.as_ref() != &Type::Int(IntType::signed(64)) {
-            return Err(Error::IndexIsNotAnInt { expr: index });
+        let mut index = vec![];
+        for idx in index_node.index.iter() {
+            let idx = self.analyze(&idx, Rc::new(IntType::signed(64).into()))?;
+            if idx.typ.as_ref() != &Type::Int(IntType::signed(64)) {
+                return Err(Error::IndexIsNotAnInt { expr: idx });
+            }
+            index.push(idx);
         }
 
-        let typ = array_type.elem_type.clone();
+        let elem_type = array_type.elem_type.clone();
+        let typ = if index.len() == array_type.dimension {
+            elem_type
+        } else {
+            Rc::new(Type::Array(Rc::new(ArrayType {
+                elem_type,
+                dimension: array_type.dimension - index.len(),
+            })))
+        };
+
         Ok(Expr {
             kind: ExprKind::Index(Index {
                 array: Box::new(array),
-                index: Box::new(index),
+                index,
             }),
             assignable: true,
             typ,
         })
     }
 
-    fn analyze_array(&self, array_node: &ArrayNode) -> Result<Expr, Error> {
-        let elem_type = self.type_helper.get(&array_node.typ)?;
+    fn analyze_array_lit(&self, index_node: &IndexNode) -> Result<Expr, Error> {
+        let elem_type = self.type_helper.get(index_node.array.as_ref())?;
 
-        let size = self.analyze(&array_node.size, Rc::new(IntType::signed(64).into()))?;
-        if !size.typ.is_int() {
-            return Err(Error::ArraySizeIsNotAnInt { expr: size });
+        let mut size = vec![];
+        for sz in index_node.index.iter() {
+            let sz = self.analyze(&sz, Rc::new(IntType::signed(64).into()))?;
+            if !sz.typ.is_int() {
+                return Err(Error::ArraySizeIsNotAnInt { expr: sz });
+            }
+            size.push(sz);
         }
 
+        let dimension = size.len();
         Ok(Expr {
             kind: ExprKind::Array(Array {
                 elem_type: Rc::clone(&elem_type),
-                size: Box::new(size),
+                size,
             }),
-            assignable: true,
-            typ: Rc::new(Type::Array(Rc::new(ArrayType { elem_type }))),
+            assignable: false,
+            typ: Rc::new(Type::Array(Rc::new(ArrayType { elem_type, dimension }))),
         })
     }
 
     fn analyze_cast(&self, cast: &CastNode, expected: &Rc<Type>) -> Result<Expr, Error> {
         let target = self.type_helper.get(&cast.target)?.clone();
-        let val = self.analyze(cast.val.as_ref(), expected.clone())?;
+        let val = self.analyze(cast.value.as_ref(), expected.clone())?;
 
         let target_ok = matches!(target.as_ref(), Type::Bool | Type::Int(_) | Type::Float(_));
         let expr_ok = matches!(val.typ.as_ref(), Type::Bool | Type::Int(_) | Type::Float(_));
         let can_cast = target_ok && expr_ok;
         if !can_cast {
             return Err(Error::CannotCast {
-                pos: cast.val.pos.clone(),
+                pos: cast.value.pos.clone(),
                 expr: val,
                 target_type: target,
             });

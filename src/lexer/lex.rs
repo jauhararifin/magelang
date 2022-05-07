@@ -131,7 +131,7 @@ impl<R: Read> Lexer<R> {
         Ok(match char_pos.val {
             '#' => self.consume_comment(char_pos)?,
             '\n' => self.consume_newline(char_pos)?,
-            '\"' => self.consume_string_literal(char_pos)?,
+            '\"' | '\'' | '`' => self.consume_string_literal(char_pos)?,
             '0'..='9' => self.consume_number_literal(char_pos)?,
             '_' | 'a'..='z' | 'A'..='Z' => self.consume_word(char_pos)?,
             ' ' | '\r' | '\t' => self.next_char()?,
@@ -169,10 +169,14 @@ impl<R: Read> Lexer<R> {
         let backslash_chars = HashMap::from([
             ('n', '\n'),
             ('r', '\r'),
-            ('"', '"'),
-            ('`', '`'),
-            ('\\', '\\'),
             ('t', '\t'),
+            ('\\', '\\'),
+            ('0', '\0'),
+            ('"', '"'),
+            ('\'', '\''),
+            ('`', '`'),
+            // \xAB = 0xAB
+            // \u{abcd} = 0xabcd
         ]);
 
         let mut value = String::new();
@@ -202,12 +206,6 @@ impl<R: Read> Lexer<R> {
             } else if c == '\\' {
                 after_backslash = true;
             } else if c == opening_quote {
-                if after_backslash {
-                    return Err(Error::UnexpectedChar {
-                        char: c,
-                        pos: char_pos.pos,
-                    });
-                }
                 break;
             } else {
                 value.push(c);

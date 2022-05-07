@@ -1,6 +1,6 @@
 use crate::{token::Token, pos::Pos};
 
-use super::{TypeNode, ExprNode};
+use super::ExprNode;
 
 #[derive(Debug, Clone)]
 pub enum StatementNode {
@@ -38,7 +38,7 @@ impl StatementNode {
 #[derive(Debug, Clone)]
 pub struct VarNode {
     pub name: Token,
-    pub typ: TypeNode,
+    pub typ: ExprNode,
     pub value: Option<ExprNode>,
 }
 

@@ -1,6 +1,6 @@
 use crate::token::Token;
 
-use super::{statement::BlockStatementNode, TypeNode};
+use super::{statement::BlockStatementNode, ExprNode};
 
 #[derive(Debug, Clone)]
 pub struct FnDeclNode {
@@ -14,12 +14,12 @@ pub struct FnDeclNode {
 pub struct FnHeaderNode {
     pub native_token: Option<Token>,
     pub params: Vec<ParamNode>,
-    pub ret_type: Option<TypeNode>,
+    pub ret_type: Option<ExprNode>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ParamNode {
     pub name: Token,
-    pub typ: TypeNode,
+    pub typ: ExprNode,
 }
 
