@@ -1,7 +1,7 @@
 use crate::ast::{
-    ArrayNode, ArrayTypeNode, AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, ExprNodeKind,
-    FnDeclNode, FnHeaderNode, FunctionCallNode, IfNode, IndexNode, ParamNode, ReturnNode, RootNode, StatementNode,
-    TypeNode, UnaryNode, VarNode, WhileNode,
+    ArrayNode, ArrayTypeNode, AssignNode, BinaryNode, BlockStatementNode, CastNode, DeclNode, ExprNode, FnDeclNode,
+    FnHeaderNode, FunctionCallNode, IfNode, IndexNode, ParamNode, ReturnNode, RootNode, StatementNode, TypeNode,
+    UnaryNode, VarNode, WhileNode, ExprNodeKind,
 };
 use crate::errors::Error;
 use crate::lexer::ILexer;
