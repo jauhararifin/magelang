@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, ops::Add};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     bytecode::{Function, Instruction, Object, Value, Variant},
