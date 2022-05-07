@@ -1,8 +1,8 @@
-use std::alloc::{Layout, alloc};
+use std::alloc::{alloc, Layout};
 use std::cmp::PartialEq;
-use std::ops::{Add, Div, Mul, Rem, Shl, Shr, Sub, BitAnd, BitOr, BitXor, Not};
+use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Shl, Shr, Sub};
 
-use crate::bytecode::{self, Variant, Instruction, Program};
+use crate::bytecode::{self, Instruction, Program, Variant};
 
 use super::value::ValueType;
 use super::{
@@ -32,7 +32,6 @@ impl Executor {
 
     pub fn run(&mut self) {
         while let Some(instruction) = self.controller.fetch() {
-
             // println!(
             //     "{} {:?}@{:?}",
             //     self.controller..get(func_id).unwrap().name,
@@ -62,6 +61,8 @@ impl Executor {
                 Instruction::And(variant) => self.execute_bit_and(variant),
                 Instruction::Or(variant) => self.execute_bit_or(variant),
                 Instruction::Xor(variant) => self.execute_bit_xor(variant),
+
+                Instruction::Cast(source, target) => self.execute_cast(source, target),
 
                 Instruction::Alloc => self.execute_alloc(),
                 Instruction::GetHeap(variant) => self.execute_get_heap(variant),
@@ -417,6 +418,33 @@ impl Executor {
         self.controller.advance();
     }
 
+    fn execute_cast(&mut self, source: Variant, target: Variant) {
+        match (source, target) {
+            (Variant::I8, Variant::I8) => self.execute_cast_generic::<i8, i8>(),
+            (Variant::I8, Variant::I16) => self.execute_cast_generic::<i8, i16>(),
+            (Variant::I8, Variant::I32) => self.execute_cast_generic::<i8, i32>(),
+            (Variant::I8, Variant::I64) => self.execute_cast_generic::<i8, i64>(),
+            (Variant::I32, Variant::U8) => {
+                let v: i32 = self.runtime_stack.pop_value();
+                let v: u8 = v as u8;
+                self.runtime_stack.push_primitive(v);
+            }
+            _ => todo!(),
+        }
+
+        self.controller.advance();
+    }
+
+    fn execute_cast_generic<T, U>(&mut self)
+    where
+        T: IntoValueType + Copy,
+        U: IntoValueType + Copy + From<T>,
+    {
+        let v: T = self.runtime_stack.pop_value();
+        let v: U = U::from(v);
+        self.runtime_stack.push_primitive(v);
+    }
+
     fn execute_alloc(&mut self) {
         let size: usize = self.runtime_stack.pop_value();
 
@@ -425,7 +453,7 @@ impl Executor {
 
         self.runtime_stack.push_value(ValueType::Ptr, data);
         self.controller.advance();
-    }   
+    }
 
     fn execute_get_heap(&mut self, variant: Variant) {
         let ptr: usize = self.runtime_stack.pop_value();
@@ -445,7 +473,7 @@ impl Executor {
         self.runtime_stack.push_from_ptr(value_type, ptr);
 
         self.controller.advance();
-    }   
+    }
 
     fn execute_set_heap(&mut self) {
         let ptr: usize = self.runtime_stack.pop_value();
@@ -456,7 +484,7 @@ impl Executor {
         }
 
         self.controller.advance();
-    }   
+    }
 
     fn execute_jump_if_false(&mut self, offset: isize) {
         let v: bool = self.runtime_stack.pop_value();

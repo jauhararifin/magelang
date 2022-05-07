@@ -130,6 +130,8 @@ pub enum Instruction {
     Or(Variant),
     Xor(Variant),
 
+    Cast(Variant, Variant),
+
     // Alloc allocate a Value in the heap.
     // Then, it will push a Value::Obj to the stack.
     // pop a usize from stack, and allocate heap with that size, then push stack with the pointer.

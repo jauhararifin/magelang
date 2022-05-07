@@ -1,0 +1,24 @@
+# print char
+fn native print_char(v: u8)
+
+fn main() {
+  var n: i32 = 10
+  var i: i32 = 0
+  while i < n {
+    var j: i32 = 0
+    while j < (n-i-1) {
+      var c: u8 = 32
+      print_char(c)
+      j += 1
+    }
+    j = 0
+    while j < i*2+1 {
+      var c: u8 = 42
+      print_char(c)
+      j += 1
+    }
+    var c: u8 = 10
+    print_char(c)
+    i += 1
+  }
+}

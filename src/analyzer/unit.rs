@@ -200,9 +200,11 @@ impl<'a> UnitAnalyzerHelper<'a> {
 
     fn analyze_block_stmt(&mut self, stmt: &'a BlockStatementNode, ftype: &FnType) -> Result<Statement, Error> {
         let mut body = Vec::new();
+        self.expr_helper.add_block();
         for s in stmt.body.iter() {
             body.push(self.analyze_stmt(s, ftype)?);
         }
+        self.expr_helper.pop_block();
         Ok(Statement::Block(BlockStatement { body }))
     }
 }

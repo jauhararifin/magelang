@@ -101,6 +101,13 @@ enum State {
     },
     BinaryExpr {
         allow_empty: bool,
+        level: i32,
+    },
+    BinaryExprOperand {
+        a: ExprNode,
+        op: Token,
+        allowed_ops: Vec<TokenKind>,
+        level: i32,
     },
     IndexExpr {
         allow_empty: bool,
@@ -109,11 +116,6 @@ enum State {
         allow_empty: bool,
         array: ExprNode,
         open_brack: Token,
-    },
-    BinaryExprOperand {
-        allow_empty: bool,
-        a: ExprNode,
-        op: Token,
     },
     CastExpr {
         allow_empty: bool,
@@ -140,6 +142,8 @@ enum State {
     PrimaryExpr {
         allow_empty: bool,
     },
+    BraceExpr,
+    BraceExprBody,
 }
 
 #[derive(Debug)]
@@ -214,8 +218,13 @@ impl<T: ILexer> Parser<T> {
             State::Expr { allow_empty } => self.parse_expr(allow_empty, data),
             State::UnaryExpr { allow_empty } => self.parse_unary_expr(allow_empty),
             State::UnaryExprVal { op } => self.parse_unary_expr_val(op, data),
-            State::BinaryExpr { allow_empty } => self.parse_binary_expr(allow_empty, data),
-            State::BinaryExprOperand { allow_empty, a, op } => self.parse_binary_expr_operand(allow_empty, a, op, data),
+            State::BinaryExpr { allow_empty, level } => self.parse_binary_expr(allow_empty, level, data),
+            State::BinaryExprOperand {
+                a,
+                op,
+                allowed_ops,
+                level,
+            } => self.parse_binary_expr_operand(a, op, allowed_ops, level, data),
             State::IndexExpr { allow_empty } => self.parse_index_expr(allow_empty, data),
             State::IndexExprIndex {
                 allow_empty,
@@ -236,7 +245,9 @@ impl<T: ILexer> Parser<T> {
             } => self.parse_call_expr_params(allow_empty, func, args, data),
             State::ArrayExpr { allow_empty } => self.parse_array_expr(allow_empty, data),
             State::ArrayExprSize { typ } => self.parse_array_expr_size(typ, data),
-            State::PrimaryExpr { allow_empty } => self.parse_primary_expr(allow_empty, data),
+            State::PrimaryExpr { allow_empty } => self.parse_primary_expr(allow_empty),
+            State::BraceExpr => self.parse_brace_expr(),
+            State::BraceExprBody => self.parse_brace_body(data),
         }
     }
 
@@ -608,7 +619,7 @@ impl<T: ILexer> Parser<T> {
     fn parse_assign_statement(&mut self, data: Ast) -> Result<Ast, Error> {
         match data {
             Ast::Expr(receiver) => {
-                let op = self.check_one_of(vec![
+                let op = self.check_one_of(&vec![
                     TokenKind::Assign,
                     TokenKind::BitAndAssign,
                     TokenKind::BitOrAssign,
@@ -616,6 +627,7 @@ impl<T: ILexer> Parser<T> {
                     TokenKind::PlusAssign,
                     TokenKind::MinusAssign,
                     TokenKind::MulAssign,
+                    TokenKind::DivAssign,
                     TokenKind::ModAssign,
                     TokenKind::ShrAssign,
                     TokenKind::ShlAssign,
@@ -751,63 +763,114 @@ impl<T: ILexer> Parser<T> {
         }
 
         self.stack.push(State::Expr { allow_empty });
-        self.stack.push(State::BinaryExpr { allow_empty });
-        self.stack.push(State::IndexExpr { allow_empty });
-        self.stack.push(State::CastExpr { allow_empty });
-        self.stack.push(State::UnaryExpr { allow_empty });
+        self.stack.push(State::BinaryExpr { allow_empty, level: 0 });
 
         Ok(Ast::Empty)
     }
 
-    fn parse_binary_expr(&mut self, allow_empty: bool, data: Ast) -> Result<Ast, Error> {
-        let binary_precedence = vec![
-            vec![TokenKind::Or],
-            vec![TokenKind::And],
-            vec![TokenKind::BitOr],
-            vec![TokenKind::BitAnd],
-            vec![TokenKind::Eq, TokenKind::NotEq],
-            vec![TokenKind::LT, TokenKind::LTEq, TokenKind::GT, TokenKind::GTEq],
-            vec![TokenKind::Shl, TokenKind::Shr],
-            vec![TokenKind::Plus, TokenKind::Minus],
-            vec![TokenKind::Mul, TokenKind::Div, TokenKind::Mod],
+    fn parse_binary_expr(&mut self, allow_empty: bool, level: i32, data: Ast) -> Result<Ast, Error> {
+        let mut binary_precedence = vec![
+            vec![TokenKind::Or],                                                  // 0
+            vec![TokenKind::And],                                                 // 1
+            vec![TokenKind::BitOr],                                               // 2
+            vec![TokenKind::BitAnd],                                              // 3
+            vec![TokenKind::Eq, TokenKind::NotEq],                                // 4
+            vec![TokenKind::LT, TokenKind::LTEq, TokenKind::GT, TokenKind::GTEq], // 5
+            vec![TokenKind::Shl, TokenKind::Shr],                                 // 6
+            vec![TokenKind::Plus, TokenKind::Minus],                              // 7
+            vec![TokenKind::Mul, TokenKind::Div, TokenKind::Mod],                 // 8
         ];
 
         if let Ast::Expr(expr) = data {
-            for target_op in binary_precedence.into_iter().rev() {
-                if let Some(op) = self.check_one_of(target_op)? {
-                    self.stack.push(State::BinaryExprOperand {
-                        allow_empty,
-                        a: expr,
-                        op,
-                    });
-                    return Ok(Ast::Empty);
-                }
+            let target_op = binary_precedence.remove(level as usize);
+            if let Some(op) = self.check_one_of(&target_op)? {
+                self.stack.push(State::BinaryExprOperand {
+                    a: expr,
+                    op,
+                    allowed_ops: target_op,
+                    level,
+                });
+                return Ok(Ast::Empty);
             }
+
             Ok(Ast::Expr(expr))
         } else {
-            unreachable!("invalid data when parsing binary expr: {:?}", data)
+            self.stack.push(State::BinaryExpr { allow_empty, level });
+
+            if binary_precedence.get(level as usize + 1).is_some() {
+                self.stack.push(State::BinaryExpr {
+                    allow_empty,
+                    level: level + 1,
+                });
+            } else {
+                self.stack.push(State::IndexExpr { allow_empty });
+                self.stack.push(State::CastExpr { allow_empty });
+                self.stack.push(State::UnaryExpr { allow_empty });
+            }
+
+            Ok(Ast::Empty)
         }
     }
 
     fn parse_binary_expr_operand(
         &mut self,
-        allow_empty: bool,
         a: ExprNode,
         op: Token,
+        allowed_ops: Vec<TokenKind>,
+        level: i32,
         data: Ast,
     ) -> Result<Ast, Error> {
+        let binary_precedence = vec![
+            vec![TokenKind::Or],                                                  // 0
+            vec![TokenKind::And],                                                 // 1
+            vec![TokenKind::BitOr],                                               // 2
+            vec![TokenKind::BitAnd],                                              // 3
+            vec![TokenKind::Eq, TokenKind::NotEq],                                // 4
+            vec![TokenKind::LT, TokenKind::LTEq, TokenKind::GT, TokenKind::GTEq], // 5
+            vec![TokenKind::Shl, TokenKind::Shr],                                 // 6
+            vec![TokenKind::Plus, TokenKind::Minus],                              // 7
+            vec![TokenKind::Mul, TokenKind::Div, TokenKind::Mod],                 // 8
+        ];
+
         Ok(match data {
-            Ast::Expr(expr) => Ast::Expr(ExprNode {
-                pos: a.pos.clone(),
-                kind: ExprNodeKind::Binary(BinaryNode {
-                    a: Box::new(a),
-                    op,
-                    b: Box::new(expr),
-                }),
-            }),
+            Ast::Expr(expr) => {
+                let bin_expr = ExprNode {
+                    pos: a.pos.clone(),
+                    kind: ExprNodeKind::Binary(BinaryNode {
+                        a: Box::new(a),
+                        op,
+                        b: Box::new(expr),
+                    }),
+                };
+                if let Some(op) = self.check_one_of(&allowed_ops)? {
+                    self.stack.push(State::BinaryExprOperand {
+                        a: bin_expr,
+                        op,
+                        allowed_ops,
+                        level,
+                    });
+                    Ast::Empty
+                } else {
+                    Ast::Expr(bin_expr)
+                }
+            }
             Ast::Empty => {
-                self.stack.push(State::BinaryExprOperand { allow_empty, a, op });
-                self.stack.push(State::Expr { allow_empty });
+                self.stack.push(State::BinaryExprOperand {
+                    a,
+                    op,
+                    allowed_ops,
+                    level,
+                });
+                if binary_precedence.get(level as usize + 1).is_some() {
+                    self.stack.push(State::BinaryExpr {
+                        allow_empty: false,
+                        level: level + 1,
+                    });
+                } else {
+                    self.stack.push(State::IndexExpr { allow_empty: false });
+                    self.stack.push(State::CastExpr { allow_empty: false });
+                    self.stack.push(State::UnaryExpr { allow_empty: false });
+                }
                 Ast::Empty
             }
             _ => unreachable!("invalid data when parsing binary expr operand: {:?}", data),
@@ -906,7 +969,7 @@ impl<T: ILexer> Parser<T> {
     }
 
     fn parse_unary_expr(&mut self, allow_empty: bool) -> Result<Ast, Error> {
-        if let Some(op) = self.check_one_of(vec![
+        if let Some(op) = self.check_one_of(&vec![
             TokenKind::Not,
             TokenKind::Minus,
             TokenKind::Plus,
@@ -963,7 +1026,7 @@ impl<T: ILexer> Parser<T> {
             args.push(arg);
         }
 
-        if let Some(token) = self.check_one_of(vec![TokenKind::Comma, TokenKind::CloseBrace])? {
+        if let Some(token) = self.check_one_of(&vec![TokenKind::Comma, TokenKind::CloseBrace])? {
             if token.kind == TokenKind::Comma {
                 self.stack.push(State::CallExprParams {
                     allow_empty,
@@ -1028,14 +1091,8 @@ impl<T: ILexer> Parser<T> {
         }
     }
 
-    fn parse_primary_expr(&mut self, allow_empty: bool, data: Ast) -> Result<Ast, Error> {
-        if let Ast::Expr(expr) = data {
-            self.expect(TokenKind::CloseBrace)?;
-            return Ok(Ast::Expr(expr));
-        }
-
+    fn parse_primary_expr(&mut self, allow_empty: bool) -> Result<Ast, Error> {
         let token = self.lexer.peek()?;
-
         match &token.kind {
             TokenKind::IntegerLit => Ok(Ast::Expr(ExprNode {
                 pos: token.pos.clone(),
@@ -1054,9 +1111,7 @@ impl<T: ILexer> Parser<T> {
                 kind: ExprNodeKind::Ident(self.lexer.next()?),
             })),
             TokenKind::OpenBrace => {
-                self.lexer.next()?;
-                self.stack.push(State::PrimaryExpr { allow_empty: false });
-                self.stack.push(State::Expr { allow_empty: false });
+                self.stack.push(State::BraceExpr);
                 Ok(Ast::Empty)
             }
             _ => {
@@ -1083,6 +1138,27 @@ impl<T: ILexer> Parser<T> {
         }
     }
 
+    fn parse_brace_expr(&mut self) -> Result<Ast, Error> {
+        self.expect(TokenKind::OpenBrace)?;
+        self.stack.push(State::BraceExprBody);
+        Ok(Ast::Empty)
+    }
+
+    fn parse_brace_body(&mut self, data: Ast) -> Result<Ast, Error> {
+        match data {
+            Ast::Empty => {
+                self.stack.push(State::BraceExprBody);
+                self.stack.push(State::Expr { allow_empty: false });
+                Ok(Ast::Empty)
+            }
+            Ast::Expr(expr) => {
+                self.expect(TokenKind::CloseBrace)?;
+                Ok(Ast::Expr(expr))
+            }
+            _ => unreachable!(),
+        }
+    }
+
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
         let token = self.lexer.next()?;
         if &token.kind != &kind {
@@ -1104,7 +1180,7 @@ impl<T: ILexer> Parser<T> {
         Ok(Some(token))
     }
 
-    fn check_one_of(&mut self, kind: Vec<TokenKind>) -> Result<Option<Token>, Error> {
+    fn check_one_of(&mut self, kind: &Vec<TokenKind>) -> Result<Option<Token>, Error> {
         let token = self.lexer.peek()?;
 
         for k in kind.iter() {

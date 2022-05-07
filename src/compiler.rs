@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, ops::Add};
 
 use crate::{
     bytecode::{Function, Instruction, Object, Value, Variant},
@@ -168,9 +168,15 @@ impl<'a> CompilerHelper<'a> {
     }
 
     fn compile_assign_index_expr(&self, ctx: &mut FnContext, index: &Index) -> Vec<Instruction> {
+        let array_type = if let Type::Array(typ) = index.array.typ.as_ref() {
+            typ
+        } else {
+            unreachable!();
+        };
+
         let array_ptr = self.compile_expr(ctx, index.array.as_ref());
         let element_size = vec![Instruction::Constant(Value::I64(
-            self.get_type_size(index.array.typ.as_ref()) as i64 / 8,
+            self.get_type_size(array_type.elem_type.as_ref()) as i64 / 8,
         ))];
         let array_index = self.compile_expr(ctx, index.index.as_ref());
 
@@ -423,7 +429,21 @@ impl<'a> CompilerHelper<'a> {
         ))];
         let array_index = self.compile_expr(ctx, index.index.as_ref());
 
-        let variant = match array_type.elem_type.as_ref() {
+        let variant = self.type_to_variant(&array_type.elem_type);
+
+        return [
+            &array_ptr[..],
+            &element_size[..],
+            &array_index[..],
+            &[Instruction::Mul(Variant::I64)],
+            &[Instruction::Add(Variant::I64)],
+            &[Instruction::GetHeap(variant)],
+        ]
+        .concat();
+    }
+
+    fn type_to_variant(&self, typ: &Rc<Type>) -> Variant {
+        match typ.as_ref() {
             Type::Int(IntType { signed, size }) => match (signed, size) {
                 (true, 8) => Variant::I8,
                 (true, 16) => Variant::I16,
@@ -442,17 +462,7 @@ impl<'a> CompilerHelper<'a> {
             },
             Type::Bool => Variant::U8,
             typ @ _ => todo!("{:?}", typ),
-        };
-
-        return [
-            &array_ptr[..],
-            &element_size[..],
-            &array_index[..],
-            &[Instruction::Mul(Variant::I64)],
-            &[Instruction::Add(Variant::I64)],
-            &[Instruction::GetHeap(variant)],
-        ]
-        .concat();
+        }
     }
 
     fn compile_array(&self, ctx: &FnContext, array: &Array) -> Vec<Instruction> {
@@ -466,8 +476,14 @@ impl<'a> CompilerHelper<'a> {
         instructions
     }
 
-    fn compile_cast(&self, _ctx: &FnContext, _cast: &Cast) -> Vec<Instruction> {
-        todo!();
+    fn compile_cast(&self, ctx: &FnContext, cast: &Cast) -> Vec<Instruction> {
+        let mut instructions = self.compile_expr(ctx, cast.val.as_ref());
+
+        let source_variant = self.type_to_variant(&cast.val.typ);
+        let target_variant = self.type_to_variant(&cast.target);
+        instructions.push(Instruction::Cast(source_variant, target_variant));
+
+        instructions
     }
 
     fn empty_value(&self, typ: &Type) -> Vec<Instruction> {
@@ -498,8 +514,8 @@ impl<'a> CompilerHelper<'a> {
 
 struct FnContext {
     symbol_tables: Vec<HashMap<Rc<String>, Rc<Symbol>>>,
+    counter_table: Vec<isize>,
     argument_size: isize,
-    counter: isize,
 }
 
 #[derive(Debug, Clone)]
@@ -523,26 +539,29 @@ impl FnContext {
 
         Self {
             symbol_tables: vec![table],
+            counter_table: vec![0],
             argument_size: fn_type.arguments.len() as isize,
-            counter: 0,
         }
     }
 
     fn add_block(&mut self) {
+        let last_counter = *self.counter_table.last().unwrap();
+        self.counter_table.push(last_counter);
         self.symbol_tables.push(HashMap::new());
     }
 
     fn pop_block(&mut self) -> usize {
+        self.counter_table.pop();
         self.symbol_tables.pop().unwrap().len()
     }
 
     fn add_symbol(&mut self, name: Rc<String>) {
-        let index = self.counter;
+        let counter = self.counter_table.last_mut().unwrap();
         self.symbol_tables
             .last_mut()
             .unwrap()
-            .insert(name, Rc::new(Symbol { index }));
-        self.counter += 1;
+            .insert(name, Rc::new(Symbol { index: *counter }));
+        *counter += 1;
     }
 
     fn find_symbol(&self, name: &String) -> Option<Rc<Symbol>> {

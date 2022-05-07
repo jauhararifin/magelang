@@ -1,0 +1,31 @@
+# print char
+fn native print_char(v: u8)
+
+fn print_i32(v: i32) {
+  var buff: []u8 = u8[10]
+
+  var i: i64 = 0
+  while v > 0 {
+    var digit: u8 = 48 + (v % 10) as u8
+    buff[i] = digit
+    i += 1
+    v /= 10
+  }
+
+  i -= 1
+  while i >= 0 {
+    print_char(buff[i])
+    i -= 1
+  }
+}
+
+fn print_line() {
+  var end_line: u8 = 10
+  print_char(end_line)
+}
+
+fn main() {
+  var n: i32 = 1234
+  print_i32(n)
+  print_line()
+}

@@ -12,7 +12,9 @@ impl Debug for RuntimeValue {
             match &self.typ {
                 ValueType::Void => write!(f, "{:?}@{}", self.typ, self.data),
                 ValueType::Bool => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const bool)),
+                ValueType::I32 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i32)),
                 ValueType::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
+                ValueType::U8 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const u8)),
                 ValueType::U64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const u64)),
                 ValueType::FnId => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
                 ValueType::Ptr => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
