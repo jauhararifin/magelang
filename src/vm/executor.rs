@@ -129,11 +129,11 @@ impl Executor {
                 Instruction::AllocArrayF32 => self.execute_array_alloc::<f32>(),
                 Instruction::AllocArrayF64 => self.execute_array_alloc::<f64>(),
 
-                Instruction::ArrayGetI64 => todo!(), // self.execute_get_heap(variant),
-                Instruction::ArrayGetF32 => todo!(),
-                Instruction::ArrayGetF64 => todo!(),
+                Instruction::ArrayGetI64 => self.execute_array_primitive_get::<u64>(),
+                Instruction::ArrayGetF32 => self.execute_array_primitive_get::<f32>(),
+                Instruction::ArrayGetF64 => self.execute_array_primitive_get::<f64>(),
 
-                Instruction::ArraySetI64 => self.execute_array_primitive_set::<u64>(), // self.execute_set_heap(variant),
+                Instruction::ArraySetI64 => self.execute_array_primitive_set::<u64>(),
                 Instruction::ArraySetF32 => self.execute_array_primitive_set::<f32>(),
                 Instruction::ArraySetF64 => self.execute_array_primitive_set::<f64>(),
 
@@ -391,15 +391,30 @@ impl Executor {
         self.controller.advance();
     }
 
+    fn execute_array_primitive_get<T: Copy + IntoType>(&mut self) {
+        // [array][index] -> [T]
+        let index: u64 = self.runtime_stack.pop_value();
+        let array: u64 = self.runtime_stack.pop_value();
+
+        let elem_typ = T::into();
+        let elem_ptr = (array + index * elem_typ.size()) as *mut T;
+        let elem_val: T = unsafe { *elem_ptr };
+
+        self.runtime_stack.push_primitive(elem_val);
+        self.controller.advance();
+    }
+
     fn execute_array_primitive_set<T: Copy + IntoType>(&mut self) {
-        // [i64][array][index] -> []
+        // [T][array][index] -> []
         let index: u64 = self.runtime_stack.pop_value();
         let array: u64 = self.runtime_stack.pop_value();
         let value: T = self.runtime_stack.pop_value();
 
         let elem_typ = T::into();
         let elem_ptr = (array + index * elem_typ.size()) as *mut T;
-        unsafe { *elem_ptr = value; }
+        unsafe {
+            *elem_ptr = value;
+        }
 
         self.controller.advance();
     }
