@@ -68,7 +68,15 @@ impl Type {
             Type::I64 => 8,
             Type::F32 => 4,
             Type::F64 => 8,
-            Type::Array(array_type) => array_type.size,
+            Type::Array(_) => std::mem::size_of::<usize>() as u64,
+        }
+    }
+
+    pub fn unwrap_array(&self) -> &ArrayType {
+        if let Type::Array(array_type) = self {
+            array_type
+        } else {
+            panic!("the type is not an array type");
         }
     }
 }

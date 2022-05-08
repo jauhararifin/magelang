@@ -5,7 +5,7 @@ use std::{
 
 use super::{
     errors::Error,
-    value::{Local, Type, IntoType},
+    value::{IntoType, Local, Type},
 };
 
 pub struct RuntimeStack {
@@ -49,7 +49,7 @@ impl RuntimeStack {
         self.top_ptr += size_of::<T>();
     }
 
-    pub fn pop_value<T: Copy>(&mut self) -> T {
+    pub fn pop_value<T: IntoType + Copy>(&mut self) -> T {
         let val = self.values.pop().unwrap();
         self.top_ptr -= val.typ.size() as usize;
         unsafe { *(val.data as *const T) }
@@ -70,7 +70,7 @@ impl RuntimeStack {
             self.top_ptr = self.data as usize;
         }
     }
-
+    
     pub fn get_and_push(&mut self, index: isize) {
         let mut val = unsafe { self.values.get_unchecked(index as usize).clone() };
         unsafe {

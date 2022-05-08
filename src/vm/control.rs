@@ -11,7 +11,7 @@ pub trait IController {
 
     fn advance(&mut self);
     fn jump(&mut self, offset: isize);
-    fn call(&mut self, fn_id: usize, base_stack: usize);
+    fn call(&mut self, fn_id: u64, base_stack: usize);
     fn ret(&mut self);
 }
 
@@ -30,7 +30,7 @@ impl Controller {
 
             call_stack: vec![],
             current_frame: CallFrame {
-                func_id: program.entry_point,
+                func_id: program.entry_point as u64,
                 instruction_index: 0,
                 base_stack: 0,
             },
@@ -49,7 +49,7 @@ impl IController for Controller {
         } else {
             Some(unsafe {
                 self.functions
-                    .get_unchecked(func_id)
+                    .get_unchecked(func_id as usize)
                     .instructions
                     .get_unchecked(instruction_index)
                     .clone()
@@ -69,7 +69,7 @@ impl IController for Controller {
         self.current_frame.instruction_index = (self.current_frame.instruction_index as isize + offset) as usize;
     }
 
-    fn call(&mut self, fn_id: usize, base_stack: usize) {
+    fn call(&mut self, fn_id: u64, base_stack: usize) {
         let new_call_frame = CallFrame {
             func_id: fn_id,
             instruction_index: 0,

@@ -133,9 +133,9 @@ impl Executor {
                 Instruction::ArrayGetF32 => todo!(),
                 Instruction::ArrayGetF64 => todo!(),
 
-                Instruction::ArraySetI64 => todo!(), // self.execute_set_heap(variant),
-                Instruction::ArraySetF32 => todo!(),
-                Instruction::ArraySetF64 => todo!(),
+                Instruction::ArraySetI64 => self.execute_array_primitive_set::<u64>(), // self.execute_set_heap(variant),
+                Instruction::ArraySetF32 => self.execute_array_primitive_set::<f32>(),
+                Instruction::ArraySetF64 => self.execute_array_primitive_set::<f64>(),
 
                 Instruction::Jump(offset) => self.execute_jump(offset),
                 Instruction::JumpIfFalse(offset) => self.execute_jump_if_false(offset),
@@ -387,11 +387,26 @@ impl Executor {
         let size: u64 = self.runtime_stack.pop_value();
         let local = self.memory_manager.alloc_array(elem_type, size);
         self.runtime_stack.push_value(local.typ, local.data as usize);
+
+        self.controller.advance();
+    }
+
+    fn execute_array_primitive_set<T: Copy + IntoType>(&mut self) {
+        // [i64][array][index] -> []
+        let index: u64 = self.runtime_stack.pop_value();
+        let array: u64 = self.runtime_stack.pop_value();
+        let value: T = self.runtime_stack.pop_value();
+
+        let elem_typ = T::into();
+        let elem_ptr = (array + index * elem_typ.size()) as *mut T;
+        unsafe { *elem_ptr = value; }
+
+        self.controller.advance();
     }
 
     fn execute_jump_if_false(&mut self, offset: isize) {
-        let v: bool = self.runtime_stack.pop_value();
-        if !v {
+        let v: u64 = self.runtime_stack.pop_value();
+        if v == 0 {
             self.controller.jump(offset);
         } else {
             self.controller.advance();
@@ -399,8 +414,8 @@ impl Executor {
     }
 
     fn execute_jump_if_true(&mut self, offset: isize) {
-        let v: bool = self.runtime_stack.pop_value();
-        if v {
+        let v: u64 = self.runtime_stack.pop_value();
+        if v != 0 {
             self.controller.jump(offset);
         } else {
             self.controller.advance();
@@ -417,7 +432,7 @@ impl Executor {
     }
 
     fn execute_call(&mut self) {
-        let fn_id: usize = self.runtime_stack.pop_value();
+        let fn_id: u64 = self.runtime_stack.pop_value();
         self.controller.call(fn_id, self.runtime_stack.top_index());
     }
 
