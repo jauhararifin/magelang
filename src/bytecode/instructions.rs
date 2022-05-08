@@ -49,11 +49,11 @@ pub enum Instruction {
     AllocArrayF32,
     AllocArrayF64,
 
-    ArrayGetI64, // [index] -> I64
+    ArrayGetI64, // [array][index] -> [I64]
     ArrayGetF32,
     ArrayGetF64,
 
-    ArraySetI64, // [I64][index] -> []
+    ArraySetI64, // [i64][array][index] -> []
     ArraySetF32,
     ArraySetF64,
 

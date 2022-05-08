@@ -3,8 +3,8 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{
     bytecode::{Function, Instruction, Object},
     semantic::{
-        Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FloatType, FnDecl, FunctionCall,
-        If, Index, IntType, Return, Statement, Type, Unary, UnaryOp, Unit, Var, While, Array,
+        Array, Assign, AssignOp, BinOp, Binary, BlockStatement, Cast, Expr, ExprKind, FloatType, FnDecl, FunctionCall,
+        If, Index, IntType, Return, Statement, Type, Unary, UnaryOp, Unit, Var, While,
     },
 };
 
@@ -174,54 +174,36 @@ impl<'a> CompilerHelper<'a> {
         }
     }
 
-    fn compile_assign_index_expr(&self, ctx: &mut FnContext, index: &Index) -> Vec<Instruction> {
-        todo!();
-        // let array_type = if let Type::Array(typ) = index.array.typ.as_ref() {
-        //     typ
-        // } else {
-        //     unreachable!();
-        // };
-        //
-        // let mut instructions = vec![];
-        //
-        // let array_ptr = self.compile_expr(ctx, index.array.as_ref());
-        // instructions.extend(array_ptr);
-        //
-        // for x in index.index.iter() {
-        //     instructions.push(Instruction::ConstI64(self.get_type_size(typ)));
-        //     let element_size = vec![Instruction::Constant(Value::I64(
-        //         self.get_type_size(array_type.elem_type.as_ref()) as i64 / 8,
-        //     ))];
-        //     let array_index = self.compile_expr(ctx, index.index.as_ref());
-        // }
-        //
-        // let element_size = vec![Instruction::Constant(Value::I64(
-        //     self.get_type_size(array_type.elem_type.as_ref()) as i64 / 8,
-        // ))];
-        // let array_index = self.compile_expr(ctx, index.index.as_ref());
-        //
-        // return [
-        //     &array_ptr[..],
-        //     &element_size[..],
-        //     &array_index[..],
-        //     &[Instruction::Mul(Variant::I64)],
-        //     &[Instruction::Add(Variant::I64)],
-        //     &[Instruction::SetHeap],
-        // ]
-        // .concat();
+    fn compile_assign_index_expr(&self, ctx: &FnContext, index: &Index) -> Vec<Instruction> {
+        let instructions = self.compile_array_index(ctx, index);
+
+        let array_type = if let Type::Array(typ) = index.array.typ.as_ref() {
+            typ
+        } else {
+            unreachable!();
+        };
+
+        let variant = Variant::from(array_type.elem_type.as_ref());
+        let set_op = match variant {
+            Variant::Uint | Variant::Int => Instruction::ArraySetI64,
+            Variant::Float => Instruction::ArraySetF32,
+            Variant::Double => Instruction::ArraySetF64,
+            Variant::Array(_) => todo!("multi dimensional array is not supported yet"),
+        };
+
+        [&instructions[..], &[set_op]].concat()
     }
 
-    // fn get_type_size(&self, typ: &Type) -> i64 {
-    //     match typ {
-    //         Type::Invalid => unreachable!(),
-    //         Type::Bool => 8,
-    //         Type::Void => 0,
-    //         Type::Int(t) => t.size as usize,
-    //         Type::Float(t) => t.size as usize,
-    //         Type::Fn(_) => todo!(),
-    //         Type::Array(_) => 64,
-    //     }
-    // }
+    fn compile_array_index(&self, ctx: &FnContext, index: &Index) -> Vec<Instruction> {
+        if index.index.len() > 1 {
+            todo!("multi dimensional array is not supported yet");
+        }
+
+        let array_expr = self.compile_expr(ctx, index.array.as_ref());
+        let index_expr = self.compile_expr(ctx, &index.index[0]);
+
+        [&array_expr[..], &index_expr[..]].concat()
+    }
 
     fn compile_return(&self, ctx: &mut FnContext, stmt: &Return) -> Vec<Instruction> {
         let mut instructions = Vec::new();
@@ -418,12 +400,6 @@ impl<'a> CompilerHelper<'a> {
     fn compile_unary(&self, ctx: &FnContext, unary: &Unary) -> Vec<Instruction> {
         let instructions = self.compile_expr(ctx, unary.val.as_ref());
 
-        // let variant = match unary.val.typ.as_ref() {
-        //     Type::Int(t) => Variant::int(t.signed, t.size),
-        //     Type::Float(t) => Variant::float(t.size),
-        //     Type::Bool => Variant::U8,
-        //     _ => unreachable!(),
-        // };
         let variant = Variant::from(unary.val.typ.as_ref());
 
         match unary.op {
@@ -472,65 +448,41 @@ impl<'a> CompilerHelper<'a> {
     }
 
     fn compile_index(&self, ctx: &FnContext, index: &Index) -> Vec<Instruction> {
-        todo!();
-        // let array_type = if let Type::Array(typ) = index.array.typ.as_ref() {
-        //     typ
-        // } else {
-        //     unreachable!();
-        // };
-        //
-        // let array_ptr = self.compile_expr(ctx, index.array.as_ref());
-        // let element_size = vec![Instruction::Constant(Value::I64(
-        //     self.get_type_size(array_type.elem_type.as_ref()) as i64 / 8,
-        // ))];
-        // let array_index = self.compile_expr(ctx, index.index.as_ref());
-        //
-        // let variant = self.type_to_variant(&array_type.elem_type);
-        //
-        // return [
-        //     &array_ptr[..],
-        //     &element_size[..],
-        //     &array_index[..],
-        //     &[Instruction::Mul(Variant::I64)],
-        //     &[Instruction::Add(Variant::I64)],
-        //     &[Instruction::GetHeap(variant)],
-        // ]
-        // .concat();
+        let instructions = self.compile_array_index(ctx, index);
+
+        let array_type = if let Type::Array(typ) = index.array.typ.as_ref() {
+            typ
+        } else {
+            unreachable!();
+        };
+
+        let variant = Variant::from(array_type.elem_type.as_ref());
+        let get_op = match variant {
+            Variant::Uint | Variant::Int => Instruction::ArrayGetI64,
+            Variant::Float => Instruction::ArrayGetF32,
+            Variant::Double => Instruction::ArrayGetF64,
+            Variant::Array(_) => todo!("multi dimensional array is not supported yet"),
+        };
+
+        [&instructions[..], &[get_op]].concat()
     }
 
-    // fn type_to_variant(&self, typ: &Rc<Type>) -> Variant {
-    //     match typ.as_ref() {
-    //         Type::Int(IntType { signed, size }) => match (signed, size) {
-    //             (true, 8) => Variant::I8,
-    //             (true, 16) => Variant::I16,
-    //             (true, 32) => Variant::I32,
-    //             (true, 64) => Variant::I64,
-    //             (false, 8) => Variant::U8,
-    //             (false, 16) => Variant::U16,
-    //             (false, 32) => Variant::U32,
-    //             (false, 64) => Variant::U64,
-    //             _ => unreachable!(),
-    //         },
-    //         Type::Float(FloatType { size }) => match size {
-    //             32 => Variant::F32,
-    //             64 => Variant::F64,
-    //             _ => unreachable!(),
-    //         },
-    //         Type::Bool => Variant::U8,
-    //         typ @ _ => todo!("{:?}", typ),
-    //     }
-    // }
-
     fn compile_array(&self, ctx: &FnContext, array: &Array) -> Vec<Instruction> {
-        todo!();
-        // let mut instructions = self.compile_expr(ctx, array.size.as_ref());
-        //
-        // let elem_size = self.get_type_size(&array.elem_type);
-        // instructions.push(Instruction::Constant(Value::U64(elem_size as u64)));
-        // instructions.push(Instruction::Mul(Variant::U64));
-        // instructions.push(Instruction::Alloc);
-        //
-        // instructions
+        if array.size.len() != 1 {
+            todo!("multi dimensional array is not supported yet");
+        }
+
+        let mut instructions = self.compile_expr(ctx, &array.size[0]);
+
+        let variant = Variant::from(array.elem_type.as_ref());
+        instructions.push(match variant {
+            Variant::Int | Variant::Uint => Instruction::AllocArrayI64,
+            Variant::Float => Instruction::AllocArrayF32,
+            Variant::Double => Instruction::AllocArrayF64,
+            Variant::Array(_) => todo!("multi dimensional array is not supported yet"),
+        });
+
+        instructions
     }
 
     fn compile_cast(&self, ctx: &FnContext, cast: &Cast) -> Vec<Instruction> {
@@ -552,7 +504,7 @@ impl<'a> CompilerHelper<'a> {
             (Variant::Uint, Variant::Double) => Instruction::ConvertI64ToF64,
             (Variant::Int, Variant::Float) => Instruction::SConvertI64ToF32,
             (Variant::Int, Variant::Double) => Instruction::SConvertI64ToF64,
-            _ => unreachable!(),
+            _ => Instruction::Nop,
         };
         instructions.push(instruction);
 
@@ -636,6 +588,7 @@ impl FnContext {
     }
 }
 
+#[derive(Debug)]
 enum Variant {
     Uint,
     Int,

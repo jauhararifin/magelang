@@ -11,17 +11,12 @@ pub trait IExprParserHelper {
 
 pub struct ExprParserHelper<'a> {
     lexer: &'a mut dyn LexerHelper,
-    allow_empty: bool,
     stack: Vec<State>,
 }
 
 impl<'a> ExprParserHelper<'a> {
-    pub fn new(lexer: &'a mut dyn LexerHelper, allow_empty: bool) -> Self {
-        Self {
-            lexer,
-            allow_empty,
-            stack: vec![],
-        }
+    pub fn new(lexer: &'a mut dyn LexerHelper) -> Self {
+        Self { lexer, stack: vec![] }
     }
 }
 

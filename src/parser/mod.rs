@@ -161,9 +161,9 @@ impl<T: ILexer> Parser<T> {
         self.expect(TokenKind::Var)?;
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::Colon)?;
-        let typ = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+        let typ = ExprParserHelper::new(&mut self.lexer).parse()?;
         Ok(if self.check(&TokenKind::Assign)?.is_some() {
-            let value = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+            let value = ExprParserHelper::new(&mut self.lexer).parse()?;
             Ast::Var(VarNode {
                 name,
                 typ,
@@ -257,7 +257,7 @@ impl<T: ILexer> Parser<T> {
         native_token: Option<Token>,
         params: Vec<ParamNode>,
     ) -> Result<Ast, Error> {
-        let return_type = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+        let return_type = ExprParserHelper::new(&mut self.lexer).parse()?;
 
         if native_token.is_none() {
             self.stack.push(State::FnBody {
@@ -316,7 +316,7 @@ impl<T: ILexer> Parser<T> {
     fn parse_param_name(&mut self) -> Result<Ast, Error> {
         let name = self.expect(TokenKind::Ident)?;
         self.expect(TokenKind::Colon)?;
-        let typ = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+        let typ = ExprParserHelper::new(&mut self.lexer).parse()?;
         Ok(Ast::Param(ParamNode { name, typ }))
     }
 
@@ -378,7 +378,7 @@ impl<T: ILexer> Parser<T> {
     }
 
     fn parse_assign_statement(&mut self) -> Result<Ast, Error> {
-        let receiver = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+        let receiver = ExprParserHelper::new(&mut self.lexer).parse()?;
 
         let op = self.check_one_of(&vec![
             TokenKind::Assign,
@@ -395,7 +395,7 @@ impl<T: ILexer> Parser<T> {
         ])?;
 
         if let Some(op) = op {
-            let value = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+            let value = ExprParserHelper::new(&mut self.lexer).parse()?;
             Ok(Ast::Assign(AssignNode { receiver, op, value }))
         } else {
             Ok(Ast::Expr(receiver))
@@ -404,7 +404,7 @@ impl<T: ILexer> Parser<T> {
 
     fn parse_if_statement(&mut self) -> Result<Ast, Error> {
         let if_token = self.expect(TokenKind::If)?;
-        let cond = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+        let cond = ExprParserHelper::new(&mut self.lexer).parse()?;
         self.stack.push(State::IfStatementBody { if_token, cond });
         Ok(Ast::Empty)
     }
@@ -423,7 +423,7 @@ impl<T: ILexer> Parser<T> {
 
     fn parse_while_statement(&mut self) -> Result<Ast, Error> {
         let while_token = self.expect(TokenKind::While)?;
-        let cond = ExprParserHelper::new(&mut self.lexer, false).parse()?;
+        let cond = ExprParserHelper::new(&mut self.lexer).parse()?;
         self.stack.push(State::WhileStatementBody { while_token, cond });
         Ok(Ast::Empty)
     }
@@ -446,7 +446,7 @@ impl<T: ILexer> Parser<T> {
 
     fn parse_return_statement(&mut self) -> Result<Ast, Error> {
         let return_token = self.expect(TokenKind::Return)?;
-        let value = ExprParserHelper::new(&mut self.lexer, true).parse()?;
+        let value = ExprParserHelper::new(&mut self.lexer).parse()?;
         let value = if let ExprNodeKind::Empty = value.kind {
             None
         } else {

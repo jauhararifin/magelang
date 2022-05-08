@@ -5,5 +5,6 @@ mod native;
 mod errors;
 mod control;
 mod call_frame;
+mod mem;
 
 pub use executor::Executor;

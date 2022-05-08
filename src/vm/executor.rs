@@ -377,6 +377,10 @@ impl Executor {
         self.controller.advance();
     }
 
+    fn execute_array_alloc(&mut self) {
+        let size: u64 = self.runtime_stack.pop_value();
+    }
+
     fn execute_jump_if_false(&mut self, offset: isize) {
         let v: bool = self.runtime_stack.pop_value();
         if !v {
