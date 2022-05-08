@@ -3,12 +3,13 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Shl, Shr, Sub};
 
 use crate::bytecode::{Instruction, Program};
 
+use super::mem::{IMemoryManager, MemoryManager};
+use super::value::IntoType;
 use super::{
     control::{Controller, IController},
     errors::Error,
     native::{INativeExecutor, NativeExecutor},
     stack::RuntimeStack,
-    value::IntoValueType,
 };
 
 pub struct Executor {
@@ -16,6 +17,7 @@ pub struct Executor {
 
     controller: Box<dyn IController>,
     native_executor: Box<dyn INativeExecutor>,
+    memory_manager: Box<dyn IMemoryManager>,
 }
 
 enum Variant {
@@ -28,10 +30,13 @@ enum Variant {
 impl Executor {
     pub fn load(program: Program) -> Result<Self, Error> {
         let controller = Box::new(Controller::load(program));
+        let native_executor = Box::new(NativeExecutor::new());
+        let memory_manager = Box::new(MemoryManager::new());
         Ok(Self {
             runtime_stack: RuntimeStack::allocate(16 * 1024)?,
             controller,
-            native_executor: Box::new(NativeExecutor::new()),
+            native_executor,
+            memory_manager,
         })
     }
 
@@ -120,9 +125,9 @@ impl Executor {
                 Instruction::GetLocal(offset) => self.execute_get_local(offset),
                 Instruction::SetLocal(offset) => self.execute_set_local(offset),
 
-                Instruction::AllocArrayI64 => todo!(), // self.execute_alloc(),
-                Instruction::AllocArrayF32 => todo!(),
-                Instruction::AllocArrayF64 => todo!(),
+                Instruction::AllocArrayI64 => self.execute_array_alloc::<u64>(),
+                Instruction::AllocArrayF32 => self.execute_array_alloc::<f32>(),
+                Instruction::AllocArrayF64 => self.execute_array_alloc::<f64>(),
 
                 Instruction::ArrayGetI64 => todo!(), // self.execute_get_heap(variant),
                 Instruction::ArrayGetF32 => todo!(),
@@ -152,7 +157,7 @@ impl Executor {
         }
     }
 
-    fn execute_constant<T: IntoValueType>(&mut self, val: T) {
+    fn execute_constant<T: IntoType>(&mut self, val: T) {
         self.runtime_stack.push_primitive(val);
         self.controller.advance();
     }
@@ -226,7 +231,7 @@ impl Executor {
 
     fn execute_binop_generic<T, F>(&mut self, f: F)
     where
-        T: IntoValueType + Copy,
+        T: IntoType + Copy,
         F: FnOnce(T, T) -> T,
     {
         let b: T = self.runtime_stack.pop_value();
@@ -297,11 +302,11 @@ impl Executor {
     fn execute_equality_generic<T, F>(&mut self, f: F)
     where
         F: FnOnce(&T, &T) -> bool,
-        T: IntoValueType + Copy,
+        T: IntoType + Copy,
     {
         let b: T = self.runtime_stack.pop_value();
         let a: T = self.runtime_stack.pop_value();
-        self.runtime_stack.push_primitive(f(&a, &b));
+        self.runtime_stack.push_primitive(f(&a, &b) as u64);
     }
 
     fn execute_bit_not(&mut self) {
@@ -311,7 +316,7 @@ impl Executor {
 
     fn execute_unary_op_generic<T, F>(&mut self, f: F)
     where
-        T: IntoValueType + Copy,
+        T: IntoType + Copy,
         F: FnOnce(T) -> T,
     {
         let a: T = self.runtime_stack.pop_value();
@@ -356,8 +361,8 @@ impl Executor {
 
     fn execute_convert_generic<T, U, F>(&mut self, f: F)
     where
-        T: IntoValueType + Copy,
-        U: IntoValueType + Copy,
+        T: IntoType + Copy,
+        U: IntoType + Copy,
         F: FnOnce(T) -> U,
     {
         let v: T = self.runtime_stack.pop_value();
@@ -377,8 +382,11 @@ impl Executor {
         self.controller.advance();
     }
 
-    fn execute_array_alloc(&mut self) {
+    fn execute_array_alloc<T: IntoType>(&mut self) {
+        let elem_type = T::into();
         let size: u64 = self.runtime_stack.pop_value();
+        let local = self.memory_manager.alloc_array(elem_type, size);
+        self.runtime_stack.push_value(local.typ, local.data as usize);
     }
 
     fn execute_jump_if_false(&mut self, offset: isize) {

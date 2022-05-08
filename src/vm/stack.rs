@@ -5,11 +5,11 @@ use std::{
 
 use super::{
     errors::Error,
-    value::{IntoValueType, RuntimeValue, ValueType},
+    value::{Local, Type, IntoType},
 };
 
 pub struct RuntimeStack {
-    pub values: Vec<RuntimeValue>,
+    pub values: Vec<Local>,
     pub top_ptr: usize,
     pub layout: Layout,
     pub data: usize, // pointer to the stack values.
@@ -34,16 +34,12 @@ impl RuntimeStack {
         self.values.len()
     }
 
-    pub fn push_primitive<T: IntoValueType>(&mut self, v: T) {
-        self.push_value(T::into_value_type(), v);
+    pub fn push_primitive<T: IntoType>(&mut self, v: T) {
+        self.push_value(T::into(), v);
     }
 
-    pub fn push_fn_id(&mut self, v: usize) {
-        self.push_value(ValueType::FnId, v);
-    }
-
-    pub fn push_value<T>(&mut self, typ: ValueType, concrete_value: T) {
-        self.values.push(RuntimeValue {
+    pub fn push_value<T>(&mut self, typ: Type, concrete_value: T) {
+        self.values.push(Local {
             typ,
             data: self.top_ptr,
         });
@@ -53,43 +49,23 @@ impl RuntimeStack {
         self.top_ptr += size_of::<T>();
     }
 
-    pub fn push_from_ptr(&mut self, typ: ValueType, ptr: usize) {
-        let size = typ.size();
-        self.values.push(RuntimeValue {
-            typ,
-            data: self.top_ptr,
-        });
-
-        unsafe {
-            std::ptr::copy::<u8>(ptr as *const u8, self.top_ptr as *mut u8, size);
-        }
-
-        self.top_ptr += size;
-    }
-
     pub fn pop_value<T: Copy>(&mut self) -> T {
         let val = self.values.pop().unwrap();
-        self.top_ptr -= val.typ.size();
+        self.top_ptr -= val.typ.size() as usize;
         unsafe { *(val.data as *const T) }
-    }
-
-    pub fn pop_value_detail(&mut self) -> RuntimeValue {
-        let val = self.values.pop().unwrap();
-        self.top_ptr -= val.typ.size();
-        val
     }
 
     pub fn pop(&mut self, count: usize) {
         self.values.resize(
             self.values.len() - count,
-            RuntimeValue {
-                typ: ValueType::Void,
+            Local {
+                typ: Type::I64,
                 data: 0,
             },
         );
 
         if let Some(val) = self.values.last() {
-            self.top_ptr = val.data + val.typ.size();
+            self.top_ptr = val.data + val.typ.size() as usize;
         } else {
             self.top_ptr = self.data as usize;
         }
@@ -98,20 +74,20 @@ impl RuntimeStack {
     pub fn get_and_push(&mut self, index: isize) {
         let mut val = unsafe { self.values.get_unchecked(index as usize).clone() };
         unsafe {
-            std::ptr::copy::<u8>(val.data as *const u8, self.top_ptr as *mut u8, val.typ.size());
+            std::ptr::copy::<u8>(val.data as *const u8, self.top_ptr as *mut u8, val.typ.size() as usize);
         }
         val.data = self.top_ptr;
-        self.top_ptr += val.typ.size();
+        self.top_ptr += val.typ.size() as usize;
         self.values.push(val);
     }
 
     pub fn pop_and_set(&mut self, index: isize) {
         let source = self.values.pop().unwrap();
         let size = source.typ.size();
-        self.top_ptr -= size;
+        self.top_ptr -= size as usize;
         let target = unsafe { self.values.get_unchecked(index as usize) };
         unsafe {
-            std::ptr::copy::<u8>(source.data as *const u8, target.data as *mut u8, size);
+            std::ptr::copy::<u8>(source.data as *const u8, target.data as *mut u8, size as usize);
         }
     }
 }

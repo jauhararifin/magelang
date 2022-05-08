@@ -1,140 +1,74 @@
-use std::{mem::size_of, fmt::Debug};
+use std::fmt::Debug;
 
 #[derive(Clone)]
-pub struct RuntimeValue {
-    pub typ: ValueType,
-    pub data: usize, // pointer.
+pub struct Local {
+    pub typ: Type,
+    pub data: usize, // pointer to the data.
 }
 
-impl Debug for RuntimeValue {
+impl Debug for Local {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
             match &self.typ {
-                ValueType::Void => write!(f, "{:?}@{}", self.typ, self.data),
-                ValueType::Bool => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const bool)),
-                ValueType::I32 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i32)),
-                ValueType::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
-                ValueType::U8 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const u8)),
-                ValueType::U64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const u64)),
-                ValueType::FnId => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
-                ValueType::Ptr => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const usize)),
-                k @ _ => todo!("{:?}", k),
+                Type::I64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const i64)),
+                Type::F32 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const f32)),
+                Type::F64 => write!(f, "{:?}@{} {}", self.typ, self.data, &*(self.data as *const f64)),
+                Type::Array(typ) => write!(f, "array {:?}@{}", typ.elem.as_ref(), self.data),
             }
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum ValueType {
-    Void,
-    Bool,
-    I8,
-    I16,
-    I32,
+pub enum Type {
     I64,
-    U8,
-    U16,
-    U32,
-    U64,
     F32,
     F64,
-    FnId,
-    Ptr,
+    Array(ArrayType),
 }
 
-pub trait IntoValueType {
-    fn into_value_type() -> ValueType;
+#[derive(Debug, Clone)]
+pub struct ArrayType {
+    pub size: u64,
+    pub dims: Vec<u64>,
+    pub elem: Box<Type>,
 }
 
-impl IntoValueType for () {
-    fn into_value_type() -> ValueType {
-        ValueType::Void
+pub trait IntoType {
+    fn into() -> Type;
+}
+
+impl IntoType for i64 {
+    fn into() -> Type {
+        Type::I64
     }
 }
 
-impl IntoValueType for i8 {
-    fn into_value_type() -> ValueType {
-        ValueType::I8
+impl IntoType for u64 {
+    fn into() -> Type {
+        Type::I64
     }
 }
 
-impl IntoValueType for i16 {
-    fn into_value_type() -> ValueType {
-        ValueType::I16
+impl IntoType for f32 {
+    fn into() -> Type {
+        Type::F32
     }
 }
 
-impl IntoValueType for i32 {
-    fn into_value_type() -> ValueType {
-        ValueType::I32
+impl IntoType for f64 {
+    fn into() -> Type {
+        Type::F64
     }
 }
 
-impl IntoValueType for i64 {
-    fn into_value_type() -> ValueType {
-        ValueType::I64
-    }
-}
-
-impl IntoValueType for u8 {
-    fn into_value_type() -> ValueType {
-        ValueType::U8
-    }
-}
-
-impl IntoValueType for u16 {
-    fn into_value_type() -> ValueType {
-        ValueType::U16
-    }
-}
-
-impl IntoValueType for u32 {
-    fn into_value_type() -> ValueType {
-        ValueType::U32
-    }
-}
-
-impl IntoValueType for u64 {
-    fn into_value_type() -> ValueType {
-        ValueType::U64
-    }
-}
-
-impl IntoValueType for f32 {
-    fn into_value_type() -> ValueType {
-        ValueType::F32
-    }
-}
-
-impl IntoValueType for f64 {
-    fn into_value_type() -> ValueType {
-        ValueType::F64
-    }
-}
-
-impl IntoValueType for bool {
-    fn into_value_type() -> ValueType {
-        ValueType::Bool
-    }
-}
-
-impl ValueType {
-    pub fn size(&self) -> usize {
+impl Type {
+    pub fn size(&self) -> u64 {
         match &self {
-            ValueType::Void => 0,
-            ValueType::Bool => 1,
-            ValueType::I8 => 1,
-            ValueType::I16 => 2,
-            ValueType::I32 => 4,
-            ValueType::I64 => 8,
-            ValueType::U8 => 1,
-            ValueType::U16 => 2,
-            ValueType::U32 => 4,
-            ValueType::U64 => 8,
-            ValueType::F32 => 4,
-            ValueType::F64 => 8,
-            ValueType::FnId => size_of::<usize>(),
-            ValueType::Ptr => size_of::<usize>(),
+            Type::I64 => 8,
+            Type::F32 => 4,
+            Type::F64 => 8,
+            Type::Array(array_type) => array_type.size,
         }
     }
 }
