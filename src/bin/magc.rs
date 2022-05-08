@@ -1,5 +1,5 @@
 use magelang::analyzer::{UnitAnalyzer, HeaderCompiler, IHeaderCompiler};
-// use magelang::compiler::Compiler;
+use magelang::compiler::Compiler;
 use magelang::lexer::Lexer;
 use magelang::linker::Linker;
 use magelang::parser::{IParser, Parser};
@@ -20,6 +20,9 @@ fn main() {
     let lexer = Lexer::new(f, file_name);
     let mut parser = Parser::new(lexer);
     let root_ast = parser.parse().unwrap();
+
+    // println!("{:?}", root_ast);
+
     let header_compiler = HeaderCompiler::new();
     let header = header_compiler.compile_header(&root_ast).unwrap();
 
@@ -27,19 +30,19 @@ fn main() {
     let unit_analyzer = UnitAnalyzer::new();
     let unit = unit_analyzer.analyze(&root_ast, &headers[..]).unwrap();
 
-    println!("{:?}", unit);
+    // println!("{:?}", unit);
 
-    // let compiler = Compiler::new();
-    // let object = compiler.compile(&unit);
-    //
-    // let linker = Linker::new();
-    // let objects = vec![object];
-    // let program = linker.link(&objects[..]).unwrap();
+    let compiler = Compiler::new();
+    let object = compiler.compile(&unit);
+
+    let linker = Linker::new();
+    let objects = vec![object];
+    let program = linker.link(&objects[..]).unwrap();
 
     // println!("program {:?}", program);
 
-    // let mut executor = Executor::load(program).unwrap();
-    // executor.run();
+    let mut executor = Executor::load(program).unwrap();
+    executor.run();
 
     // let mut executor = Executor::new();
     // executor.execute(&program);

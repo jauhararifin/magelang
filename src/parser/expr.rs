@@ -181,12 +181,12 @@ impl<'a> ExprParserHelper<'a> {
         }
 
         let op = op.unwrap();
+        self.stack.push(State::BinaryB {
+            kind,
+            a: Box::new(expr),
+            op,
+        });
         if let Some(next_kind) = self.binary_next_kind(kind) {
-            self.stack.push(State::BinaryB {
-                kind,
-                a: Box::new(expr),
-                op,
-            });
             self.stack.push(State::Binary { kind: next_kind });
         } else {
             self.stack.push(State::Index);

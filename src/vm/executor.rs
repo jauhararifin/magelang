@@ -1,10 +1,8 @@
-use std::alloc::{alloc, Layout};
 use std::cmp::PartialEq;
 use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Shl, Shr, Sub};
 
-use crate::bytecode::{self, Instruction, Program, Variant};
+use crate::bytecode::{Instruction, Program};
 
-use super::value::ValueType;
 use super::{
     control::{Controller, IController},
     errors::Error,
@@ -18,6 +16,13 @@ pub struct Executor {
 
     controller: Box<dyn IController>,
     native_executor: Box<dyn INativeExecutor>,
+}
+
+enum Variant {
+    Int,
+    Uint,
+    Float,
+    Double,
 }
 
 impl Executor {
@@ -42,34 +47,90 @@ impl Executor {
 
             match instruction {
                 Instruction::Nop => self.controller.advance(),
-                Instruction::Constant(val) => self.execute_constant(val),
 
-                Instruction::Add(variant) => self.execute_add(variant),
-                Instruction::Sub(variant) => self.execute_sub(variant),
-                Instruction::Mul(variant) => self.execute_mul(variant),
-                Instruction::Div(variant) => self.execute_div(variant),
-                Instruction::Mod(variant) => self.execute_mod(variant),
-                Instruction::Shl(variant) => self.execute_shl(variant),
-                Instruction::Shr(variant) => self.execute_shr(variant),
-                Instruction::Eq(variant) => self.execute_eq(variant),
-                Instruction::NEq(variant) => self.execute_neq(variant),
-                Instruction::LT(variant) => self.execute_lt(variant),
-                Instruction::LTEq(variant) => self.execute_lteq(variant),
-                Instruction::GT(variant) => self.execute_gt(variant),
-                Instruction::GTEq(variant) => self.execute_gteq(variant),
-                Instruction::Not(variant) => self.execute_bit_not(variant),
-                Instruction::And(variant) => self.execute_bit_and(variant),
-                Instruction::Or(variant) => self.execute_bit_or(variant),
-                Instruction::Xor(variant) => self.execute_bit_xor(variant),
+                Instruction::ConstI64(val) => self.execute_constant(val),
+                Instruction::ConstF32(val) => self.execute_constant(val),
+                Instruction::ConstF64(val) => self.execute_constant(val),
 
-                Instruction::Cast(source, target) => self.execute_cast(source, target),
+                Instruction::AddI64 => self.execute_add(Variant::Uint),
+                Instruction::AddF32 => self.execute_add(Variant::Float),
+                Instruction::AddF64 => self.execute_add(Variant::Double),
 
-                Instruction::Alloc => self.execute_alloc(),
-                Instruction::GetHeap(variant) => self.execute_get_heap(variant),
-                Instruction::SetHeap => self.execute_set_heap(),
+                Instruction::SubI64 => self.execute_sub(Variant::Uint),
+                Instruction::SubF32 => self.execute_sub(Variant::Float),
+                Instruction::SubF64 => self.execute_sub(Variant::Double),
 
-                Instruction::SetLocal(offset) => self.execute_set_local(offset),
+                Instruction::SMulI64 => self.execute_mul(Variant::Int),
+                Instruction::MulI64 => self.execute_mul(Variant::Uint),
+                Instruction::MulF32 => self.execute_mul(Variant::Float),
+                Instruction::MulF64 => self.execute_mul(Variant::Double),
+
+                Instruction::SDivI64 => self.execute_div(Variant::Int),
+                Instruction::DivI64 => self.execute_div(Variant::Uint),
+                Instruction::DivF32 => self.execute_div(Variant::Float),
+                Instruction::DivF64 => self.execute_div(Variant::Double),
+
+                Instruction::SModI64 => self.execute_mod(Variant::Int),
+                Instruction::ModI64 => self.execute_mod(Variant::Uint),
+
+                Instruction::ShlI64 => self.execute_shl(Variant::Uint),
+                Instruction::ShrI64 => self.execute_shr(Variant::Uint),
+                Instruction::SShrI64 => self.execute_shr(Variant::Int),
+
+                Instruction::EqI64 => self.execute_eq(Variant::Uint),
+                Instruction::EqF32 => self.execute_eq(Variant::Float),
+                Instruction::EqF64 => self.execute_eq(Variant::Double),
+
+                Instruction::NEqI64 => self.execute_neq(Variant::Uint),
+                Instruction::NEqF32 => self.execute_neq(Variant::Float),
+                Instruction::NEqF64 => self.execute_neq(Variant::Double),
+
+                Instruction::GTI64 => self.execute_gt(Variant::Uint),
+                Instruction::GTF32 => self.execute_gt(Variant::Float),
+                Instruction::GTF64 => self.execute_gt(Variant::Double),
+
+                Instruction::GTEqI64 => self.execute_gteq(Variant::Uint),
+                Instruction::GTEqF32 => self.execute_gteq(Variant::Float),
+                Instruction::GTEqF64 => self.execute_gteq(Variant::Double),
+
+                Instruction::LTI64 => self.execute_lt(Variant::Uint),
+                Instruction::LTF32 => self.execute_lt(Variant::Float),
+                Instruction::LTF64 => self.execute_lt(Variant::Double),
+
+                Instruction::LTEqI64 => self.execute_lteq(Variant::Uint),
+                Instruction::LTEqF32 => self.execute_lteq(Variant::Float),
+                Instruction::LTEqF64 => self.execute_lteq(Variant::Double),
+
+                Instruction::NotI64 => self.execute_bit_not(),
+                Instruction::AndI64 => self.execute_bit_and(),
+                Instruction::OrI64 => self.execute_bit_or(),
+                Instruction::XorI64 => self.execute_bit_xor(),
+
+                Instruction::ConvertF32ToI64 => self.execute_cast(Variant::Float, Variant::Uint),
+                Instruction::SConvertF32ToI64 => self.execute_cast(Variant::Float, Variant::Int),
+                Instruction::ConvertF32ToF64 => self.execute_cast(Variant::Float, Variant::Double),
+                Instruction::ConvertF64ToI64 => self.execute_cast(Variant::Double, Variant::Uint),
+                Instruction::SConvertF64ToI64 => self.execute_cast(Variant::Double, Variant::Int),
+                Instruction::ConvertF64ToF32 => self.execute_cast(Variant::Double, Variant::Float),
+                Instruction::ConvertI64ToF32 => self.execute_cast(Variant::Uint, Variant::Float),
+                Instruction::ConvertI64ToF64 => self.execute_cast(Variant::Uint, Variant::Double),
+                Instruction::SConvertI64ToF32 => self.execute_cast(Variant::Int, Variant::Float),
+                Instruction::SConvertI64ToF64 => self.execute_cast(Variant::Int, Variant::Double),
+
                 Instruction::GetLocal(offset) => self.execute_get_local(offset),
+                Instruction::SetLocal(offset) => self.execute_set_local(offset),
+
+                Instruction::AllocArrayI64 => todo!(), // self.execute_alloc(),
+                Instruction::AllocArrayF32 => todo!(),
+                Instruction::AllocArrayF64 => todo!(),
+
+                Instruction::ArrayGetI64 => todo!(), // self.execute_get_heap(variant),
+                Instruction::ArrayGetF32 => todo!(),
+                Instruction::ArrayGetF64 => todo!(),
+
+                Instruction::ArraySetI64 => todo!(), // self.execute_set_heap(variant),
+                Instruction::ArraySetF32 => todo!(),
+                Instruction::ArraySetF64 => todo!(),
 
                 Instruction::Jump(offset) => self.execute_jump(offset),
                 Instruction::JumpIfFalse(offset) => self.execute_jump_if_false(offset),
@@ -91,140 +152,74 @@ impl Executor {
         }
     }
 
-    fn execute_constant(&mut self, val: bytecode::Value) {
-        match val {
-            bytecode::Value::Void => self.runtime_stack.push_primitive(()),
-            bytecode::Value::Bool(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::I8(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::I16(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::I32(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::I64(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::U8(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::U16(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::U32(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::U64(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::F32(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::F64(val) => self.runtime_stack.push_primitive(val),
-            bytecode::Value::FnId(val) => self.runtime_stack.push_fn_id(val),
-            bytecode::Value::Ptr(val) => self.runtime_stack.push_value(ValueType::Ptr, val),
-        }
-        self.controller.advance();
-    }
-
-    fn execute_get_local(&mut self, offset: isize) {
-        self.runtime_stack
-            .get_and_push(self.controller.current_base() as isize + offset);
+    fn execute_constant<T: IntoValueType>(&mut self, val: T) {
+        self.runtime_stack.push_primitive(val);
         self.controller.advance();
     }
 
     fn execute_add(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::add),
-            Variant::I16 => self.execute_binop_generic(i16::add),
-            Variant::I32 => self.execute_binop_generic(i32::add),
-            Variant::I64 => self.execute_binop_generic(i64::add),
-            Variant::U8 => self.execute_binop_generic(u8::add),
-            Variant::U16 => self.execute_binop_generic(u16::add),
-            Variant::U32 => self.execute_binop_generic(u32::add),
-            Variant::U64 => self.execute_binop_generic(u64::add),
-            Variant::F32 => self.execute_binop_generic(f32::add),
-            Variant::F64 => self.execute_binop_generic(f64::add),
+            Variant::Int => self.execute_binop_generic(i64::add),
+            Variant::Uint => self.execute_binop_generic(u64::add),
+            Variant::Float => self.execute_binop_generic(f32::add),
+            Variant::Double => self.execute_binop_generic(f64::add),
         }
         self.controller.advance();
     }
 
     fn execute_sub(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::sub),
-            Variant::I16 => self.execute_binop_generic(i16::sub),
-            Variant::I32 => self.execute_binop_generic(i32::sub),
-            Variant::I64 => self.execute_binop_generic(i64::sub),
-            Variant::U8 => self.execute_binop_generic(u8::sub),
-            Variant::U16 => self.execute_binop_generic(u16::sub),
-            Variant::U32 => self.execute_binop_generic(u32::sub),
-            Variant::U64 => self.execute_binop_generic(u64::sub),
-            Variant::F32 => self.execute_binop_generic(f32::sub),
-            Variant::F64 => self.execute_binop_generic(f64::sub),
+            Variant::Int => self.execute_binop_generic(i64::sub),
+            Variant::Uint => self.execute_binop_generic(u64::sub),
+            Variant::Float => self.execute_binop_generic(f32::sub),
+            Variant::Double => self.execute_binop_generic(f64::sub),
         }
         self.controller.advance();
     }
 
     fn execute_mul(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::mul),
-            Variant::I16 => self.execute_binop_generic(i16::mul),
-            Variant::I32 => self.execute_binop_generic(i32::mul),
-            Variant::I64 => self.execute_binop_generic(i64::mul),
-            Variant::U8 => self.execute_binop_generic(u8::mul),
-            Variant::U16 => self.execute_binop_generic(u16::mul),
-            Variant::U32 => self.execute_binop_generic(u32::mul),
-            Variant::U64 => self.execute_binop_generic(u64::mul),
-            Variant::F32 => self.execute_binop_generic(f32::mul),
-            Variant::F64 => self.execute_binop_generic(f64::mul),
+            Variant::Int => self.execute_binop_generic(i64::mul),
+            Variant::Uint => self.execute_binop_generic(u64::mul),
+            Variant::Float => self.execute_binop_generic(f32::mul),
+            Variant::Double => self.execute_binop_generic(f64::mul),
         }
         self.controller.advance();
     }
 
     fn execute_div(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::div),
-            Variant::I16 => self.execute_binop_generic(i16::div),
-            Variant::I32 => self.execute_binop_generic(i32::div),
-            Variant::I64 => self.execute_binop_generic(i64::div),
-            Variant::U8 => self.execute_binop_generic(u8::div),
-            Variant::U16 => self.execute_binop_generic(u16::div),
-            Variant::U32 => self.execute_binop_generic(u32::div),
-            Variant::U64 => self.execute_binop_generic(u64::div),
-            Variant::F32 => self.execute_binop_generic(f32::div),
-            Variant::F64 => self.execute_binop_generic(f64::div),
+            Variant::Int => self.execute_binop_generic(i64::div),
+            Variant::Uint => self.execute_binop_generic(u64::div),
+            Variant::Float => self.execute_binop_generic(f32::div),
+            Variant::Double => self.execute_binop_generic(f64::div),
         }
         self.controller.advance();
     }
 
     fn execute_mod(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::rem),
-            Variant::I16 => self.execute_binop_generic(i16::rem),
-            Variant::I32 => self.execute_binop_generic(i32::rem),
-            Variant::I64 => self.execute_binop_generic(i64::rem),
-            Variant::U8 => self.execute_binop_generic(u8::rem),
-            Variant::U16 => self.execute_binop_generic(u16::rem),
-            Variant::U32 => self.execute_binop_generic(u32::rem),
-            Variant::U64 => self.execute_binop_generic(u64::rem),
-            Variant::F32 => todo!("handle invalid f32 modulo"),
-            Variant::F64 => todo!("handle invalid f64 modulo"),
+            Variant::Int => self.execute_binop_generic(i64::rem),
+            Variant::Uint => self.execute_binop_generic(u64::rem),
+            _ => unreachable!(),
         }
         self.controller.advance();
     }
 
     fn execute_shl(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::shl),
-            Variant::I16 => self.execute_binop_generic(i16::shl),
-            Variant::I32 => self.execute_binop_generic(i32::shl),
-            Variant::I64 => self.execute_binop_generic(i64::shl),
-            Variant::U8 => self.execute_binop_generic(u8::shl),
-            Variant::U16 => self.execute_binop_generic(u16::shl),
-            Variant::U32 => self.execute_binop_generic(u32::shl),
-            Variant::U64 => self.execute_binop_generic(u64::shl),
-            Variant::F32 => todo!("handle invalid f32 modulo"),
-            Variant::F64 => todo!("handle invalid f64 modulo"),
+            Variant::Int => self.execute_binop_generic(i64::shl),
+            Variant::Uint => self.execute_binop_generic(u64::shl),
+            _ => unreachable!(),
         }
         self.controller.advance();
     }
 
     fn execute_shr(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_binop_generic(i8::shr),
-            Variant::I16 => self.execute_binop_generic(i16::shr),
-            Variant::I32 => self.execute_binop_generic(i32::shr),
-            Variant::I64 => self.execute_binop_generic(i64::shr),
-            Variant::U8 => self.execute_binop_generic(u8::shr),
-            Variant::U16 => self.execute_binop_generic(u16::shr),
-            Variant::U32 => self.execute_binop_generic(u32::shr),
-            Variant::U64 => self.execute_binop_generic(u64::shr),
-            Variant::F32 => todo!("handle invalid f32 modulo"),
-            Variant::F64 => todo!("handle invalid f64 modulo"),
+            Variant::Int => self.execute_binop_generic(i64::shr),
+            Variant::Uint => self.execute_binop_generic(u64::shr),
+            _ => unreachable!(),
         }
         self.controller.advance();
     }
@@ -241,96 +236,60 @@ impl Executor {
 
     fn execute_eq(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_equality_generic(i8::eq),
-            Variant::I16 => self.execute_equality_generic(i16::eq),
-            Variant::I32 => self.execute_equality_generic(i32::eq),
-            Variant::I64 => self.execute_equality_generic(i64::eq),
-            Variant::U8 => self.execute_equality_generic(i8::eq),
-            Variant::U16 => self.execute_equality_generic(u16::eq),
-            Variant::U32 => self.execute_equality_generic(u32::eq),
-            Variant::U64 => self.execute_equality_generic(u64::eq),
-            Variant::F32 => self.execute_equality_generic(f32::eq),
-            Variant::F64 => self.execute_equality_generic(f64::eq),
+            Variant::Int => self.execute_equality_generic(i64::eq),
+            Variant::Uint => self.execute_equality_generic(u64::eq),
+            Variant::Float => self.execute_equality_generic(f32::eq),
+            Variant::Double => self.execute_equality_generic(f64::eq),
         }
         self.controller.advance();
     }
 
     fn execute_neq(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_equality_generic(i8::ne),
-            Variant::I16 => self.execute_equality_generic(i16::ne),
-            Variant::I32 => self.execute_equality_generic(i32::ne),
-            Variant::I64 => self.execute_equality_generic(i64::ne),
-            Variant::U8 => self.execute_equality_generic(i8::ne),
-            Variant::U16 => self.execute_equality_generic(u16::ne),
-            Variant::U32 => self.execute_equality_generic(u32::ne),
-            Variant::U64 => self.execute_equality_generic(u64::ne),
-            Variant::F32 => self.execute_equality_generic(f32::ne),
-            Variant::F64 => self.execute_equality_generic(f64::ne),
+            Variant::Int => self.execute_equality_generic(i64::ne),
+            Variant::Uint => self.execute_equality_generic(u64::ne),
+            Variant::Float => self.execute_equality_generic(f32::ne),
+            Variant::Double => self.execute_equality_generic(f64::ne),
         }
         self.controller.advance();
     }
 
     fn execute_lt(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_equality_generic(i8::lt),
-            Variant::I16 => self.execute_equality_generic(i16::lt),
-            Variant::I32 => self.execute_equality_generic(i32::lt),
-            Variant::I64 => self.execute_equality_generic(i64::lt),
-            Variant::U8 => self.execute_equality_generic(i8::lt),
-            Variant::U16 => self.execute_equality_generic(u16::lt),
-            Variant::U32 => self.execute_equality_generic(u32::lt),
-            Variant::U64 => self.execute_equality_generic(u64::lt),
-            Variant::F32 => self.execute_equality_generic(f32::lt),
-            Variant::F64 => self.execute_equality_generic(f64::lt),
+            Variant::Int => self.execute_equality_generic(i64::lt),
+            Variant::Uint => self.execute_equality_generic(u64::lt),
+            Variant::Float => self.execute_equality_generic(f32::lt),
+            Variant::Double => self.execute_equality_generic(f64::lt),
         }
         self.controller.advance();
     }
 
     fn execute_lteq(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_equality_generic(i8::le),
-            Variant::I16 => self.execute_equality_generic(i16::le),
-            Variant::I32 => self.execute_equality_generic(i32::le),
-            Variant::I64 => self.execute_equality_generic(i64::le),
-            Variant::U8 => self.execute_equality_generic(i8::le),
-            Variant::U16 => self.execute_equality_generic(u16::le),
-            Variant::U32 => self.execute_equality_generic(u32::le),
-            Variant::U64 => self.execute_equality_generic(u64::le),
-            Variant::F32 => self.execute_equality_generic(f32::le),
-            Variant::F64 => self.execute_equality_generic(f64::le),
+            Variant::Int => self.execute_equality_generic(i64::le),
+            Variant::Uint => self.execute_equality_generic(u64::le),
+            Variant::Float => self.execute_equality_generic(f32::le),
+            Variant::Double => self.execute_equality_generic(f64::le),
         }
         self.controller.advance();
     }
 
     fn execute_gt(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_equality_generic(i8::gt),
-            Variant::I16 => self.execute_equality_generic(i16::gt),
-            Variant::I32 => self.execute_equality_generic(i32::gt),
-            Variant::I64 => self.execute_equality_generic(i64::gt),
-            Variant::U8 => self.execute_equality_generic(i8::gt),
-            Variant::U16 => self.execute_equality_generic(u16::gt),
-            Variant::U32 => self.execute_equality_generic(u32::gt),
-            Variant::U64 => self.execute_equality_generic(u64::gt),
-            Variant::F32 => self.execute_equality_generic(f32::gt),
-            Variant::F64 => self.execute_equality_generic(f64::gt),
+            Variant::Int => self.execute_equality_generic(i64::gt),
+            Variant::Uint => self.execute_equality_generic(u64::gt),
+            Variant::Float => self.execute_equality_generic(f32::gt),
+            Variant::Double => self.execute_equality_generic(f64::gt),
         }
         self.controller.advance();
     }
 
     fn execute_gteq(&mut self, variant: Variant) {
         match variant {
-            Variant::I8 => self.execute_equality_generic(i8::ge),
-            Variant::I16 => self.execute_equality_generic(i16::ge),
-            Variant::I32 => self.execute_equality_generic(i32::ge),
-            Variant::I64 => self.execute_equality_generic(i64::ge),
-            Variant::U8 => self.execute_equality_generic(i8::ge),
-            Variant::U16 => self.execute_equality_generic(u16::ge),
-            Variant::U32 => self.execute_equality_generic(u32::ge),
-            Variant::U64 => self.execute_equality_generic(u64::ge),
-            Variant::F32 => self.execute_equality_generic(f32::ge),
-            Variant::F64 => self.execute_equality_generic(f64::ge),
+            Variant::Int => self.execute_equality_generic(i64::ge),
+            Variant::Uint => self.execute_equality_generic(u64::ge),
+            Variant::Float => self.execute_equality_generic(f32::ge),
+            Variant::Double => self.execute_equality_generic(f64::ge),
         }
         self.controller.advance();
     }
@@ -345,19 +304,8 @@ impl Executor {
         self.runtime_stack.push_primitive(f(&a, &b));
     }
 
-    fn execute_bit_not(&mut self, variant: Variant) {
-        match variant {
-            Variant::I8 => self.execute_unary_op_generic(i8::not),
-            Variant::I16 => self.execute_unary_op_generic(i16::not),
-            Variant::I32 => self.execute_unary_op_generic(i32::not),
-            Variant::I64 => self.execute_unary_op_generic(i64::not),
-            Variant::U8 => self.execute_unary_op_generic(u8::not),
-            Variant::U16 => self.execute_unary_op_generic(u16::not),
-            Variant::U32 => self.execute_unary_op_generic(u32::not),
-            Variant::U64 => self.execute_unary_op_generic(u64::not),
-            Variant::F32 => todo!("cannot bitnot float data"),
-            Variant::F64 => todo!("cannot bitnot float data"),
-        }
+    fn execute_bit_not(&mut self) {
+        self.execute_unary_op_generic(u64::not);
         self.controller.advance();
     }
 
@@ -370,119 +318,62 @@ impl Executor {
         self.runtime_stack.push_primitive(f(a));
     }
 
-    fn execute_bit_and(&mut self, variant: Variant) {
-        match variant {
-            Variant::I8 => self.execute_binop_generic(i8::bitand),
-            Variant::I16 => self.execute_binop_generic(i16::bitand),
-            Variant::I32 => self.execute_binop_generic(i32::bitand),
-            Variant::I64 => self.execute_binop_generic(i64::bitand),
-            Variant::U8 => self.execute_binop_generic(u8::bitand),
-            Variant::U16 => self.execute_binop_generic(u16::bitand),
-            Variant::U32 => self.execute_binop_generic(u32::bitand),
-            Variant::U64 => self.execute_binop_generic(u64::bitand),
-            Variant::F32 => todo!("cannot bitand float data"),
-            Variant::F64 => todo!("cannot bitand float data"),
-        }
+    fn execute_bit_and(&mut self) {
+        self.execute_binop_generic(u64::bitand);
         self.controller.advance();
     }
 
-    fn execute_bit_or(&mut self, variant: Variant) {
-        match variant {
-            Variant::I8 => self.execute_binop_generic(i8::bitor),
-            Variant::I16 => self.execute_binop_generic(i16::bitor),
-            Variant::I32 => self.execute_binop_generic(i32::bitor),
-            Variant::I64 => self.execute_binop_generic(i64::bitor),
-            Variant::U8 => self.execute_binop_generic(u8::bitor),
-            Variant::U16 => self.execute_binop_generic(u16::bitor),
-            Variant::U32 => self.execute_binop_generic(u32::bitor),
-            Variant::U64 => self.execute_binop_generic(u64::bitor),
-            Variant::F32 => todo!("cannot bitor float data"),
-            Variant::F64 => todo!("cannot bitor float data"),
-        }
+    fn execute_bit_or(&mut self) {
+        self.execute_binop_generic(u64::bitor);
         self.controller.advance();
     }
 
-    fn execute_bit_xor(&mut self, variant: Variant) {
-        match variant {
-            Variant::I8 => self.execute_binop_generic(i8::bitxor),
-            Variant::I16 => self.execute_binop_generic(i16::bitxor),
-            Variant::I32 => self.execute_binop_generic(i32::bitxor),
-            Variant::I64 => self.execute_binop_generic(i64::bitxor),
-            Variant::U8 => self.execute_binop_generic(u8::bitxor),
-            Variant::U16 => self.execute_binop_generic(u16::bitxor),
-            Variant::U32 => self.execute_binop_generic(u32::bitxor),
-            Variant::U64 => self.execute_binop_generic(u64::bitxor),
-            Variant::F32 => todo!("cannot xor float data"),
-            Variant::F64 => todo!("cannot xor float data"),
-        }
+    fn execute_bit_xor(&mut self) {
+        self.execute_binop_generic(u64::bitxor);
         self.controller.advance();
     }
 
     fn execute_cast(&mut self, source: Variant, target: Variant) {
         match (source, target) {
-            (Variant::I8, Variant::I8) => self.execute_cast_generic::<i8, i8>(),
-            (Variant::I8, Variant::I16) => self.execute_cast_generic::<i8, i16>(),
-            (Variant::I8, Variant::I32) => self.execute_cast_generic::<i8, i32>(),
-            (Variant::I8, Variant::I64) => self.execute_cast_generic::<i8, i64>(),
-            (Variant::I32, Variant::U8) => {
-                let v: i32 = self.runtime_stack.pop_value();
-                let v: u8 = v as u8;
-                self.runtime_stack.push_primitive(v);
-            }
-            _ => todo!(),
+            (Variant::Uint, Variant::Float) => self.execute_convert_generic(|f: i64| f as f32),
+            (Variant::Uint, Variant::Double) => self.execute_convert_generic(|f: i64| f as f64),
+
+            (Variant::Int, Variant::Float) => self.execute_convert_generic(|f: u64| f as f32),
+            (Variant::Int, Variant::Double) => self.execute_convert_generic(|f: u64| f as f64),
+
+            (Variant::Float, Variant::Uint) => self.execute_convert_generic(|f: f32| f as u64),
+            (Variant::Float, Variant::Int) => self.execute_convert_generic(|f: f32| f as i64),
+            (Variant::Float, Variant::Double) => self.execute_convert_generic(|f: f32| f as f64),
+
+            (Variant::Double, Variant::Uint) => self.execute_convert_generic(|f: f64| f as u64),
+            (Variant::Double, Variant::Int) => self.execute_convert_generic(|f: f64| f as i64),
+            (Variant::Double, Variant::Float) => self.execute_convert_generic(|f: f64| f as f32),
+            _ => unreachable!(),
         }
 
         self.controller.advance();
     }
 
-    fn execute_cast_generic<T, U>(&mut self)
+    fn execute_convert_generic<T, U, F>(&mut self, f: F)
     where
         T: IntoValueType + Copy,
-        U: IntoValueType + Copy + From<T>,
+        U: IntoValueType + Copy,
+        F: FnOnce(T) -> U,
     {
         let v: T = self.runtime_stack.pop_value();
-        let v: U = U::from(v);
+        let v: U = f(v);
         self.runtime_stack.push_primitive(v);
     }
 
-    fn execute_alloc(&mut self) {
-        let size: usize = self.runtime_stack.pop_value();
-
-        let layout = Layout::array::<u8>(size).unwrap();
-        let data = unsafe { alloc(layout) } as usize;
-
-        self.runtime_stack.push_value(ValueType::Ptr, data);
+    fn execute_get_local(&mut self, offset: isize) {
+        self.runtime_stack
+            .get_and_push(self.controller.current_base() as isize + offset);
         self.controller.advance();
     }
 
-    fn execute_get_heap(&mut self, variant: Variant) {
-        let ptr: usize = self.runtime_stack.pop_value();
-
-        let value_type = match variant {
-            Variant::I8 => ValueType::I8,
-            Variant::I16 => ValueType::I16,
-            Variant::I32 => ValueType::I32,
-            Variant::I64 => ValueType::I64,
-            Variant::U8 => ValueType::U8,
-            Variant::U16 => ValueType::U16,
-            Variant::U32 => ValueType::U32,
-            Variant::U64 => ValueType::U64,
-            Variant::F32 => ValueType::F32,
-            Variant::F64 => ValueType::F64,
-        };
-        self.runtime_stack.push_from_ptr(value_type, ptr);
-
-        self.controller.advance();
-    }
-
-    fn execute_set_heap(&mut self) {
-        let ptr: usize = self.runtime_stack.pop_value();
-        let value = self.runtime_stack.pop_value_detail();
-
-        unsafe {
-            std::ptr::copy::<u8>(value.data as *const u8, ptr as *mut u8, value.typ.size());
-        }
-
+    fn execute_set_local(&mut self, offset: isize) {
+        self.runtime_stack
+            .pop_and_set(self.controller.current_base() as isize + offset);
         self.controller.advance();
     }
 
@@ -506,12 +397,6 @@ impl Executor {
 
     fn execute_jump(&mut self, offset: isize) {
         self.controller.jump(offset);
-    }
-
-    fn execute_set_local(&mut self, offset: isize) {
-        self.runtime_stack
-            .pop_and_set(self.controller.current_base() as isize + offset);
-        self.controller.advance();
     }
 
     fn execute_pop(&mut self, count: usize) {
