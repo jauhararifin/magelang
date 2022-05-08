@@ -1,5 +1,6 @@
 Features:
 - support multidimensional array
+- support string processing
 - add module feature
 - auto infer type
 - do a better abstraction. now everything is a mess.
