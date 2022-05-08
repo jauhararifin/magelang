@@ -17,7 +17,7 @@ where
     T: ILexer,
 {
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
-        self.consume_comment();
+        self.consume_comment()?;
 
         let token = self.next()?;
         if &token.kind != &kind {
@@ -30,7 +30,7 @@ where
     }
 
     fn next_is(&mut self, kind: &TokenKind) -> Result<Option<Token>, Error> {
-        self.consume_comment();
+        self.consume_comment()?;
 
         let token = self.peek()?;
         if &token.kind != kind {
@@ -42,7 +42,7 @@ where
     }
 
     fn next_in(&mut self, kind: &[TokenKind]) -> Result<Option<Token>, Error> {
-        self.consume_comment();
+        self.consume_comment()?;
 
         let token = self.peek()?;
         for k in kind.iter() {
@@ -55,7 +55,7 @@ where
     }
 
     fn consume_endl(&mut self) -> Result<(), Error> {
-        self.consume_comment();
+        self.consume_comment()?;
 
         while matches!(self.peek()?.kind, TokenKind::Endl) {
             self.next()?;
