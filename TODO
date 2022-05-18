@@ -1,4 +1,6 @@
 Features:
+- use lalr for ast parsing
+- allow multiple errors when parsing AST
 - support multidimensional array
 - support string processing
 - add module feature
