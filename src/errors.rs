@@ -15,7 +15,7 @@ pub enum Error {
     // lexer error
     Io(io::Error),
     UnexpectedChar {
-        char: char,
+        char: u32,
         pos: Pos,
     },
     UnexpectedSymbol {

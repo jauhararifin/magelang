@@ -8,8 +8,8 @@ pub trait LexerHelper: ILexer {
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error>;
     fn next_is(&mut self, kind: &TokenKind) -> Result<Option<Token>, Error>;
     fn next_in(&mut self, kind: &[TokenKind]) -> Result<Option<Token>, Error>;
-    fn consume_endl(&mut self) -> Result<(), Error>;
-    fn consume_comment(&mut self) -> Result<(), Error>;
+    fn skip_endls(&mut self) -> Result<(), Error>;
+    fn skip_comments(&mut self) -> Result<(), Error>;
 }
 
 impl<T> LexerHelper for T
@@ -17,7 +17,7 @@ where
     T: ILexer,
 {
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
-        self.consume_comment()?;
+        self.skip_comments()?;
 
         let token = self.next()?;
         if &token.kind != &kind {
@@ -30,7 +30,7 @@ where
     }
 
     fn next_is(&mut self, kind: &TokenKind) -> Result<Option<Token>, Error> {
-        self.consume_comment()?;
+        self.skip_comments()?;
 
         let token = self.peek()?;
         if &token.kind != kind {
@@ -42,7 +42,7 @@ where
     }
 
     fn next_in(&mut self, kind: &[TokenKind]) -> Result<Option<Token>, Error> {
-        self.consume_comment()?;
+        self.skip_comments()?;
 
         let token = self.peek()?;
         for k in kind.iter() {
@@ -54,8 +54,8 @@ where
         Ok(None)
     }
 
-    fn consume_endl(&mut self) -> Result<(), Error> {
-        self.consume_comment()?;
+    fn skip_endls(&mut self) -> Result<(), Error> {
+        self.skip_comments()?;
 
         while matches!(self.peek()?.kind, TokenKind::Endl) {
             self.next()?;
@@ -63,7 +63,7 @@ where
         Ok(())
     }
 
-    fn consume_comment(&mut self) -> Result<(), Error> {
+    fn skip_comments(&mut self) -> Result<(), Error> {
         while matches!(self.peek()?.kind, TokenKind::Comment) {
             self.next()?;
         }

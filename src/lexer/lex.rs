@@ -1,10 +1,10 @@
+use crate::chars::{ICharReader, CharReader, Char};
 use crate::errors::Error;
 use crate::pos::Pos;
 use crate::token::{Token, TokenKind};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Bytes, Read};
 use std::rc::Rc;
-use unicode_reader::CodePoints;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -14,31 +14,21 @@ pub trait ILexer {
 }
 
 pub struct Lexer<R: Read> {
-    reader: CodePoints<Bytes<R>>,
+    reader: CharReader<R>,
     file_name: Rc<String>,
 
-    current_line: usize,
-    current_col: usize,
-    next_char_pos: Option<CharPos>,
+    next_char_pos: Option<Char>,
 
     tokens: VecDeque<Token>,
     token_eoi: Option<Token>,
 }
 
-#[derive(Clone, Debug)]
-struct CharPos {
-    val: char,
-    pos: Pos,
-}
-
 impl<R: Read> Lexer<R> {
     pub fn new(reader: R, file_name: &str) -> Self {
         Self {
-            reader: CodePoints::from(reader),
+            reader: CharReader::new(reader),
             file_name: Rc::new(String::from(file_name)),
 
-            current_line: 1,
-            current_col: 1,
             next_char_pos: None,
 
             tokens: VecDeque::new(),
@@ -74,7 +64,7 @@ impl<R: Read> Lexer<R> {
         while self.tokens.len() == 0 {
             let mut char_pos = self.next_char_pos.take();
             if char_pos.is_none() {
-                char_pos = self.next_char()?;
+                char_pos = self.reader.next()?;
             }
 
             if char_pos.is_none() {
@@ -89,69 +79,43 @@ impl<R: Read> Lexer<R> {
         Ok(())
     }
 
-    fn next_char(&mut self) -> Result<Option<CharPos>> {
-        let next_char = self.reader.next();
-        if next_char.is_none() {
-            return Ok(None);
-        }
-
-        let next_char = next_char.unwrap()?;
-        let char_pos = CharPos {
-            val: next_char,
-            pos: Pos {
-                file_name: self.file_name.clone(),
-                line: self.current_line,
-                col: self.current_col,
-            },
-        };
-
-        if next_char == '\n' {
-            self.current_col = 1;
-            self.current_line += 1;
-        } else {
-            self.current_col += 1;
-        }
-
-        Ok(Some(char_pos))
-    }
-
     fn put_eoi(&mut self) {
         self.token_eoi = Some(Token {
             kind: TokenKind::Eoi,
             value: None,
             pos: Pos {
                 file_name: self.file_name.clone(),
-                line: self.current_line,
-                col: self.current_col,
+                line: 0,
+                col: 0,
             },
         });
     }
 
-    fn process(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
-        Ok(match char_pos.val {
+    fn process(&mut self, char_pos: Char) -> Result<Option<Char>> {
+        Ok(match char_pos.value {
             '#' => self.consume_comment(char_pos)?,
             '\n' => self.consume_newline(char_pos)?,
             '\"' | '\'' | '`' => self.consume_string_literal(char_pos)?,
             '0'..='9' => self.consume_number_literal(char_pos)?,
             '_' | 'a'..='z' | 'A'..='Z' => self.consume_word(char_pos)?,
-            ' ' | '\r' | '\t' => self.next_char()?,
+            ' ' | '\r' | '\t' => self.reader.next()?,
             _ => self.process_op(char_pos)?,
         })
     }
 
-    fn consume_comment(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
+    fn consume_comment(&mut self, char_pos: Char) -> Result<Option<Char>> {
         let (value, _) = self.consume_while_match(|c| c != '\n')?;
         self.emit_token(TokenKind::Comment, Some(Rc::new(value)), char_pos.pos);
         Ok(None)
     }
 
-    fn consume_newline(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
+    fn consume_newline(&mut self, char_pos: Char) -> Result<Option<Char>> {
         self.emit_token(TokenKind::Endl, None, char_pos.pos);
         Ok(None)
     }
 
-    fn consume_number_literal(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
-        let mut lit = char_pos.val.to_string();
+    fn consume_number_literal(&mut self, char_pos: Char) -> Result<Option<Char>> {
+        let mut lit = char_pos.value.to_string();
         let (value, next) = self.consume_while_match(|c| c.is_digit(10) || c == '_' || c == '.')?;
         lit.push_str(value.as_str());
 
@@ -163,8 +127,8 @@ impl<R: Read> Lexer<R> {
         Ok(next)
     }
 
-    fn consume_string_literal(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
-        let opening_quote = char_pos.val;
+    fn consume_string_literal(&mut self, char_pos: Char) -> Result<Option<Char>> {
+        let opening_quote = char_pos.value;
 
         let backslash_chars = HashMap::from([
             ('n', '\n'),
@@ -183,12 +147,12 @@ impl<R: Read> Lexer<R> {
         let pos = char_pos.pos;
         let mut after_backslash = false;
 
-        while let Some(char_pos) = self.next_char()? {
-            let c = char_pos.val;
+        while let Some(char_pos) = self.reader.next()?{
+            let c = char_pos.value;
 
             if c == '\n' {
-                return Err(Error::UnexpectedChar {
-                    char: '\n',
+                return Err(Error::UnexpectedSymbol {
+                    symbol: "\n".to_string(),
                     pos: char_pos.pos,
                 });
             }
@@ -197,8 +161,8 @@ impl<R: Read> Lexer<R> {
                 if let Some(v) = backslash_chars.get(&c) {
                     value.push(*v);
                 } else {
-                    return Err(Error::UnexpectedChar {
-                        char: c,
+                    return Err(Error::UnexpectedSymbol {
+                        symbol: String::from(c),
                         pos: char_pos.pos,
                     });
                 }
@@ -216,8 +180,8 @@ impl<R: Read> Lexer<R> {
         Ok(None)
     }
 
-    fn consume_word(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
-        let mut word = char_pos.val.to_string();
+    fn consume_word(&mut self, char_pos: Char) -> Result<Option<Char>> {
+        let mut word = char_pos.value.to_string();
         let (name, next) = self.consume_while_match(|c| c.is_alphabetic() || c == '_' || c.is_digit(10))?;
         word.push_str(name.as_str());
 
@@ -248,7 +212,7 @@ impl<R: Read> Lexer<R> {
         Ok(next)
     }
 
-    fn process_op(&mut self, char_pos: CharPos) -> Result<Option<CharPos>> {
+    fn process_op(&mut self, char_pos: Char) -> Result<Option<Char>> {
         let operators: HashMap<&'static str, TokenKind> = HashMap::from([
             ("!=", TokenKind::NotEq),
             ("!", TokenKind::Not),
@@ -295,7 +259,7 @@ impl<R: Read> Lexer<R> {
 
         let mut char_pos = char_pos;
         let mut matched_str = String::new();
-        let mut current_str = char_pos.val.to_string();
+        let mut current_str = char_pos.value.to_string();
 
         let next = loop {
             let matches = operators
@@ -306,12 +270,12 @@ impl<R: Read> Lexer<R> {
             if matches == 0 {
                 break Some(char_pos);
             } else if matches == 1 {
-                matched_str.push(char_pos.val);
+                matched_str.push(char_pos.value);
                 break None;
-            } else if let Some(next) = self.next_char()? {
+            } else if let Some(next) = self.reader.next()? {
                 matched_str = current_str.clone();
                 char_pos = next;
-                current_str.push(char_pos.val);
+                current_str.push(char_pos.value);
             } else {
                 break None;
             }
@@ -328,10 +292,10 @@ impl<R: Read> Lexer<R> {
         }
     }
 
-    fn consume_while_match<F: Fn(char) -> bool>(&mut self, matcher: F) -> Result<(String, Option<CharPos>)> {
+    fn consume_while_match<F: Fn(char) -> bool>(&mut self, matcher: F) -> Result<(String, Option<Char>)> {
         let mut result = String::new();
-        while let Some(char_pos) = self.next_char()? {
-            let c = char_pos.val;
+        while let Some(char_pos) = self.reader.next()? {
+            let c = char_pos.value;
             if matcher(c) {
                 result.push(c);
             } else {
