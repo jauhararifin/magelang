@@ -98,6 +98,8 @@ impl<R: Read> Lexer<R> {
         Self::generate_keyword_rule(&mut rules, "=", TokenKind::Assign);
         Self::generate_keyword_rule(&mut rules, ",", TokenKind::Comma);
 
+        Self::generate_keyword_rule(&mut rules, "package", TokenKind::Package);
+        Self::generate_keyword_rule(&mut rules, "import", TokenKind::Import);
         Self::generate_keyword_rule(&mut rules, "if", TokenKind::If);
         Self::generate_keyword_rule(&mut rules, "native", TokenKind::Native);
         Self::generate_keyword_rule(&mut rules, "var", TokenKind::Var);
