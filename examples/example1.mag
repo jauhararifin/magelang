@@ -1,4 +1,4 @@
-# print_int using rust code to natively print an i64 integer.
+// print_int using rust code to natively print an i64 integer.
 fn native print_int(v: i64)
 
 fn gcd(a: i64, b: i64): i64 {

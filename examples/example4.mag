@@ -1,4 +1,4 @@
-# print char
+// print char
 fn native print_char(v: u8)
 
 fn print_i32(v: i32) {
