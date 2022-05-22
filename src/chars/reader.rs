@@ -1,60 +1,98 @@
-use std::{io::{self, Read}, collections::VecDeque, rc::Rc};
 use std::cmp::{max, min};
+use std::{
+    collections::VecDeque,
+    io::{self, Read},
+    rc::Rc,
+};
 
-use crate::{pos::Pos, errors::Error};
+use crate::{errors::Error, pos::Pos};
 
-use super::{chars::Char};
+use super::chars::Char;
 
 pub trait ICharReader {
     fn next(&mut self) -> Result<Option<Char>, Error>;
-    fn peek(&mut self, n: usize) -> Result<String, Error>;
+    fn peek(&mut self, n: usize) -> Result<&str, Error>;
+
+    fn peek_char(&mut self) -> Result<Option<char>, Error> {
+        let s = self.peek(1)?;
+        Ok(s.chars().next())
+    }
+
+    fn starts_with(&mut self, s: &str) -> Result<bool, Error> {
+        Ok(self.peek(s.len())? == s)
+    }
+
+    fn consume_while<F: Fn(char) -> bool>(&mut self, matcher: F) -> Result<String, Error> {
+        let mut result = String::new();
+        while let Some(c) = self.peek(1)?.chars().next() {
+            if matcher(c) {
+                result.push(c);
+                self.next()?;
+            } else {
+                return Ok(result);
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 pub struct CharReader<T: Read> {
     reader: T,
-    buff: VecDeque<Char>,
+    file_name: Rc<String>,
+    str_buff: String,
+    char_buff: VecDeque<Char>,
     line: usize,
     col: usize,
 }
 
 impl<T: Read> CharReader<T> {
-    pub fn new(reader: T) -> Self {
-        Self{reader, buff: VecDeque::new(), line: 1, col: 0}
+    pub fn new(reader: T, file_name: Rc<String>) -> Self {
+        Self {
+            reader,
+            file_name,
+            str_buff: String::new(),
+            char_buff: VecDeque::new(),
+            line: 1,
+            col: 0,
+        }
     }
 }
 
-impl<T:Read> ICharReader for CharReader<T> {
-    fn next(&mut self) -> Result<Option<Char>, Error>{
-        if let Some(ch) = self.buff.pop_front() {
+impl<T: Read> ICharReader for CharReader<T> {
+    fn next(&mut self) -> Result<Option<Char>, Error> {
+        self.str_buff.clear();
+
+        if let Some(ch) = self.char_buff.pop_front() {
             return Ok(Some(ch));
         }
 
         return self.advance();
     }
 
-    fn peek(&mut self, n: usize) -> Result<String, Error>{
-        let remaining_chars = max(0, n - self.buff.len());
+    fn peek(&mut self, n: usize) -> Result<&str, Error> {
+        let current_buff = self.char_buff.len();
+        let remaining_chars = if current_buff > n { 0 } else { n - current_buff };
+
         for _ in 0..remaining_chars {
             if let Some(c) = self.advance()? {
-                self.buff.push_back(c);
+                self.char_buff.push_back(c);
             } else {
                 break;
             }
         }
 
-        let n = min(n, self.buff.len());
-
-        let mut s = String::with_capacity(n);
-        for i in self.buff.iter().take(n) {
-            s.push(i.value);
+        let n = min(n, self.char_buff.len());
+        for c in self.char_buff.iter().take(n).skip(self.str_buff.len()) {
+            self.str_buff.push(c.value);
         }
 
-        Ok(s)
+        Ok(&self.str_buff.as_str()[..n])
     }
 }
 
-impl<T:Read> CharReader<T> {
-    fn advance(&mut self) -> Result<Option<Char>, Error>{
+impl<T: Read> CharReader<T> {
+    fn advance(&mut self) -> Result<Option<Char>, Error> {
         let mut b: [u8; 4] = [0; 4];
         loop {
             let result = self.reader.read_exact(&mut b[..1]);
@@ -93,16 +131,16 @@ impl<T:Read> CharReader<T> {
         }
 
         self.col += 1;
-            let pos = Pos{
-                file_name: Rc::new(String::new()),
-                line: self.line,
-                col: self.col,
-            };
+        let pos = Pos {
+            file_name: self.file_name.clone(),
+            line: self.line,
+            col: self.col,
+        };
 
         let value = if let Some(c) = char::from_u32(c) {
             c
         } else {
-            return Err(Error::UnexpectedChar{char: c, pos});
+            return Err(Error::UnexpectedChar { char: c, pos });
         };
 
         if value == '\n' {
@@ -110,6 +148,6 @@ impl<T:Read> CharReader<T> {
             self.col = 0;
         }
 
-        Ok(Some(Char{value, pos}))
+        Ok(Some(Char { value, pos }))
     }
 }
