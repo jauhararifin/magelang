@@ -1,4 +1,5 @@
 Features:
+- use regex for token parsing
 - use lalr for ast parsing
 - allow multiple errors when parsing AST
 - support multidimensional array
