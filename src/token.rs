@@ -5,31 +5,23 @@ use super::pos::Pos;
 #[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
-    pub value: Option<Rc<String>>,
+    pub value: Rc<String>,
     pub pos: Pos,
 }
 
 impl Token {
-    pub fn unwrap_value(&self) -> &String {
-        self.value.as_ref().unwrap()
-    }
-
-    pub fn unwrap_str(&self) -> &str {
-        self.unwrap_value().as_str()
+    pub fn str(&self) -> &str {
+        self.value.as_str()
     }
 
     pub fn clone_value(&self) -> Rc<String> {
-        self.value.as_ref().unwrap().clone()
+        self.value.clone()
     }
 }
 
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref value) = self.value {
-            write!(f, "[{:?} {:?}({})]", &self.pos, &self.kind, value)
-        } else {
-            write!(f, "[{:?} {:?}]", &self.pos, &self.kind)
-        }
+        write!(f, "[{:?} {:?} {}]", &self.pos, &self.kind, self.value)
     }
 }
 

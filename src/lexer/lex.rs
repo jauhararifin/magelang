@@ -13,18 +13,19 @@ pub trait ILexer {
     fn peek(&mut self) -> Result<&Token>;
 }
 
-trait Consumer<R: Read> {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>>;
-}
-
 pub struct Lexer<R: Read> {
     reader: CharReader<R>,
     file_name: Rc<String>,
 
-    rules: Vec<(String, Box<dyn Consumer<R>>)>,
+    is_started: bool,
+    ch: Option<char>,
+    pos: Pos,
+
+    temp_pos: Pos,
+    temp_val: String,
 
     tokens: VecDeque<Token>,
-    token_eoi: Option<Token>,
+    eoi: Option<Token>,
 }
 
 impl<R: Read> Lexer<R> {
@@ -33,103 +34,24 @@ impl<R: Read> Lexer<R> {
             reader: CharReader::new(reader, Rc::new(String::from(file_name))),
             file_name: Rc::new(String::from(file_name)),
 
-            rules: Self::generate_rules(),
+            is_started: false,
+            ch: None,
+            pos: Pos {
+                line: 1,
+                col: 0,
+                file_name: Rc::new(String::from(file_name)),
+            },
+
+            temp_pos: Pos {
+                line: 0,
+                col: 0,
+                file_name: Rc::new(String::from(file_name)),
+            },
+            temp_val: String::new(),
 
             tokens: VecDeque::new(),
-            token_eoi: None,
+            eoi: None,
         }
-    }
-
-    fn generate_rules() -> Vec<(String, Box<dyn Consumer<R>>)> {
-        let mut rules = Vec::<(String, Box<dyn Consumer<R>>)>::new();
-
-        for i in [' ', '\r', '\t'] {
-            rules.push((String::from(i), Box::new(WhitespaceConsumer())));
-        }
-
-        rules.push(("//".to_string(), Box::new(CommentConsumer())));
-        rules.push(("\n".to_string(), Box::new(NewlineConsumer())));
-
-        for i in "0123456789".chars() {
-            rules.push((String::from(i), Box::new(NumberLitConsumer())));
-        }
-
-        for i in ['\"', '`'] {
-            rules.push((String::from(i), Box::new(StringLitConsumer())));
-        }
-
-        Self::generate_keyword_rule(&mut rules, "!=", TokenKind::NotEq);
-        Self::generate_keyword_rule(&mut rules, "!", TokenKind::Not);
-        Self::generate_keyword_rule(&mut rules, "%=", TokenKind::ModAssign);
-        Self::generate_keyword_rule(&mut rules, "%", TokenKind::Mod);
-        Self::generate_keyword_rule(&mut rules, "&&", TokenKind::And);
-        Self::generate_keyword_rule(&mut rules, "&=", TokenKind::BitAndAssign);
-        Self::generate_keyword_rule(&mut rules, "&", TokenKind::BitAnd);
-        Self::generate_keyword_rule(&mut rules, "||", TokenKind::Or);
-        Self::generate_keyword_rule(&mut rules, "|=", TokenKind::BitOrAssign);
-        Self::generate_keyword_rule(&mut rules, "|", TokenKind::BitOr);
-        Self::generate_keyword_rule(&mut rules, "^=", TokenKind::BitXorAssign);
-        Self::generate_keyword_rule(&mut rules, "^", TokenKind::BitXor);
-        Self::generate_keyword_rule(&mut rules, "~", TokenKind::BitNot);
-        Self::generate_keyword_rule(&mut rules, "(", TokenKind::OpenBrace);
-        Self::generate_keyword_rule(&mut rules, ")", TokenKind::CloseBrace);
-        Self::generate_keyword_rule(&mut rules, "{", TokenKind::OpenBlock);
-        Self::generate_keyword_rule(&mut rules, "}", TokenKind::CloseBlock);
-        Self::generate_keyword_rule(&mut rules, "[", TokenKind::OpenBrack);
-        Self::generate_keyword_rule(&mut rules, "]", TokenKind::CloseBrack);
-        Self::generate_keyword_rule(&mut rules, "*=", TokenKind::MulAssign);
-        Self::generate_keyword_rule(&mut rules, "*", TokenKind::Mul);
-        Self::generate_keyword_rule(&mut rules, "+=", TokenKind::PlusAssign);
-        Self::generate_keyword_rule(&mut rules, "+", TokenKind::Plus);
-        Self::generate_keyword_rule(&mut rules, "-=", TokenKind::MinusAssign);
-        Self::generate_keyword_rule(&mut rules, "-", TokenKind::Minus);
-        Self::generate_keyword_rule(&mut rules, "/=", TokenKind::DivAssign);
-        Self::generate_keyword_rule(&mut rules, "/", TokenKind::Div);
-        Self::generate_keyword_rule(&mut rules, ":", TokenKind::Colon);
-        Self::generate_keyword_rule(&mut rules, "<<=", TokenKind::ShlAssign);
-        Self::generate_keyword_rule(&mut rules, "<<", TokenKind::Shl);
-        Self::generate_keyword_rule(&mut rules, "<=", TokenKind::LTEq);
-        Self::generate_keyword_rule(&mut rules, "<", TokenKind::LT);
-        Self::generate_keyword_rule(&mut rules, ">>=", TokenKind::ShrAssign);
-        Self::generate_keyword_rule(&mut rules, ">>", TokenKind::Shr);
-        Self::generate_keyword_rule(&mut rules, ">=", TokenKind::GTEq);
-        Self::generate_keyword_rule(&mut rules, ">", TokenKind::GT);
-        Self::generate_keyword_rule(&mut rules, "==", TokenKind::Eq);
-        Self::generate_keyword_rule(&mut rules, "=", TokenKind::Assign);
-        Self::generate_keyword_rule(&mut rules, ",", TokenKind::Comma);
-
-        Self::generate_keyword_rule(&mut rules, "package", TokenKind::Package);
-        Self::generate_keyword_rule(&mut rules, "import", TokenKind::Import);
-        Self::generate_keyword_rule(&mut rules, "if", TokenKind::If);
-        Self::generate_keyword_rule(&mut rules, "native", TokenKind::Native);
-        Self::generate_keyword_rule(&mut rules, "var", TokenKind::Var);
-        Self::generate_keyword_rule(&mut rules, "while", TokenKind::While);
-        Self::generate_keyword_rule(&mut rules, "fn", TokenKind::Fn);
-        Self::generate_keyword_rule(&mut rules, "as", TokenKind::As);
-        Self::generate_keyword_rule(&mut rules, "return", TokenKind::Return);
-        Self::generate_keyword_rule(&mut rules, "bool", TokenKind::Bool);
-        Self::generate_keyword_rule(&mut rules, "i8", TokenKind::I8);
-        Self::generate_keyword_rule(&mut rules, "i16", TokenKind::I16);
-        Self::generate_keyword_rule(&mut rules, "i32", TokenKind::I32);
-        Self::generate_keyword_rule(&mut rules, "i64", TokenKind::I64);
-        Self::generate_keyword_rule(&mut rules, "u8", TokenKind::U8);
-        Self::generate_keyword_rule(&mut rules, "u16", TokenKind::U16);
-        Self::generate_keyword_rule(&mut rules, "u32", TokenKind::U32);
-        Self::generate_keyword_rule(&mut rules, "u64", TokenKind::U64);
-        Self::generate_keyword_rule(&mut rules, "f32", TokenKind::F32);
-        Self::generate_keyword_rule(&mut rules, "f64", TokenKind::F64);
-        Self::generate_keyword_rule(&mut rules, "true", TokenKind::True);
-        Self::generate_keyword_rule(&mut rules, "false", TokenKind::False);
-
-        for i in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_".chars() {
-            rules.push((String::from(i), Box::new(IdentConsumer())));
-        }
-
-        rules
-    }
-
-    fn generate_keyword_rule(rules: &mut Vec<(String, Box<dyn Consumer<R>>)>, keyword: &'static str, kind: TokenKind) {
-        rules.push((keyword.to_string(), Box::new(KeywordConsumer::new(keyword, kind))));
     }
 }
 
@@ -139,7 +61,11 @@ impl<T: Read> ILexer for Lexer<T> {
         if let Some(token) = self.tokens.pop_front() {
             return Ok(token);
         }
-        Ok(self.token_eoi.as_ref().unwrap().clone())
+        Ok(Token {
+            kind: TokenKind::Eoi,
+            value: Rc::new(String::new()),
+            pos: self.temp_pos.clone(),
+        })
     }
 
     fn peek(&mut self) -> Result<&Token> {
@@ -147,162 +73,80 @@ impl<T: Read> ILexer for Lexer<T> {
         if let Some(token) = self.tokens.front() {
             return Ok(token);
         }
-        Ok(self.token_eoi.as_ref().unwrap())
+        Ok(self.eoi.as_ref().unwrap())
     }
 }
 
 impl<R: Read> Lexer<R> {
     fn advance(&mut self) -> Result<()> {
-        if let Some(_) = self.token_eoi {
+        self.advance_char()?;
+        let ch = if let Some(ch) = self.ch {
+            ch
+        } else {
+            self.eoi = Some(Token {
+                kind: TokenKind::Eoi,
+                value: Rc::new(String::new()),
+                pos: self.temp_pos.clone(),
+            });
             return Ok(());
-        }
-
-        while self.tokens.len() == 0 {
-            let mut advanced = false;
-            for rule in self.rules.iter() {
-                let (pattern, consumer) = rule;
-                if self.reader.starts_with(pattern)? {
-                    if let Some(token) = consumer.consume(&mut self.reader)? {
-                        self.tokens.push_back(token);
-                        advanced = true;
-                        break;
-                    }
-                }
-            }
-
-            if !advanced {
-                if let Some(ch) = self.reader.next()? {
-                    return Err(Error::UnexpectedChar {
-                        char: ch.value as u32,
-                        pos: ch.pos,
-                    });
-                } else {
-                    self.put_eoi();
-                    break;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn put_eoi(&mut self) {
-        self.token_eoi = Some(Token {
-            kind: TokenKind::Eoi,
-            value: None,
-            pos: Pos {
-                file_name: self.file_name.clone(),
-                line: 0,
-                col: 0,
-            },
-        });
-    }
-}
-
-struct CommentConsumer();
-
-impl<R: Read> Consumer<R> for CommentConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        let c = reader.next()?.unwrap();
-        reader.next()?;
-
-        let value = reader.consume_while(|c| c != '\n')?;
-        Ok(Some(Token {
-            kind: TokenKind::Comment,
-            value: Some(Rc::new(value)),
-            pos: c.pos,
-        }))
-    }
-}
-
-struct NewlineConsumer();
-
-impl<R: Read> Consumer<R> for NewlineConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        let c = reader.next()?.unwrap();
-        Ok(Some(Token {
-            kind: TokenKind::Endl,
-            value: None,
-            pos: c.pos,
-        }))
-    }
-}
-
-struct WhitespaceConsumer();
-
-impl<R: Read> Consumer<R> for WhitespaceConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        reader.consume_while(|c| c == ' ' || c == '\t' || c == '\r')?;
-        Ok(None)
-    }
-}
-
-struct NumberLitConsumer();
-
-impl<R: Read> Consumer<R> for NumberLitConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        let mut value = String::new();
-
-        let ch = reader.next()?.unwrap();
-        let pos = ch.pos;
-        value.push(ch.value);
-
-        let mut base = 10;
-        if ch.value == '0' {
-            base = match reader.peek_char()? {
-                Some('b' | 'B') => 2,
-                Some('o' | 'O') => 8,
-                Some('x' | 'X') => 16,
-                Some('0'..='7') => 8,
-                _ => {
-                    return Ok(Some(Token {
-                        kind: TokenKind::IntegerLit,
-                        value: Some(Rc::new("0".to_string())),
-                        pos,
-                    }))
-                }
-            };
-            let ch = reader.next()?.unwrap();
-            value.push(ch.value);
-        }
-
-        let digit_matcher = match base {
-            2 => |c| c == '0' || c == '1' || c == '_',
-            8 => |c| (c >= '0' && c <= '7') || c == '_',
-            10 => |c| (c >= '0' && c <= '9') || c == '_',
-            16 => |c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || c == '_',
-            _ => unreachable!(),
         };
-        value.push_str(reader.consume_while(digit_matcher)?.as_str());
 
-        let mut kind = TokenKind::IntegerLit;
-        if let Some('.') = reader.peek_char()? {
-            let ch = reader.next()?.unwrap();
-            value.push(ch.value);
-            value.push_str(reader.consume_while(digit_matcher)?.as_str());
-            kind = TokenKind::FloatLit;
+        self.temp_val = String::from(ch);
+        self.temp_pos = self.pos.clone();
+
+        match ch {
+            '\n' => self.consume_and_emit_token(TokenKind::Endl, true),
+            '_' | 'a'..='z' | 'A'..='Z' => self.parse_word(),
+            '"' | '`' => self.parse_string(),
+            '0'..='9' => self.parse_number(),
+            '!' | '%' | '&' | '|' | '^' | '~' | '(' | ')' | '{' | '}' | '[' | ']' | '*' | '+' | '-' | ':' | '<'
+            | '>' | '=' | ',' => self.parse_operator(),
+            '/' => self.parse_slash(),
+            _ => Err(Error::UnexpectedChar {
+                char: ch.into(),
+                pos: self.pos.clone(),
+            }),
         }
-
-        if let Some('e' | 'E') = reader.peek_char()? {
-            let ch = reader.next()?.unwrap();
-            value.push(ch.value);
-            value.push_str(reader.consume_while(digit_matcher)?.as_str());
-            kind = TokenKind::FloatLit;
-        }
-
-        Ok(Some(Token {
-            kind,
-            value: Some(Rc::new(value)),
-            pos,
-        }))
     }
-}
 
-struct StringLitConsumer();
+    fn parse_word(&mut self) -> Result<()> {
+        self.temp_val.push_str(
+            self.reader
+                .consume_while(|ch| matches!(ch, '_' | 'a'..='z' | 'A'..='Z' | '0'..='9'))?
+                .as_str(),
+        );
 
-impl<R: Read> Consumer<R> for StringLitConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        let opening_quote = reader.next()?.unwrap();
+        let kind = match self.temp_val.as_str() {
+            "package" => TokenKind::Package,
+            "import" => TokenKind::Import,
+            "if" => TokenKind::If,
+            "native" => TokenKind::Native,
+            "var" => TokenKind::Var,
+            "while" => TokenKind::While,
+            "fn" => TokenKind::Fn,
+            "as" => TokenKind::As,
+            "return" => TokenKind::Return,
+            "bool" => TokenKind::Bool,
+            "i8" => TokenKind::I8,
+            "i16" => TokenKind::I16,
+            "i32" => TokenKind::I32,
+            "i64" => TokenKind::I64,
+            "u8" => TokenKind::U8,
+            "u16" => TokenKind::U16,
+            "u32" => TokenKind::U32,
+            "u64" => TokenKind::U64,
+            "f32" => TokenKind::F32,
+            "f64" => TokenKind::F64,
+            "true" => TokenKind::True,
+            "false" => TokenKind::False,
+            _ => TokenKind::Ident,
+        };
+        self.emit_token(kind)?;
+        self.next_char()
+    }
+
+    fn parse_string(&mut self) -> Result<()> {
+        let opening_quote = self.temp_val.chars().next().unwrap();
 
         let backslash_chars = HashMap::from([
             ('n', '\n'),
@@ -317,11 +161,8 @@ impl<R: Read> Consumer<R> for StringLitConsumer {
             // \u{abcd} = 0xabcd
         ]);
 
-        let mut value = String::new();
-        let pos = opening_quote.pos;
-
         let mut after_backslash = false;
-        while let Some(ch) = reader.next()? {
+        while let Some(ch) = self.reader.next()? {
             let c = ch.value;
 
             if c == '\n' {
@@ -333,7 +174,7 @@ impl<R: Read> Consumer<R> for StringLitConsumer {
 
             if after_backslash {
                 if let Some(v) = backslash_chars.get(&c) {
-                    value.push(*v);
+                    self.temp_val.push(*v);
                 } else {
                     return Err(Error::UnexpectedSymbol {
                         symbol: String::from(c),
@@ -343,64 +184,194 @@ impl<R: Read> Consumer<R> for StringLitConsumer {
                 after_backslash = false;
             } else if c == '\\' {
                 after_backslash = true;
-            } else if c == opening_quote.value {
+            } else if c == opening_quote {
                 break;
             } else {
-                value.push(c);
+                self.temp_val.push(c);
             }
         }
 
-        Ok(Some(Token {
-            kind: TokenKind::StringLit,
-            value: Some(Rc::new(value)),
-            pos,
-        }))
+        self.emit_token(TokenKind::StringLit)
     }
-}
-struct KeywordConsumer {
-    keyword: &'static str,
-    kind: TokenKind,
-}
 
-impl KeywordConsumer {
-    fn new(keyword: &'static str, kind: TokenKind) -> Self {
-        Self { keyword, kind }
-    }
-}
-
-impl<R: Read> Consumer<R> for KeywordConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        let ch = reader.next()?.unwrap();
-        for _ in 0..(self.keyword.len() - 1) {
-            reader.next()?;
+    fn parse_number(&mut self) -> Result<()> {
+        let mut base = 10;
+        if let Some('0') = self.ch {
+            base = match self.reader.peek_char()? {
+                Some('b' | 'B') => 2,
+                Some('o' | 'O') => 8,
+                Some('x' | 'X') => 16,
+                Some('0'..='7') => 8,
+                _ => {
+                    self.emit_token(TokenKind::IntegerLit)?;
+                    return self.next_char();
+                }
+            };
+            self.temp_val.push(self.reader.next()?.unwrap().value);
         }
-        Ok(Some(Token {
-            kind: self.kind.clone(),
-            value: None,
-            pos: ch.pos,
-        }))
+
+        let digit_matcher = match base {
+            2 => |c| c == '0' || c == '1' || c == '_',
+            8 => |c| (c >= '0' && c <= '7') || c == '_',
+            10 => |c| (c >= '0' && c <= '9') || c == '_',
+            16 => |c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || c == '_',
+            _ => unreachable!(),
+        };
+
+        self.temp_val
+            .push_str(self.reader.consume_while(digit_matcher)?.as_str());
+
+        let mut kind = TokenKind::IntegerLit;
+        if let Some('.') = self.reader.peek_char()? {
+            let ch = self.reader.next()?.unwrap();
+            self.temp_val.push(ch.value);
+            self.temp_val
+                .push_str(self.reader.consume_while(digit_matcher)?.as_str());
+            kind = TokenKind::FloatLit;
+        }
+
+        if let Some('e' | 'E') = self.reader.peek_char()? {
+            let ch = self.reader.next()?.unwrap();
+            self.temp_val.push(ch.value);
+            self.temp_val
+                .push_str(self.reader.consume_while(digit_matcher)?.as_str());
+            kind = TokenKind::FloatLit;
+        }
+
+        self.emit_token(kind)?;
+        self.next_char()
     }
-}
 
-struct IdentConsumer();
+    fn parse_operator(&mut self) -> Result<()> {
+        let first_char = self.temp_val.chars().next().unwrap();
+        self.next_char()?;
+        let second_char = self.ch;
 
-impl<R: Read> Consumer<R> for IdentConsumer {
-    fn consume(&self, reader: &mut CharReader<R>) -> Result<Option<Token>> {
-        let ch = reader.next()?.unwrap();
-        let mut value = String::from(ch.value);
-        let pos = ch.pos;
+        match (first_char, second_char) {
+            ('!', Some('=')) => self.consume_and_emit_token(TokenKind::NotEq, true),
+            ('!', _) => self.consume_and_emit_token(TokenKind::Not, false),
+            ('%', Some('=')) => self.consume_and_emit_token(TokenKind::ModAssign, true),
+            ('%', _) => self.consume_and_emit_token(TokenKind::Mod, false),
+            ('&', Some('&')) => self.consume_and_emit_token(TokenKind::And, true),
+            ('&', Some('=')) => self.consume_and_emit_token(TokenKind::BitAndAssign, true),
+            ('&', _) => self.consume_and_emit_token(TokenKind::BitAnd, false),
+            ('|', Some('|')) => self.consume_and_emit_token(TokenKind::Or, true),
+            ('|', Some('=')) => self.consume_and_emit_token(TokenKind::BitOrAssign, true),
+            ('|', _) => self.consume_and_emit_token(TokenKind::BitOr, false),
+            ('^', Some('=')) => self.consume_and_emit_token(TokenKind::BitXorAssign, true),
+            ('^', _) => self.consume_and_emit_token(TokenKind::BitXor, false),
+            ('~', _) => self.consume_and_emit_token(TokenKind::BitNot, false),
+            ('(', _) => self.consume_and_emit_token(TokenKind::OpenBrace, false),
+            (')', _) => self.consume_and_emit_token(TokenKind::CloseBrace, false),
+            ('{', _) => self.consume_and_emit_token(TokenKind::OpenBlock, false),
+            ('}', _) => self.consume_and_emit_token(TokenKind::CloseBlock, false),
+            ('[', _) => self.consume_and_emit_token(TokenKind::OpenBrack, false),
+            (']', _) => self.consume_and_emit_token(TokenKind::CloseBrack, false),
+            ('*', Some('=')) => self.consume_and_emit_token(TokenKind::MulAssign, true),
+            ('*', _) => self.consume_and_emit_token(TokenKind::Mul, false),
+            ('+', Some('=')) => self.consume_and_emit_token(TokenKind::PlusAssign, true),
+            ('+', _) => self.consume_and_emit_token(TokenKind::Plus, false),
+            ('-', Some('=')) => self.consume_and_emit_token(TokenKind::MinusAssign, true),
+            ('-', _) => self.consume_and_emit_token(TokenKind::Minus, false),
+            ('/', Some('=')) => self.consume_and_emit_token(TokenKind::DivAssign, true),
+            ('/', _) => self.consume_and_emit_token(TokenKind::DivAssign, false),
+            (':', _) => self.consume_and_emit_token(TokenKind::Colon, false),
+            ('=', Some('=')) => self.consume_and_emit_token(TokenKind::Eq, true),
+            ('=', _) => self.consume_and_emit_token(TokenKind::Assign, false),
+            (',', _) => self.consume_and_emit_token(TokenKind::Comma, false),
+            ('<', Some('=')) => self.consume_and_emit_token(TokenKind::LTEq, true),
+            ('<', Some('<')) => {
+                self.next_char()?;
+                match self.ch {
+                    Some('=') => self.consume_and_emit_token(TokenKind::ShlAssign, true),
+                    _ => self.consume_and_emit_token(TokenKind::ShlAssign, false),
+                }
+            }
+            ('<', _) => self.consume_and_emit_token(TokenKind::LT, false),
+            ('>', Some('=')) => self.consume_and_emit_token(TokenKind::GTEq, true),
+            ('>', Some('>')) => {
+                self.next_char()?;
+                match self.ch {
+                    Some('=') => self.consume_and_emit_token(TokenKind::ShrAssign, true),
+                    _ => self.consume_and_emit_token(TokenKind::ShrAssign, false),
+                }
+            }
+            ('>', _) => self.consume_and_emit_token(TokenKind::GT, false),
+            _ => unreachable!(),
+        }
+    }
 
-        value.push_str(
-            reader
-                .consume_while(|c| matches!(c, '_' | '0'..='9' | 'a'..='z' | 'A'..='Z'))?
-                .as_str(),
+    fn parse_slash(&mut self) -> Result<()> {
+        self.temp_pos = self.pos.clone();
+        self.temp_val = String::from(self.ch.unwrap());
+        match self.reader.peek_char()? {
+            Some('/') => self.parse_comment(),
+            _ => self.parse_operator(),
+        }
+    }
+
+    fn parse_comment(&mut self) -> Result<()> {
+        loop {
+            if let Some('\n') | None = self.ch {
+                break;
+            }
+            self.temp_val.push(self.ch.unwrap());
+            self.next_char()?;
+        }
+
+        self.emit_token(TokenKind::Comment)
+    }
+
+    fn advance_char(&mut self) -> Result<()> {
+        if !self.is_started {
+            self.is_started = true;
+            self.next_char()?;
+        }
+
+        while let Some(' ' | '\t' | '\r') = self.ch {
+            self.next_char()?;
+        }
+
+        Ok(())
+    }
+
+    fn next_char(&mut self) -> Result<()> {
+        if let Some(ch) = self.reader.next()? {
+            self.ch = Some(ch.value);
+            self.pos = ch.pos;
+        } else {
+            self.ch = None;
+            self.pos.col += 1;
+        }
+        Ok(())
+    }
+
+    fn consume_and_emit_token(&mut self, kind: TokenKind, consume_current: bool) -> Result<()> {
+        if consume_current {
+            self.temp_val.push(self.ch.unwrap());
+            self.next_char()?;
+        }
+        self.emit_token(kind)
+    }
+
+    fn emit_token(&mut self, kind: TokenKind) -> Result<()> {
+        let val = std::mem::replace(&mut self.temp_val, String::new());
+        let pos = std::mem::replace(
+            &mut self.temp_pos,
+            Pos {
+                line: 0,
+                col: 0,
+                file_name: Rc::clone(&self.file_name),
+            },
         );
 
-        Ok(Some(Token {
-            kind: TokenKind::Ident,
-            value: Some(Rc::new(value)),
+        self.tokens.push_back(Token {
+            kind,
             pos,
-        }))
+            value: Rc::new(val),
+        });
+
+        Ok(())
     }
 }
 
@@ -427,7 +398,7 @@ mod tests {
             result,
             Token {
                 kind: TokenKind::Fn,
-                value: None,
+                value: Rc::new("fn".to_string()),
                 pos: Pos {
                     file_name: Rc::new("anonymous".to_string()),
                     line: 1,

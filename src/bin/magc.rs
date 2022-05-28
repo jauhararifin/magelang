@@ -1,4 +1,4 @@
-use magelang::analyzer::{UnitAnalyzer, HeaderCompiler, IHeaderCompiler};
+use magelang::analyzer::{HeaderCompiler, IHeaderCompiler, UnitAnalyzer};
 use magelang::compiler::Compiler;
 use magelang::lexer::Lexer;
 use magelang::linker::Linker;

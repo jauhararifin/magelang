@@ -112,7 +112,7 @@ impl<'a> ExprHelper<'a> {
         let assignable = false;
 
         if let Type::Int(IntType { signed, size }) = expected.as_ref() {
-            let value = token.unwrap_value();
+            let value = token.value.as_str();
             let kind = match (signed, size) {
                 (true, 8) => value.parse().map(|v| ExprKind::I8(v)),
                 (true, 16) => value.parse().map(|v| ExprKind::I16(v)),
@@ -144,7 +144,7 @@ impl<'a> ExprHelper<'a> {
         let assignable = false;
 
         if let Type::Float(FloatType { size }) = expected.as_ref() {
-            let value = token.unwrap_value();
+            let value = token.value.as_str();
             let kind = match size {
                 32 => value.parse().map(|v| ExprKind::F32(v)),
                 64 => value.parse().map(|v| ExprKind::F64(v)),
