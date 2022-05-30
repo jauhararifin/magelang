@@ -95,7 +95,7 @@ impl<R: Read> Lexer<R> {
         self.temp_pos = self.pos.clone();
 
         match ch {
-            '\n' => self.consume_and_emit_token(TokenKind::Endl, true),
+            '\n' => self.consume_and_emit_token(TokenKind::Endl),
             '_' | 'a'..='z' | 'A'..='Z' => self.parse_word(),
             '"' | '`' => self.parse_string(),
             '0'..='9' => self.parse_number(),
@@ -248,55 +248,55 @@ impl<R: Read> Lexer<R> {
         let second_char = self.ch;
 
         match (first_char, second_char) {
-            ('!', Some('=')) => self.consume_and_emit_token(TokenKind::NotEq, true),
-            ('!', _) => self.consume_and_emit_token(TokenKind::Not, false),
-            ('%', Some('=')) => self.consume_and_emit_token(TokenKind::ModAssign, true),
-            ('%', _) => self.consume_and_emit_token(TokenKind::Mod, false),
-            ('&', Some('&')) => self.consume_and_emit_token(TokenKind::And, true),
-            ('&', Some('=')) => self.consume_and_emit_token(TokenKind::BitAndAssign, true),
-            ('&', _) => self.consume_and_emit_token(TokenKind::BitAnd, false),
-            ('|', Some('|')) => self.consume_and_emit_token(TokenKind::Or, true),
-            ('|', Some('=')) => self.consume_and_emit_token(TokenKind::BitOrAssign, true),
-            ('|', _) => self.consume_and_emit_token(TokenKind::BitOr, false),
-            ('^', Some('=')) => self.consume_and_emit_token(TokenKind::BitXorAssign, true),
-            ('^', _) => self.consume_and_emit_token(TokenKind::BitXor, false),
-            ('~', _) => self.consume_and_emit_token(TokenKind::BitNot, false),
-            ('(', _) => self.consume_and_emit_token(TokenKind::OpenBrace, false),
-            (')', _) => self.consume_and_emit_token(TokenKind::CloseBrace, false),
-            ('{', _) => self.consume_and_emit_token(TokenKind::OpenBlock, false),
-            ('}', _) => self.consume_and_emit_token(TokenKind::CloseBlock, false),
-            ('[', _) => self.consume_and_emit_token(TokenKind::OpenBrack, false),
-            (']', _) => self.consume_and_emit_token(TokenKind::CloseBrack, false),
-            ('*', Some('=')) => self.consume_and_emit_token(TokenKind::MulAssign, true),
-            ('*', _) => self.consume_and_emit_token(TokenKind::Mul, false),
-            ('+', Some('=')) => self.consume_and_emit_token(TokenKind::PlusAssign, true),
-            ('+', _) => self.consume_and_emit_token(TokenKind::Plus, false),
-            ('-', Some('=')) => self.consume_and_emit_token(TokenKind::MinusAssign, true),
-            ('-', _) => self.consume_and_emit_token(TokenKind::Minus, false),
-            ('/', Some('=')) => self.consume_and_emit_token(TokenKind::DivAssign, true),
-            ('/', _) => self.consume_and_emit_token(TokenKind::DivAssign, false),
-            (':', _) => self.consume_and_emit_token(TokenKind::Colon, false),
-            ('=', Some('=')) => self.consume_and_emit_token(TokenKind::Eq, true),
-            ('=', _) => self.consume_and_emit_token(TokenKind::Assign, false),
-            (',', _) => self.consume_and_emit_token(TokenKind::Comma, false),
-            ('<', Some('=')) => self.consume_and_emit_token(TokenKind::LTEq, true),
+            ('!', Some('=')) => self.consume_and_emit_token(TokenKind::NotEq),
+            ('!', _) => self.emit_token(TokenKind::Not),
+            ('%', Some('=')) => self.consume_and_emit_token(TokenKind::ModAssign),
+            ('%', _) => self.emit_token(TokenKind::Mod),
+            ('&', Some('&')) => self.consume_and_emit_token(TokenKind::And),
+            ('&', Some('=')) => self.consume_and_emit_token(TokenKind::BitAndAssign),
+            ('&', _) => self.emit_token(TokenKind::BitAnd),
+            ('|', Some('|')) => self.consume_and_emit_token(TokenKind::Or),
+            ('|', Some('=')) => self.consume_and_emit_token(TokenKind::BitOrAssign),
+            ('|', _) => self.emit_token(TokenKind::BitOr),
+            ('^', Some('=')) => self.consume_and_emit_token(TokenKind::BitXorAssign),
+            ('^', _) => self.emit_token(TokenKind::BitXor),
+            ('~', _) => self.emit_token(TokenKind::BitNot),
+            ('(', _) => self.emit_token(TokenKind::OpenBrace),
+            (')', _) => self.emit_token(TokenKind::CloseBrace),
+            ('{', _) => self.emit_token(TokenKind::OpenBlock),
+            ('}', _) => self.emit_token(TokenKind::CloseBlock),
+            ('[', _) => self.emit_token(TokenKind::OpenBrack),
+            (']', _) => self.emit_token(TokenKind::CloseBrack),
+            ('*', Some('=')) => self.consume_and_emit_token(TokenKind::MulAssign),
+            ('*', _) => self.emit_token(TokenKind::Mul),
+            ('+', Some('=')) => self.consume_and_emit_token(TokenKind::PlusAssign),
+            ('+', _) => self.emit_token(TokenKind::Plus),
+            ('-', Some('=')) => self.consume_and_emit_token(TokenKind::MinusAssign),
+            ('-', _) => self.emit_token(TokenKind::Minus),
+            ('/', Some('=')) => self.consume_and_emit_token(TokenKind::DivAssign),
+            ('/', _) => self.emit_token(TokenKind::DivAssign),
+            (':', _) => self.emit_token(TokenKind::Colon),
+            ('=', Some('=')) => self.consume_and_emit_token(TokenKind::Eq),
+            ('=', _) => self.emit_token(TokenKind::Assign),
+            (',', _) => self.emit_token(TokenKind::Comma),
+            ('<', Some('=')) => self.consume_and_emit_token(TokenKind::LTEq),
             ('<', Some('<')) => {
                 self.next_char()?;
                 match self.ch {
-                    Some('=') => self.consume_and_emit_token(TokenKind::ShlAssign, true),
-                    _ => self.consume_and_emit_token(TokenKind::ShlAssign, false),
+                    Some('=') => self.consume_and_emit_token(TokenKind::ShlAssign),
+                    _ => self.emit_token(TokenKind::ShlAssign),
                 }
             }
-            ('<', _) => self.consume_and_emit_token(TokenKind::LT, false),
-            ('>', Some('=')) => self.consume_and_emit_token(TokenKind::GTEq, true),
+            ('<', _) => self.emit_token(TokenKind::LT),
+            ('>', Some('=')) => self.consume_and_emit_token(TokenKind::GTEq),
             ('>', Some('>')) => {
                 self.next_char()?;
                 match self.ch {
-                    Some('=') => self.consume_and_emit_token(TokenKind::ShrAssign, true),
-                    _ => self.consume_and_emit_token(TokenKind::ShrAssign, false),
+                    Some('=') => self.consume_and_emit_token(TokenKind::ShrAssign),
+                    _ => self.emit_token(TokenKind::ShrAssign),
                 }
             }
-            ('>', _) => self.consume_and_emit_token(TokenKind::GT, false),
+            ('>', _) => self.emit_token(TokenKind::GT),
             _ => unreachable!(),
         }
     }
@@ -346,11 +346,9 @@ impl<R: Read> Lexer<R> {
         Ok(())
     }
 
-    fn consume_and_emit_token(&mut self, kind: TokenKind, consume_current: bool) -> Result<()> {
-        if consume_current {
-            self.temp_val.push(self.ch.unwrap());
-            self.next_char()?;
-        }
+    fn consume_and_emit_token(&mut self, kind: TokenKind) -> Result<()> {
+        self.temp_val.push(self.ch.unwrap());
+        self.next_char()?;
         self.emit_token(kind)
     }
 
