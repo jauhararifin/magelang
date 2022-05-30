@@ -196,17 +196,24 @@ impl<R: Read> Lexer<R> {
 
     fn parse_number(&mut self) -> Result<()> {
         let mut base = 10;
+        let mut kind = TokenKind::IntegerLit;
+
         if let Some('0') = self.ch {
             base = match self.reader.peek_char()? {
                 Some('b' | 'B') => 2,
                 Some('o' | 'O') => 8,
                 Some('x' | 'X') => 16,
                 Some('0'..='7') => 8,
+                Some('.') => {
+                    kind = TokenKind::FloatLit;
+                    10
+                }
                 _ => {
                     self.emit_token(TokenKind::IntegerLit)?;
                     return self.next_char();
                 }
             };
+
             self.temp_val.push(self.reader.next()?.unwrap().value);
         }
 
@@ -221,7 +228,6 @@ impl<R: Read> Lexer<R> {
         self.temp_val
             .push_str(self.reader.consume_while(digit_matcher)?.as_str());
 
-        let mut kind = TokenKind::IntegerLit;
         if let Some('.') = self.reader.peek_char()? {
             let ch = self.reader.next()?.unwrap();
             self.temp_val.push(ch.value);
@@ -376,6 +382,30 @@ impl<R: Read> Lexer<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_integer_lit() {
+        let inputs = vec!["0", "0x1234567890abcdef", "0X1234567890abcdef"];
+        for input in inputs.into_iter() {
+            let mut lexer = Lexer::new(input.as_bytes(), "anonymous");
+            let result = lexer.next().unwrap();
+
+            assert_eq!(result.kind, TokenKind::IntegerLit);
+            assert_eq!(result.value.as_str(), input);
+        }
+    }
+
+    #[test]
+    fn test_float_lit() {
+        let inputs = vec!["0.1"];
+        for input in inputs.into_iter() {
+            let mut lexer = Lexer::new(input.as_bytes(), "anonymous");
+            let result = lexer.next().unwrap();
+
+            assert_eq!(result.kind, TokenKind::FloatLit);
+            assert_eq!(result.value.as_str(), input);
+        }
+    }
 
     #[test]
     fn test_simple_fn() {
