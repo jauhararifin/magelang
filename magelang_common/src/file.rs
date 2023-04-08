@@ -29,8 +29,8 @@ impl FileInfo {
     }
 }
 
-pub struct FileLoader<'a> {
-    err_channel: &'a ErrorAccumulator,
+pub struct FileLoader<'err> {
+    err_channel: &'err ErrorAccumulator,
 
     path_to_id: RefCell<HashMap<Rc<Path>, FileId>>,
     id_to_path: RefCell<HashMap<FileId, Rc<Path>>>,
@@ -38,8 +38,8 @@ pub struct FileLoader<'a> {
     file_info_cache: RefCell<HashMap<FileId, Rc<FileInfo>>>,
 }
 
-impl<'a> FileLoader<'a> {
-    pub fn new(err_channel: &'a ErrorAccumulator) -> Self {
+impl<'err> FileLoader<'err> {
+    pub fn new(err_channel: &'err ErrorAccumulator) -> Self {
         Self {
             err_channel,
             path_to_id: RefCell::new(HashMap::new()),
