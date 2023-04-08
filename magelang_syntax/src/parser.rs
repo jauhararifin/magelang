@@ -2,8 +2,8 @@ use crate::ast::{
     AstNode, BlockStatementNode, CallExprNode, ExprNode, FunctionNode, ImportNode, ItemNode, PackageNode,
     ParameterNode, ReturnStatementNode, SignatureNode, StatementNode,
 };
-use crate::scanner::scan;
 use crate::errors::unexpected_parsing;
+use crate::scanner::scan;
 use crate::tokens::{Token, TokenKind};
 use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span, SymbolId, SymbolLoader};

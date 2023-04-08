@@ -2,4 +2,5 @@
 members = [
   "magelang_common",
   "magelang_syntax",
+  "magelang_package",
 ]

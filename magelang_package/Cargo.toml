@@ -1,0 +1,11 @@
+[package]
+name = "magelang_package"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+magelang_common = { path = "../magelang_common" }
+magelang_syntax = { path = "../magelang_syntax" }
+indexmap = "1.9.2"

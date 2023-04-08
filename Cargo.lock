@@ -35,6 +35,15 @@ name = "magelang_common"
 version = "0.1.0"
 
 [[package]]
+name = "magelang_package"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "magelang_common",
+ "magelang_syntax",
+]
+
+[[package]]
 name = "magelang_syntax"
 version = "0.1.0"
 dependencies = [
