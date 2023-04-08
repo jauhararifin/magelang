@@ -1,6 +1,7 @@
+use crate::errors::{missing_closing_quote, unexpected_char, unexpected_newline};
 use crate::tokens::{Token, TokenKind};
 use lazy_static::lazy_static;
-use magelang_common::{Error, ErrorAccumulator, FileId, FileInfo, Span};
+use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span};
 use std::{iter::Peekable, vec::IntoIter};
 
 pub(crate) fn scan(err_channel: &ErrorAccumulator, file_info: &FileInfo) -> Vec<Token> {
@@ -42,13 +43,13 @@ lazy_static! {
     ];
 }
 
-struct Scanner<'a> {
-    err_channel: &'a ErrorAccumulator,
+struct Scanner<'err> {
+    err_channel: &'err ErrorAccumulator,
     source_code: Peekable<IntoIter<CharPos>>,
 }
 
-impl<'a> Scanner<'a> {
-    fn new(err_channel: &'a ErrorAccumulator, source_code: impl Iterator<Item = CharPos>) -> Self {
+impl<'err> Scanner<'err> {
+    fn new(err_channel: &'err ErrorAccumulator, source_code: impl Iterator<Item = CharPos>) -> Self {
         Self {
             err_channel,
             source_code: source_code.collect::<Vec<_>>().into_iter().peekable(),
@@ -262,16 +263,4 @@ impl<'a> Scanner<'a> {
             span: Span::new(char_pos.file_id, char_pos.offset, 1),
         })
     }
-}
-
-fn unexpected_char(span: Span, ch: char) -> Error {
-    Error::new(span, format!("Unexpected character '{}'", ch))
-}
-
-fn unexpected_newline(span: Span) -> Error {
-    Error::new(span, String::from("Unexpected newline"))
-}
-
-fn missing_closing_quote(span: Span) -> Error {
-    Error::new(span, String::from("Missing closing quote in string literal"))
 }

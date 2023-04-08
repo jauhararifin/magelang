@@ -3,11 +3,11 @@ use crate::ast::{
     ParameterNode, ReturnStatementNode, SignatureNode, StatementNode,
 };
 use crate::scanner::scan;
+use crate::errors::unexpected_parsing;
 use crate::tokens::{Token, TokenKind};
 use indexmap::IndexMap;
-use magelang_common::{Error, ErrorAccumulator, FileId, FileInfo, Span, SymbolId, SymbolLoader};
+use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span, SymbolId, SymbolLoader};
 use std::collections::VecDeque;
-use std::fmt::Display;
 use std::rc::Rc;
 
 pub(crate) fn parse(
@@ -35,9 +35,9 @@ pub(crate) fn parse(
     Rc::new(root)
 }
 
-struct FileParser<'a> {
-    err_channel: &'a ErrorAccumulator,
-    symbol_loader: &'a SymbolLoader,
+struct FileParser<'err, 'sym> {
+    err_channel: &'err ErrorAccumulator,
+    symbol_loader: &'sym SymbolLoader,
 
     tokens: VecDeque<Token>,
     comments: Vec<Token>,
@@ -45,10 +45,10 @@ struct FileParser<'a> {
     last_offset: usize,
 }
 
-impl<'a> FileParser<'a> {
+impl<'err, 'sym> FileParser<'err, 'sym> {
     fn new(
-        err_channel: &'a ErrorAccumulator,
-        symbol_loader: &'a SymbolLoader,
+        err_channel: &'err ErrorAccumulator,
+        symbol_loader: &'sym SymbolLoader,
         file_id: FileId,
         tokens: impl Iterator<Item = Token>,
     ) -> Self {
@@ -368,10 +368,6 @@ impl<'a> FileParser<'a> {
         }
         tokens
     }
-}
-
-fn unexpected_parsing(span: Span, expected: impl Display, found: impl Display) -> Error {
-    Error::new(span, format!("Expected {expected}, but found {found}"))
 }
 
 pub fn parse_string_lit(s: &str) -> &str {

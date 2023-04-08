@@ -2,6 +2,7 @@ mod ast;
 mod parser;
 mod scanner;
 mod tokens;
+mod errors;
 
 pub use ast::*;
 pub use parser::parse_string_lit;
