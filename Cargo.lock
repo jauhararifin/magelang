@@ -3,5 +3,9 @@
 version = 3
 
 [[package]]
-name = "magelang"
+name = "magelang_common"
+version = "0.1.0"
+
+[[package]]
+name = "magelang_syntax"
 version = "0.1.0"
