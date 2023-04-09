@@ -2,10 +2,11 @@ use clap::{Args, Parser, Subcommand};
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolLoader};
 use magelang_compiler::Compiler;
 use magelang_package::PackageUtil;
+use magelang_runner::Runner;
 use magelang_semantic::TypeLoader;
 use magelang_syntax::AstLoader;
 use magelang_typecheck::TypeChecker;
-use std::fs::File;
+use std::fs::{read, File};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -86,6 +87,10 @@ fn main() {
             let compiler = Compiler::new(&symbol_loader, &type_loader);
             compiler.compile(packages, main_package, &output_file);
         }
-        Command::Run(..) => todo!(),
+        Command::Run(arg) => {
+            let module_byte = read(arg.file).unwrap();
+            let runner = Runner::new();
+            runner.run(&module_byte);
+        }
     }
 }

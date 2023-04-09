@@ -1,3 +1,5 @@
+fn print_i64(n: i64);
+
 fn jauhar(a: i64): i64 {
   return a;
 }
@@ -7,5 +9,7 @@ fn arifin(): i64 {
 }
 
 fn main() {
+  print_i64(10);
+  print_i64(20);
   return;
 }

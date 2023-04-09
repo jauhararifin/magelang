@@ -12,5 +12,6 @@ magelang_package = { path = "../magelang_package" }
 magelang_semantic = { path = "../magelang_semantic" }
 magelang_typecheck = { path = "../magelang_typecheck"}
 magelang_compiler = { path = "../magelang_compiler"}
+magelang_runner = { path = "../magelang_runner"}
 clap = { version = "4.2.1", features = ["derive"] }
 
