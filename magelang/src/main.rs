@@ -1,3 +1,4 @@
+use clap::{Args, Parser, Subcommand};
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolLoader};
 use magelang_compiler::Compiler;
 use magelang_package::PackageUtil;
@@ -5,8 +6,36 @@ use magelang_semantic::TypeLoader;
 use magelang_syntax::AstLoader;
 use magelang_typecheck::TypeChecker;
 use std::fs::File;
+use std::path::PathBuf;
+
+#[derive(Parser, Debug)]
+struct CliArgs {
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    Compile(CompileArgs),
+    Run(RunArgs),
+}
+
+#[derive(Args, Debug)]
+struct CompileArgs {
+    package_name: String,
+
+    #[arg(short = 'o', long = "output")]
+    output_file: Option<String>,
+}
+
+#[derive(Args, Debug)]
+struct RunArgs {
+    file: String,
+}
 
 fn main() {
+    let args = CliArgs::parse();
+
     let err_accumulator = ErrorAccumulator::new();
     let symbol_loader = SymbolLoader::new();
     let file_loader = FileLoader::new(&err_accumulator);
@@ -22,28 +51,41 @@ fn main() {
         &type_loader,
     );
 
-    let main_package = symbol_loader.declare_symbol("examples/a");
-    let packages = type_checker.check_all(main_package);
+    match args.command {
+        Command::Compile(arg) => {
+            let main_package = symbol_loader.declare_symbol(&arg.package_name);
+            let packages = type_checker.check_all(main_package);
 
-    println!("Errors:");
-    let mut has_error = false;
-    for err in err_accumulator.take() {
-        has_error = true;
-        if let Some(span) = &err.span {
-            let file_info = file_loader.get_file(span.file_id).unwrap();
-            let pos = file_info.get_pos(&span);
-            println!("{}: {}", pos, err.message);
-        } else {
-            println!("{}", err.message);
+            let mut has_error = false;
+            for err in err_accumulator.take() {
+                has_error = true;
+                if let Some(span) = &err.span {
+                    let file_info = file_loader.get_file(span.file_id).unwrap();
+                    let pos = file_info.get_pos(&span);
+                    eprintln!("{}: {}", pos, err.message);
+                } else {
+                    eprintln!("{}", err.message);
+                }
+            }
+
+            if has_error {
+                eprintln!("Compilation failed due to some error(s)");
+                std::process::exit(1);
+            }
+
+            let mut path = PathBuf::from(&arg.package_name);
+            path.set_extension("wasm");
+            let filename = arg
+                .output_file
+                .as_ref()
+                .map(|v| v.as_str())
+                .or_else(|| path.file_name().and_then(|v| v.to_str()))
+                .unwrap_or("main.wasm");
+
+            let output_file = File::create(filename).expect("cannot open file");
+            let compiler = Compiler::new(&symbol_loader, &type_loader);
+            compiler.compile(packages, main_package, &output_file);
         }
+        Command::Run(..) => todo!(),
     }
-
-    if has_error {
-        return;
-    }
-
-    let mut output_file = File::create("result.wasm").expect("cannot open file");
-
-    let compiler = Compiler::new(&symbol_loader, &type_loader);
-    compiler.compile(packages, main_package, &output_file);
 }

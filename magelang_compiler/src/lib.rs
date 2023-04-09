@@ -54,12 +54,11 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 );
 
                 module.exports.add(&mangled_func, function);
+                if main_package == pkg.name && func_name.as_ref() == "main" {
+                    module.start = Some(function);
+                }
             }
         }
-
-        let main_pkg = self.symbol_loader.get_symbol(main_package).unwrap();
-        let main_mangled = mangle_func(&main_pkg, "main");
-        module.start = module.funcs.by_name(&main_mangled);
 
         target.write_all(&module.emit_wasm()).expect("cannot write file");
     }
