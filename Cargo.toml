@@ -3,4 +3,6 @@ members = [
   "magelang_common",
   "magelang_syntax",
   "magelang_package",
+  "magelang_semantic",
+  "magelang_typecheck",
 ]

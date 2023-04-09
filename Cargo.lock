@@ -44,10 +44,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "magelang_semantic"
+version = "0.1.0"
+dependencies = [
+ "magelang_common",
+]
+
+[[package]]
 name = "magelang_syntax"
 version = "0.1.0"
 dependencies = [
  "indexmap",
  "lazy_static",
  "magelang_common",
+]
+
+[[package]]
+name = "magelang_typecheck"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "magelang_common",
+ "magelang_package",
+ "magelang_semantic",
+ "magelang_syntax",
 ]
