@@ -52,7 +52,7 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
         for segment in package_name.split('/') {
             path.push(segment);
         }
-        path.set_extension("bst");
+        path.set_extension("mag");
         path.into()
     }
 }

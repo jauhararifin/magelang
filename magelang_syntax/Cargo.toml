@@ -7,6 +7,5 @@ edition = "2021"
 
 [dependencies]
 magelang_common = { path = "../magelang_common" }
-lazy_static = "1.4.0"
 indexmap = "1.9.2"
 

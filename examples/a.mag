@@ -1,9 +1,11 @@
 fn print_i64(n: i64);
 
+// jauhar
 fn jauhar(a: i64): i64 {
   return a;
 }
 
+/*
 fn arifin(): i64 {
   return 10;
 }

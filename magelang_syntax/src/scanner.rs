@@ -1,6 +1,5 @@
 use crate::errors::{missing_closing_quote, unexpected_char, unexpected_newline};
 use crate::tokens::{Token, TokenKind};
-use lazy_static::lazy_static;
 use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span};
 use std::collections::VecDeque;
 
@@ -30,18 +29,16 @@ struct CharPos {
     offset: usize,
 }
 
-lazy_static! {
-    static ref SYMBOLS: Vec<(&'static str, TokenKind)> = vec![
-        ("=", TokenKind::Equal),
-        (":", TokenKind::Colon),
-        (";", TokenKind::SemiColon),
-        ("{", TokenKind::OpenBlock),
-        ("}", TokenKind::CloseBlock),
-        ("(", TokenKind::OpenBrac),
-        (")", TokenKind::CloseBrac),
-        (",", TokenKind::Comma),
-    ];
-}
+static SYMBOLS: &[(&'static str, TokenKind)] = &[
+    ("=", TokenKind::Equal),
+    (":", TokenKind::Colon),
+    (";", TokenKind::SemiColon),
+    ("{", TokenKind::OpenBlock),
+    ("}", TokenKind::CloseBlock),
+    ("(", TokenKind::OpenBrac),
+    (")", TokenKind::CloseBrac),
+    (",", TokenKind::Comma),
+];
 
 struct Scanner<'err> {
     err_channel: &'err ErrorAccumulator,
