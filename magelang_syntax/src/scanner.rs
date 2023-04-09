@@ -2,19 +2,19 @@ use crate::errors::{missing_closing_quote, unexpected_char, unexpected_newline};
 use crate::tokens::{Token, TokenKind};
 use lazy_static::lazy_static;
 use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span};
-use std::{iter::Peekable, vec::IntoIter};
+use std::collections::VecDeque;
 
 pub(crate) fn scan(err_channel: &ErrorAccumulator, file_info: &FileInfo) -> Vec<Token> {
-    let mut source_code = vec![];
+    let mut source_code = VecDeque::new();
     for (offset, ch) in file_info.text.chars().enumerate() {
-        source_code.push(CharPos {
+        source_code.push_back(CharPos {
             ch,
             file_id: file_info.id,
             offset,
         });
     }
 
-    let mut scanner = Scanner::new(err_channel, source_code.into_iter());
+    let mut scanner = Scanner::new(err_channel, source_code);
     let mut tokens = vec![];
     while let Some(tok) = scanner.scan() {
         tokens.push(tok);
@@ -45,14 +45,14 @@ lazy_static! {
 
 struct Scanner<'err> {
     err_channel: &'err ErrorAccumulator,
-    source_code: Peekable<IntoIter<CharPos>>,
+    source_code: VecDeque<CharPos>,
 }
 
 impl<'err> Scanner<'err> {
-    fn new(err_channel: &'err ErrorAccumulator, source_code: impl Iterator<Item = CharPos>) -> Self {
+    fn new(err_channel: &'err ErrorAccumulator, source_code: VecDeque<CharPos>) -> Self {
         Self {
             err_channel,
-            source_code: source_code.collect::<Vec<_>>().into_iter().peekable(),
+            source_code,
         }
     }
 
@@ -61,15 +61,15 @@ impl<'err> Scanner<'err> {
         self.scan_word()
             .or_else(|| self.scan_string_lit())
             .or_else(|| self.scan_number_lit())
-            .or_else(|| self.scan_comment())
             .or_else(|| self.scan_symbol())
+            .or_else(|| self.scan_comment())
             .or_else(|| self.scan_unexpected_chars())
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.source_code.peek() {
+        while let Some(ch) = self.source_code.front() {
             if ch.ch.is_whitespace() {
-                self.source_code.next();
+                self.source_code.pop_front();
             } else {
                 break;
             }
@@ -77,12 +77,12 @@ impl<'err> Scanner<'err> {
     }
 
     fn scan_word(&mut self) -> Option<Token> {
-        let initial = |c: &CharPos| c.ch.is_alphabetic() || c.ch == '_';
-        let tok = self.source_code.next_if(initial)?;
+        let initial = |c: char| c.is_alphabetic() || c == '_';
+        let tok = self.next_if(initial)?;
 
         let mut value = String::from(tok.ch);
-        let valid_char = |c: &CharPos| c.ch.is_alphabetic() || c.ch.is_ascii_digit() || c.ch == '_';
-        while let Some(c) = self.source_code.next_if(valid_char) {
+        let valid_char = |c: char| c.is_alphabetic() || c.is_ascii_digit() || c == '_';
+        while let Some(c) = self.next_if(valid_char) {
             value.push(c.ch);
         }
 
@@ -101,8 +101,16 @@ impl<'err> Scanner<'err> {
         })
     }
 
+    fn next_if(&mut self, func: impl FnOnce(char) -> bool) -> Option<CharPos> {
+        let ch = self.source_code.front()?;
+        if func(ch.ch) {
+            return self.source_code.pop_front();
+        }
+        None
+    }
+
     fn scan_string_lit(&mut self) -> Option<Token> {
-        let opening_tok = self.source_code.next_if(|c| c.ch == '"')?;
+        let opening_tok = self.next_if(|c| c == '"')?;
         let start_offset = opening_tok.offset;
         let mut end_offset = start_offset;
 
@@ -111,7 +119,7 @@ impl<'err> Scanner<'err> {
         let mut after_backslash = false;
         let mut is_closed = false;
 
-        for c in self.source_code.by_ref() {
+        while let Some(c) = self.source_code.pop_front() {
             end_offset = c.offset;
 
             if c.ch == '\n' {
@@ -161,16 +169,16 @@ impl<'err> Scanner<'err> {
     }
 
     fn scan_number_lit(&mut self) -> Option<Token> {
-        let tok = self.source_code.next_if(|c| c.ch.is_ascii_digit())?;
+        let tok = self.next_if(|c| c.is_ascii_digit())?;
 
         let mut value = String::from(tok.ch);
-        while let Some(c) = self.source_code.next_if(|c| c.ch.is_ascii_digit()) {
+        while let Some(c) = self.next_if(|c| c.is_ascii_digit()) {
             value.push(c.ch);
         }
 
-        if let Some(dot) = self.source_code.next_if(|c| c.ch == '.') {
+        if let Some(dot) = self.next_if(|c| c == '.') {
             value.push(dot.ch);
-            while let Some(c) = self.source_code.next_if(|c| c.ch.is_ascii_digit()) {
+            while let Some(c) = self.next_if(|c| c.is_ascii_digit()) {
                 value.push(c.ch);
             }
             let span = Span::new(tok.file_id, tok.offset, value.len());
@@ -190,14 +198,14 @@ impl<'err> Scanner<'err> {
     }
 
     fn scan_symbol(&mut self) -> Option<Token> {
-        let top = self.source_code.peek()?;
+        let top = self.source_code.front()?;
         let (path, offset) = (top.file_id, top.offset);
 
         let mut value = String::new();
         let mut sym = String::new();
         let mut kind = TokenKind::Invalid;
 
-        while let Some(c) = self.source_code.peek() {
+        while let Some(c) = self.source_code.front() {
             sym.push(c.ch);
             let mut found = false;
             for (_, k) in SYMBOLS.iter().filter(|(op, _)| op.starts_with(&sym)) {
@@ -209,7 +217,7 @@ impl<'err> Scanner<'err> {
             }
 
             value.push(c.ch);
-            self.source_code.next();
+            self.source_code.pop_front();
         }
 
         if let TokenKind::Invalid = kind {
@@ -224,27 +232,19 @@ impl<'err> Scanner<'err> {
         }
     }
 
-    // scan_comment should be called after scan_symbol. scan_comment assumes that the
-    // first two characters are not a valid operator symbol. scan_comment also assumes
-    // that if the first character read is '/', the second character must be '/' as well.
     fn scan_comment(&mut self) -> Option<Token> {
-        let c = self.source_code.next_if(|c| c.ch == '/')?;
+        let value = self.next_if_prefix("//")?;
+        let mut span = Span::new(value[0].file_id, value[0].offset, 2);
+        let mut value = String::from("//");
 
-        let mut value = String::from(c.ch);
-
-        let Some(c) = self.source_code.next_if(|c| c.ch == '/') else {
-            unreachable!();
-        };
-        value.push(c.ch);
-
-        for c in self.source_code.by_ref() {
+        while let Some(c) = self.source_code.pop_front() {
             value.push(c.ch);
             if c.ch == '\n' {
                 break;
             }
+            span.union(&Span::new(c.file_id, c.offset, 1));
         }
 
-        let span = Span::new(c.file_id, c.offset, value.len());
         Some(Token {
             kind: TokenKind::Comment,
             value: value.into(),
@@ -252,8 +252,23 @@ impl<'err> Scanner<'err> {
         })
     }
 
+    fn next_if_prefix(&mut self, prefix: &str) -> Option<Vec<CharPos>> {
+        for (i, c) in prefix.chars().enumerate() {
+            let charpos = self.source_code.get(i)?;
+            if charpos.ch != c {
+                return None;
+            }
+        }
+
+        let mut result = vec![];
+        for _ in 0..prefix.len() {
+            result.push(self.source_code.pop_front().unwrap());
+        }
+        Some(result)
+    }
+
     fn scan_unexpected_chars(&mut self) -> Option<Token> {
-        let char_pos = self.source_code.next()?;
+        let char_pos = self.source_code.pop_front()?;
         let c = char_pos.ch;
         let span = Span::new(char_pos.file_id, char_pos.offset, 1);
         self.err_channel.push(unexpected_char(span, c));
