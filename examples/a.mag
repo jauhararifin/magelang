@@ -10,10 +10,12 @@ fn arifin(): i64 {
 }
 
 fn main() {
-  print_i64(10);
-  print_i64(20);
-  print_i64(10+20*30);
-  print_i64(2<<5);
-  print_i64(123%10);
+  print_i64(10); // 10
+  print_i64(20); // 20
+  print_i64(10+20*30); // 610
+  print_i64(2<<5); // 64
+  print_i64(123%10); // 3
+  print_i64(123/10); // 12
+  print_i64(1<2); // 1
   return;
 }

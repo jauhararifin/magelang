@@ -520,12 +520,18 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
             | TokenKind::Gt
             | TokenKind::GEq
             | TokenKind::Lt
-            | TokenKind::LEq => {
-                if let Type::Int(int_ty) = a_ty.as_ref() {
-                    Type::Int(*int_ty)
-                } else if let Type::Float(real_ty) = a_ty.as_ref() {
-                    Type::Float(*real_ty)
-                } else {
+            | TokenKind::LEq => match a_ty.as_ref() {
+                Type::I64
+                | Type::I32
+                | Type::I16
+                | Type::I8
+                | Type::U64
+                | Type::U32
+                | Type::U16
+                | Type::U8
+                | Type::F64
+                | Type::F32 => a_ty.as_ref().clone(),
+                _ => {
                     self.err_channel.push(binop_type_unsupported(
                         expr.get_span(),
                         op_name,
@@ -533,16 +539,17 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
                     ));
                     Type::Invalid
                 }
-            }
+            },
             TokenKind::Mod
             | TokenKind::BitOr
             | TokenKind::BitAnd
             | TokenKind::BitXor
             | TokenKind::ShiftLeft
-            | TokenKind::ShiftRight => {
-                if let Type::Int(int_ty) = a_ty.as_ref() {
-                    Type::Int(*int_ty)
-                } else {
+            | TokenKind::ShiftRight => match a_ty.as_ref() {
+                Type::I64 | Type::I32 | Type::I16 | Type::I8 | Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
+                    a_ty.as_ref().clone()
+                }
+                _ => {
                     self.err_channel.push(binop_type_unsupported(
                         expr.get_span(),
                         op_name,
@@ -550,7 +557,7 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
                     ));
                     Type::Invalid
                 }
-            }
+            },
             TokenKind::And | TokenKind::Not | TokenKind::Or => {
                 if let Type::Bool = a_ty.as_ref() {
                     Type::Bool

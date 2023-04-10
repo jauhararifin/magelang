@@ -44,12 +44,20 @@ pub trait TypeDisplay {
     fn display(&self, type_loader: &TypeLoader) -> String;
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum Type {
     Invalid,
     Void,
-    Int(IntType),
-    Float(FloatType),
+    I64,
+    I32,
+    I16,
+    I8,
+    U64,
+    U32,
+    U16,
+    U8,
+    F32,
+    F64,
     Bool,
     Func(FuncType),
 }
@@ -65,38 +73,23 @@ impl TypeDisplay for Type {
         match self {
             Self::Invalid => String::from("INVALID"),
             Self::Void => String::from("void"),
-            Self::Int(int_ty) => int_ty.display(type_loader),
-            Self::Float(float_ty) => float_ty.display(type_loader),
+            Self::I64 => String::from("i64"),
+            Self::I32 => String::from("i32"),
+            Self::I16 => String::from("i16"),
+            Self::I8 => String::from("i8"),
+            Self::U64 => String::from("u64"),
+            Self::U32 => String::from("u32"),
+            Self::U16 => String::from("u16"),
+            Self::U8 => String::from("u8"),
+            Self::F32 => String::from("f32"),
+            Self::F64 => String::from("f64"),
             Self::Bool => String::from("boolean"),
             Self::Func(func_ty) => func_ty.display(type_loader),
         }
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
-pub struct IntType {
-    pub bitsize: usize,
-    pub signed: bool,
-}
-
-impl TypeDisplay for IntType {
-    fn display(&self, _type_loader: &TypeLoader) -> String {
-        format!("{}{}", if self.signed { "i" } else { "u" }, self.bitsize)
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
-pub struct FloatType {
-    pub bitsize: usize,
-}
-
-impl TypeDisplay for FloatType {
-    fn display(&self, _type_loader: &TypeLoader) -> String {
-        format!("f{}", self.bitsize)
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub struct FuncType {
     pub parameters: Vec<TypeId>,
     pub return_type: Option<TypeId>,

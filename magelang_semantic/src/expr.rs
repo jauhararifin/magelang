@@ -18,7 +18,7 @@ pub enum ExprKind {
     Call(Box<Expr>, Vec<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum BinOp {
     Add,
     Sub,
