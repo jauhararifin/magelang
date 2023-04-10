@@ -49,6 +49,8 @@ pub enum Type {
     Invalid,
     Void,
     Int(IntType),
+    Float(FloatType),
+    Bool,
     Func(FuncType),
 }
 
@@ -64,12 +66,14 @@ impl TypeDisplay for Type {
             Self::Invalid => String::from("INVALID"),
             Self::Void => String::from("void"),
             Self::Int(int_ty) => int_ty.display(type_loader),
+            Self::Float(float_ty) => float_ty.display(type_loader),
+            Self::Bool => String::from("boolean"),
             Self::Func(func_ty) => func_ty.display(type_loader),
         }
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub struct IntType {
     pub bitsize: usize,
     pub signed: bool,
@@ -78,6 +82,17 @@ pub struct IntType {
 impl TypeDisplay for IntType {
     fn display(&self, _type_loader: &TypeLoader) -> String {
         format!("{}{}", if self.signed { "i" } else { "u" }, self.bitsize)
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+pub struct FloatType {
+    pub bitsize: usize,
+}
+
+impl TypeDisplay for FloatType {
+    fn display(&self, _type_loader: &TypeLoader) -> String {
+        format!("f{}", self.bitsize)
     }
 }
 

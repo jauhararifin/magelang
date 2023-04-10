@@ -5,13 +5,15 @@ fn jauhar(a: i64): i64 {
   return a;
 }
 
-/*
 fn arifin(): i64 {
-  return 10;
+  return 10+10;
 }
 
 fn main() {
   print_i64(10);
   print_i64(20);
+  print_i64(10+20*30);
+  print_i64(2<<5);
+  print_i64(123%10);
   return;
 }

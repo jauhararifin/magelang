@@ -11,9 +11,33 @@ pub struct Expr {
 pub enum ExprKind {
     Invalid,
     I64(i64),
+    F64(f64),
     Local(usize),
     Func(FuncExpr),
+    Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
     Call(Box<Expr>, Vec<Expr>),
+}
+
+#[derive(Debug)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    BitOr,
+    BitAnd,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
+    And,
+    Or,
+    Eq,
+    NEq,
+    Gt,
+    GEq,
+    Lt,
+    LEq,
 }
 
 #[derive(Debug)]

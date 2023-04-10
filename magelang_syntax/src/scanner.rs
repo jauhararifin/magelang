@@ -33,11 +33,33 @@ static SYMBOLS: &[(&str, TokenKind)] = &[
     ("=", TokenKind::Equal),
     (":", TokenKind::Colon),
     (";", TokenKind::SemiColon),
+    (".", TokenKind::Dot),
+    ("!=", TokenKind::NEq),
+    ("!", TokenKind::Not),
+    ("==", TokenKind::Eq),
+    ("*", TokenKind::Mul),
+    ("+", TokenKind::Add),
+    ("-", TokenKind::Sub),
+    ("/", TokenKind::Div),
+    (":", TokenKind::Colon),
+    ("<<", TokenKind::ShiftLeft),
+    ("<=", TokenKind::LEq),
+    ("<", TokenKind::Lt),
+    (">>", TokenKind::ShiftRight),
+    (">=", TokenKind::GEq),
+    (">", TokenKind::Gt),
     ("{", TokenKind::OpenBlock),
     ("}", TokenKind::CloseBlock),
     ("(", TokenKind::OpenBrac),
     (")", TokenKind::CloseBrac),
     (",", TokenKind::Comma),
+    ("%", TokenKind::Mod),
+    ("&&", TokenKind::And),
+    ("&", TokenKind::BitAnd),
+    ("||", TokenKind::Or),
+    ("|", TokenKind::BitOr),
+    ("^", TokenKind::BitXor),
+    ("~", TokenKind::BitNot),
 ];
 
 struct Scanner<'err> {
@@ -58,8 +80,8 @@ impl<'err> Scanner<'err> {
         self.scan_word()
             .or_else(|| self.scan_string_lit())
             .or_else(|| self.scan_number_lit())
-            .or_else(|| self.scan_symbol())
             .or_else(|| self.scan_comment())
+            .or_else(|| self.scan_symbol())
             .or_else(|| self.scan_unexpected_chars())
     }
 
@@ -88,6 +110,7 @@ impl<'err> Scanner<'err> {
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,
+            "as" => TokenKind::As,
             _ => TokenKind::Ident,
         };
 

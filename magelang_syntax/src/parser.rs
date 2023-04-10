@@ -1,6 +1,7 @@
 use crate::ast::{
-    AstNode, BlockStatementNode, CallExprNode, ExprNode, FunctionNode, ImportNode, ItemNode, PackageNode,
-    ParameterNode, ReturnStatementNode, SignatureNode, StatementNode,
+    AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode, FunctionNode, ImportNode,
+    ItemNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode,
+    UnaryExprNode,
 };
 use crate::errors::unexpected_parsing;
 use crate::scanner::scan;
@@ -278,11 +279,63 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_expr(&mut self) -> Option<ExprNode> {
-        self.parse_call_expr()
+        self.parse_binary_expr(TokenKind::Or)
+    }
+
+    fn parse_binary_expr(&mut self, op: TokenKind) -> Option<ExprNode> {
+        let next_op = BINOP_PRECEDENCE.iter().skip_while(|p| *p != &op).nth(1);
+
+        let a = if let Some(next_op) = next_op {
+            self.parse_binary_expr(*next_op)?
+        } else {
+            self.parse_cast_expr()?
+        };
+
+        let mut result = a;
+        while let Some(op_token) = self.take_if(op) {
+            let b = if let Some(next_op) = next_op {
+                self.parse_binary_expr(*next_op)?
+            } else {
+                self.parse_cast_expr()?
+            };
+            result = ExprNode::Binary(BinaryExprNode {
+                a: Box::new(result),
+                op: op_token,
+                b: Box::new(b),
+            });
+        }
+
+        Some(result)
+    }
+
+    fn parse_cast_expr(&mut self) -> Option<ExprNode> {
+        let value = self.parse_unary_expr()?;
+        if self.take_if(TokenKind::As).is_some() {
+            let target = self.parse_expr()?;
+            Some(ExprNode::Cast(CastExprNode {
+                value: Box::new(value),
+                target: Box::new(target),
+            }))
+        } else {
+            Some(value)
+        }
+    }
+
+    fn parse_unary_expr(&mut self) -> Option<ExprNode> {
+        if UNARY_OP.contains(&self.kind()) {
+            let op = self.tokens.pop_front().unwrap();
+            let value = self.parse_call_expr()?;
+            Some(ExprNode::Unary(UnaryExprNode {
+                op,
+                value: Box::new(value),
+            }))
+        } else {
+            self.parse_call_expr()
+        }
     }
 
     fn parse_call_expr(&mut self) -> Option<ExprNode> {
-        let target = self.parse_primary_expr()?;
+        let target = self.parse_selection_expr()?;
 
         if self.kind() != TokenKind::OpenBrac {
             return Some(target);
@@ -300,6 +353,26 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             span,
             target: Box::new(target),
             arguments,
+        }))
+    }
+
+    fn parse_selection_expr(&mut self) -> Option<ExprNode> {
+        let value = self.parse_primary_expr()?;
+        if !self.take_if(TokenKind::Dot).is_some() {
+            return Some(value);
+        };
+        let selection = self.take_if(TokenKind::IntegerLit);
+        if let Some(selection) = selection {
+            return Some(ExprNode::Selection(SelectionExprNode {
+                value: Box::new(value),
+                selection,
+            }));
+        }
+
+        let selection = self.take(TokenKind::Ident)?;
+        Some(ExprNode::Selection(SelectionExprNode {
+            value: Box::new(value),
+            selection,
         }))
     }
 
@@ -365,6 +438,29 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         tokens
     }
 }
+
+const BINOP_PRECEDENCE: &[TokenKind] = &[
+    TokenKind::Or,
+    TokenKind::And,
+    TokenKind::BitOr,
+    TokenKind::BitXor,
+    TokenKind::BitAnd,
+    TokenKind::Eq,
+    TokenKind::NEq,
+    TokenKind::Lt,
+    TokenKind::LEq,
+    TokenKind::Gt,
+    TokenKind::GEq,
+    TokenKind::ShiftLeft,
+    TokenKind::ShiftRight,
+    TokenKind::Add,
+    TokenKind::Sub,
+    TokenKind::Mul,
+    TokenKind::Div,
+    TokenKind::Mod,
+];
+
+const UNARY_OP: &[TokenKind] = &[TokenKind::BitNot, TokenKind::Sub, TokenKind::Add, TokenKind::Not];
 
 pub fn parse_string_lit(s: &str) -> &str {
     s[1..s.len() - 1].into()

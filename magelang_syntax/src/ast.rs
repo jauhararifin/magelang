@@ -161,7 +161,7 @@ impl AstNode for ReturnStatementNode {
 pub enum ExprNode {
     Ident(Token),
     IntegerLiteral(Token),
-    RealLit(Token),
+    RealLiteral(Token),
     BooleanLit(Token),
     StringLit(Token),
     Binary(BinaryExprNode),
@@ -177,7 +177,7 @@ impl AstNode for ExprNode {
         match self {
             Self::Ident(val) => val.span.clone(),
             Self::IntegerLiteral(val) => val.span.clone(),
-            Self::RealLit(val) => val.span.clone(),
+            Self::RealLiteral(val) => val.span.clone(),
             Self::BooleanLit(val) => val.span.clone(),
             Self::StringLit(val) => val.span.clone(),
             Self::Binary(val) => val.get_span(),

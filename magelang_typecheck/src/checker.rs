@@ -4,12 +4,12 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, NativeFunction, Package, ReturnStatement, Statement,
-    Type, TypeDisplay, TypeId, TypeLoader,
+    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, NativeFunction, Package, ReturnStatement,
+    Statement, Type, TypeDisplay, TypeId, TypeLoader,
 };
 use magelang_syntax::{
-    parse_string_lit, AstLoader, AstNode, BlockStatementNode, CallExprNode, ExprNode, FunctionNode, ImportNode,
-    ItemNode, PackageNode, ReturnStatementNode, SignatureNode, StatementNode, Token,
+    parse_string_lit, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, ExprNode, FunctionNode,
+    ImportNode, ItemNode, PackageNode, ReturnStatementNode, SignatureNode, StatementNode, Token, TokenKind,
 };
 use std::iter::zip;
 use std::rc::Rc;
@@ -393,6 +393,8 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
         match expr_node {
             ExprNode::Ident(tok) => self.get_ident_expr(scope, tok),
             ExprNode::IntegerLiteral(tok) => self.get_int_lit_expr(scope, tok),
+            ExprNode::RealLiteral(tok) => self.get_real_lit_expr(scope, tok),
+            ExprNode::Binary(binary_expr) => self.get_binary_expr(scope, binary_expr),
             ExprNode::Call(call_expr) => self.get_call_expr(scope, call_expr),
             _ => todo!(),
         }
@@ -442,6 +444,158 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
         Expr {
             type_id: i64_type_id,
             kind,
+        }
+    }
+
+    fn get_real_lit_expr(&self, scope: &Rc<Scope>, tok: &Token) -> Expr {
+        let kind = match tok.value.parse::<f64>() {
+            Ok(v) => ExprKind::F64(v),
+            Err(err) => {
+                self.err_channel.push(invalid_real_literal(tok.span.clone(), err));
+                ExprKind::Invalid
+            }
+        };
+
+        let i64_type_id = self.symbol_loader.declare_symbol(I64);
+        let i64_type_id = scope
+            .get(i64_type_id)
+            .and_then(|v| v.as_type())
+            .expect("invalid state, f64 type should be found");
+
+        Expr {
+            type_id: i64_type_id,
+            kind,
+        }
+    }
+
+    fn get_binary_expr(&self, scope: &Rc<Scope>, expr: &BinaryExprNode) -> Expr {
+        let a_expr = self.get_expr(scope, &expr.a);
+        let b_expr = self.get_expr(scope, &expr.b);
+
+        let op_name = match expr.op.kind {
+            TokenKind::Add => "add",
+            TokenKind::Sub => "sub",
+            TokenKind::Mul => "mul",
+            TokenKind::Div => "div",
+            TokenKind::Mod => "mod",
+            TokenKind::BitOr => "bitwise or",
+            TokenKind::BitAnd => "bitwise and",
+            TokenKind::BitXor => "bitwise xor",
+            TokenKind::ShiftLeft => "shift left",
+            TokenKind::ShiftRight => "shift right",
+            TokenKind::And => "and",
+            TokenKind::Or => "or",
+            TokenKind::Eq => "eq",
+            TokenKind::NEq => "neq",
+            TokenKind::Gt => "gt",
+            TokenKind::GEq => "geq",
+            TokenKind::Lt => "lt",
+            TokenKind::LEq => "leq",
+            _ => unreachable!("found invalid token for binary operator"),
+        };
+
+        let a_ty = self.type_loader.get_type(a_expr.type_id).unwrap();
+        let b_ty = self.type_loader.get_type(b_expr.type_id).unwrap();
+
+        if a_expr.type_id != b_expr.type_id {
+            self.err_channel.push(binop_type_mismatch(
+                expr.get_span(),
+                op_name,
+                a_ty.display(self.type_loader),
+                b_ty.display(self.type_loader),
+            ));
+            return Expr {
+                type_id: a_expr.type_id,
+                kind: ExprKind::Invalid,
+            };
+        }
+
+        let result_ty = match expr.op.kind {
+            TokenKind::Add
+            | TokenKind::Sub
+            | TokenKind::Mul
+            | TokenKind::Div
+            | TokenKind::Eq
+            | TokenKind::NEq
+            | TokenKind::Gt
+            | TokenKind::GEq
+            | TokenKind::Lt
+            | TokenKind::LEq => {
+                if let Type::Int(int_ty) = a_ty.as_ref() {
+                    Type::Int(*int_ty)
+                } else if let Type::Float(real_ty) = a_ty.as_ref() {
+                    Type::Float(*real_ty)
+                } else {
+                    self.err_channel.push(binop_type_unsupported(
+                        expr.get_span(),
+                        op_name,
+                        a_ty.display(self.type_loader),
+                    ));
+                    Type::Invalid
+                }
+            }
+            TokenKind::Mod
+            | TokenKind::BitOr
+            | TokenKind::BitAnd
+            | TokenKind::BitXor
+            | TokenKind::ShiftLeft
+            | TokenKind::ShiftRight => {
+                if let Type::Int(int_ty) = a_ty.as_ref() {
+                    Type::Int(*int_ty)
+                } else {
+                    self.err_channel.push(binop_type_unsupported(
+                        expr.get_span(),
+                        op_name,
+                        a_ty.display(self.type_loader),
+                    ));
+                    Type::Invalid
+                }
+            }
+            TokenKind::And | TokenKind::Not | TokenKind::Or => {
+                if let Type::Bool = a_ty.as_ref() {
+                    Type::Bool
+                } else {
+                    self.err_channel.push(binop_type_unsupported(
+                        expr.get_span(),
+                        op_name,
+                        a_ty.display(self.type_loader),
+                    ));
+                    Type::Invalid
+                }
+            }
+            _ => todo!(),
+        };
+
+        let result_type_id = self.type_loader.declare_type(result_ty);
+        let op = match expr.op.kind {
+            TokenKind::Add => BinOp::Add,
+            TokenKind::Sub => BinOp::Sub,
+            TokenKind::Mul => BinOp::Mul,
+            TokenKind::Div => BinOp::Div,
+            TokenKind::Mod => BinOp::Mod,
+            TokenKind::BitOr => BinOp::BitOr,
+            TokenKind::BitAnd => BinOp::BitAnd,
+            TokenKind::BitXor => BinOp::BitXor,
+            TokenKind::ShiftLeft => BinOp::ShiftLeft,
+            TokenKind::ShiftRight => BinOp::ShiftRight,
+            TokenKind::And => BinOp::And,
+            TokenKind::Or => BinOp::Or,
+            TokenKind::Eq => BinOp::Eq,
+            TokenKind::NEq => BinOp::NEq,
+            TokenKind::Gt => BinOp::Gt,
+            TokenKind::GEq => BinOp::GEq,
+            TokenKind::Lt => BinOp::Lt,
+            TokenKind::LEq => BinOp::LEq,
+            _ => unreachable!("found invalid token for binary operator"),
+        };
+
+        Expr {
+            type_id: result_type_id,
+            kind: ExprKind::Binary {
+                a: Box::new(a_expr),
+                op,
+                b: Box::new(b_expr),
+            },
         }
     }
 

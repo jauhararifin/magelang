@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{IntType, Type, TypeId, TypeLoader};
+use magelang_semantic::{FloatType, IntType, Type, TypeId, TypeLoader};
 use std::rc::Rc;
 
 pub struct Scope {
@@ -35,12 +35,14 @@ pub enum ScopeKind {
 }
 
 pub const I64: &str = "i64";
+pub const F64: &str = "f64";
 
 impl Scope {
     pub fn global(type_loader: &TypeLoader, symbol_loader: &SymbolLoader) -> Rc<Self> {
         let mut symbols = IndexMap::<SymbolId, Object>::new();
 
         let i64_id = symbol_loader.declare_symbol(I64);
+        let f64_id = symbol_loader.declare_symbol(F64);
 
         symbols.insert(
             i64_id,
@@ -48,6 +50,10 @@ impl Scope {
                 bitsize: 64,
                 signed: true,
             }))),
+        );
+        symbols.insert(
+            f64_id,
+            Object::Type(type_loader.declare_type(Type::Float(FloatType { bitsize: 64 }))),
         );
 
         Rc::new(Self {

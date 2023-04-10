@@ -1,7 +1,7 @@
 use magelang_common::{Error, Pos, Span};
 use magelang_syntax::Token;
 use std::fmt::Display;
-use std::num::ParseIntError;
+use std::num::{ParseFloatError, ParseIntError};
 
 pub(crate) fn redeclared_symbol(name: &str, declared_at: Pos, redeclared_at: Span) -> Error {
     Error::new(
@@ -12,6 +12,10 @@ pub(crate) fn redeclared_symbol(name: &str, declared_at: Pos, redeclared_at: Spa
 
 pub(crate) fn invalid_integer_literal(span: Span, parse_int_err: ParseIntError) -> Error {
     Error::new(span, format!("Invalid integer literal: {parse_int_err}"))
+}
+
+pub(crate) fn invalid_real_literal(span: Span, parse_real_err: ParseFloatError) -> Error {
+    Error::new(span, format!("Invalid float literal: {parse_real_err}"))
 }
 
 pub(crate) fn empty_package_path(span: Span) -> Error {
@@ -43,6 +47,14 @@ pub(crate) fn function_is_void(span: Span) -> Error {
 
 pub(crate) fn type_mismatch(span: Span, expected: impl Display, got: impl Display) -> Error {
     Error::new(span, format!("Cannot use {got} for type {expected}"))
+}
+
+pub(crate) fn binop_type_mismatch(span: Span, op: impl Display, a: impl Display, b: impl Display) -> Error {
+    Error::new(span, format!("Cannot perform {op} operation for {a} and {b}"))
+}
+
+pub(crate) fn binop_type_unsupported(span: Span, op: impl Display, ty: impl Display) -> Error {
+    Error::new(span, format!("Cannot perform {op} operation on {ty}"))
 }
 
 pub(crate) fn undeclared_symbol(token: Token) -> Error {

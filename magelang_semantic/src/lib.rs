@@ -1,10 +1,10 @@
-mod types;
 mod expr;
 mod statement;
+mod types;
 
-pub use types::{TypeId, Type, FuncType, IntType, TypeDisplay, TypeLoader};
-pub use expr::{Expr, ExprKind, FuncExpr};
-pub use statement::{Statement, BlockStatement, ReturnStatement};
+pub use expr::{BinOp, Expr, ExprKind, FuncExpr};
+pub use statement::{BlockStatement, ReturnStatement, Statement};
+pub use types::{FloatType, FuncType, IntType, Type, TypeDisplay, TypeId, TypeLoader};
 
 use magelang_common::SymbolId;
 
@@ -29,4 +29,3 @@ pub struct Func {
     pub func_type: FuncType,
     pub body: Statement,
 }
-
