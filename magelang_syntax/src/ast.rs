@@ -161,7 +161,15 @@ impl AstNode for ReturnStatementNode {
 pub enum ExprNode {
     Ident(Token),
     IntegerLiteral(Token),
+    RealLit(Token),
+    BooleanLit(Token),
+    StringLit(Token),
+    Binary(BinaryExprNode),
+    Unary(UnaryExprNode),
     Call(CallExprNode),
+    Cast(CastExprNode),
+    Selection(SelectionExprNode),
+    Grouped(GroupedExprNode),
 }
 
 impl AstNode for ExprNode {
@@ -169,8 +177,45 @@ impl AstNode for ExprNode {
         match self {
             Self::Ident(val) => val.span.clone(),
             Self::IntegerLiteral(val) => val.span.clone(),
+            Self::RealLit(val) => val.span.clone(),
+            Self::BooleanLit(val) => val.span.clone(),
+            Self::StringLit(val) => val.span.clone(),
+            Self::Binary(val) => val.get_span(),
+            Self::Unary(val) => val.get_span(),
             Self::Call(expr) => expr.span.clone(),
+            Self::Cast(val) => val.get_span(),
+            Self::Selection(val) => val.get_span(),
+            Self::Grouped(val) => val.get_span(),
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BinaryExprNode {
+    pub a: Box<ExprNode>,
+    pub op: Token,
+    pub b: Box<ExprNode>,
+}
+
+impl AstNode for BinaryExprNode {
+    fn get_span(&self) -> Span {
+        let mut s = self.a.get_span();
+        s.union(&self.b.get_span());
+        s
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnaryExprNode {
+    pub op: Token,
+    pub value: Box<ExprNode>,
+}
+
+impl AstNode for UnaryExprNode {
+    fn get_span(&self) -> Span {
+        let mut s = self.op.span.clone();
+        s.union(&self.value.get_span());
+        s
     }
 }
 
@@ -184,5 +229,44 @@ pub struct CallExprNode {
 impl AstNode for CallExprNode {
     fn get_span(&self) -> Span {
         self.span.clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CastExprNode {
+    pub value: Box<ExprNode>,
+    pub target: Box<ExprNode>,
+}
+
+impl AstNode for CastExprNode {
+    fn get_span(&self) -> Span {
+        let mut s = self.value.get_span();
+        s.union(&self.target.get_span());
+        s
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SelectionExprNode {
+    pub value: Box<ExprNode>,
+    pub selection: Token,
+}
+
+impl AstNode for SelectionExprNode {
+    fn get_span(&self) -> Span {
+        let mut s = self.value.get_span();
+        s.union(&self.selection.span);
+        s
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct GroupedExprNode {
+    pub value: Box<ExprNode>,
+}
+
+impl AstNode for GroupedExprNode {
+    fn get_span(&self) -> Span {
+        self.value.get_span()
     }
 }

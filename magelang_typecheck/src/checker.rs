@@ -394,6 +394,7 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
             ExprNode::Ident(tok) => self.get_ident_expr(scope, tok),
             ExprNode::IntegerLiteral(tok) => self.get_int_lit_expr(scope, tok),
             ExprNode::Call(call_expr) => self.get_call_expr(scope, call_expr),
+            _ => todo!(),
         }
     }
 
