@@ -50,6 +50,8 @@ pub enum TokenKind {
     IntegerLit,
     StringLit,
     RealLit,
+    True,
+    False,
 }
 
 impl std::fmt::Display for TokenKind {
@@ -95,6 +97,8 @@ impl std::fmt::Display for TokenKind {
             Self::IntegerLit => write!(f, "IntegerLit"),
             Self::StringLit => write!(f, "StringLit"),
             Self::RealLit => write!(f, "RealLit"),
+            Self::True => write!(f, "True"),
+            Self::False => write!(f, "False"),
         }
     }
 }

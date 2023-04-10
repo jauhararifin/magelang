@@ -1,6 +1,6 @@
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoader};
-use walrus::{ir::BinaryOp, FunctionBuilder, InstrSeqBuilder, LocalId, Module, ValType};
+use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoader, UnOp};
+use walrus::{ir::BinaryOp, ir::UnaryOp, FunctionBuilder, InstrSeqBuilder, LocalId, Module, ValType};
 
 pub struct Compiler<'sym, 'typ> {
     symbol_loader: &'sym SymbolLoader,
@@ -131,8 +131,37 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             ExprKind::I64(val) => {
                 builder.i64_const(*val);
             }
+            ExprKind::I32(val) => {
+                builder.i32_const(*val);
+            }
+            ExprKind::I16(val) => {
+                builder.i32_const(*val as i32);
+                builder.unop(UnaryOp::I32Extend16S);
+            }
+            ExprKind::I8(val) => {
+                builder.i32_const(*val as i32);
+                builder.unop(UnaryOp::I32Extend8S);
+            }
+            ExprKind::U64(val) => {
+                builder.i64_const(*val as i64);
+            }
+            ExprKind::U32(val) => {
+                builder.i32_const(*val as i32);
+            }
+            ExprKind::U16(val) => {
+                builder.i32_const(*val as i32);
+            }
+            ExprKind::U8(val) => {
+                builder.i32_const(*val as i32);
+            }
             ExprKind::F64(val) => {
                 builder.f64_const(*val);
+            }
+            ExprKind::F32(val) => {
+                builder.f32_const(*val);
+            }
+            ExprKind::Bool(val) => {
+                builder.i32_const(if *val { 1 } else { 0 });
             }
             ExprKind::Local(index) => {
                 builder.local_get(variables[*index]);
@@ -268,6 +297,49 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     (BinOp::LEq, Type::U32) => builder.binop(BinaryOp::I32LeU),
                     (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
                     (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
+                    _ => unreachable!(),
+                };
+            }
+            ExprKind::Unary { op, val } => {
+                let ty = self.type_loader.get_type(val.type_id).unwrap();
+
+                match (op, ty.as_ref()) {
+                    (UnOp::BitNot, Type::I64 | Type::U64) => {
+                        builder.i64_const(-1);
+                        self.process_expr(module, builder, variables, val);
+                        builder.binop(BinaryOp::I64Xor);
+                    }
+                    (UnOp::BitNot, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                        builder.i32_const(-1);
+                        self.process_expr(module, builder, variables, val);
+                        builder.binop(BinaryOp::I32Xor);
+                    }
+                    (UnOp::Add, _) => {
+                        self.process_expr(module, builder, variables, val);
+                    }
+                    (UnOp::Sub, Type::I64 | Type::U64) => {
+                        builder.i64_const(0);
+                        self.process_expr(module, builder, variables, val);
+                        builder.binop(BinaryOp::I64Sub);
+                    }
+                    (UnOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                        builder.i32_const(0);
+                        self.process_expr(module, builder, variables, val);
+                        builder.binop(BinaryOp::I32Sub);
+                    }
+                    (UnOp::Sub, Type::F64) => {
+                        self.process_expr(module, builder, variables, val);
+                        builder.unop(UnaryOp::F64Neg);
+                    }
+                    (UnOp::Sub, Type::F32) => {
+                        self.process_expr(module, builder, variables, val);
+                        builder.unop(UnaryOp::F32Neg);
+                    }
+                    (UnOp::Not, _) => {
+                        builder.i32_const(1);
+                        self.process_expr(module, builder, variables, val);
+                        builder.binop(BinaryOp::I32Xor);
+                    }
                     _ => unreachable!(),
                 };
             }

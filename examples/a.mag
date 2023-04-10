@@ -16,6 +16,6 @@ fn main() {
   print_i64(2<<5); // 64
   print_i64(123%10); // 3
   print_i64(123/10); // 12
-  print_i64(1<2); // 1
+  print_i64(1 | 2 | 4); // 7
   return;
 }

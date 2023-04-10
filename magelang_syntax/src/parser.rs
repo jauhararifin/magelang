@@ -358,7 +358,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_selection_expr(&mut self) -> Option<ExprNode> {
         let value = self.parse_primary_expr()?;
-        if !self.take_if(TokenKind::Dot).is_some() {
+        if self.take_if(TokenKind::Dot).is_none() {
             return Some(value);
         };
         let selection = self.take_if(TokenKind::IntegerLit);

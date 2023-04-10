@@ -111,6 +111,8 @@ impl<'err> Scanner<'err> {
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,
             "as" => TokenKind::As,
+            "true" => TokenKind::True,
+            "false" => TokenKind::False,
             _ => TokenKind::Ident,
         };
 

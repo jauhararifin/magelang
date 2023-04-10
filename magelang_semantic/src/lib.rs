@@ -2,7 +2,7 @@ mod expr;
 mod statement;
 mod types;
 
-pub use expr::{BinOp, Expr, ExprKind, FuncExpr};
+pub use expr::{BinOp, Expr, ExprKind, FuncExpr, UnOp};
 pub use statement::{BlockStatement, ReturnStatement, Statement};
 pub use types::{FuncType, Type, TypeDisplay, TypeId, TypeLoader};
 

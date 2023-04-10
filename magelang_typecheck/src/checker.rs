@@ -1,15 +1,16 @@
 use crate::errors::*;
-use crate::scope::{Object, Scope, ScopeKind, I64};
+use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I64};
 use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
     BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, NativeFunction, Package, ReturnStatement,
-    Statement, Type, TypeDisplay, TypeId, TypeLoader,
+    Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
 };
 use magelang_syntax::{
     parse_string_lit, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, ExprNode, FunctionNode,
     ImportNode, ItemNode, PackageNode, ReturnStatementNode, SignatureNode, StatementNode, Token, TokenKind,
+    UnaryExprNode,
 };
 use std::iter::zip;
 use std::rc::Rc;
@@ -394,8 +395,11 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
             ExprNode::Ident(tok) => self.get_ident_expr(scope, tok),
             ExprNode::IntegerLiteral(tok) => self.get_int_lit_expr(scope, tok),
             ExprNode::RealLiteral(tok) => self.get_real_lit_expr(scope, tok),
+            ExprNode::BooleanLit(tok) => self.get_bool_lit_expr(scope, tok),
             ExprNode::Binary(binary_expr) => self.get_binary_expr(scope, binary_expr),
+            ExprNode::Unary(unary_expr) => self.get_unary_expr(scope, unary_expr),
             ExprNode::Call(call_expr) => self.get_call_expr(scope, call_expr),
+            ExprNode::Grouped(expr) => self.get_expr(scope, &expr.value),
             _ => todo!(),
         }
     }
@@ -456,14 +460,35 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
             }
         };
 
-        let i64_type_id = self.symbol_loader.declare_symbol(I64);
-        let i64_type_id = scope
-            .get(i64_type_id)
+        let f64_type_id = self.symbol_loader.declare_symbol(F64);
+        let f64_type_id = scope
+            .get(f64_type_id)
             .and_then(|v| v.as_type())
             .expect("invalid state, f64 type should be found");
 
         Expr {
-            type_id: i64_type_id,
+            type_id: f64_type_id,
+            kind,
+        }
+    }
+
+    fn get_bool_lit_expr(&self, scope: &Rc<Scope>, tok: &Token) -> Expr {
+        let kind = if tok.kind == TokenKind::True {
+            ExprKind::Bool(true)
+        } else if tok.kind == TokenKind::False {
+            ExprKind::Bool(false)
+        } else {
+            ExprKind::Invalid
+        };
+
+        let bool_type_id = self.symbol_loader.declare_symbol(BOOL);
+        let bool_type_id = scope
+            .get(bool_type_id)
+            .and_then(|v| v.as_type())
+            .expect("invalid state, bool type should be found");
+
+        Expr {
+            type_id: bool_type_id,
             kind,
         }
     }
@@ -602,6 +627,52 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
                 a: Box::new(a_expr),
                 op,
                 b: Box::new(b_expr),
+            },
+        }
+    }
+
+    fn get_unary_expr(&self, scope: &Rc<Scope>, expr: &UnaryExprNode) -> Expr {
+        let val_expr = self.get_expr(scope, &expr.value);
+        let val_ty = self.type_loader.get_type(val_expr.type_id).unwrap();
+
+        let op_name = match expr.op.kind {
+            TokenKind::BitNot => "bit not",
+            TokenKind::Sub => "sub",
+            TokenKind::Add => "add",
+            TokenKind::Not => "not",
+            _ => unreachable!("found invalid token for unary operator"),
+        };
+
+        let (is_bool, is_number, is_int) = match val_ty.as_ref() {
+            Type::I64 | Type::I32 | Type::I16 | Type::I8 | Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
+                (false, true, true)
+            }
+            Type::F64 | Type::F32 => (false, true, false),
+            Type::Bool => (true, false, false),
+            _ => unreachable!(),
+        };
+
+        let (op, is_valid) = match expr.op.kind {
+            TokenKind::BitNot => (UnOp::BitNot, is_int),
+            TokenKind::Sub => (UnOp::Sub, is_number),
+            TokenKind::Add => (UnOp::Add, is_number),
+            TokenKind::Not => (UnOp::Not, is_bool),
+            _ => unreachable!("found invalid token for unary operator"),
+        };
+
+        if !is_valid {
+            self.err_channel.push(unop_type_unsupported(
+                expr.get_span(),
+                op_name,
+                val_ty.display(self.type_loader),
+            ));
+        }
+
+        Expr {
+            type_id: val_expr.type_id,
+            kind: ExprKind::Unary {
+                op,
+                val: Box::new(val_expr),
             },
         }
     }

@@ -54,7 +54,11 @@ pub(crate) fn binop_type_mismatch(span: Span, op: impl Display, a: impl Display,
 }
 
 pub(crate) fn binop_type_unsupported(span: Span, op: impl Display, ty: impl Display) -> Error {
-    Error::new(span, format!("Cannot perform {op} operation on {ty}"))
+    Error::new(span, format!("Cannot perform {op} binary operation on {ty}"))
+}
+
+pub(crate) fn unop_type_unsupported(span: Span, op: impl Display, ty: impl Display) -> Error {
+    Error::new(span, format!("Cannot perform {op} unary operation on {ty}"))
 }
 
 pub(crate) fn undeclared_symbol(token: Token) -> Error {
