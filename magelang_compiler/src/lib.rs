@@ -1,5 +1,6 @@
 use magelang_common::{SymbolId, SymbolLoader};
 use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoader, UnOp};
+use std::rc::Rc;
 use walrus::{ir::BinaryOp, ir::UnaryOp, FunctionBuilder, InstrSeqBuilder, LocalId, Module, ValType};
 
 pub struct Compiler<'sym, 'typ> {
@@ -15,13 +16,13 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         }
     }
 
-    pub fn compile(&self, packages: Vec<Package>, main_package: SymbolId, mut target: impl std::io::Write) {
+    pub fn compile(&self, packages: Vec<Rc<Package>>, main_package: SymbolId, mut target: impl std::io::Write) {
         let mut module = Module::default();
 
-        for pkg in packages {
+        for pkg in &packages {
             let pkg_name = self.symbol_loader.get_symbol(pkg.name).unwrap();
 
-            for func in pkg.native_functions {
+            for func in &pkg.native_functions {
                 let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
 
                 let mut return_type = vec![];
@@ -33,8 +34,8 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
                 let mut param_types = vec![];
                 let mut variables = vec![];
-                for param_ty in func.func_type.parameters {
-                    let param_ty = self.type_loader.get_type(param_ty).unwrap();
+                for param_ty in &func.func_type.parameters {
+                    let param_ty = self.type_loader.get_type(*param_ty).unwrap();
                     let param_ty = to_wasm_type(&param_ty);
                     param_types.push(param_ty);
                     variables.push(module.locals.add(param_ty));
@@ -54,7 +55,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 builder.finish(variables.to_vec(), &mut module.funcs);
             }
 
-            for func in pkg.functions {
+            for func in &pkg.functions {
                 let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
 
                 let mut return_type = vec![];
@@ -78,7 +79,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let mut builder = FunctionBuilder::new(&mut module.types, &param_types, &return_type);
                 builder.name(mangled_func);
                 let mut body_builder = builder.func_body();
-                self.process_statement(&module, &mut body_builder, &variables, func.body);
+                self.process_statement(&module, &mut body_builder, &variables, &func.body);
 
                 let function = builder.finish(
                     variables
@@ -104,16 +105,16 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         module: &Module,
         builder: &mut InstrSeqBuilder,
         variables: &[LocalId],
-        stmt: Statement,
+        stmt: &Statement,
     ) {
         match stmt {
             Statement::Block(block) => {
-                for stmt in block.statements {
+                for stmt in &block.statements {
                     self.process_statement(module, builder, variables, stmt);
                 }
             }
             Statement::Return(ret_stmt) => {
-                if let Some(val) = ret_stmt.value {
+                if let Some(ref val) = ret_stmt.value {
                     self.process_expr(module, builder, variables, &val);
                 }
                 builder.return_();

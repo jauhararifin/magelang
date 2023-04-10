@@ -1,13 +1,13 @@
 use crate::types::TypeId;
 use magelang_common::SymbolId;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Expr {
     pub type_id: TypeId,
     pub kind: ExprKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExprKind {
     Invalid,
     I64(i64),
@@ -58,7 +58,7 @@ pub enum UnOp {
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FuncExpr {
     pub package_name: SymbolId,
     pub function_name: SymbolId,
