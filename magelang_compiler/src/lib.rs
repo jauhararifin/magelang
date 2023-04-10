@@ -51,7 +51,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     body_builder.local_get(*var);
                 }
                 body_builder.call(func_id);
-                builder.finish(variables.iter().cloned().collect(), &mut module.funcs);
+                builder.finish(variables.to_vec(), &mut module.funcs);
             }
 
             for func in pkg.functions {

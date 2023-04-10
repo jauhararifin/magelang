@@ -20,7 +20,7 @@ pub enum Object {
 impl Object {
     pub fn as_type(&self) -> Option<TypeId> {
         if let Object::Type(ty) = self {
-            Some(ty.clone())
+            Some(*ty)
         } else {
             None
         }
@@ -87,7 +87,7 @@ impl Scope {
 
     pub fn return_type(&self) -> Option<TypeId> {
         if let ScopeKind::Function(ref ret_type) = self.kind {
-            ret_type.clone()
+            *ret_type
         } else if let Some(ref parent) = self.parent {
             parent.return_type()
         } else {

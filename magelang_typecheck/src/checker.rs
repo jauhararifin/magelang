@@ -43,7 +43,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     }
 
     pub fn check_all(&self, main_package: SymbolId) -> Vec<Package> {
-        let global_scope = Scope::global(&self.type_loader, &self.symbol_loader);
+        let global_scope = Scope::global(self.type_loader, self.symbol_loader);
         let package_names = self.package_util.get_all_packages(main_package);
         let mut packages = vec![];
         for pkg_name in package_names {
@@ -64,7 +64,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     }
 }
 
-pub struct PackageChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
+struct PackageChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
     err_channel: &'err ErrorAccumulator,
     symbol_loader: &'sym SymbolLoader,
     file_loader: &'file FileLoader<'err>,
@@ -80,7 +80,7 @@ pub struct PackageChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
 }
 
 impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> PackageChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
-    pub fn new(
+    fn new(
         err_channel: &'err ErrorAccumulator,
         symbol_loader: &'sym SymbolLoader,
         file_loader: &'file FileLoader<'err>,
@@ -109,7 +109,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> PackageChecker<'err, 'sym, 'file, 'pkg
         let path = self.package_util.get_package_path(self.package_name);
         let file_id = self.file_loader.declare_file(path);
         let ast = self.ast_loader.get_ast(file_id);
-        let scope = self.get_package_scope(global_scope.clone(), self.package_name, &ast);
+        let scope = self.get_package_scope(global_scope, self.package_name, &ast);
 
         for (name, items) in &ast.items {
             self.check_named_items(file_id, scope.clone(), *name, items);
@@ -131,7 +131,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> PackageChecker<'err, 'sym, 'file, 'pkg
         }
     }
 
-    fn check_named_items(&mut self, file_id: FileId, package_scope: Rc<Scope>, name: SymbolId, items: &Vec<ItemNode>) {
+    fn check_named_items(&mut self, file_id: FileId, package_scope: Rc<Scope>, name: SymbolId, items: &[ItemNode]) {
         let mut item_iter = items.iter();
         let first_item = item_iter.next().unwrap();
         for item in item_iter {
@@ -176,13 +176,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> PackageChecker<'err, 'sym, 'file, 'pkg
                     Object::Func(type_id)
                 }
                 ItemNode::NativeFunction(signature) => {
-                    let func_ty = self.helper.get_func_type(&global_scope, &signature);
+                    let func_ty = self.helper.get_func_type(&global_scope, signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
                     Object::Func(type_id)
                 }
             };
 
-            symbols.insert(name.clone(), object);
+            symbols.insert(*name, object);
         }
 
         global_scope.new_child(ScopeKind::Package(package_name), symbols)
@@ -272,7 +272,7 @@ impl<'err, 'sym, 'typ> FunctionChecker<'err, 'sym, 'typ> {
             self.local_count += 1;
         }
 
-        let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type.clone()), symbols);
+        let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type), symbols);
         let body = self.check_block_statement(&func_scope, &func_node.body);
 
         Func {
@@ -418,7 +418,7 @@ impl<'err, 'sym, 'typ> TypeCheckHelper<'err, 'sym, 'typ> {
             },
             _ => {
                 self.err_channel.push(not_a_value(tok.span.clone()));
-                return self.invalid_value_object();
+                self.invalid_value_object()
             }
         }
     }

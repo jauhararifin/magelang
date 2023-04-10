@@ -15,7 +15,7 @@ pub(crate) fn parse(
     symbol_loader: &SymbolLoader,
     file_info: &FileInfo,
 ) -> Rc<PackageNode> {
-    let tokens = scan(err_channel, &file_info);
+    let tokens = scan(err_channel, file_info);
     let mut comments = vec![];
     let mut filtered_tokens = vec![];
     for tok in tokens {
@@ -138,7 +138,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     fn parse_func(&mut self) -> Option<ItemNode> {
         let signature = self.parse_signature()?;
         let mut span = signature.get_span();
-        if let Some(_) = self.take_if(TokenKind::SemiColon) {
+        if self.take_if(TokenKind::SemiColon).is_some() {
             return Some(ItemNode::NativeFunction(signature));
         }
 
@@ -158,7 +158,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             Self::parse_parameter,
         )?;
         span.union(&close_brac.span);
-        let return_type = if let Some(_) = self.take_if(TokenKind::Colon) {
+        let return_type = if self.take_if(TokenKind::Colon).is_some() {
             let Some(expr) = self.parse_expr() else {
                 self.err_channel.push(unexpected_parsing(
                     span,
@@ -304,13 +304,9 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_primary_expr(&mut self) -> Option<ExprNode> {
-        if let Some(ident) = self.take_if(TokenKind::Ident) {
-            Some(ExprNode::Ident(ident))
-        } else if let Some(expr) = self.take_if(TokenKind::IntegerLit) {
-            Some(ExprNode::IntegerLiteral(expr))
-        } else {
-            None
-        }
+        self.take_if(TokenKind::Ident)
+            .map(ExprNode::Ident)
+            .or_else(|| self.take_if(TokenKind::IntegerLit).map(ExprNode::IntegerLiteral))
     }
 
     fn token(&mut self) -> Token {

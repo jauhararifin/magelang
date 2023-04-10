@@ -37,10 +37,10 @@ struct RunArgs {
 fn main() {
     let args = CliArgs::parse();
 
-    let err_accumulator = ErrorAccumulator::new();
-    let symbol_loader = SymbolLoader::new();
+    let err_accumulator = ErrorAccumulator::default();
+    let symbol_loader = SymbolLoader::default();
     let file_loader = FileLoader::new(&err_accumulator);
-    let type_loader = TypeLoader::new();
+    let type_loader = TypeLoader::default();
     let ast_loader = AstLoader::new(&err_accumulator, &file_loader, &symbol_loader);
     let package_util = PackageUtil::new(&file_loader, &ast_loader, &symbol_loader);
     let type_checker = TypeChecker::new(
@@ -62,7 +62,7 @@ fn main() {
                 has_error = true;
                 if let Some(span) = &err.span {
                     let file_info = file_loader.get_file(span.file_id).unwrap();
-                    let pos = file_info.get_pos(&span);
+                    let pos = file_info.get_pos(span);
                     eprintln!("{}: {}", pos, err.message);
                 } else {
                     eprintln!("{}", err.message);
@@ -78,8 +78,7 @@ fn main() {
             path.set_extension("wasm");
             let filename = arg
                 .output_file
-                .as_ref()
-                .map(|v| v.as_str())
+                .as_deref()
                 .or_else(|| path.file_name().and_then(|v| v.to_str()))
                 .unwrap_or("main.wasm");
 
@@ -89,7 +88,7 @@ fn main() {
         }
         Command::Run(arg) => {
             let module_byte = read(arg.file).unwrap();
-            let runner = Runner::new();
+            let runner = Runner::default();
             runner.run(&module_byte);
         }
     }

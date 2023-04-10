@@ -10,14 +10,16 @@ pub struct SymbolLoader {
     id_to_symbol: RefCell<HashMap<SymbolId, Rc<str>>>,
 }
 
-impl SymbolLoader {
-    pub fn new() -> Self {
+impl Default for SymbolLoader {
+    fn default() -> Self {
         Self {
             symbol_to_id: RefCell::new(HashMap::new()),
             id_to_symbol: RefCell::new(HashMap::new()),
         }
     }
+}
 
+impl SymbolLoader {
     pub fn declare_symbol<T: AsRef<str>>(&self, symbol: T) -> SymbolId {
         let symbol: Rc<str> = symbol.as_ref().into();
         let mut symbol_to_id = self.symbol_to_id.borrow_mut();

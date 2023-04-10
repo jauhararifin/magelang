@@ -37,7 +37,7 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
                 let next_pkg = parse_string_lit(&import_node.path.value);
                 let next_pkg = self.symbol_loader.declare_symbol(next_pkg);
                 if !packages.contains(&next_pkg) {
-                    packages.insert(next_pkg.clone());
+                    packages.insert(next_pkg);
                     stack.push(next_pkg);
                 }
             }

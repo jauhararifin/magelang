@@ -72,10 +72,10 @@ impl<'err> FileLoader<'err> {
         }
 
         if let Some(path) = id_to_path.get(&file_id) {
-            let text = match read_to_string(&path) {
+            let text = match read_to_string(path) {
                 Ok(text) => text,
                 Err(err) => {
-                    self.err_channel.push(read_file_error(&path, err));
+                    self.err_channel.push(read_file_error(path, err));
                     String::new()
                 }
             };

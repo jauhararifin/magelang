@@ -29,7 +29,7 @@ struct CharPos {
     offset: usize,
 }
 
-static SYMBOLS: &[(&'static str, TokenKind)] = &[
+static SYMBOLS: &[(&str, TokenKind)] = &[
     ("=", TokenKind::Equal),
     (":", TokenKind::Colon),
     (";", TokenKind::SemiColon),

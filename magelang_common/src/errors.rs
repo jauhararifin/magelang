@@ -23,13 +23,15 @@ pub struct ErrorAccumulator {
     errors: RefCell<Vec<Error>>,
 }
 
-impl ErrorAccumulator {
-    pub fn new() -> Self {
+impl Default for ErrorAccumulator {
+    fn default() -> Self {
         Self {
             errors: RefCell::new(vec![]),
         }
     }
+}
 
+impl ErrorAccumulator {
     pub fn push(&self, err: Error) {
         self.errors.borrow_mut().push(err);
     }

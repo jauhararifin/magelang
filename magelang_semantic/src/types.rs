@@ -10,14 +10,16 @@ pub struct TypeLoader {
     id_to_type: RefCell<HashMap<TypeId, Rc<Type>>>,
 }
 
-impl TypeLoader {
-    pub fn new() -> Self {
+impl Default for TypeLoader {
+    fn default() -> Self {
         Self {
             type_to_id: RefCell::new(HashMap::new()),
             id_to_type: RefCell::new(HashMap::new()),
         }
     }
+}
 
+impl TypeLoader {
     pub fn declare_type(&self, ty: Type) -> TypeId {
         let mut type_to_id = self.type_to_id.borrow_mut();
         let mut id_to_type = self.id_to_type.borrow_mut();
@@ -90,7 +92,7 @@ impl TypeDisplay for FuncType {
         let mut s = String::from("func(");
         for (i, param) in self.parameters.iter().enumerate() {
             if i > 0 {
-                s.push_str(",");
+                s.push(',');
             }
             s.push_str(&type_loader.get_type(*param).unwrap().display(type_loader));
         }

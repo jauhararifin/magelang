@@ -1,12 +1,9 @@
 use wasmtime::{Caller, Engine, Linker, Module, Store};
 
+#[derive(Default)]
 pub struct Runner {}
 
 impl Runner {
-    pub fn new() -> Self {
-        Self {}
-    }
-
     pub fn run(&self, module_bin: &[u8]) {
         let engine = Engine::default();
         let module = Module::from_binary(&engine, module_bin).unwrap();
