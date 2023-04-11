@@ -357,7 +357,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let symbol_id = self.symbol_loader.declare_symbol(&tok.value);
         let Some(ident_object) = scope.get(symbol_id) else {
             self.err_channel.push(undeclared_symbol(tok.clone()));
-            return self.invalid_value_object();
+            return self.invalid_value_expr();
         };
 
         match ident_object {
@@ -374,7 +374,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             },
             _ => {
                 self.err_channel.push(not_a_value(tok.span.clone()));
-                self.invalid_value_object()
+                self.invalid_value_expr()
             }
         }
     }
@@ -592,14 +592,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             _ => unreachable!("found invalid token for unary operator"),
         };
 
-        let (is_bool, is_number, is_int) = match val_ty.as_ref() {
-            Type::I64 | Type::I32 | Type::I16 | Type::I8 | Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
-                (false, true, true)
-            }
-            Type::F64 | Type::F32 => (false, true, false),
-            Type::Bool => (true, false, false),
-            _ => unreachable!(),
-        };
+        let is_bool = val_ty.is_bool();
+        let is_number = val_ty.is_numeric();
+        let is_int = val_ty.is_int();
 
         let (op, is_valid) = match expr.op.kind {
             TokenKind::BitNot => (UnOp::BitNot, is_int),
@@ -631,7 +626,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let ty = self.type_loader.get_type(func_expr.type_id).unwrap();
         let Type::Func(func_type) = ty.as_ref() else {
             self.err_channel.push(not_a_func(call_expr.target.get_span()));
-            return self.invalid_value_object();
+            return self.invalid_value_expr();
         };
 
         if call_expr.arguments.len() != func_type.parameters.len() {
@@ -640,7 +635,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 func_type.parameters.len(),
                 call_expr.arguments.len(),
             ));
-            return self.invalid_value_object();
+            return self.invalid_value_expr();
         }
 
         let mut arguments = vec![];
@@ -656,7 +651,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     param_ty.display(self.type_loader),
                     arg_ty.display(self.type_loader),
                 ));
-                return self.invalid_value_object();
+                return self.invalid_value_expr();
             }
 
             arguments.push(arg_expr);
@@ -674,8 +669,38 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_cast_expr(&self, _scope: &Rc<Scope>, _call_expr: &CastExprNode) -> Expr {
-        todo!();
+    fn get_cast_expr(&self, scope: &Rc<Scope>, cast_expr: &CastExprNode) -> Expr {
+        let target_type_id = self.get_expr_type(scope, &cast_expr.target);
+        let target_ty = self.type_loader.get_type(target_type_id).unwrap();
+        let target_is_number = target_ty.is_numeric();
+
+        if let Type::Invalid = target_ty.as_ref() {
+            return self.invalid_value_expr();
+        }
+
+        let value = self.get_expr(scope, &cast_expr.value);
+        if let ExprKind::Invalid = value.kind {
+            return value;
+        }
+
+        let initial_ty = self.type_loader.get_type(value.type_id).unwrap();
+        let initial_is_number = initial_ty.is_numeric();
+
+        let kind = if initial_is_number && target_is_number {
+            ExprKind::Cast(Box::new(value), target_type_id)
+        } else {
+            self.err_channel.push(casting_unsupported(
+                cast_expr.get_span(),
+                initial_ty.display(self.type_loader),
+                target_ty.display(self.type_loader),
+            ));
+            ExprKind::Invalid
+        };
+
+        Expr {
+            type_id: target_type_id,
+            kind,
+        }
     }
 
     fn get_selection_expr(&self, scope: &Rc<Scope>, sel_expr: &SelectionExprNode) -> Expr {
@@ -707,7 +732,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Some(self.get_expr_from_scope_symbol(&package_scope, &sel_expr.selection))
     }
 
-    fn invalid_value_object(&self) -> Expr {
+    fn invalid_value_expr(&self) -> Expr {
         Expr {
             type_id: self.type_loader.declare_type(Type::Invalid),
             kind: ExprKind::Invalid,

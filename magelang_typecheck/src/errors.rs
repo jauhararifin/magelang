@@ -61,6 +61,13 @@ pub(crate) fn unop_type_unsupported(span: Span, op: impl Display, ty: impl Displ
     Error::new(span, format!("Cannot perform {op} unary operation on {ty}"))
 }
 
+pub(crate) fn casting_unsupported(span: Span, initial_ty: impl Display, target_ty: impl Display) -> Error {
+    Error::new(
+        span,
+        format!("Cannot perform casting from {initial_ty} into {target_ty}"),
+    )
+}
+
 pub(crate) fn undeclared_symbol(token: Token) -> Error {
     Error::new(
         token.span.clone(),

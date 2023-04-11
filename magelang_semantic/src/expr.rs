@@ -26,6 +26,7 @@ pub enum ExprKind {
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
     Unary { op: UnOp, val: Box<Expr> },
     Call(Box<Expr>, Vec<Expr>),
+    Cast(Box<Expr>, TypeId),
 }
 
 #[derive(PartialEq, Eq, Debug)]

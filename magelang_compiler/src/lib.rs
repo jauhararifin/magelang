@@ -108,19 +108,13 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             for func in &pkg.functions {
                 let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
 
-                let mut variables = vec![];
-                for param_ty in &func.func_type.parameters {
-                    let param_ty = self.type_loader.get_type(*param_ty).unwrap();
-                    let param_ty = to_wasm_type(&param_ty);
-                    variables.push(module.locals.add(param_ty));
-                }
-
                 let mangled_func = mangle_func(&pkg_name, &func_name);
                 let func_id = module.funcs.by_name(&mangled_func).unwrap();
                 let wasm_func = module.funcs.get_mut(func_id);
                 let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
                     unreachable!();
                 };
+                let variables: Vec<_> = wasm_func.args.iter().cloned().collect();
                 let builder = wasm_func.builder_mut();
 
                 let mut body_builder = builder.func_body();
@@ -215,11 +209,35 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     let func_name = self.symbol_loader.get_symbol(func_expr.function_name).unwrap();
                     let name = mangle_func(&pkg_name, &func_name);
                     let Some(func_id) = module.get(&name) else {
-                        panic!("missing function {}.{}", pkg_name, func_name);
+                        panic!("missing function {pkg_name}.{func_name}");
                     };
                     builder.call(*func_id);
                 } else {
-                    todo!();
+                    todo!("currently, calling by function pointer is not supported yet");
+                }
+            }
+            ExprKind::Cast(value, target_ty) => {
+                let value_ty = self.type_loader.get_type(value.type_id).unwrap();
+                let target_ty = self.type_loader.get_type(*target_ty).unwrap();
+
+                self.process_expr(module, builder, variables, value);
+
+                match (value_ty.as_ref(), target_ty.as_ref()) {
+                    (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
+                    (Type::I64 | Type::U64, Type::I32 | Type::U32) => {
+                        builder.unop(UnaryOp::I32WrapI64);
+                    }
+                    (Type::I64 | Type::U64, Type::I16) => {
+                        builder.unop(UnaryOp::I32WrapI64);
+                        builder.unop(UnaryOp::I32Extend16S);
+                    }
+                    (Type::I64 | Type::U64, Type::U16) => {
+                        todo!();
+                    }
+                    (Type::I64 | Type::U64, Type::I8 | Type::U8) => {
+                        todo!();
+                    }
+                    _ => todo!(),
                 }
             }
             ExprKind::Binary { a, op, b } => {

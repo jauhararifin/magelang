@@ -20,5 +20,7 @@ fn main() {
   print_i64(123/10); // 12
   print_i64(1 | 2 | 4); // 7
   print_i64(bpkg.haha()); // 100
+  print_i64(bpkg.hihi(2)); // 4
+  print_i64(bpkg.haha() * bpkg.hihi(2)); // 400
   return;
 }

@@ -1,3 +1,7 @@
 fn haha(): i64 {
   return 100;
 }
+
+fn hihi(x: i64): i64 {
+  return x*x;
+}

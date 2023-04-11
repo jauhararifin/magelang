@@ -66,6 +66,37 @@ impl Type {
     pub fn is_assignable_with(&self, other: &Self) -> bool {
         self == other
     }
+
+    pub fn is_bool(&self) -> bool {
+        if let Self::Bool = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::I64 | Self::I32 | Self::I16 | Self::I8 | Self::U64 | Self::U32 | Self::U16 | Self::U8 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        match self {
+            Self::I64
+            | Self::I32
+            | Self::I16
+            | Self::I8
+            | Self::U64
+            | Self::U32
+            | Self::U16
+            | Self::U8
+            | Self::F64
+            | Self::F32 => true,
+            _ => false,
+        }
+    }
 }
 
 impl TypeDisplay for Type {
