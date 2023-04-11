@@ -45,6 +45,11 @@ impl FunctionCheckState {
     }
 }
 
+struct StatementInfo {
+    statement: Statement,
+    is_returning: bool,
+}
+
 impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
     pub fn new(
         err_channel: &'err ErrorAccumulator,
@@ -236,7 +241,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type), symbols);
-        let body = self.check_block_statement(&func_scope, &func_node.body);
+        let statement_info = self.check_block_statement(&func_scope, &func_node.body);
+        let body = statement_info.statement;
+
+        if func_type.return_type.is_some() && !statement_info.is_returning {
+            self.err_channel
+                .push(missing_return_statement(func_node.signature.get_span()));
+        }
 
         let function_name = self.symbol_loader.declare_symbol(&func_node.signature.name.value);
         Func {
@@ -247,28 +258,48 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn check_block_statement(&self, scope: &Rc<Scope>, node: &BlockStatementNode) -> Statement {
+    fn check_block_statement(&self, scope: &Rc<Scope>, node: &BlockStatementNode) -> StatementInfo {
         let scope = scope.new_child(ScopeKind::Basic, IndexMap::new());
         let mut statements = vec![];
+        let mut is_returning = false;
+        let mut unreachable_reported = false;
         for stmt in &node.statements {
-            statements.push(self.check_statement(&scope, stmt));
+            let statement_info = self.check_statement(&scope, stmt);
+            statements.push(statement_info.statement);
+
+            if is_returning && !unreachable_reported {
+                self.err_channel.push(unreachable_statement(stmt.get_span()));
+                unreachable_reported = true;
+            }
+            if statement_info.is_returning {
+                is_returning = true;
+            }
         }
-        Statement::Block(BlockStatement { statements })
+        StatementInfo {
+            statement: Statement::Block(BlockStatement { statements }),
+            is_returning,
+        }
     }
 
-    fn check_statement(&self, scope: &Rc<Scope>, node: &StatementNode) -> Statement {
+    fn check_statement(&self, scope: &Rc<Scope>, node: &StatementNode) -> StatementInfo {
         match node {
             StatementNode::Block(node) => self.check_block_statement(scope, node),
             StatementNode::Return(node) => self.check_return_statement(scope, node),
-            StatementNode::Expr(node) => Statement::Expr(self.get_expr(scope, node)),
+            StatementNode::Expr(node) => StatementInfo {
+                statement: Statement::Expr(self.get_expr(scope, node)),
+                is_returning: false,
+            },
         }
     }
 
-    fn check_return_statement(&self, scope: &Rc<Scope>, node: &ReturnStatementNode) -> Statement {
+    fn check_return_statement(&self, scope: &Rc<Scope>, node: &ReturnStatementNode) -> StatementInfo {
         if let Some(ref return_type) = scope.return_type() {
             let Some(ref expr_node) = node.value else {
                 self.err_channel.push(missing_return_value(node.get_span()));
-                return Statement::Invalid;
+                return StatementInfo{
+                    statement: Statement::Invalid,
+                    is_returning: true,
+                };
             };
 
             let expr = self.get_expr(scope, expr_node);
@@ -281,15 +312,27 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return_type.display(self.type_loader),
                     ty.display(self.type_loader),
                 ));
-                Statement::Invalid
+                return StatementInfo {
+                    statement: Statement::Invalid,
+                    is_returning: true,
+                };
             } else {
-                Statement::Return(ReturnStatement { value: Some(expr) })
+                return StatementInfo {
+                    statement: Statement::Return(ReturnStatement { value: Some(expr) }),
+                    is_returning: true,
+                };
             }
         } else if let Some(val) = &node.value {
             self.err_channel.push(function_is_void(val.get_span()));
-            Statement::Invalid
+            return StatementInfo {
+                statement: Statement::Invalid,
+                is_returning: true,
+            };
         } else {
-            Statement::Return(ReturnStatement { value: None })
+            return StatementInfo {
+                statement: Statement::Return(ReturnStatement { value: None }),
+                is_returning: true,
+            };
         }
     }
 

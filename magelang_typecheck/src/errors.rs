@@ -38,6 +38,10 @@ pub(crate) fn missing_return_value(span: Span) -> Error {
     Error::new(span, String::from("Missing return value"))
 }
 
+pub(crate) fn unreachable_statement(span: Span) -> Error {
+    Error::new(span, String::from("This statement will never be executed"))
+}
+
 pub(crate) fn function_is_void(span: Span) -> Error {
     Error::new(
         span,
@@ -73,6 +77,10 @@ pub(crate) fn undeclared_symbol(token: Token) -> Error {
         token.span.clone(),
         format!("Symbol {} is not declared yet", token.value.as_ref()),
     )
+}
+
+pub(crate) fn missing_return_statement(span: Span) -> Error {
+    Error::new(span, String::from("Missing return statement for function"))
 }
 
 pub(crate) fn missing_main() -> Error {
