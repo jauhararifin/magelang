@@ -1,6 +1,5 @@
+import fmt "std/fmt";
 import bpkg "examples/b";
-
-fn print_i64(n: i64);
 
 // jauhar
 fn jauhar(a: i64): i64 {
@@ -12,15 +11,15 @@ fn arifin(): i64 {
 }
 
 fn main() {
-  print_i64(10); // 10
-  print_i64(20); // 20
-  print_i64(10+20*30); // 610
-  print_i64(2<<5); // 64
-  print_i64(123%10); // 3
-  print_i64(123/10); // 12
-  print_i64(1 | 2 | 4); // 7
-  print_i64(bpkg.haha()); // 100
-  print_i64(bpkg.hihi(2)); // 4
-  print_i64(bpkg.haha() * bpkg.hihi(2)); // 400
+  fmt.print_i64(10); // 10
+  fmt.print_i64(20); // 20
+  fmt.print_i64(10+20*30); // 610
+  fmt.print_i64(2<<5); // 64
+  fmt.print_i64(123%10); // 3
+  fmt.print_i64(123/10); // 12
+  fmt.print_i64(1 | 2 | 4); // 7
+  fmt.print_i64(bpkg.haha()); // 100
+  fmt.print_i64(bpkg.hihi(2)); // 4
+  fmt.print_i64(bpkg.haha() * bpkg.hihi(2)); // 400
   return;
 }

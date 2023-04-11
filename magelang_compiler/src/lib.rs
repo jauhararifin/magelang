@@ -114,7 +114,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
                     unreachable!();
                 };
-                let variables: Vec<_> = wasm_func.args.iter().cloned().collect();
+                let variables: Vec<_> = wasm_func.args.to_vec();
                 let builder = wasm_func.builder_mut();
 
                 let mut body_builder = builder.func_body();

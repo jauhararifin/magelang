@@ -312,15 +312,15 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return_type.display(self.type_loader),
                     ty.display(self.type_loader),
                 ));
-                return StatementInfo {
+                StatementInfo {
                     statement: Statement::Invalid,
                     is_returning: true,
-                };
+                }
             } else {
-                return StatementInfo {
+                StatementInfo {
                     statement: Statement::Return(ReturnStatement { value: Some(expr) }),
                     is_returning: true,
-                };
+                }
             }
         } else if let Some(val) = &node.value {
             self.err_channel.push(function_is_void(val.get_span()));
@@ -537,18 +537,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | TokenKind::Gt
             | TokenKind::GEq
             | TokenKind::Lt
-            | TokenKind::LEq => match a_ty.as_ref() {
-                Type::I64
-                | Type::I32
-                | Type::I16
-                | Type::I8
-                | Type::U64
-                | Type::U32
-                | Type::U16
-                | Type::U8
-                | Type::F64
-                | Type::F32 => a_ty.as_ref().clone(),
-                _ => {
+            | TokenKind::LEq => {
+                if a_ty.is_numeric() {
+                    a_ty.as_ref().clone()
+                } else {
                     self.err_channel.push(binop_type_unsupported(
                         expr.get_span(),
                         op_name,
@@ -556,17 +548,16 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     ));
                     Type::Invalid
                 }
-            },
+            }
             TokenKind::Mod
             | TokenKind::BitOr
             | TokenKind::BitAnd
             | TokenKind::BitXor
             | TokenKind::ShiftLeft
-            | TokenKind::ShiftRight => match a_ty.as_ref() {
-                Type::I64 | Type::I32 | Type::I16 | Type::I8 | Type::U64 | Type::U32 | Type::U16 | Type::U8 => {
+            | TokenKind::ShiftRight => {
+                if a_ty.is_int() {
                     a_ty.as_ref().clone()
-                }
-                _ => {
+                } else {
                     self.err_channel.push(binop_type_unsupported(
                         expr.get_span(),
                         op_name,
@@ -574,9 +565,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     ));
                     Type::Invalid
                 }
-            },
+            }
             TokenKind::And | TokenKind::Not | TokenKind::Or => {
-                if let Type::Bool = a_ty.as_ref() {
+                if a_ty.is_bool() {
                     Type::Bool
                 } else {
                     self.err_channel.push(binop_type_unsupported(
@@ -587,7 +578,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::Invalid
                 }
             }
-            _ => todo!(),
+            op => unreachable!("token {op} is not a binary operator"),
         };
 
         let result_type_id = self.type_loader.declare_type(result_ty);
@@ -610,7 +601,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             TokenKind::GEq => BinOp::GEq,
             TokenKind::Lt => BinOp::Lt,
             TokenKind::LEq => BinOp::LEq,
-            _ => unreachable!("found invalid token for binary operator"),
+            op => unreachable!("token {op} is not a binary operator"),
         };
 
         Expr {
@@ -632,7 +623,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             TokenKind::Sub => "sub",
             TokenKind::Add => "add",
             TokenKind::Not => "not",
-            _ => unreachable!("found invalid token for unary operator"),
+            op => unreachable!("token {op} is not a unary operator"),
         };
 
         let is_bool = val_ty.is_bool();
@@ -644,7 +635,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             TokenKind::Sub => (UnOp::Sub, is_number),
             TokenKind::Add => (UnOp::Add, is_number),
             TokenKind::Not => (UnOp::Not, is_bool),
-            _ => unreachable!("found invalid token for unary operator"),
+            op => unreachable!("token {op} is not a unary operator"),
         };
 
         if !is_valid {
@@ -756,7 +747,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return selection;
         }
 
-        todo!();
+        todo!("non-package selection is not supported yet");
     }
 
     fn get_package_selection_expr(&self, scope: &Rc<Scope>, sel_expr: &SelectionExprNode) -> Option<Expr> {

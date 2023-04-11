@@ -68,34 +68,30 @@ impl Type {
     }
 
     pub fn is_bool(&self) -> bool {
-        if let Self::Bool = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Bool)
     }
 
     pub fn is_int(&self) -> bool {
-        match self {
-            Self::I64 | Self::I32 | Self::I16 | Self::I8 | Self::U64 | Self::U32 | Self::U16 | Self::U8 => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::I64 | Self::I32 | Self::I16 | Self::I8 | Self::U64 | Self::U32 | Self::U16 | Self::U8
+        )
     }
 
     pub fn is_numeric(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::I64
-            | Self::I32
-            | Self::I16
-            | Self::I8
-            | Self::U64
-            | Self::U32
-            | Self::U16
-            | Self::U8
-            | Self::F64
-            | Self::F32 => true,
-            _ => false,
-        }
+                | Self::I32
+                | Self::I16
+                | Self::I8
+                | Self::U64
+                | Self::U32
+                | Self::U16
+                | Self::U8
+                | Self::F64
+                | Self::F32
+        )
     }
 }
 

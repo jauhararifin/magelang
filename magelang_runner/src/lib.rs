@@ -9,7 +9,7 @@ impl Runner {
         let module = Module::from_binary(&engine, module_bin).unwrap();
         let mut linker = Linker::new(&engine);
         linker
-            .func_wrap("examples/a", "print_i64", |_: Caller<'_, u32>, n: i64| {
+            .func_wrap("std/fmt", "print_i64", |_: Caller<'_, u32>, n: i64| {
                 println!("Got {} from WebAssembly", n);
             })
             .unwrap();
