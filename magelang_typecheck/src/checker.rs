@@ -27,28 +27,15 @@ pub struct TypeChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
     global_scope: RefCell<Option<Rc<Scope>>>,
 }
 
+#[derive(Default)]
 struct PackageCheckState {
     functions: Vec<Func>,
     native_functions: Vec<NativeFunction>,
 }
 
-impl Default for PackageCheckState {
-    fn default() -> Self {
-        Self {
-            functions: vec![],
-            native_functions: vec![],
-        }
-    }
-}
-
+#[derive(Default)]
 struct FunctionCheckState {
     locals: usize,
-}
-
-impl Default for FunctionCheckState {
-    fn default() -> Self {
-        Self { locals: 0 }
-    }
 }
 
 impl FunctionCheckState {

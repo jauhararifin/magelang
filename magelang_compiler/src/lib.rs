@@ -146,12 +146,12 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             }
             Statement::Return(ret_stmt) => {
                 if let Some(ref val) = ret_stmt.value {
-                    self.process_expr(module, builder, variables, &val);
+                    self.process_expr(module, builder, variables, val);
                 }
                 builder.return_();
             }
             Statement::Expr(expr) => {
-                self.process_expr(module, builder, variables, &expr);
+                self.process_expr(module, builder, variables, expr);
             }
             Statement::Invalid => unreachable!(),
         }
