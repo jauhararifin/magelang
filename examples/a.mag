@@ -19,6 +19,6 @@ fn main() {
   print_i64(123%10); // 3
   print_i64(123/10); // 12
   print_i64(1 | 2 | 4); // 7
-  // print_i64(bpkg.haha()); // 100
+  print_i64(bpkg.haha()); // 100
   return;
 }

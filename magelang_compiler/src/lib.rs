@@ -1,7 +1,10 @@
 use magelang_common::{SymbolId, SymbolLoader};
 use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoader, UnOp};
+use std::collections::HashMap;
 use std::rc::Rc;
-use walrus::{ir::BinaryOp, ir::UnaryOp, FunctionBuilder, InstrSeqBuilder, LocalId, Module, ValType};
+use walrus::{
+    ir::BinaryOp, ir::UnaryOp, FunctionBuilder, FunctionId, FunctionKind, InstrSeqBuilder, LocalId, Module, ValType,
+};
 
 pub struct Compiler<'sym, 'typ> {
     symbol_loader: &'sym SymbolLoader,
@@ -18,6 +21,8 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
     pub fn compile(&self, packages: Vec<Rc<Package>>, main_package: SymbolId, mut target: impl std::io::Write) {
         let mut module = Module::default();
+
+        let mut functable = HashMap::new();
 
         for pkg in &packages {
             let pkg_name = self.symbol_loader.get_symbol(pkg.name).unwrap();
@@ -46,13 +51,14 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
                 let mangled_func = mangle_func(&pkg_name, &func_name);
                 let mut builder = FunctionBuilder::new(&mut module.types, &param_types, &return_type);
-                builder.name(mangled_func);
+                builder.name(mangled_func.clone());
                 let mut body_builder = builder.func_body();
                 for var in &variables {
                     body_builder.local_get(*var);
                 }
                 body_builder.call(func_id);
                 builder.finish(variables.to_vec(), &mut module.funcs);
+                functable.insert(mangled_func, func_id);
             }
 
             for func in &pkg.functions {
@@ -77,9 +83,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let mangled_func = mangle_func(&pkg_name, &func_name);
 
                 let mut builder = FunctionBuilder::new(&mut module.types, &param_types, &return_type);
-                builder.name(mangled_func);
-                let mut body_builder = builder.func_body();
-                self.process_statement(&module, &mut body_builder, &variables, &func.body);
+                builder.name(mangled_func.clone());
 
                 let function = builder.finish(
                     variables
@@ -90,10 +94,37 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     &mut module.funcs,
                 );
 
+                functable.insert(mangled_func, function);
+
                 if main_package == pkg.name && func_name.as_ref() == "main" {
                     module.start = Some(function);
                     module.exports.add("main", function);
                 }
+            }
+        }
+
+        for pkg in &packages {
+            let pkg_name = self.symbol_loader.get_symbol(pkg.name).unwrap();
+            for func in &pkg.functions {
+                let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
+
+                let mut variables = vec![];
+                for param_ty in &func.func_type.parameters {
+                    let param_ty = self.type_loader.get_type(*param_ty).unwrap();
+                    let param_ty = to_wasm_type(&param_ty);
+                    variables.push(module.locals.add(param_ty));
+                }
+
+                let mangled_func = mangle_func(&pkg_name, &func_name);
+                let func_id = module.funcs.by_name(&mangled_func).unwrap();
+                let wasm_func = module.funcs.get_mut(func_id);
+                let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
+                    unreachable!();
+                };
+                let builder = wasm_func.builder_mut();
+
+                let mut body_builder = builder.func_body();
+                self.process_statement(&functable, &mut body_builder, &variables, &func.body);
             }
         }
 
@@ -102,7 +133,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
     fn process_statement(
         &self,
-        module: &Module,
+        module: &HashMap<String, FunctionId>,
         builder: &mut InstrSeqBuilder,
         variables: &[LocalId],
         stmt: &Statement,
@@ -126,7 +157,13 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         }
     }
 
-    fn process_expr(&self, module: &Module, builder: &mut InstrSeqBuilder, variables: &[LocalId], expr: &Expr) {
+    fn process_expr(
+        &self,
+        module: &HashMap<String, FunctionId>,
+        builder: &mut InstrSeqBuilder,
+        variables: &[LocalId],
+        expr: &Expr,
+    ) {
         match &expr.kind {
             ExprKind::Invalid => unreachable!(),
             ExprKind::I64(val) => {
@@ -177,10 +214,10 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     let pkg_name = self.symbol_loader.get_symbol(func_expr.package_name).unwrap();
                     let func_name = self.symbol_loader.get_symbol(func_expr.function_name).unwrap();
                     let name = mangle_func(&pkg_name, &func_name);
-                    let Some(func_id) = module.funcs.by_name(&name) else {
+                    let Some(func_id) = module.get(&name) else {
                         panic!("missing function {}.{}", pkg_name, func_name);
                     };
-                    builder.call(func_id);
+                    builder.call(*func_id);
                 } else {
                     todo!();
                 }

@@ -1,0 +1,3 @@
+fn haha(): i64 {
+  return 100;
+}
