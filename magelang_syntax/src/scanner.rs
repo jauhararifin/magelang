@@ -37,6 +37,7 @@ static SYMBOLS: &[(&str, TokenKind)] = &[
     ("!=", TokenKind::NEq),
     ("!", TokenKind::Not),
     ("==", TokenKind::Eq),
+    ("=", TokenKind::Equal),
     ("*", TokenKind::Mul),
     ("+", TokenKind::Add),
     ("-", TokenKind::Sub),
@@ -107,6 +108,7 @@ impl<'err> Scanner<'err> {
 
         let span = Span::new(tok.file_id, tok.offset, value.len());
         let kind = match value.as_str() {
+            "let" => TokenKind::Let,
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,

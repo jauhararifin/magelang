@@ -9,8 +9,8 @@ use magelang_semantic::{
 };
 use magelang_syntax::{
     parse_string_lit, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode,
-    FunctionNode, ImportNode, ItemNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token,
-    TokenKind, UnaryExprNode,
+    FunctionNode, ImportNode, ItemNode, LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode,
+    SignatureNode, StatementNode, Token, TokenKind, UnaryExprNode,
 };
 use std::cell::RefCell;
 use std::iter::zip;
@@ -48,6 +48,7 @@ impl FunctionCheckState {
 struct StatementInfo {
     statement: Statement,
     is_returning: bool,
+    new_scope: Option<Rc<Scope>>,
 }
 
 impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
@@ -241,7 +242,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type), symbols);
-        let statement_info = self.check_block_statement(&func_scope, &func_node.body);
+        let statement_info = self.check_block_statement(&mut func_state, &func_scope, &func_node.body);
         let body = statement_info.statement;
 
         if func_type.return_type.is_some() && !statement_info.is_returning {
@@ -258,14 +259,23 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn check_block_statement(&self, scope: &Rc<Scope>, node: &BlockStatementNode) -> StatementInfo {
-        let scope = scope.new_child(ScopeKind::Basic, IndexMap::new());
+    fn check_block_statement(
+        &self,
+        state: &mut FunctionCheckState,
+        scope: &Rc<Scope>,
+        node: &BlockStatementNode,
+    ) -> StatementInfo {
+        let mut scope = scope.new_child(ScopeKind::Basic, IndexMap::new());
         let mut statements = vec![];
         let mut is_returning = false;
         let mut unreachable_reported = false;
         for stmt in &node.statements {
-            let statement_info = self.check_statement(&scope, stmt);
+            let statement_info = self.check_statement(state, &scope, stmt);
             statements.push(statement_info.statement);
+
+            if let Some(sc) = statement_info.new_scope {
+                scope = sc;
+            }
 
             if is_returning && !unreachable_reported {
                 self.err_channel.push(unreachable_statement(stmt.get_span()));
@@ -278,17 +288,110 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         StatementInfo {
             statement: Statement::Block(BlockStatement { statements }),
             is_returning,
+            new_scope: None,
         }
     }
 
-    fn check_statement(&self, scope: &Rc<Scope>, node: &StatementNode) -> StatementInfo {
+    fn check_statement(
+        &self,
+        state: &mut FunctionCheckState,
+        scope: &Rc<Scope>,
+        node: &StatementNode,
+    ) -> StatementInfo {
         match node {
-            StatementNode::Block(node) => self.check_block_statement(scope, node),
+            StatementNode::Let(node) => self.check_let_statement(state, scope, node),
+            StatementNode::Block(node) => self.check_block_statement(state, scope, node),
             StatementNode::Return(node) => self.check_return_statement(scope, node),
             StatementNode::Expr(node) => StatementInfo {
                 statement: Statement::Expr(self.get_expr(scope, node)),
                 is_returning: false,
+                new_scope: None,
             },
+        }
+    }
+
+    fn check_let_statement(
+        &self,
+        state: &mut FunctionCheckState,
+        scope: &Rc<Scope>,
+        node: &LetStatementNode,
+    ) -> StatementInfo {
+        let name_sym = self.symbol_loader.declare_symbol(&node.name.value);
+        let local_id = state.use_local();
+        match &node.kind {
+            LetKind::TypeOnly { ty } => {
+                let target_ty_id = self.get_expr_type(scope, ty);
+                let target_ty = self.type_loader.get_type(target_ty_id).unwrap();
+
+                let expr_kind = match target_ty.as_ref() {
+                    Type::I64 => ExprKind::I64(0),
+                    Type::I32 => ExprKind::I32(0),
+                    Type::I16 => ExprKind::I16(0),
+                    Type::I8 => ExprKind::I8(0),
+                    Type::U64 => ExprKind::U64(0),
+                    Type::U32 => ExprKind::U32(0),
+                    Type::U16 => ExprKind::U16(0),
+                    Type::U8 => ExprKind::U8(0),
+                    Type::F32 => ExprKind::F32(0.0),
+                    Type::F64 => ExprKind::F64(0.0),
+                    Type::Bool => ExprKind::Bool(false),
+                    _ => todo!(),
+                };
+                let value_expr = Expr {
+                    type_id: target_ty_id,
+                    kind: expr_kind,
+                };
+
+                StatementInfo {
+                    statement: Statement::Local(value_expr),
+                    is_returning: false,
+                    new_scope: Some(scope.new_child(
+                        ScopeKind::Basic,
+                        IndexMap::from([(name_sym, Object::Local(target_ty_id, local_id))]),
+                    )),
+                }
+            },
+            LetKind::TypeValue { ty, value } => {
+                let mut value_expr = self.get_expr(scope, value);
+                let type_id = value_expr.type_id;
+                let value_ty = self.type_loader.get_type(type_id).unwrap();
+
+                let target_ty_id = self.get_expr_type(scope, ty);
+                let target_ty = self.type_loader.get_type(target_ty_id).unwrap();
+
+                if !target_ty.is_assignable_with(&value_ty) {
+                    self.err_channel.push(type_mismatch(
+                        value.get_span(),
+                        target_ty.display(self.type_loader),
+                        value_ty.display(self.type_loader),
+                    ));
+                    value_expr = Expr {
+                        type_id: target_ty_id,
+                        kind: ExprKind::Invalid,
+                    }
+                }
+
+                StatementInfo {
+                    statement: Statement::Local(value_expr),
+                    is_returning: false,
+                    new_scope: Some(scope.new_child(
+                        ScopeKind::Basic,
+                        IndexMap::from([(name_sym, Object::Local(target_ty_id, local_id))]),
+                    )),
+                }
+            }
+            LetKind::ValueOnly { value } => {
+                let value = self.get_expr(scope, value);
+                let type_id = value.type_id;
+                StatementInfo {
+                    statement: Statement::Local(value),
+                    is_returning: false,
+                    new_scope: Some(scope.new_child(
+                        ScopeKind::Basic,
+                        IndexMap::from([(name_sym, Object::Local(type_id, local_id))]),
+                    )),
+                }
+            }
         }
     }
 
@@ -299,6 +402,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 return StatementInfo{
                     statement: Statement::Invalid,
                     is_returning: true,
+                    new_scope: None,
                 };
             };
 
@@ -315,11 +419,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 StatementInfo {
                     statement: Statement::Invalid,
                     is_returning: true,
+                    new_scope: None,
                 }
             } else {
                 StatementInfo {
                     statement: Statement::Return(ReturnStatement { value: Some(expr) }),
                     is_returning: true,
+                    new_scope: None,
                 }
             }
         } else if let Some(val) = &node.value {
@@ -327,11 +433,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return StatementInfo {
                 statement: Statement::Invalid,
                 is_returning: true,
+                new_scope: None,
             };
         } else {
             return StatementInfo {
                 statement: Statement::Return(ReturnStatement { value: None }),
                 is_returning: true,
+                new_scope: None,
             };
         }
     }
@@ -773,4 +881,3 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 }
-

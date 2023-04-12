@@ -118,6 +118,7 @@ impl AstNode for ParameterNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StatementNode {
+    Let(LetStatementNode),
     Block(BlockStatementNode),
     Return(ReturnStatementNode),
     Expr(ExprNode),
@@ -126,10 +127,31 @@ pub enum StatementNode {
 impl AstNode for StatementNode {
     fn get_span(&self) -> Span {
         match self {
+            Self::Let(node) => node.get_span(),
             Self::Block(node) => node.get_span(),
             Self::Return(node) => node.get_span(),
             Self::Expr(node) => node.get_span(),
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct LetStatementNode {
+    pub span: Span,
+    pub name: Token,
+    pub kind: LetKind,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum LetKind {
+    TypeOnly { ty: ExprNode },
+    TypeValue { ty: ExprNode, value: ExprNode },
+    ValueOnly { value: ExprNode },
+}
+
+impl AstNode for LetStatementNode {
+    fn get_span(&self) -> Span {
+        self.span.clone()
     }
 }
 

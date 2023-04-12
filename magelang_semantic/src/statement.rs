@@ -3,7 +3,7 @@ use crate::expr::Expr;
 #[derive(Debug)]
 pub enum Statement {
     Invalid,
-    // Local(usize),
+    Local(Expr),
     Block(BlockStatement),
     Return(ReturnStatement),
     Expr(Expr),

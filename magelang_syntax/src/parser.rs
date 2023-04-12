@@ -1,7 +1,7 @@
 use crate::ast::{
     AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode, FunctionNode, ImportNode,
-    ItemNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode,
-    UnaryExprNode,
+    ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode,
+    SignatureNode, StatementNode, UnaryExprNode,
 };
 use crate::errors::unexpected_parsing;
 use crate::scanner::scan;
@@ -225,10 +225,50 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_stmt(&mut self) -> Option<StatementNode> {
         Some(match self.kind() {
+            TokenKind::Let => StatementNode::Let(self.parse_let_stmt()?),
             TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt()?),
             TokenKind::Return => StatementNode::Return(self.parse_return_stmt()?),
             _ => StatementNode::Expr(self.parse_expr()?),
         })
+    }
+
+    fn parse_let_stmt(&mut self) -> Option<LetStatementNode> {
+        let let_tok = self.take(TokenKind::Let)?;
+        let mut span = let_tok.span;
+
+        let name = self.take(TokenKind::Ident)?;
+
+        if self.take_if(TokenKind::Colon).is_some() {
+            let ty = self.parse_expr()?;
+            if self.take_if(TokenKind::Equal).is_some() {
+                let value = self.parse_expr()?;
+                let semicolon = self.take(TokenKind::SemiColon)?;
+                span.union(&semicolon.span);
+                Some(LetStatementNode {
+                    span,
+                    name,
+                    kind: LetKind::TypeValue { ty, value },
+                })
+            } else {
+                let semicolon = self.take(TokenKind::SemiColon)?;
+                span.union(&semicolon.span);
+                Some(LetStatementNode {
+                    span,
+                    name,
+                    kind: LetKind::TypeOnly { ty },
+                })
+            }
+        } else {
+            self.take(TokenKind::Equal)?;
+            let value = self.parse_expr()?;
+            let semicolon = self.take(TokenKind::SemiColon)?;
+            span.union(&semicolon.span);
+            Some(LetStatementNode {
+                span,
+                name,
+                kind: LetKind::ValueOnly { value },
+            })
+        }
     }
 
     fn parse_block_stmt(&mut self) -> Option<BlockStatementNode> {

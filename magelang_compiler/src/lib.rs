@@ -3,7 +3,8 @@ use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoa
 use std::collections::HashMap;
 use std::rc::Rc;
 use walrus::{
-    ir::BinaryOp, ir::UnaryOp, FunctionBuilder, FunctionId, FunctionKind, InstrSeqBuilder, LocalId, Module, ValType,
+    ir::BinaryOp, ir::UnaryOp, FunctionBuilder, FunctionId, FunctionKind, InstrSeqBuilder, LocalId, Module,
+    ModuleLocals, ValType,
 };
 
 pub struct Compiler<'sym, 'typ> {
@@ -114,11 +115,17 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
                     unreachable!();
                 };
-                let variables: Vec<_> = wasm_func.args.to_vec();
+                let mut variables: Vec<_> = wasm_func.args.to_vec();
                 let builder = wasm_func.builder_mut();
 
                 let mut body_builder = builder.func_body();
-                self.process_statement(&functable, &mut body_builder, &variables, &func.body);
+                self.process_statement(
+                    &mut module.locals,
+                    &functable,
+                    &mut body_builder,
+                    &mut variables,
+                    &func.body,
+                );
             }
         }
 
@@ -127,25 +134,36 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
     fn process_statement(
         &self,
-        module: &HashMap<String, FunctionId>,
+        module_locals: &mut ModuleLocals,
+        functable: &HashMap<String, FunctionId>,
         builder: &mut InstrSeqBuilder,
-        variables: &[LocalId],
+        variables: &mut Vec<LocalId>,
         stmt: &Statement,
     ) {
         match stmt {
+            Statement::Local(expr) => {
+                let ty = self.type_loader.get_type(expr.type_id).unwrap();
+                let wasm_ty = to_wasm_type(&ty);
+                let local_id = module_locals.add(wasm_ty);
+
+                variables.push(local_id);
+
+                self.process_expr(functable, builder, variables, expr);
+                builder.local_set(local_id);
+            }
             Statement::Block(block) => {
                 for stmt in &block.statements {
-                    self.process_statement(module, builder, variables, stmt);
+                    self.process_statement(module_locals, functable, builder, variables, stmt);
                 }
             }
             Statement::Return(ret_stmt) => {
                 if let Some(ref val) = ret_stmt.value {
-                    self.process_expr(module, builder, variables, val);
+                    self.process_expr(functable, builder, variables, val);
                 }
                 builder.return_();
             }
             Statement::Expr(expr) => {
-                self.process_expr(module, builder, variables, expr);
+                self.process_expr(functable, builder, variables, expr);
             }
             Statement::Invalid => unreachable!(),
         }
@@ -153,7 +171,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
     fn process_expr(
         &self,
-        module: &HashMap<String, FunctionId>,
+        functable: &HashMap<String, FunctionId>,
         builder: &mut InstrSeqBuilder,
         variables: &[LocalId],
         expr: &Expr,
@@ -201,14 +219,14 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             ExprKind::Func(..) => unreachable!(),
             ExprKind::Call(target, arguments) => {
                 for arg in arguments.iter() {
-                    self.process_expr(module, builder, variables, arg);
+                    self.process_expr(functable, builder, variables, arg);
                 }
 
                 if let ExprKind::Func(func_expr) = &target.kind {
                     let pkg_name = self.symbol_loader.get_symbol(func_expr.package_name).unwrap();
                     let func_name = self.symbol_loader.get_symbol(func_expr.function_name).unwrap();
                     let name = mangle_func(&pkg_name, &func_name);
-                    let Some(func_id) = module.get(&name) else {
+                    let Some(func_id) = functable.get(&name) else {
                         panic!("missing function {pkg_name}.{func_name}");
                     };
                     builder.call(*func_id);
@@ -220,7 +238,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let value_ty = self.type_loader.get_type(value.type_id).unwrap();
                 let target_ty = self.type_loader.get_type(*target_ty).unwrap();
 
-                self.process_expr(module, builder, variables, value);
+                self.process_expr(functable, builder, variables, value);
 
                 match (value_ty.as_ref(), target_ty.as_ref()) {
                     (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
@@ -242,11 +260,11 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             }
             ExprKind::Binary { a, op, b } => {
                 if op == &BinOp::And {
-                    self.process_expr(module, builder, variables, a);
+                    self.process_expr(functable, builder, variables, a);
                     builder.if_else(
                         ValType::I32,
                         |builder| {
-                            self.process_expr(module, builder, variables, b);
+                            self.process_expr(functable, builder, variables, b);
                         },
                         |builder| {
                             builder.i32_const(0);
@@ -256,21 +274,21 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 }
 
                 if op == &BinOp::Or {
-                    self.process_expr(module, builder, variables, a);
+                    self.process_expr(functable, builder, variables, a);
                     builder.if_else(
                         ValType::I32,
                         |builder| {
                             builder.i32_const(1);
                         },
                         |builder| {
-                            self.process_expr(module, builder, variables, b);
+                            self.process_expr(functable, builder, variables, b);
                         },
                     );
                     return;
                 }
 
-                self.process_expr(module, builder, variables, a);
-                self.process_expr(module, builder, variables, b);
+                self.process_expr(functable, builder, variables, a);
+                self.process_expr(functable, builder, variables, b);
 
                 let ty = self.type_loader.get_type(a.type_id).unwrap();
 
@@ -362,38 +380,38 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 match (op, ty.as_ref()) {
                     (UnOp::BitNot, Type::I64 | Type::U64) => {
                         builder.i64_const(-1);
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.binop(BinaryOp::I64Xor);
                     }
                     (UnOp::BitNot, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
                         builder.i32_const(-1);
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.binop(BinaryOp::I32Xor);
                     }
                     (UnOp::Add, _) => {
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                     }
                     (UnOp::Sub, Type::I64 | Type::U64) => {
                         builder.i64_const(0);
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.binop(BinaryOp::I64Sub);
                     }
                     (UnOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
                         builder.i32_const(0);
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.binop(BinaryOp::I32Sub);
                     }
                     (UnOp::Sub, Type::F64) => {
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.unop(UnaryOp::F64Neg);
                     }
                     (UnOp::Sub, Type::F32) => {
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.unop(UnaryOp::F32Neg);
                     }
                     (UnOp::Not, _) => {
                         builder.i32_const(1);
-                        self.process_expr(module, builder, variables, val);
+                        self.process_expr(functable, builder, variables, val);
                         builder.binop(BinaryOp::I32Xor);
                     }
                     _ => unreachable!(),
