@@ -4,6 +4,7 @@ use crate::expr::Expr;
 pub enum Statement {
     Invalid,
     Local(Expr),
+    SetLocal(usize, Expr),
     While(WhileStatement),
     Block(BlockStatement),
     Return(ReturnStatement),

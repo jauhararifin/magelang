@@ -8,9 +8,9 @@ use magelang_semantic::{
     Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
-    parse_string_lit, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode,
-    FunctionNode, ImportNode, ItemNode, LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode,
-    SignatureNode, StatementNode, Token, TokenKind, UnaryExprNode, WhileStatementNode,
+    parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
+    CastExprNode, ExprNode, FunctionNode, ImportNode, ItemNode, LetKind, LetStatementNode, ReturnStatementNode,
+    SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind, UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
 use std::iter::zip;
@@ -300,6 +300,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     ) -> StatementInfo {
         match node {
             StatementNode::Let(node) => self.check_let_statement(state, scope, node),
+            StatementNode::Assign(node) => self.check_assign_statement(scope, node),
             StatementNode::Block(node) => self.check_block_statement(state, scope, node),
             StatementNode::While(node) => self.check_while_statement(state, scope, node),
             StatementNode::Return(node) => self.check_return_statement(scope, node),
@@ -340,6 +341,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 };
                 let value_expr = Expr {
                     type_id: target_ty_id,
+                    assignable: false,
                     kind: expr_kind,
                 };
 
@@ -368,6 +370,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     ));
                     value_expr = Expr {
                         type_id: target_ty_id,
+                        assignable: false,
                         kind: ExprKind::Invalid,
                     }
                 }
@@ -393,6 +396,59 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     )),
                 }
             }
+        }
+    }
+
+    fn check_assign_statement(&self, scope: &Rc<Scope>, node: &AssignStatementNode) -> StatementInfo {
+        let receiver = self.get_expr(scope, &node.receiver);
+        if !receiver.assignable {
+            self.err_channel.push(expr_unassignable(node.receiver.get_span()));
+        }
+
+        let mut value_expr = self.get_expr(scope, &node.value);
+        let type_id = value_expr.type_id;
+        let value_ty = self.type_loader.get_type(type_id).unwrap();
+
+        let receiver_type = self.type_loader.get_type(receiver.type_id).unwrap();
+
+        if !receiver_type.is_assignable_with(&value_ty) {
+            self.err_channel.push(type_mismatch(
+                node.value.get_span(),
+                receiver_type.display(self.type_loader),
+                value_ty.display(self.type_loader),
+            ));
+            value_expr = Expr {
+                type_id: receiver.type_id,
+                assignable: false,
+                kind: ExprKind::Invalid,
+            }
+        }
+
+        let statement = match receiver.kind {
+            ExprKind::Local(id) => Statement::SetLocal(id, value_expr),
+            ExprKind::Invalid
+            | ExprKind::I64(..)
+            | ExprKind::I32(..)
+            | ExprKind::I16(..)
+            | ExprKind::I8(..)
+            | ExprKind::U64(..)
+            | ExprKind::U32(..)
+            | ExprKind::U16(..)
+            | ExprKind::U8(..)
+            | ExprKind::F64(..)
+            | ExprKind::F32(..)
+            | ExprKind::Bool(..)
+            | ExprKind::Func(..)
+            | ExprKind::Binary { .. }
+            | ExprKind::Unary { .. }
+            | ExprKind::Call { .. }
+            | ExprKind::Cast { .. } => Statement::Invalid,
+        };
+
+        StatementInfo {
+            statement,
+            is_returning: false,
+            new_scope: None,
         }
     }
 
@@ -545,10 +601,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         match ident_object {
             Object::Local(type_id, index) => Expr {
                 type_id,
+                assignable: true,
                 kind: ExprKind::Local(index),
             },
             Object::Func(type_id) => Expr {
                 type_id,
+                assignable: false,
                 kind: ExprKind::Func(FuncExpr {
                     package_name: scope.package_name().unwrap(),
                     function_name: symbol_id,
@@ -578,6 +636,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: i64_type_id,
+            assignable: false,
             kind,
         }
     }
@@ -599,6 +658,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: f64_type_id,
+            assignable: false,
             kind,
         }
     }
@@ -620,6 +680,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: bool_type_id,
+            assignable: false,
             kind,
         }
     }
@@ -662,6 +723,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ));
             return Expr {
                 type_id: a_expr.type_id,
+                assignable: false,
                 kind: ExprKind::Invalid,
             };
         }
@@ -748,6 +810,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: result_type_id,
+            assignable: false,
             kind: ExprKind::Binary {
                 a: Box::new(a_expr),
                 op,
@@ -790,6 +853,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: val_expr.type_id,
+            assignable: false,
             kind: ExprKind::Unary {
                 op,
                 val: Box::new(val_expr),
@@ -841,6 +905,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: ret_type,
+            assignable: false,
             kind: ExprKind::Call(Box::new(func_expr), arguments),
         }
     }
@@ -875,6 +940,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Expr {
             type_id: target_type_id,
+            assignable: false,
             kind,
         }
     }
@@ -911,6 +977,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     fn invalid_value_expr(&self) -> Expr {
         Expr {
             type_id: self.type_loader.declare_type(Type::Invalid),
+            assignable: false,
             kind: ExprKind::Invalid,
         }
     }

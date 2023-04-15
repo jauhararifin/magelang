@@ -4,6 +4,7 @@ use magelang_common::SymbolId;
 #[derive(Debug, PartialEq)]
 pub struct Expr {
     pub type_id: TypeId,
+    pub assignable: bool,
     pub kind: ExprKind,
 }
 

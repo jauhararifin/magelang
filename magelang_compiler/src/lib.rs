@@ -151,6 +151,10 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 self.process_expr(functable, builder, variables, expr);
                 builder.local_set(local_id);
             }
+            Statement::SetLocal(id, expr) => {
+                self.process_expr(functable, builder, variables, expr);
+                builder.local_set(variables[*id].clone());
+            }
             Statement::While(while_stmt) => {
                 builder.block(None, |block_builder| {
                     let outer_id = block_builder.id();

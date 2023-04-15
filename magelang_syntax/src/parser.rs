@@ -1,7 +1,7 @@
 use crate::ast::{
-    AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode, FunctionNode, GroupedExprNode,
-    ImportNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode,
-    SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode, WhileStatementNode,
+    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode,
+    FunctionNode, GroupedExprNode, ImportNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode,
+    ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
@@ -229,7 +229,21 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             TokenKind::While => StatementNode::While(self.parse_while_stmt()?),
             TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt()?),
             TokenKind::Return => StatementNode::Return(self.parse_return_stmt()?),
-            _ => StatementNode::Expr(self.parse_expr()?),
+            _ => {
+                let expr = self.parse_expr()?;
+                let mut span = expr.get_span();
+                if self.take_if(TokenKind::Equal).is_some() {
+                    let value = self.parse_expr()?;
+                    span.union(&value.get_span());
+                    StatementNode::Assign(AssignStatementNode {
+                        span,
+                        receiver: expr,
+                        value,
+                    })
+                } else {
+                    StatementNode::Expr(expr)
+                }
+            }
         })
     }
 

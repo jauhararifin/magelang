@@ -100,3 +100,7 @@ pub(crate) fn unmatch_function_arguments(span: Span, expected: usize, found: usi
         format!("Function expects {expected} arguments, but found {found}"),
     )
 }
+
+pub(crate) fn expr_unassignable(span: Span) -> Error {
+    Error::new(span, String::from("Expression is not assignable"))
+}
