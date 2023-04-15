@@ -155,23 +155,30 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 self.process_expr(functable, builder, variables, expr);
                 builder.local_set(variables[*id].clone());
             }
-            Statement::If(while_stmt) => {
-                builder.block(None, |block_builder| {
-                    block_builder.i32_const(1);
-                    self.process_expr(functable, block_builder, variables, &while_stmt.condition);
-                    block_builder.binop(BinaryOp::I32Xor);
-                    block_builder.br_if(block_builder.id());
+            Statement::If(if_stmt) => {
+                builder.block(None, |outer_block| {
+                    let outer_id = outer_block.id();
+                    outer_block.block(None, |block_builder| {
+                        self.process_expr(functable, block_builder, variables, &if_stmt.condition);
+                        block_builder.unop(UnaryOp::I32Eqz);
+                        block_builder.br_if(block_builder.id());
 
-                    self.process_statement(module_locals, functable, block_builder, variables, &while_stmt.body);
+                        self.process_statement(module_locals, functable, block_builder, variables, &if_stmt.body);
+
+                        block_builder.br(outer_id);
+                    });
+
+                    if let Some(else_body) = if_stmt.else_body.as_ref() {
+                        self.process_statement(module_locals, functable, outer_block, variables, else_body.as_ref());
+                    }
                 });
             }
             Statement::While(while_stmt) => {
                 builder.block(None, |block_builder| {
                     let outer_id = block_builder.id();
                     block_builder.loop_(None, |body_builder| {
-                        body_builder.i32_const(1);
                         self.process_expr(functable, body_builder, variables, &while_stmt.condition);
-                        body_builder.binop(BinaryOp::I32Xor);
+                        body_builder.unop(UnaryOp::I32Eqz);
                         body_builder.br_if(outer_id);
 
                         self.process_statement(module_locals, functable, body_builder, variables, &while_stmt.body);

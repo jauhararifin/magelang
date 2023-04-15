@@ -1,7 +1,7 @@
 use crate::ast::{
-    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode,
-    FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind, LetStatementNode, PackageNode,
-    ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode,
+    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ElseIfStatementNode,
+    ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind, LetStatementNode,
+    PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode,
     WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
@@ -289,14 +289,44 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_if_stmt(&mut self) -> Option<IfStatementNode> {
-        let while_tok = self.take(TokenKind::If)?;
-        let mut span = while_tok.span;
+        let if_tok = self.take(TokenKind::If)?;
+        let mut span = if_tok.span;
 
         let condition = self.parse_expr()?;
         let body = self.parse_block_stmt()?;
         span.union(&body.span);
 
-        Some(IfStatementNode { span, condition, body })
+        let mut else_ifs = vec![];
+        let mut else_body = None;
+
+        while let Some(else_tok) = self.take_if(TokenKind::Else) {
+            let mut else_span = else_tok.span.clone();
+            if self.take_if(TokenKind::If).is_some() {
+                let condition = self.parse_expr()?;
+                let body = self.parse_block_stmt()?;
+                else_span.union(&body.get_span());
+                span.union(&else_span);
+                else_ifs.push(ElseIfStatementNode {
+                    span: else_span,
+                    condition,
+                    body,
+                });
+            } else {
+                let body = self.parse_block_stmt()?;
+                else_span.union(&body.get_span());
+                span.union(&else_span);
+                else_body = Some(body);
+                break;
+            }
+        }
+
+        Some(IfStatementNode {
+            span,
+            condition,
+            body,
+            else_ifs,
+            else_body,
+        })
     }
 
     fn parse_while_stmt(&mut self) -> Option<WhileStatementNode> {

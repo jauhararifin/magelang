@@ -11,9 +11,8 @@ fn arifin(): i64 {
 }
 
 fn gcd(a: i64, b: i64): i64 {
-  let t: i64;
   while b != 0 {
-    t = b;
+    let t = b;
     b = a % b;
     a = t;
   }
@@ -21,10 +20,20 @@ fn gcd(a: i64, b: i64): i64 {
 }
 
 fn gcd_rec(a: i64, b: i64): i64 {
-  while b == 0 {
+  if b == 0 {
     return a;
   }
   return gcd_rec(b, a % b);
+}
+
+fn printifs(n: i64) {
+  if n == 0 {
+    fmt.print_i64(0);
+  } else if n == 1 {
+    fmt.print_i64(1);
+  } else {
+    fmt.print_i64(-1);
+  }
 }
 
 fn main() {
@@ -61,5 +70,9 @@ fn main() {
   if 10 == 11 {
     fmt.print_i64(11); // not shown
   }
+  printifs(0);
+  printifs(1);
+  printifs(2);
+  printifs(3);
   return;
 }

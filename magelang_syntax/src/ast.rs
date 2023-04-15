@@ -191,9 +191,24 @@ pub struct IfStatementNode {
     pub span: Span,
     pub condition: ExprNode,
     pub body: BlockStatementNode,
+    pub else_ifs: Vec<ElseIfStatementNode>,
+    pub else_body: Option<BlockStatementNode>,
 }
 
 impl AstNode for IfStatementNode {
+    fn get_span(&self) -> Span {
+        self.span.clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ElseIfStatementNode {
+    pub span: Span,
+    pub condition: ExprNode,
+    pub body: BlockStatementNode,
+}
+
+impl AstNode for ElseIfStatementNode {
     fn get_span(&self) -> Span {
         self.span.clone()
     }

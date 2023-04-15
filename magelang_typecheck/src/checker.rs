@@ -9,9 +9,9 @@ use magelang_semantic::{
 };
 use magelang_syntax::{
     parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
-    CastExprNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, ItemNode, LetKind, LetStatementNode,
-    ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind, UnaryExprNode,
-    WhileStatementNode,
+    CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, ItemNode, LetKind,
+    LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
+    UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
 use std::iter::zip;
@@ -460,26 +460,66 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         scope: &Rc<Scope>,
         node: &IfStatementNode,
     ) -> StatementInfo {
-        let condition = self.get_expr(scope, &node.condition);
+        self.check_if_like_statement(
+            state,
+            scope,
+            &node.condition,
+            &node.body,
+            node.else_ifs.as_slice(),
+            node.else_body.as_ref(),
+        )
+    }
+
+    fn check_if_like_statement(
+        &self,
+        state: &mut FunctionCheckState,
+        scope: &Rc<Scope>,
+        cond_expr: &ExprNode,
+        body: &BlockStatementNode,
+        else_ifs: &[ElseIfStatementNode],
+        else_body: Option<&BlockStatementNode>,
+    ) -> StatementInfo {
+        let condition = self.get_expr(scope, cond_expr);
 
         let bool_type_id = self.type_loader.declare_type(Type::Bool);
         if condition.type_id != bool_type_id {
             let ty = self.type_loader.get_type(condition.type_id).unwrap();
             self.err_channel.push(type_mismatch(
-                node.condition.get_span(),
+                cond_expr.get_span(),
                 "bool",
                 ty.display(self.type_loader),
             ));
         }
 
-        let body_stmt_info = self.check_block_statement(state, scope, &node.body);
+        let body_stmt_info = self.check_block_statement(state, scope, body);
+
+        let mut is_returning = body_stmt_info.is_returning && else_body.is_some();
+        let else_body = if let Some(else_if) = else_ifs.first() {
+            let stmt_info = self.check_if_like_statement(
+                state,
+                scope,
+                &else_if.condition,
+                &else_if.body,
+                &else_ifs[1..],
+                else_body,
+            );
+            is_returning = is_returning && stmt_info.is_returning;
+            Some(Box::new(stmt_info.statement))
+        } else if let Some(else_body) = else_body {
+            let stmt_info = self.check_block_statement(state, scope, else_body);
+            is_returning = is_returning && stmt_info.is_returning;
+            Some(Box::new(stmt_info.statement))
+        } else {
+            None
+        };
 
         StatementInfo {
             statement: Statement::If(IfStatement {
                 condition,
                 body: Box::new(body_stmt_info.statement),
+                else_body,
             }),
-            is_returning: false,
+            is_returning,
             new_scope: None,
         }
     }

@@ -109,6 +109,7 @@ impl<'err> Scanner<'err> {
         let kind = match value.as_str() {
             "let" => TokenKind::Let,
             "if" => TokenKind::If,
+            "else" => TokenKind::Else,
             "while" => TokenKind::While,
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,

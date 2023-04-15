@@ -16,6 +16,7 @@ pub enum Statement {
 pub struct IfStatement {
     pub condition: Expr,
     pub body: Box<Statement>,
+    pub else_body: Option<Box<Statement>>,
 }
 
 #[derive(Debug)]
