@@ -120,6 +120,7 @@ impl AstNode for ParameterNode {
 pub enum StatementNode {
     Let(LetStatementNode),
     Block(BlockStatementNode),
+    While(WhileStatementNode),
     Return(ReturnStatementNode),
     Expr(ExprNode),
 }
@@ -129,6 +130,7 @@ impl AstNode for StatementNode {
         match self {
             Self::Let(node) => node.get_span(),
             Self::Block(node) => node.get_span(),
+            Self::While(node) => node.get_span(),
             Self::Return(node) => node.get_span(),
             Self::Expr(node) => node.get_span(),
         }
@@ -162,6 +164,19 @@ pub struct BlockStatementNode {
 }
 
 impl AstNode for BlockStatementNode {
+    fn get_span(&self) -> Span {
+        self.span.clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct WhileStatementNode {
+    pub span: Span,
+    pub condition: ExprNode,
+    pub body: BlockStatementNode,
+}
+
+impl AstNode for WhileStatementNode {
     fn get_span(&self) -> Span {
         self.span.clone()
     }

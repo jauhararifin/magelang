@@ -1,8 +1,13 @@
+use crate::Token;
 use magelang_common::{Error, Span};
 use std::fmt::Display;
 
 pub(crate) fn unexpected_char(span: Span, ch: char) -> Error {
     Error::new(span, format!("Unexpected character '{}'", ch))
+}
+
+pub(crate) fn unexpected_token(token: &Token) -> Error {
+    Error::new(token.span.clone(), format!("Unexpected token '{}'", token.kind))
 }
 
 pub(crate) fn unexpected_newline(span: Span) -> Error {

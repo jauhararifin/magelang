@@ -24,8 +24,12 @@ fn main() {
   let x = 12345;
   let y: i64 = 12;
   let z: i64;
+  while (z < 10) {
+    fmt.print_i64(x); // 12345
+  };
   fmt.print_i64(x + 1);
   fmt.print_i64(y - 1);
   fmt.print_i64(z + 1);
+  fmt.print_i64(x + y + z); // 12357
   return;
 }

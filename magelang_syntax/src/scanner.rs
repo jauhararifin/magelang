@@ -30,7 +30,6 @@ struct CharPos {
 }
 
 static SYMBOLS: &[(&str, TokenKind)] = &[
-    ("=", TokenKind::Equal),
     (":", TokenKind::Colon),
     (";", TokenKind::SemiColon),
     (".", TokenKind::Dot),
@@ -109,6 +108,7 @@ impl<'err> Scanner<'err> {
         let span = Span::new(tok.file_id, tok.offset, value.len());
         let kind = match value.as_str() {
             "let" => TokenKind::Let,
+            "while" => TokenKind::While,
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,

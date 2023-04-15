@@ -4,9 +4,16 @@ use crate::expr::Expr;
 pub enum Statement {
     Invalid,
     Local(Expr),
+    While(WhileStatement),
     Block(BlockStatement),
     Return(ReturnStatement),
     Expr(Expr),
+}
+
+#[derive(Debug)]
+pub struct WhileStatement {
+    pub condition: Expr,
+    pub body: Box<Statement>,
 }
 
 #[derive(Debug)]

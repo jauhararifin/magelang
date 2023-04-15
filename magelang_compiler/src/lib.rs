@@ -151,6 +151,21 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 self.process_expr(functable, builder, variables, expr);
                 builder.local_set(local_id);
             }
+            Statement::While(while_stmt) => {
+                builder.block(None, |block_builder| {
+                    let outer_id = block_builder.id();
+                    block_builder.loop_(None, |body_builder| {
+                        body_builder.i32_const(1);
+                        self.process_expr(functable, body_builder, variables, &while_stmt.condition);
+                        body_builder.binop(BinaryOp::I32Xor);
+                        body_builder.br_if(outer_id);
+
+                        self.process_statement(module_locals, functable, body_builder, variables, &while_stmt.body);
+
+                        body_builder.br(body_builder.id());
+                    });
+                });
+            }
             Statement::Block(block) => {
                 for stmt in &block.statements {
                     self.process_statement(module_locals, functable, builder, variables, stmt);

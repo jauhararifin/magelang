@@ -5,12 +5,12 @@ use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoad
 use magelang_package::PackageUtil;
 use magelang_semantic::{
     BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, NativeFunction, Package, ReturnStatement,
-    Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
+    Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     parse_string_lit, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode,
     FunctionNode, ImportNode, ItemNode, LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode,
-    SignatureNode, StatementNode, Token, TokenKind, UnaryExprNode,
+    SignatureNode, StatementNode, Token, TokenKind, UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
 use std::iter::zip;
@@ -301,6 +301,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         match node {
             StatementNode::Let(node) => self.check_let_statement(state, scope, node),
             StatementNode::Block(node) => self.check_block_statement(state, scope, node),
+            StatementNode::While(node) => self.check_while_statement(state, scope, node),
             StatementNode::Return(node) => self.check_return_statement(scope, node),
             StatementNode::Expr(node) => StatementInfo {
                 statement: Statement::Expr(self.get_expr(scope, node)),
@@ -350,7 +351,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                         IndexMap::from([(name_sym, Object::Local(target_ty_id, local_id))]),
                     )),
                 }
-            },
+            }
             LetKind::TypeValue { ty, value } => {
                 let mut value_expr = self.get_expr(scope, value);
                 let type_id = value_expr.type_id;
@@ -392,6 +393,36 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     )),
                 }
             }
+        }
+    }
+
+    fn check_while_statement(
+        &self,
+        state: &mut FunctionCheckState,
+        scope: &Rc<Scope>,
+        node: &WhileStatementNode,
+    ) -> StatementInfo {
+        let condition = self.get_expr(scope, &node.condition);
+
+        let bool_type_id = self.type_loader.declare_type(Type::Bool);
+        if condition.type_id != bool_type_id {
+            let ty = self.type_loader.get_type(condition.type_id).unwrap();
+            self.err_channel.push(type_mismatch(
+                node.condition.get_span(),
+                "bool",
+                ty.display(self.type_loader),
+            ));
+        }
+
+        let body_stmt_info = self.check_block_statement(state, scope, &node.body);
+
+        StatementInfo {
+            statement: Statement::While(WhileStatement {
+                condition,
+                body: Box::new(body_stmt_info.statement),
+            }),
+            is_returning: false,
+            new_scope: None,
         }
     }
 
@@ -636,18 +667,21 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         let result_ty = match expr.op.kind {
-            TokenKind::Add
-            | TokenKind::Sub
-            | TokenKind::Mul
-            | TokenKind::Div
-            | TokenKind::Eq
-            | TokenKind::NEq
-            | TokenKind::Gt
-            | TokenKind::GEq
-            | TokenKind::Lt
-            | TokenKind::LEq => {
+            TokenKind::Add | TokenKind::Sub | TokenKind::Mul | TokenKind::Div => {
                 if a_ty.is_numeric() {
                     a_ty.as_ref().clone()
+                } else {
+                    self.err_channel.push(binop_type_unsupported(
+                        expr.get_span(),
+                        op_name,
+                        a_ty.display(self.type_loader),
+                    ));
+                    Type::Invalid
+                }
+            }
+            TokenKind::Eq | TokenKind::NEq | TokenKind::Gt | TokenKind::GEq | TokenKind::Lt | TokenKind::LEq => {
+                if a_ty.is_numeric() {
+                    Type::Bool
                 } else {
                     self.err_channel.push(binop_type_unsupported(
                         expr.get_span(),
