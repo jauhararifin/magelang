@@ -104,3 +104,7 @@ pub(crate) fn unmatch_function_arguments(span: Span, expected: usize, found: usi
 pub(crate) fn expr_unassignable(span: Span) -> Error {
     Error::new(span, String::from("Expression is not assignable"))
 }
+
+pub(crate) fn not_in_a_loop(span: Span, name: &str) -> Error {
+    Error::new(span, format!("{name} can only be used in a loop"))
+}

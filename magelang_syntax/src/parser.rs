@@ -230,6 +230,8 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             TokenKind::If => StatementNode::If(self.parse_if_stmt()?),
             TokenKind::While => StatementNode::While(self.parse_while_stmt()?),
             TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt()?),
+            TokenKind::Continue => StatementNode::Continue(self.take(TokenKind::Continue).unwrap()),
+            TokenKind::Break => StatementNode::Break(self.take(TokenKind::Break).unwrap()),
             TokenKind::Return => StatementNode::Return(self.parse_return_stmt()?),
             _ => {
                 let expr = self.parse_expr()?;

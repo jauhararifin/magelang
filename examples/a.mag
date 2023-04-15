@@ -74,5 +74,17 @@ fn main() {
   printifs(1);
   printifs(2);
   printifs(3);
+  let i = 1;
+  while i <= 10 {
+    fmt.print_i64(i);
+    if (i == 9) {
+      break;
+    }
+    if (i == 5) {
+      i = i + 2;
+      continue;
+    }
+    i = i + 1;
+  }
   return;
 }

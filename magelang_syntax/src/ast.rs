@@ -123,6 +123,8 @@ pub enum StatementNode {
     Block(BlockStatementNode),
     If(IfStatementNode),
     While(WhileStatementNode),
+    Continue(Token),
+    Break(Token),
     Return(ReturnStatementNode),
     Expr(ExprNode),
 }
@@ -135,6 +137,8 @@ impl AstNode for StatementNode {
             Self::Block(node) => node.get_span(),
             Self::If(node) => node.get_span(),
             Self::While(node) => node.get_span(),
+            Self::Continue(token) => token.span.clone(),
+            Self::Break(token) => token.span.clone(),
             Self::Return(node) => node.get_span(),
             Self::Expr(node) => node.get_span(),
         }

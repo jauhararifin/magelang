@@ -7,6 +7,8 @@ pub enum Statement {
     SetLocal(usize, Expr),
     If(IfStatement),
     While(WhileStatement),
+    Continue,
+    Break,
     Block(BlockStatement),
     Return(ReturnStatement),
     Expr(Expr),

@@ -56,6 +56,8 @@ pub enum TokenKind {
     RealLit,
     True,
     False,
+    Continue,
+    Break,
 }
 
 impl std::fmt::Display for TokenKind {
@@ -107,6 +109,8 @@ impl std::fmt::Display for TokenKind {
             Self::RealLit => write!(f, "RealLit"),
             Self::True => write!(f, "True"),
             Self::False => write!(f, "False"),
+            Self::Continue => write!(f, "Continue"),
+            Self::Break => write!(f, "Break"),
         }
     }
 }

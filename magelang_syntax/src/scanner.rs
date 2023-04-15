@@ -117,6 +117,8 @@ impl<'err> Scanner<'err> {
             "as" => TokenKind::As,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
+            "continue" => TokenKind::Continue,
+            "break" => TokenKind::Break,
             _ => TokenKind::Ident,
         };
 

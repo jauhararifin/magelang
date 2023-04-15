@@ -32,6 +32,7 @@ pub enum ScopeKind {
     Package(SymbolId),
     Function(Option<TypeId>),
     Basic,
+    Loop,
 }
 
 pub const I64: &str = "i64";
@@ -116,6 +117,16 @@ impl Scope {
             parent.return_type()
         } else {
             None
+        }
+    }
+
+    pub fn is_inside_loop(&self) -> bool {
+        if let ScopeKind::Loop = self.kind {
+            return true;
+        } else if let Some(ref parent) = self.parent {
+            parent.is_inside_loop()
+        } else {
+            false
         }
     }
 }

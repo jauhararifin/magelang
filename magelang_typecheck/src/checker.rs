@@ -243,7 +243,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type), symbols);
-        let statement_info = self.check_block_statement(&mut func_state, &func_scope, &func_node.body);
+        let statement_info =
+            self.check_block_statement(&mut func_state, &func_scope, &func_node.body, ScopeKind::Basic);
         let body = statement_info.statement;
 
         if func_type.return_type.is_some() && !statement_info.is_returning {
@@ -265,8 +266,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
         node: &BlockStatementNode,
+        kind: ScopeKind,
     ) -> StatementInfo {
-        let mut scope = scope.new_child(ScopeKind::Basic, IndexMap::new());
+        let mut scope = scope.new_child(kind, IndexMap::new());
         let mut statements = vec![];
         let mut is_returning = false;
         let mut unreachable_reported = false;
@@ -302,9 +304,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         match node {
             StatementNode::Let(node) => self.check_let_statement(state, scope, node),
             StatementNode::Assign(node) => self.check_assign_statement(scope, node),
-            StatementNode::Block(node) => self.check_block_statement(state, scope, node),
+            StatementNode::Block(node) => self.check_block_statement(state, scope, node, ScopeKind::Basic),
             StatementNode::If(node) => self.check_if_statement(state, scope, node),
             StatementNode::While(node) => self.check_while_statement(state, scope, node),
+            StatementNode::Continue(token) => self.check_continue_statement(scope, token),
+            StatementNode::Break(token) => self.check_break_statement(scope, token),
             StatementNode::Return(node) => self.check_return_statement(scope, node),
             StatementNode::Expr(node) => StatementInfo {
                 statement: Statement::Expr(self.get_expr(scope, node)),
@@ -491,7 +495,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ));
         }
 
-        let body_stmt_info = self.check_block_statement(state, scope, body);
+        let body_stmt_info = self.check_block_statement(state, scope, body, ScopeKind::Basic);
 
         let mut is_returning = body_stmt_info.is_returning && else_body.is_some();
         let else_body = if let Some(else_if) = else_ifs.first() {
@@ -506,7 +510,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             is_returning = is_returning && stmt_info.is_returning;
             Some(Box::new(stmt_info.statement))
         } else if let Some(else_body) = else_body {
-            let stmt_info = self.check_block_statement(state, scope, else_body);
+            let stmt_info = self.check_block_statement(state, scope, else_body, ScopeKind::Basic);
             is_returning = is_returning && stmt_info.is_returning;
             Some(Box::new(stmt_info.statement))
         } else {
@@ -542,7 +546,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ));
         }
 
-        let body_stmt_info = self.check_block_statement(state, scope, &node.body);
+        let body_stmt_info = self.check_block_statement(state, scope, &node.body, ScopeKind::Loop);
 
         StatementInfo {
             statement: Statement::While(WhileStatement {
@@ -551,6 +555,40 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             }),
             is_returning: false,
             new_scope: None,
+        }
+    }
+
+    fn check_continue_statement(&self, scope: &Rc<Scope>, token: &Token) -> StatementInfo {
+        if !scope.is_inside_loop() {
+            self.err_channel.push(not_in_a_loop(token.span.clone(), "continue"));
+            StatementInfo {
+                statement: Statement::Invalid,
+                is_returning: false,
+                new_scope: None,
+            }
+        } else {
+            StatementInfo {
+                statement: Statement::Continue,
+                is_returning: false,
+                new_scope: None,
+            }
+        }
+    }
+
+    fn check_break_statement(&self, scope: &Rc<Scope>, token: &Token) -> StatementInfo {
+        if !scope.is_inside_loop() {
+            self.err_channel.push(not_in_a_loop(token.span.clone(), "break"));
+            StatementInfo {
+                statement: Statement::Invalid,
+                is_returning: false,
+                new_scope: None,
+            }
+        } else {
+            StatementInfo {
+                statement: Statement::Break,
+                is_returning: false,
+                new_scope: None,
+            }
         }
     }
 

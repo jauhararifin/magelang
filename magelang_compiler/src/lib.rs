@@ -3,8 +3,8 @@ use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoa
 use std::collections::HashMap;
 use std::rc::Rc;
 use walrus::{
-    ir::BinaryOp, ir::UnaryOp, FunctionBuilder, FunctionId, FunctionKind, InstrSeqBuilder, LocalId, Module,
-    ModuleLocals, ValType,
+    ir::BinaryOp, ir::InstrSeqId, ir::UnaryOp, FunctionBuilder, FunctionId, FunctionKind, InstrSeqBuilder, LocalId,
+    Module, ModuleLocals, ValType,
 };
 
 pub struct Compiler<'sym, 'typ> {
@@ -119,11 +119,13 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let builder = wasm_func.builder_mut();
 
                 let mut body_builder = builder.func_body();
+                let mut loop_blocks = vec![];
                 self.process_statement(
                     &mut module.locals,
                     &functable,
                     &mut body_builder,
                     &mut variables,
+                    &mut loop_blocks,
                     &func.body,
                 );
             }
@@ -138,6 +140,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         functable: &HashMap<String, FunctionId>,
         builder: &mut InstrSeqBuilder,
         variables: &mut Vec<LocalId>,
+        loop_blocks: &mut Vec<(InstrSeqId, InstrSeqId)>,
         stmt: &Statement,
     ) {
         match stmt {
@@ -163,33 +166,67 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                         block_builder.unop(UnaryOp::I32Eqz);
                         block_builder.br_if(block_builder.id());
 
-                        self.process_statement(module_locals, functable, block_builder, variables, &if_stmt.body);
+                        self.process_statement(
+                            module_locals,
+                            functable,
+                            block_builder,
+                            variables,
+                            loop_blocks,
+                            &if_stmt.body,
+                        );
 
                         block_builder.br(outer_id);
                     });
 
                     if let Some(else_body) = if_stmt.else_body.as_ref() {
-                        self.process_statement(module_locals, functable, outer_block, variables, else_body.as_ref());
+                        self.process_statement(
+                            module_locals,
+                            functable,
+                            outer_block,
+                            variables,
+                            loop_blocks,
+                            else_body.as_ref(),
+                        );
                     }
                 });
             }
             Statement::While(while_stmt) => {
                 builder.block(None, |block_builder| {
                     let outer_id = block_builder.id();
-                    block_builder.loop_(None, |body_builder| {
-                        self.process_expr(functable, body_builder, variables, &while_stmt.condition);
-                        body_builder.unop(UnaryOp::I32Eqz);
-                        body_builder.br_if(outer_id);
+                    block_builder.loop_(None, |middle_builder| {
+                        loop_blocks.push((outer_id, middle_builder.id()));
+                        middle_builder.block(None, |body_builder| {
+                            self.process_expr(functable, body_builder, variables, &while_stmt.condition);
+                            body_builder.unop(UnaryOp::I32Eqz);
+                            body_builder.br_if(outer_id);
 
-                        self.process_statement(module_locals, functable, body_builder, variables, &while_stmt.body);
+                            self.process_statement(
+                                module_locals,
+                                functable,
+                                body_builder,
+                                variables,
+                                loop_blocks,
+                                &while_stmt.body,
+                            );
+                        });
 
-                        body_builder.br(body_builder.id());
+                        middle_builder.br(middle_builder.id());
                     });
                 });
+
+                loop_blocks.pop();
+            }
+            Statement::Continue => {
+                let (_, continue_id) = loop_blocks.last().unwrap();
+                builder.br(*continue_id);
+            }
+            Statement::Break => {
+                let (break_id, _) = loop_blocks.last().unwrap();
+                builder.br(*break_id);
             }
             Statement::Block(block) => {
                 for stmt in &block.statements {
-                    self.process_statement(module_locals, functable, builder, variables, stmt);
+                    self.process_statement(module_locals, functable, builder, variables, loop_blocks, stmt);
                 }
             }
             Statement::Return(ret_stmt) => {
