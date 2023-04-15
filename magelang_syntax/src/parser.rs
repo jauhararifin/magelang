@@ -1,7 +1,8 @@
 use crate::ast::{
     AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ExprNode,
-    FunctionNode, GroupedExprNode, ImportNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode,
-    ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode, WhileStatementNode,
+    FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind, LetStatementNode, PackageNode,
+    ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode,
+    WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
@@ -226,6 +227,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     fn parse_stmt(&mut self) -> Option<StatementNode> {
         Some(match self.kind() {
             TokenKind::Let => StatementNode::Let(self.parse_let_stmt()?),
+            TokenKind::If => StatementNode::If(self.parse_if_stmt()?),
             TokenKind::While => StatementNode::While(self.parse_while_stmt()?),
             TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt()?),
             TokenKind::Return => StatementNode::Return(self.parse_return_stmt()?),
@@ -284,6 +286,17 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
                 kind: LetKind::ValueOnly { value },
             })
         }
+    }
+
+    fn parse_if_stmt(&mut self) -> Option<IfStatementNode> {
+        let while_tok = self.take(TokenKind::If)?;
+        let mut span = while_tok.span;
+
+        let condition = self.parse_expr()?;
+        let body = self.parse_block_stmt()?;
+        span.union(&body.span);
+
+        Some(IfStatementNode { span, condition, body })
     }
 
     fn parse_while_stmt(&mut self) -> Option<WhileStatementNode> {

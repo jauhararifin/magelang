@@ -5,10 +5,17 @@ pub enum Statement {
     Invalid,
     Local(Expr),
     SetLocal(usize, Expr),
+    If(IfStatement),
     While(WhileStatement),
     Block(BlockStatement),
     Return(ReturnStatement),
     Expr(Expr),
+}
+
+#[derive(Debug)]
+pub struct IfStatement {
+    pub condition: Expr,
+    pub body: Box<Statement>,
 }
 
 #[derive(Debug)]

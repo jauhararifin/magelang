@@ -121,6 +121,7 @@ pub enum StatementNode {
     Let(LetStatementNode),
     Assign(AssignStatementNode),
     Block(BlockStatementNode),
+    If(IfStatementNode),
     While(WhileStatementNode),
     Return(ReturnStatementNode),
     Expr(ExprNode),
@@ -132,6 +133,7 @@ impl AstNode for StatementNode {
             Self::Let(node) => node.get_span(),
             Self::Assign(node) => node.get_span(),
             Self::Block(node) => node.get_span(),
+            Self::If(node) => node.get_span(),
             Self::While(node) => node.get_span(),
             Self::Return(node) => node.get_span(),
             Self::Expr(node) => node.get_span(),
@@ -179,6 +181,19 @@ pub struct BlockStatementNode {
 }
 
 impl AstNode for BlockStatementNode {
+    fn get_span(&self) -> Span {
+        self.span.clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IfStatementNode {
+    pub span: Span,
+    pub condition: ExprNode,
+    pub body: BlockStatementNode,
+}
+
+impl AstNode for IfStatementNode {
     fn get_span(&self) -> Span {
         self.span.clone()
     }

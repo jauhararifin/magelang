@@ -3,7 +3,7 @@ mod statement;
 mod types;
 
 pub use expr::{BinOp, Expr, ExprKind, FuncExpr, UnOp};
-pub use statement::{BlockStatement, ReturnStatement, Statement, WhileStatement};
+pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
 pub use types::{FuncType, Type, TypeDisplay, TypeId, TypeLoader};
 
 use magelang_common::SymbolId;

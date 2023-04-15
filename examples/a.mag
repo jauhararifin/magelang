@@ -12,12 +12,19 @@ fn arifin(): i64 {
 
 fn gcd(a: i64, b: i64): i64 {
   let t: i64;
-  while (b != 0) {
+  while b != 0 {
     t = b;
     b = a % b;
     a = t;
   }
   return a;
+}
+
+fn gcd_rec(a: i64, b: i64): i64 {
+  while b == 0 {
+    return a;
+  }
+  return gcd_rec(b, a % b);
 }
 
 fn main() {
@@ -34,7 +41,7 @@ fn main() {
   let x = 12345;
   let y: i64 = 12;
   let z: i64;
-  while (z < 10) {
+  while z < 10 {
     fmt.print_i64(x); // 12345
     z = z + 1;
   }
@@ -42,9 +49,17 @@ fn main() {
   let yyyy = 60;
   let zzzz = gcd(xxxx, yyyy);
   fmt.print_i64(zzzz); // 12?
+  zzzz = gcd_rec(xxxx, yyyy);
+  fmt.print_i64(zzzz); // 12?
   fmt.print_i64(x + 1);
   fmt.print_i64(y - 1);
   fmt.print_i64(z + 1);
   fmt.print_i64(x + y + z); // 12357
+  if 10 == 10 {
+    fmt.print_i64(10); // 10
+  }
+  if 10 == 11 {
+    fmt.print_i64(11); // not shown
+  }
   return;
 }

@@ -108,6 +108,7 @@ impl<'err> Scanner<'err> {
         let span = Span::new(tok.file_id, tok.offset, value.len());
         let kind = match value.as_str() {
             "let" => TokenKind::Let,
+            "if" => TokenKind::If,
             "while" => TokenKind::While,
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,
