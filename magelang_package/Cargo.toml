@@ -9,3 +9,4 @@ edition = "2021"
 magelang_common = { path = "../magelang_common" }
 magelang_syntax = { path = "../magelang_syntax" }
 indexmap = "1.9.2"
+home = "0.5.4"

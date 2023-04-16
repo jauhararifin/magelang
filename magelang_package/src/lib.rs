@@ -1,3 +1,4 @@
+use home;
 use indexmap::IndexSet;
 use magelang_common::{FileLoader, SymbolId, SymbolLoader};
 use magelang_syntax::{parse_string_lit, AstLoader};
@@ -30,7 +31,7 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
                     v
                 })
             })
-            .unwrap_or_else(|| std::env::home_dir().map(|path| path.join("magelang")).unwrap());
+            .unwrap_or_else(|| home::home_dir().map(|path| path.join("magelang")).unwrap());
 
         Self {
             file_loader,
