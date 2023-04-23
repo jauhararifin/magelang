@@ -52,6 +52,8 @@ static SYMBOLS: &[(&str, TokenKind)] = &[
     ("}", TokenKind::CloseBlock),
     ("(", TokenKind::OpenBrac),
     (")", TokenKind::CloseBrac),
+    ("[", TokenKind::OpenSquare),
+    ("]", TokenKind::CloseSquare),
     (",", TokenKind::Comma),
     ("%", TokenKind::Mod),
     ("&&", TokenKind::And),

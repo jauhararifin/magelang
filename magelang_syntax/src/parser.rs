@@ -1,8 +1,8 @@
 use crate::ast::{
-    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ElseIfStatementNode,
-    ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind, LetStatementNode,
-    PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, UnaryExprNode,
-    WhileStatementNode,
+    ArrayPointerNode, AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
+    ElseIfStatementNode, ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind,
+    LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode,
+    UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
@@ -446,7 +446,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_call_expr(&mut self) -> Option<ExprNode> {
-        let target = self.parse_selection_expr()?;
+        let target = self.parse_array_pointer_expr()?;
 
         if self.kind() != TokenKind::OpenBrac {
             return Some(target);
@@ -464,6 +464,21 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             span,
             target: Box::new(target),
             arguments,
+        }))
+    }
+
+    fn parse_array_pointer_expr(&mut self) -> Option<ExprNode> {
+        let Some(open_square_tok) = self.take_if(TokenKind::OpenSquare) else {
+            return self.parse_selection_expr();
+        };
+        let mut span = open_square_tok.span;
+        self.take(TokenKind::Mul);
+        self.take(TokenKind::CloseSquare);
+        let element = self.parse_selection_expr()?;
+        span.union(&element.get_span());
+        Some(ExprNode::ArrayPointer(ArrayPointerNode {
+            span,
+            element: Box::new(element),
         }))
     }
 
