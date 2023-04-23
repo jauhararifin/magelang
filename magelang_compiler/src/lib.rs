@@ -1,5 +1,5 @@
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeLoader, UnOp};
+use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeLoader, UnOp};
 use std::collections::HashMap;
 use std::rc::Rc;
 use walrus::{
@@ -318,17 +318,43 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     (Type::I64 | Type::U64, Type::I32 | Type::U32) => {
                         builder.unop(UnaryOp::I32WrapI64);
                     }
-                    (Type::I64 | Type::U64, Type::I16) => {
+                    (Type::I64 | Type::U64, Type::I16 | Type::U16) => {
                         builder.unop(UnaryOp::I32WrapI64);
                         builder.unop(UnaryOp::I32Extend16S);
                     }
-                    (Type::I64 | Type::U64, Type::U16) => {
-                        todo!();
-                    }
                     (Type::I64 | Type::U64, Type::I8 | Type::U8) => {
-                        todo!();
+                        builder.unop(UnaryOp::I32WrapI64);
+                        builder.unop(UnaryOp::I32Extend8S);
                     }
-                    _ => todo!(),
+                    (Type::I32, Type::I64) => {
+                        builder.unop(UnaryOp::I64Extend32S);
+                    }
+                    (Type::I32, _) => {}
+                    (Type::U32, Type::I64 | Type::U64) => {
+                        builder.unop(UnaryOp::I64ExtendUI32);
+                    }
+                    (Type::U32, _) => {}
+                    (Type::I16, Type::I64) => {
+                        builder.unop(UnaryOp::I64Extend16S);
+                    }
+                    (Type::I16, _) => {}
+                    (Type::U16, Type::I64 | Type::U64) => {
+                        builder.unop(UnaryOp::I64ExtendUI32);
+                    }
+                    (Type::U16, _) => {}
+                    (Type::I8, Type::I64) => {
+                        builder.unop(UnaryOp::I64Extend8S);
+                    }
+                    (Type::I8, _) => {}
+                    (Type::U8, Type::I64 | Type::U64) => {
+                        builder.unop(UnaryOp::I64ExtendUI32);
+                    }
+                    (Type::U8, _) => {}
+                    (source @ _, target @ _) => todo!(
+                        "casting from {} to {} is not supported yet",
+                        source.display(self.type_loader),
+                        target.display(self.type_loader)
+                    ),
                 }
             }
             ExprKind::Binary { a, op, b } => {
