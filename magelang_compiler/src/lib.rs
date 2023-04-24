@@ -3,8 +3,8 @@ use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDis
 use std::collections::HashMap;
 use std::rc::Rc;
 use walrus::{
-    ir::BinaryOp, ir::InstrSeqId, ir::UnaryOp, FunctionBuilder, FunctionId, FunctionKind, InstrSeqBuilder, LocalId,
-    Module, ModuleLocals, ValType,
+    ir::BinaryOp, ir::InstrSeqId, ir::UnaryOp, ActiveData, ActiveDataLocation, DataKind, FunctionBuilder, FunctionId,
+    FunctionKind, InstrSeqBuilder, LocalId, Module, ModuleLocals, ValType,
 };
 
 pub struct Compiler<'sym, 'typ> {
@@ -24,6 +24,25 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         let mut module = Module::default();
 
         let mut functable = HashMap::new();
+
+        let memory_id = module.memories.add_local(true, 1, None);
+        let mut string_offset_table = HashMap::new();
+        let mut offset = 0usize;
+        for pkg in &packages {
+            for (index, string) in pkg.strings.iter().enumerate() {
+                let value_offset = offset;
+                let value = string.as_ref().to_vec();
+                offset += value.len();
+                module.data.add(
+                    DataKind::Active(ActiveData {
+                        memory: memory_id,
+                        location: ActiveDataLocation::Absolute(offset as u32),
+                    }),
+                    value,
+                );
+                string_offset_table.insert((pkg.name, index), value_offset);
+            }
+        }
 
         for pkg in &packages {
             let pkg_name = self.symbol_loader.get_symbol(pkg.name).unwrap();
@@ -123,6 +142,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 self.process_statement(
                     &mut module.locals,
                     &functable,
+                    &string_offset_table,
                     &mut body_builder,
                     &mut variables,
                     &mut loop_blocks,
@@ -138,6 +158,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         &self,
         module_locals: &mut ModuleLocals,
         functable: &HashMap<String, FunctionId>,
+        string_offset_table: &HashMap<(SymbolId, usize), usize>,
         builder: &mut InstrSeqBuilder,
         variables: &mut Vec<LocalId>,
         loop_blocks: &mut Vec<(InstrSeqId, InstrSeqId)>,
@@ -151,24 +172,31 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
                 variables.push(local_id);
 
-                self.process_expr(functable, builder, variables, expr);
+                self.process_expr(functable, string_offset_table, builder, variables, expr);
                 builder.local_set(local_id);
             }
             Statement::SetLocal(id, expr) => {
-                self.process_expr(functable, builder, variables, expr);
+                self.process_expr(functable, string_offset_table, builder, variables, expr);
                 builder.local_set(variables[*id].clone());
             }
             Statement::If(if_stmt) => {
                 builder.block(None, |outer_block| {
                     let outer_id = outer_block.id();
                     outer_block.block(None, |block_builder| {
-                        self.process_expr(functable, block_builder, variables, &if_stmt.condition);
+                        self.process_expr(
+                            functable,
+                            string_offset_table,
+                            block_builder,
+                            variables,
+                            &if_stmt.condition,
+                        );
                         block_builder.unop(UnaryOp::I32Eqz);
                         block_builder.br_if(block_builder.id());
 
                         self.process_statement(
                             module_locals,
                             functable,
+                            string_offset_table,
                             block_builder,
                             variables,
                             loop_blocks,
@@ -182,6 +210,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                         self.process_statement(
                             module_locals,
                             functable,
+                            string_offset_table,
                             outer_block,
                             variables,
                             loop_blocks,
@@ -196,13 +225,19 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     block_builder.loop_(None, |middle_builder| {
                         loop_blocks.push((outer_id, middle_builder.id()));
                         middle_builder.block(None, |body_builder| {
-                            self.process_expr(functable, body_builder, variables, &while_stmt.condition);
+                            self.process_expr(
+                                functable,
+                                string_offset_table,
+                                body_builder,
+                                variables,
+                                &while_stmt.condition,
+                            );
                             body_builder.unop(UnaryOp::I32Eqz);
                             body_builder.br_if(outer_id);
-
                             self.process_statement(
                                 module_locals,
                                 functable,
+                                string_offset_table,
                                 body_builder,
                                 variables,
                                 loop_blocks,
@@ -226,17 +261,25 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             }
             Statement::Block(block) => {
                 for stmt in &block.statements {
-                    self.process_statement(module_locals, functable, builder, variables, loop_blocks, stmt);
+                    self.process_statement(
+                        module_locals,
+                        functable,
+                        string_offset_table,
+                        builder,
+                        variables,
+                        loop_blocks,
+                        stmt,
+                    );
                 }
             }
             Statement::Return(ret_stmt) => {
                 if let Some(ref val) = ret_stmt.value {
-                    self.process_expr(functable, builder, variables, val);
+                    self.process_expr(functable, string_offset_table, builder, variables, val);
                 }
                 builder.return_();
             }
             Statement::Expr(expr) => {
-                self.process_expr(functable, builder, variables, expr);
+                self.process_expr(functable, string_offset_table, builder, variables, expr);
             }
             Statement::Invalid => unreachable!(),
         }
@@ -245,6 +288,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
     fn process_expr(
         &self,
         functable: &HashMap<String, FunctionId>,
+        string_offset_table: &HashMap<(SymbolId, usize), usize>,
         builder: &mut InstrSeqBuilder,
         variables: &[LocalId],
         expr: &Expr,
@@ -286,13 +330,20 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             ExprKind::Bool(val) => {
                 builder.i32_const(if *val { 1 } else { 0 });
             }
+            ExprKind::Usize(val) => {
+                builder.i32_const(*val as i32);
+            }
             ExprKind::Local(index) => {
                 builder.local_get(variables[*index]);
             }
             ExprKind::Func(..) => unreachable!(),
+            ExprKind::StringLit(str_lit) => {
+                let offset = string_offset_table.get(&(str_lit.package_name, str_lit.index)).unwrap();
+                builder.i32_const(*offset as i32);
+            }
             ExprKind::Call(target, arguments) => {
                 for arg in arguments.iter() {
-                    self.process_expr(functable, builder, variables, arg);
+                    self.process_expr(functable, string_offset_table, builder, variables, arg);
                 }
 
                 if let ExprKind::Func(func_expr) = &target.kind {
@@ -311,7 +362,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 let value_ty = self.type_loader.get_type(value.type_id).unwrap();
                 let target_ty = self.type_loader.get_type(*target_ty).unwrap();
 
-                self.process_expr(functable, builder, variables, value);
+                self.process_expr(functable, string_offset_table, builder, variables, value);
 
                 match (value_ty.as_ref(), target_ty.as_ref()) {
                     (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
@@ -359,11 +410,11 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
             }
             ExprKind::Binary { a, op, b } => {
                 if op == &BinOp::And {
-                    self.process_expr(functable, builder, variables, a);
+                    self.process_expr(functable, string_offset_table, builder, variables, a);
                     builder.if_else(
                         ValType::I32,
                         |builder| {
-                            self.process_expr(functable, builder, variables, b);
+                            self.process_expr(functable, string_offset_table, builder, variables, b);
                         },
                         |builder| {
                             builder.i32_const(0);
@@ -373,21 +424,21 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 }
 
                 if op == &BinOp::Or {
-                    self.process_expr(functable, builder, variables, a);
+                    self.process_expr(functable, string_offset_table, builder, variables, a);
                     builder.if_else(
                         ValType::I32,
                         |builder| {
                             builder.i32_const(1);
                         },
                         |builder| {
-                            self.process_expr(functable, builder, variables, b);
+                            self.process_expr(functable, string_offset_table, builder, variables, b);
                         },
                     );
                     return;
                 }
 
-                self.process_expr(functable, builder, variables, a);
-                self.process_expr(functable, builder, variables, b);
+                self.process_expr(functable, string_offset_table, builder, variables, a);
+                self.process_expr(functable, string_offset_table, builder, variables, b);
 
                 let ty = self.type_loader.get_type(a.type_id).unwrap();
 
@@ -479,38 +530,38 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 match (op, ty.as_ref()) {
                     (UnOp::BitNot, Type::I64 | Type::U64) => {
                         builder.i64_const(-1);
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.binop(BinaryOp::I64Xor);
                     }
                     (UnOp::BitNot, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
                         builder.i32_const(-1);
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.binop(BinaryOp::I32Xor);
                     }
                     (UnOp::Add, _) => {
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                     }
                     (UnOp::Sub, Type::I64 | Type::U64) => {
                         builder.i64_const(0);
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.binop(BinaryOp::I64Sub);
                     }
                     (UnOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
                         builder.i32_const(0);
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.binop(BinaryOp::I32Sub);
                     }
                     (UnOp::Sub, Type::F64) => {
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.unop(UnaryOp::F64Neg);
                     }
                     (UnOp::Sub, Type::F32) => {
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.unop(UnaryOp::F32Neg);
                     }
                     (UnOp::Not, _) => {
                         builder.i32_const(1);
-                        self.process_expr(functable, builder, variables, val);
+                        self.process_expr(functable, string_offset_table, builder, variables, val);
                         builder.binop(BinaryOp::I32Xor);
                     }
                     _ => unreachable!(),
@@ -530,6 +581,7 @@ fn to_wasm_type(ty: &Type) -> ValType {
         Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8 | Type::Bool => ValType::I32,
         Type::F64 => ValType::F64,
         Type::F32 => ValType::F32,
+        Type::ArrayPtr(_) => ValType::I32,
         _ => todo!(),
     }
 }

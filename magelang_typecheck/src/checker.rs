@@ -1,11 +1,11 @@
 use crate::errors::*;
-use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I64};
+use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I64, U8};
 use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction, Package,
-    ReturnStatement, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
+    ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction,
+    Package, ReturnStatement, Statement, StringLitExpr, Type, TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
@@ -112,15 +112,17 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let ast = self.ast_loader.get_ast(file_id);
         let mut state = PackageCheckState::default();
         let scope = self.get_package_scope(package_name);
+        let mut str_helper = ConstStrHelper::default();
 
         for (name, items) in &ast.items {
-            self.check_named_items(&mut state, file_id, scope.clone(), *name, items);
+            self.check_named_items(&mut state, file_id, scope.clone(), &mut str_helper, *name, items);
         }
 
         Rc::new(Package {
             name: package_name,
             functions: state.functions,
             native_functions: state.native_functions,
+            strings: str_helper.take(),
         })
     }
 
@@ -129,6 +131,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         state: &mut PackageCheckState,
         file_id: FileId,
         package_scope: Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         name: SymbolId,
         items: &[ItemNode],
     ) {
@@ -148,7 +151,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         for item in items.iter() {
-            self.check_item(state, &package_scope, name, item);
+            self.check_item(state, &package_scope, str_helper, name, item);
         }
     }
 
@@ -201,11 +204,18 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn check_item(&self, state: &mut PackageCheckState, scope: &Rc<Scope>, name: SymbolId, item_node: &ItemNode) {
+    fn check_item(
+        &self,
+        state: &mut PackageCheckState,
+        scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
+        name: SymbolId,
+        item_node: &ItemNode,
+    ) {
         match item_node {
             ItemNode::Import(import_node) => self.check_import(import_node),
             ItemNode::Function(func_node) => {
-                let func = self.check_fn(scope, func_node);
+                let func = self.check_fn(scope, str_helper, func_node);
                 state.functions.push(func);
             }
             ItemNode::NativeFunction(signature) => {
@@ -227,7 +237,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn check_fn(&self, scope: &Rc<Scope>, func_node: &FunctionNode) -> Func {
+    fn check_fn(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, func_node: &FunctionNode) -> Func {
         let mut symbols = IndexMap::<SymbolId, Object>::new();
         let mut func_state = FunctionCheckState::default();
 
@@ -243,8 +253,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type), symbols);
-        let statement_info =
-            self.check_block_statement(&mut func_state, &func_scope, &func_node.body, ScopeKind::Basic);
+        let statement_info = self.check_block_statement(
+            &mut func_state,
+            &func_scope,
+            str_helper,
+            &func_node.body,
+            ScopeKind::Basic,
+        );
         let body = statement_info.statement;
 
         if func_type.return_type.is_some() && !statement_info.is_returning {
@@ -265,6 +280,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         &self,
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         node: &BlockStatementNode,
         kind: ScopeKind,
     ) -> StatementInfo {
@@ -273,7 +289,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let mut is_returning = false;
         let mut unreachable_reported = false;
         for stmt in &node.statements {
-            let statement_info = self.check_statement(state, &scope, stmt);
+            let statement_info = self.check_statement(state, &scope, str_helper, stmt);
             statements.push(statement_info.statement);
 
             if let Some(sc) = statement_info.new_scope {
@@ -299,19 +315,20 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         &self,
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         node: &StatementNode,
     ) -> StatementInfo {
         match node {
-            StatementNode::Let(node) => self.check_let_statement(state, scope, node),
-            StatementNode::Assign(node) => self.check_assign_statement(scope, node),
-            StatementNode::Block(node) => self.check_block_statement(state, scope, node, ScopeKind::Basic),
-            StatementNode::If(node) => self.check_if_statement(state, scope, node),
-            StatementNode::While(node) => self.check_while_statement(state, scope, node),
+            StatementNode::Let(node) => self.check_let_statement(state, scope, str_helper, node),
+            StatementNode::Assign(node) => self.check_assign_statement(scope, str_helper, node),
+            StatementNode::Block(node) => self.check_block_statement(state, scope, str_helper, node, ScopeKind::Basic),
+            StatementNode::If(node) => self.check_if_statement(state, scope, str_helper, node),
+            StatementNode::While(node) => self.check_while_statement(state, scope, str_helper, node),
             StatementNode::Continue(token) => self.check_continue_statement(scope, token),
             StatementNode::Break(token) => self.check_break_statement(scope, token),
-            StatementNode::Return(node) => self.check_return_statement(scope, node),
+            StatementNode::Return(node) => self.check_return_statement(scope, str_helper, node),
             StatementNode::Expr(node) => StatementInfo {
-                statement: Statement::Expr(self.get_expr(scope, node)),
+                statement: Statement::Expr(self.get_expr(scope, str_helper, node)),
                 is_returning: false,
                 new_scope: None,
             },
@@ -322,6 +339,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         &self,
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         node: &LetStatementNode,
     ) -> StatementInfo {
         let name_sym = self.symbol_loader.declare_symbol(&node.name.value);
@@ -343,6 +361,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::F32 => ExprKind::F32(0.0),
                     Type::F64 => ExprKind::F64(0.0),
                     Type::Bool => ExprKind::Bool(false),
+                    Type::ArrayPtr(_) => ExprKind::Usize(0),
                     _ => todo!(),
                 };
                 let value_expr = Expr {
@@ -361,7 +380,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }
             }
             LetKind::TypeValue { ty, value } => {
-                let mut value_expr = self.get_expr(scope, value);
+                let mut value_expr = self.get_expr(scope, str_helper, value);
                 let type_id = value_expr.type_id;
                 let value_ty = self.type_loader.get_type(type_id).unwrap();
 
@@ -391,7 +410,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }
             }
             LetKind::ValueOnly { value } => {
-                let value = self.get_expr(scope, value);
+                let value = self.get_expr(scope, str_helper, value);
                 let type_id = value.type_id;
                 StatementInfo {
                     statement: Statement::Local(value),
@@ -405,13 +424,18 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn check_assign_statement(&self, scope: &Rc<Scope>, node: &AssignStatementNode) -> StatementInfo {
-        let receiver = self.get_expr(scope, &node.receiver);
+    fn check_assign_statement(
+        &self,
+        scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
+        node: &AssignStatementNode,
+    ) -> StatementInfo {
+        let receiver = self.get_expr(scope, str_helper, &node.receiver);
         if !receiver.assignable {
             self.err_channel.push(expr_unassignable(node.receiver.get_span()));
         }
 
-        let mut value_expr = self.get_expr(scope, &node.value);
+        let mut value_expr = self.get_expr(scope, str_helper, &node.value);
         let type_id = value_expr.type_id;
         let value_ty = self.type_loader.get_type(type_id).unwrap();
 
@@ -444,7 +468,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::F64(..)
             | ExprKind::F32(..)
             | ExprKind::Bool(..)
+            | ExprKind::Usize(..)
             | ExprKind::Func(..)
+            | ExprKind::StringLit(..)
             | ExprKind::Binary { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Call { .. }
@@ -462,11 +488,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         &self,
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         node: &IfStatementNode,
     ) -> StatementInfo {
         self.check_if_like_statement(
             state,
             scope,
+            str_helper,
             &node.condition,
             &node.body,
             node.else_ifs.as_slice(),
@@ -478,12 +506,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         &self,
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         cond_expr: &ExprNode,
         body: &BlockStatementNode,
         else_ifs: &[ElseIfStatementNode],
         else_body: Option<&BlockStatementNode>,
     ) -> StatementInfo {
-        let condition = self.get_expr(scope, cond_expr);
+        let condition = self.get_expr(scope, str_helper, cond_expr);
 
         let bool_type_id = self.type_loader.declare_type(Type::Bool);
         if condition.type_id != bool_type_id {
@@ -495,13 +524,14 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ));
         }
 
-        let body_stmt_info = self.check_block_statement(state, scope, body, ScopeKind::Basic);
+        let body_stmt_info = self.check_block_statement(state, scope, str_helper, body, ScopeKind::Basic);
 
         let mut is_returning = body_stmt_info.is_returning && else_body.is_some();
         let else_body = if let Some(else_if) = else_ifs.first() {
             let stmt_info = self.check_if_like_statement(
                 state,
                 scope,
+                str_helper,
                 &else_if.condition,
                 &else_if.body,
                 &else_ifs[1..],
@@ -510,7 +540,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             is_returning = is_returning && stmt_info.is_returning;
             Some(Box::new(stmt_info.statement))
         } else if let Some(else_body) = else_body {
-            let stmt_info = self.check_block_statement(state, scope, else_body, ScopeKind::Basic);
+            let stmt_info = self.check_block_statement(state, scope, str_helper, else_body, ScopeKind::Basic);
             is_returning = is_returning && stmt_info.is_returning;
             Some(Box::new(stmt_info.statement))
         } else {
@@ -532,9 +562,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         &self,
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
         node: &WhileStatementNode,
     ) -> StatementInfo {
-        let condition = self.get_expr(scope, &node.condition);
+        let condition = self.get_expr(scope, str_helper, &node.condition);
 
         let bool_type_id = self.type_loader.declare_type(Type::Bool);
         if condition.type_id != bool_type_id {
@@ -546,7 +577,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ));
         }
 
-        let body_stmt_info = self.check_block_statement(state, scope, &node.body, ScopeKind::Loop);
+        let body_stmt_info = self.check_block_statement(state, scope, str_helper, &node.body, ScopeKind::Loop);
 
         StatementInfo {
             statement: Statement::While(WhileStatement {
@@ -592,7 +623,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn check_return_statement(&self, scope: &Rc<Scope>, node: &ReturnStatementNode) -> StatementInfo {
+    fn check_return_statement(
+        &self,
+        scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
+        node: &ReturnStatementNode,
+    ) -> StatementInfo {
         if let Some(ref return_type) = scope.return_type() {
             let Some(ref expr_node) = node.value else {
                 self.err_channel.push(missing_return_value(node.get_span()));
@@ -603,7 +639,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 };
             };
 
-            let expr = self.get_expr(scope, expr_node);
+            let expr = self.get_expr(scope, str_helper, expr_node);
 
             let return_type = self.type_loader.get_type(*return_type).unwrap();
             let ty = self.type_loader.get_type(expr.type_id).unwrap();
@@ -674,6 +710,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 };
                 type_id
             }
+            ExprNode::ArrayPointer(array_pointer_node) => {
+                let element_type_id = self.get_expr_type(scope, &array_pointer_node.element);
+                self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+                    element_type: element_type_id,
+                }))
+            }
             _ => {
                 self.err_channel.push(not_a_type(expr_node.get_span()));
                 self.type_loader.declare_type(Type::Invalid)
@@ -681,18 +723,19 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_expr(&self, scope: &Rc<Scope>, expr_node: &ExprNode) -> Expr {
+    fn get_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, expr_node: &ExprNode) -> Expr {
         match expr_node {
             ExprNode::Ident(tok) => self.get_ident_expr(scope, tok),
             ExprNode::IntegerLiteral(tok) => self.get_int_lit_expr(scope, tok),
             ExprNode::RealLiteral(tok) => self.get_real_lit_expr(scope, tok),
             ExprNode::BooleanLit(tok) => self.get_bool_lit_expr(scope, tok),
-            ExprNode::Binary(binary_expr) => self.get_binary_expr(scope, binary_expr),
-            ExprNode::Unary(unary_expr) => self.get_unary_expr(scope, unary_expr),
-            ExprNode::Call(call_expr) => self.get_call_expr(scope, call_expr),
-            ExprNode::Cast(cast_expr) => self.get_cast_expr(scope, cast_expr),
-            ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, selection_expr),
-            ExprNode::Grouped(expr) => self.get_expr(scope, &expr.value),
+            ExprNode::StringLit(tok) => self.get_str_lit_expr(scope, str_helper, tok),
+            ExprNode::Binary(binary_expr) => self.get_binary_expr(scope, str_helper, binary_expr),
+            ExprNode::Unary(unary_expr) => self.get_unary_expr(scope, str_helper, unary_expr),
+            ExprNode::Call(call_expr) => self.get_call_expr(scope, str_helper, call_expr),
+            ExprNode::Cast(cast_expr) => self.get_cast_expr(scope, str_helper, cast_expr),
+            ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, str_helper, selection_expr),
+            ExprNode::Grouped(expr) => self.get_expr(scope, str_helper, &expr.value),
             _ => todo!(),
         }
     }
@@ -795,9 +838,30 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_binary_expr(&self, scope: &Rc<Scope>, expr: &BinaryExprNode) -> Expr {
-        let a_expr = self.get_expr(scope, &expr.a);
-        let b_expr = self.get_expr(scope, &expr.b);
+    fn get_str_lit_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, tok: &Token) -> Expr {
+        let string_lit = parse_string_lit(&tok.value);
+        let index = str_helper.declare_str(string_lit);
+        let u8_type_id = self.symbol_loader.declare_symbol(U8);
+        let u8_type_id = scope
+            .get(u8_type_id)
+            .and_then(|v| v.as_type())
+            .expect("invalid state, u8 type should be found");
+        let type_id = self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+            element_type: u8_type_id,
+        }));
+        Expr {
+            type_id,
+            assignable: false,
+            kind: ExprKind::StringLit(StringLitExpr {
+                package_name: scope.package_name().clone().unwrap(),
+                index,
+            }),
+        }
+    }
+
+    fn get_binary_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, expr: &BinaryExprNode) -> Expr {
+        let a_expr = self.get_expr(scope, str_helper, &expr.a);
+        let b_expr = self.get_expr(scope, str_helper, &expr.b);
 
         let op_name = match expr.op.kind {
             TokenKind::Add => "add",
@@ -929,8 +993,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_unary_expr(&self, scope: &Rc<Scope>, expr: &UnaryExprNode) -> Expr {
-        let val_expr = self.get_expr(scope, &expr.value);
+    fn get_unary_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, expr: &UnaryExprNode) -> Expr {
+        let val_expr = self.get_expr(scope, str_helper, &expr.value);
         let val_ty = self.type_loader.get_type(val_expr.type_id).unwrap();
 
         let op_name = match expr.op.kind {
@@ -971,8 +1035,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_call_expr(&self, scope: &Rc<Scope>, call_expr: &CallExprNode) -> Expr {
-        let func_expr = self.get_expr(scope, &call_expr.target);
+    fn get_call_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, call_expr: &CallExprNode) -> Expr {
+        let func_expr = self.get_expr(scope, str_helper, &call_expr.target);
         let ty = self.type_loader.get_type(func_expr.type_id).unwrap();
         let Type::Func(func_type) = ty.as_ref() else {
             self.err_channel.push(not_a_func(call_expr.target.get_span()));
@@ -992,7 +1056,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         for (param, arg) in zip(func_type.parameters.iter(), call_expr.arguments.iter()) {
             let param_ty = self.type_loader.get_type(*param).unwrap();
 
-            let arg_expr = self.get_expr(scope, arg);
+            let arg_expr = self.get_expr(scope, str_helper, arg);
             let arg_ty = self.type_loader.get_type(arg_expr.type_id).unwrap();
 
             if !param_ty.is_assignable_with(&arg_ty) {
@@ -1020,7 +1084,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_cast_expr(&self, scope: &Rc<Scope>, cast_expr: &CastExprNode) -> Expr {
+    fn get_cast_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, cast_expr: &CastExprNode) -> Expr {
         let target_type_id = self.get_expr_type(scope, &cast_expr.target);
         let target_ty = self.type_loader.get_type(target_type_id).unwrap();
         let target_is_number = target_ty.is_numeric();
@@ -1029,7 +1093,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return self.invalid_value_expr();
         }
 
-        let value = self.get_expr(scope, &cast_expr.value);
+        let value = self.get_expr(scope, str_helper, &cast_expr.value);
         if let ExprKind::Invalid = value.kind {
             return value;
         }
@@ -1055,12 +1119,17 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_selection_expr(&self, scope: &Rc<Scope>, sel_expr: &SelectionExprNode) -> Expr {
+    fn get_selection_expr(
+        &self,
+        scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
+        sel_expr: &SelectionExprNode,
+    ) -> Expr {
         if let Some(expr) = self.get_package_selection_expr(scope, sel_expr) {
             return expr;
         }
 
-        let selection = self.get_expr(scope, &sel_expr.value);
+        let selection = self.get_expr(scope, str_helper, &sel_expr.value);
         if selection.kind == ExprKind::Invalid {
             return selection;
         }
@@ -1090,5 +1159,26 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             assignable: false,
             kind: ExprKind::Invalid,
         }
+    }
+}
+
+struct ConstStrHelper {
+    strs: Vec<Box<[u8]>>,
+}
+
+impl Default for ConstStrHelper {
+    fn default() -> Self {
+        Self { strs: vec![] }
+    }
+}
+
+impl ConstStrHelper {
+    fn declare_str(&mut self, value: &str) -> usize {
+        self.strs.push(value.as_bytes().into());
+        self.strs.len() - 1
+    }
+
+    fn take(&mut self) -> Vec<Box<[u8]>> {
+        std::mem::take(&mut self.strs)
     }
 }

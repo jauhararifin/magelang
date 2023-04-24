@@ -22,8 +22,10 @@ pub enum ExprKind {
     F64(f64),
     F32(f32),
     Bool(bool),
+    Usize(u64),
     Local(usize),
     Func(FuncExpr),
+    StringLit(StringLitExpr),
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
     Unary { op: UnOp, val: Box<Expr> },
     Call(Box<Expr>, Vec<Expr>),
@@ -64,4 +66,10 @@ pub enum UnOp {
 pub struct FuncExpr {
     pub package_name: SymbolId,
     pub function_name: SymbolId,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StringLitExpr {
+    pub package_name: SymbolId,
+    pub index: usize,
 }

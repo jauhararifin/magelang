@@ -86,5 +86,9 @@ fn main() {
     }
     i = i + 1;
   }
+
+  let jauhar_str: [*]u8 = "jauhar";
+  let arifin_str: [*]u8 = "arifin";
+
   return;
 }

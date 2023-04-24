@@ -506,6 +506,10 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         match self.kind() {
             TokenKind::Ident => self.take(TokenKind::Ident).map(ExprNode::Ident),
             TokenKind::IntegerLit => self.take(TokenKind::IntegerLit).map(ExprNode::IntegerLiteral),
+            TokenKind::RealLit => self.take(TokenKind::RealLit).map(ExprNode::RealLiteral),
+            TokenKind::StringLit => self.take(TokenKind::StringLit).map(ExprNode::StringLit),
+            TokenKind::True => self.take(TokenKind::True).map(ExprNode::BooleanLit),
+            TokenKind::False => self.take(TokenKind::False).map(ExprNode::BooleanLit),
             TokenKind::OpenBrac => {
                 let _ = self.take(TokenKind::OpenBrac).unwrap();
                 let expr = self.parse_expr()?;

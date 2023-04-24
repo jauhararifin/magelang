@@ -60,6 +60,7 @@ pub enum Type {
     F64,
     Bool,
     Func(FuncType),
+    ArrayPtr(ArrayPtrType),
 }
 
 impl Type {
@@ -111,7 +112,8 @@ impl TypeDisplay for Type {
             Self::F32 => String::from("f32"),
             Self::F64 => String::from("f64"),
             Self::Bool => String::from("boolean"),
-            Self::Func(func_ty) => func_ty.display(type_loader),
+            Self::Func(func_type) => func_type.display(type_loader),
+            Self::ArrayPtr(array_ptr_type) => array_ptr_type.display(type_loader),
         }
     }
 }
@@ -137,5 +139,17 @@ impl TypeDisplay for FuncType {
             s.push_str(&type_loader.get_type(*ret_type).unwrap().display(type_loader));
         }
         s
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub struct ArrayPtrType {
+    pub element_type: TypeId,
+}
+
+impl TypeDisplay for ArrayPtrType {
+    fn display(&self, type_loader: &TypeLoader) -> String {
+        let element = type_loader.get_type(self.element_type).unwrap();
+        format!("[*]{}", element.display(type_loader))
     }
 }
