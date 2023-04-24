@@ -2,7 +2,7 @@ use crate::ast::{
     ArrayPointerNode, AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
     ElseIfStatementNode, ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind,
     LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode,
-    UnaryExprNode, WhileStatementNode,
+    TagNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
@@ -98,6 +98,11 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_item_node(&mut self) -> Option<ItemNode> {
+        let mut tags = vec![];
+        while let Some(tag) = self.parse_tag() {
+            tags.push(tag);
+        }
+
         let tok = self.token();
         if tok.kind == TokenKind::Eof {
             return None;
@@ -106,7 +111,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         let mut span = tok.span.clone();
 
         let item = match &tok.kind {
-            TokenKind::Fn => self.parse_func(),
+            TokenKind::Fn => self.parse_func(tags),
             TokenKind::Import => self.parse_import().map(ItemNode::Import),
             _ => None,
         };
@@ -127,6 +132,18 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         item
     }
 
+    fn parse_tag(&mut self) -> Option<TagNode> {
+        let pound_tag = self.take_if(TokenKind::Pound)?;
+        let mut span = pound_tag.span;
+        let name = self.take(TokenKind::Ident)?;
+        let (_, arguments, close_brac) =
+            self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
+                this.take_if(TokenKind::StringLit)
+            })?;
+        span.union(&close_brac.span);
+        Some(TagNode { span, name, arguments })
+    }
+
     fn parse_import(&mut self) -> Option<ImportNode> {
         let import_tok = self.take(TokenKind::Import)?;
         let mut span = import_tok.span;
@@ -137,8 +154,8 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         Some(ImportNode { span, name, path })
     }
 
-    fn parse_func(&mut self) -> Option<ItemNode> {
-        let signature = self.parse_signature()?;
+    fn parse_func(&mut self, tags: Vec<TagNode>) -> Option<ItemNode> {
+        let signature = self.parse_signature(tags)?;
         let mut span = signature.get_span();
         if self.take_if(TokenKind::SemiColon).is_some() {
             return Some(ItemNode::NativeFunction(signature));
@@ -149,9 +166,12 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         Some(ItemNode::Function(FunctionNode { span, signature, body }))
     }
 
-    fn parse_signature(&mut self) -> Option<SignatureNode> {
+    fn parse_signature(&mut self, tags: Vec<TagNode>) -> Option<SignatureNode> {
         let func = self.take(TokenKind::Fn)?;
         let mut span = func.span;
+        if let Some(tag) = tags.first() {
+            span.union(&tag.span);
+        }
         let name = self.take(TokenKind::Ident)?;
         let (_, parameters, close_brac) = self.parse_sequence(
             TokenKind::OpenBrac,
@@ -177,6 +197,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
         Some(SignatureNode {
             span,
+            tags,
             name,
             parameters,
             return_type,

@@ -5,7 +5,8 @@ use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoad
 use magelang_package::PackageUtil;
 use magelang_semantic::{
     ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction,
-    Package, ReturnStatement, Statement, StringLitExpr, Type, TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
+    Package, ReturnStatement, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
+    WhileStatement,
 };
 use magelang_syntax::{
     parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
@@ -220,10 +221,23 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             }
             ItemNode::NativeFunction(signature) => {
                 let func_type = self.get_func_type(scope, signature);
+
+                let mut tags = vec![];
+                for tag in &signature.tags {
+                    let name = self.symbol_loader.declare_symbol(&tag.name.value);
+                    let arguments = tag
+                        .arguments
+                        .iter()
+                        .map(|tok| String::from(parse_string_lit(&tok.value)))
+                        .collect();
+                    tags.push(Tag { name, arguments });
+                }
+
                 let native_func = NativeFunction {
                     package_name: scope.package_name().unwrap(),
                     function_name: name,
                     func_type,
+                    tags,
                 };
                 state.native_functions.push(native_func);
             }

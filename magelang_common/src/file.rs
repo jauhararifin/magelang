@@ -20,7 +20,8 @@ pub struct FileInfo {
 impl FileInfo {
     pub fn get_pos(&self, span: &Span) -> Pos {
         let line = self.newlines.partition_point(|off| *off < span.start) + 1;
-        let col = span.start - self.newlines.get(line - 2).unwrap_or(&0);
+        let line_offset = if line <= 1 { 0 } else { self.newlines[line - 2] };
+        let col = span.start - line_offset + 1;
         Pos {
             path: self.path.clone(),
             line,

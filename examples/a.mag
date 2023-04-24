@@ -1,5 +1,6 @@
 import fmt "std/fmt";
 import bpkg "examples/b";
+import wasi "std/wasi";
 
 // jauhar
 fn jauhar(a: i64): i64 {
@@ -89,6 +90,8 @@ fn main() {
 
   let jauhar_str: [*]u8 = "jauhar";
   let arifin_str: [*]u8 = "arifin";
+
+  wasi.fd_write(0 as i32, jauhar_str as i32, 6 as i32, 0 as i32);
 
   return;
 }

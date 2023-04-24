@@ -60,6 +60,7 @@ pub enum TokenKind {
     False,
     Continue,
     Break,
+    Pound,
 }
 
 impl std::fmt::Display for TokenKind {
@@ -115,6 +116,7 @@ impl std::fmt::Display for TokenKind {
             Self::False => write!(f, "False"),
             Self::Continue => write!(f, "Continue"),
             Self::Break => write!(f, "Break"),
+            Self::Pound => write!(f, "Pound"),
         }
     }
 }

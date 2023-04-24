@@ -92,12 +92,26 @@ impl AstNode for FunctionNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct SignatureNode {
     pub span: Span,
+    pub tags: Vec<TagNode>,
     pub name: Token,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<ExprNode>,
 }
 
 impl AstNode for SignatureNode {
+    fn get_span(&self) -> Span {
+        self.span.clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TagNode {
+    pub span: Span,
+    pub name: Token,
+    pub arguments: Vec<Token>,
+}
+
+impl AstNode for TagNode {
     fn get_span(&self) -> Span {
         self.span.clone()
     }

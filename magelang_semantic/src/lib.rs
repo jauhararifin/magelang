@@ -2,7 +2,7 @@ mod expr;
 mod statement;
 mod types;
 
-pub use expr::{BinOp, Expr, ExprKind, FuncExpr, UnOp, StringLitExpr};
+pub use expr::{BinOp, Expr, ExprKind, FuncExpr, StringLitExpr, UnOp};
 pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
 pub use types::{ArrayPtrType, FuncType, Type, TypeDisplay, TypeId, TypeLoader};
 
@@ -21,6 +21,13 @@ pub struct NativeFunction {
     pub package_name: SymbolId,
     pub function_name: SymbolId,
     pub func_type: FuncType,
+    pub tags: Vec<Tag>,
+}
+
+#[derive(Debug)]
+pub struct Tag {
+    pub name: SymbolId,
+    pub arguments: Vec<String>,
 }
 
 #[derive(Debug)]

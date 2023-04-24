@@ -26,6 +26,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         let mut functable = HashMap::new();
 
         let memory_id = module.memories.add_local(true, 1, None);
+        module.exports.add("memory", memory_id);
         let mut string_offset_table = HashMap::new();
         let mut offset = 0usize;
         for pkg in &packages {
@@ -66,8 +67,19 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                     variables.push(module.locals.add(param_ty));
                 }
 
+                let mut wasm_module = pkg_name.as_ref();
+                let mut wasm_name = func_name.as_ref();
+
+                let wasm_link_sym = self.symbol_loader.declare_symbol("wasm_link");
+                if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
+                    if wasm_link_tag.arguments.len() == 2 {
+                        wasm_module = &wasm_link_tag.arguments[0];
+                        wasm_name = &wasm_link_tag.arguments[1];
+                    }
+                }
+
                 let type_id = module.types.add(&param_types, &return_type);
-                let (func_id, _) = module.add_import_func(&pkg_name, &func_name, type_id);
+                let (func_id, _) = module.add_import_func(wasm_module, wasm_name, type_id);
 
                 let mangled_func = mangle_func(&pkg_name, &func_name);
                 let mut builder = FunctionBuilder::new(&mut module.types, &param_types, &return_type);
@@ -401,6 +413,10 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                         builder.unop(UnaryOp::I64ExtendUI32);
                     }
                     (Type::U8, _) => {}
+                    (Type::ArrayPtr(..), Type::I64) => {
+                        builder.unop(UnaryOp::I64Extend32S);
+                    }
+                    (Type::ArrayPtr(..), _) => {}
                     (source @ _, target @ _) => todo!(
                         "casting from {} to {} is not supported yet",
                         source.display(self.type_loader),

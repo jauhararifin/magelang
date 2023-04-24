@@ -1,2 +1,6 @@
 /target
 .vscode
+
+a.wasm
+test.wasm
+test.wat

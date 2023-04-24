@@ -92,6 +92,7 @@ impl Type {
                 | Self::U8
                 | Self::F64
                 | Self::F32
+                | Self::ArrayPtr(..)
         )
     }
 }

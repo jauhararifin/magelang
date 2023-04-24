@@ -62,6 +62,7 @@ static SYMBOLS: &[(&str, TokenKind)] = &[
     ("|", TokenKind::BitOr),
     ("^", TokenKind::BitXor),
     ("~", TokenKind::BitNot),
+    ("#", TokenKind::Pound),
 ];
 
 struct Scanner<'err> {
