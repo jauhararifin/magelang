@@ -1,11 +1,12 @@
 use clap::{Args, Parser, Subcommand};
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolLoader};
-use magelang_compiler::Compiler;
+// use magelang_compiler::Compiler;
 use magelang_package::PackageUtil;
 use magelang_runner::Runner;
 use magelang_semantic::TypeLoader;
 use magelang_syntax::AstLoader;
 use magelang_typecheck::TypeChecker;
+use magelang_wasm::Compiler;
 use std::fs::{read, File};
 use std::path::PathBuf;
 
@@ -74,17 +75,23 @@ fn main() {
                 std::process::exit(1);
             }
 
-            let mut path = PathBuf::from(&arg.package_name);
-            path.set_extension("wasm");
-            let filename = arg
-                .output_file
-                .as_deref()
-                .or_else(|| path.file_name().and_then(|v| v.to_str()))
-                .unwrap_or("main.wasm");
-
-            let output_file = File::create(filename).expect("cannot open file");
             let compiler = Compiler::new(&symbol_loader, &type_loader);
-            compiler.compile(packages, main_package, &output_file);
+
+            // let mut path = PathBuf::from(&arg.package_name);
+            // path.set_extension("wasm");
+            // let filename = arg
+            //     .output_file
+            //     .as_deref()
+            //     .or_else(|| path.file_name().and_then(|v| v.to_str()))
+            //     .unwrap_or("main.wasm");
+            // let output_file = File::create(filename).expect("cannot open file");
+            // let compiler = Compiler::new(&symbol_loader, &type_loader);
+            // compiler.compile(packages, main_package, &output_file);
+
+            compiler.compile(packages, main_package);
+
+            // let cranelift = magelang_cranelift::Compiler::new(&symbol_loader, &type_loader);
+            // cranelift.compile(packages, main_package);
         }
         Command::Run(arg) => {
             let module_byte = read(arg.file).unwrap();

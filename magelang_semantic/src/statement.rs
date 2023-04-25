@@ -3,7 +3,6 @@ use crate::expr::Expr;
 #[derive(Debug)]
 pub enum Statement {
     Invalid,
-    Local(Expr),
     SetLocal(usize, Expr),
     If(IfStatement),
     While(WhileStatement),

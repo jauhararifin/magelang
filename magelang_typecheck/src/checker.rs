@@ -37,13 +37,13 @@ struct PackageCheckState {
 
 #[derive(Default)]
 struct FunctionCheckState {
-    locals: usize,
+    locals: Vec<TypeId>,
 }
 
 impl FunctionCheckState {
-    fn use_local(&mut self) -> usize {
-        self.locals += 1;
-        self.locals - 1
+    fn use_local(&mut self, type_id: TypeId) -> usize {
+        self.locals.push(type_id);
+        self.locals.len() - 1
     }
 }
 
@@ -262,7 +262,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         for (param_ty, param_node) in zip(param_types, param_nodes) {
             symbols.insert(
                 self.symbol_loader.declare_symbol(&param_node.name.value),
-                Object::Local(*param_ty, func_state.use_local()),
+                Object::Local(*param_ty, func_state.use_local(*param_ty)),
             );
         }
 
@@ -286,6 +286,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             package_name: scope.package_name().unwrap(),
             function_name,
             func_type,
+            locals: func_state.locals,
             body,
         }
     }
@@ -357,7 +358,6 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         node: &LetStatementNode,
     ) -> StatementInfo {
         let name_sym = self.symbol_loader.declare_symbol(&node.name.value);
-        let local_id = state.use_local();
         match &node.kind {
             LetKind::TypeOnly { ty } => {
                 let target_ty_id = self.get_expr_type(scope, ty);
@@ -383,9 +383,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     assignable: false,
                     kind: expr_kind,
                 };
+                let local_id = state.use_local(target_ty_id);
 
                 StatementInfo {
-                    statement: Statement::Local(value_expr),
+                    statement: Statement::SetLocal(local_id, value_expr),
                     is_returning: false,
                     new_scope: Some(scope.new_child(
                         ScopeKind::Basic,
@@ -413,9 +414,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                         kind: ExprKind::Invalid,
                     }
                 }
+                let local_id = state.use_local(target_ty_id);
 
                 StatementInfo {
-                    statement: Statement::Local(value_expr),
+                    statement: Statement::SetLocal(local_id, value_expr),
                     is_returning: false,
                     new_scope: Some(scope.new_child(
                         ScopeKind::Basic,
@@ -426,8 +428,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             LetKind::ValueOnly { value } => {
                 let value = self.get_expr(scope, str_helper, value);
                 let type_id = value.type_id;
+                let local_id = state.use_local(type_id);
                 StatementInfo {
-                    statement: Statement::Local(value),
+                    statement: Statement::SetLocal(local_id, value),
                     is_returning: false,
                     new_scope: Some(scope.new_child(
                         ScopeKind::Basic,

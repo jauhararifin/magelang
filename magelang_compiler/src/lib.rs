@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use walrus::{
     ir::BinaryOp, ir::InstrSeqId, ir::UnaryOp, ActiveData, ActiveDataLocation, DataKind, FunctionBuilder, FunctionId,
-    FunctionKind, InstrSeqBuilder, LocalId, Module, ModuleLocals, ValType,
+    FunctionKind, InitExpr, InstrSeqBuilder, LocalId, Module, ModuleLocals, ValType,
 };
 
 pub struct Compiler<'sym, 'typ> {
@@ -22,6 +22,11 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 
     pub fn compile(&self, packages: Vec<Rc<Package>>, main_package: SymbolId, mut target: impl std::io::Write) {
         let mut module = Module::default();
+
+        // module.globals.add_local(ValType::I32, true, InitExpr::Global)
+        // module
+        //     .globals
+        //     .add_local(ValType::I32, true, InitExpr::Value(walrus::ir::Value::I32(0)));
 
         let mut functable = HashMap::new();
 
@@ -177,16 +182,16 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         stmt: &Statement,
     ) {
         match stmt {
-            Statement::Local(expr) => {
-                let ty = self.type_loader.get_type(expr.type_id).unwrap();
-                let wasm_ty = to_wasm_type(&ty);
-                let local_id = module_locals.add(wasm_ty);
-
-                variables.push(local_id);
-
-                self.process_expr(functable, string_offset_table, builder, variables, expr);
-                builder.local_set(local_id);
-            }
+            // Statement::Local(expr) => {
+            //     let ty = self.type_loader.get_type(expr.type_id).unwrap();
+            //     let wasm_ty = to_wasm_type(&ty);
+            //     let local_id = module_locals.add(wasm_ty);
+            //
+            //     variables.push(local_id);
+            //
+            //     self.process_expr(functable, string_offset_table, builder, variables, expr);
+            //     builder.local_set(local_id);
+            // }
             Statement::SetLocal(id, expr) => {
                 self.process_expr(functable, string_offset_table, builder, variables, expr);
                 builder.local_set(variables[*id].clone());

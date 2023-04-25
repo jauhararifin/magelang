@@ -6,6 +6,8 @@ members = [
   "magelang_semantic",
   "magelang_typecheck",
   "magelang_compiler",
+  "magelang_wasm",
+  "magelang_cranelift",
   "magelang_runner",
   "magelang",
 ]

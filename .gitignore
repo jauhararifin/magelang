@@ -1,5 +1,6 @@
 /target
 .vscode
+.cache
 
 a.wasm
 test.wasm

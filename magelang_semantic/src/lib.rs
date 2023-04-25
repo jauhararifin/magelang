@@ -35,5 +35,6 @@ pub struct Func {
     pub package_name: SymbolId,
     pub function_name: SymbolId,
     pub func_type: FuncType,
+    pub locals: Vec<TypeId>,
     pub body: Statement,
 }
