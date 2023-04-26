@@ -364,6 +364,25 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
                 }
 
                 if let ExprKind::Func(func_expr) = &target.kind {
+                    let ty = self.type_loader.get_type(target.type_id).unwrap();
+                    let Type::Func(func_type) = ty.as_ref() else {
+                        unreachable!("invalid state, calling non-callable expression");
+                    };
+
+                    let mut return_type = vec![];
+                    if let Some(ret_type) = func_type.return_type {
+                        let ret_type = self.type_loader.get_type(ret_type).unwrap();
+                        let ret_type = to_wasm_type(&ret_type);
+                        return_type = vec![ret_type];
+                    }
+                    let mut param_types = vec![];
+                    for param_ty in &func_type.parameters {
+                        let param_ty = self.type_loader.get_type(*param_ty).unwrap();
+                        let param_ty = to_wasm_type(&param_ty);
+                        param_types.push(param_ty);
+                    }
+
+
                     let pkg_name = self.symbol_loader.get_symbol(func_expr.package_name).unwrap();
                     let func_name = self.symbol_loader.get_symbol(func_expr.function_name).unwrap();
                     let name = mangle_func(&pkg_name, &func_name);

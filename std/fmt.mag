@@ -1,2 +1,2 @@
 
-fn print_i64(n: i64);
+fn print_i64(n: i64) {}

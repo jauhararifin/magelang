@@ -1,0 +1,6 @@
+
+#wasm_builtin("memory.grow")
+fn memory_grow(parameter: i32): i32;
+
+#wasm_builtin("memory.size")
+fn memory_size(): i32;

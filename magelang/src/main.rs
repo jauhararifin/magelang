@@ -88,7 +88,9 @@ fn main() {
             // let compiler = Compiler::new(&symbol_loader, &type_loader);
             // compiler.compile(packages, main_package, &output_file);
 
-            compiler.compile(packages, main_package);
+            compiler
+                .compile(packages, main_package)
+                .expect("cannot compile program");
 
             // let cranelift = magelang_cranelift::Compiler::new(&symbol_loader, &type_loader);
             // cranelift.compile(packages, main_package);
