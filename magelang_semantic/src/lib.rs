@@ -4,7 +4,7 @@ mod types;
 
 pub use expr::{BinOp, Expr, ExprKind, FuncExpr, StringLitExpr, UnOp};
 pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
-pub use types::{ArrayPtrType, FuncType, Type, TypeDisplay, TypeId, TypeLoader};
+pub use types::{SliceType, FuncType, Type, TypeDisplay, TypeId, TypeLoader};
 
 use magelang_common::SymbolId;
 

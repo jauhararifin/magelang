@@ -125,7 +125,7 @@ fn to_cl_type(triple: &target_lexicon::Triple, ty: &Type) -> types::Type {
         Type::I8 | Type::U8 => types::I8,
         Type::F64 => types::F64,
         Type::F32 => types::F32,
-        Type::ArrayPtr(_) => types::Type::triple_pointer_type(triple),
+        Type::Slice(_) => types::Type::triple_pointer_type(triple),
         _ => todo!(),
     }
 }

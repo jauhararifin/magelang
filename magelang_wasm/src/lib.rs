@@ -493,10 +493,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                         builder.unop(UnaryOp::I64ExtendUI32);
                     }
                     (Type::U8, _) => {}
-                    (Type::ArrayPtr(..), Type::I64) => {
+                    (Type::Slice(..), Type::I64) => {
                         builder.unop(UnaryOp::I64Extend32S);
                     }
-                    (Type::ArrayPtr(..), _) => {}
+                    (Type::Slice(..), _) => {}
                     (source @ _, target @ _) => todo!(
                         "casting from {} to {} is not supported yet",
                         source.display(self.type_loader),
@@ -677,7 +677,7 @@ fn to_wasm_type(ty: &Type) -> ValType {
         Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8 | Type::Bool => ValType::I32,
         Type::F64 => ValType::F64,
         Type::F32 => ValType::F32,
-        Type::ArrayPtr(_) => ValType::I32,
+        Type::Slice(_) => ValType::I32,
         _ => todo!(),
     }
 }

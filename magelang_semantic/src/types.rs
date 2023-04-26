@@ -60,7 +60,7 @@ pub enum Type {
     F64,
     Bool,
     Func(FuncType),
-    ArrayPtr(ArrayPtrType),
+    Slice(SliceType),
 }
 
 impl Type {
@@ -96,7 +96,7 @@ impl Type {
                 | Self::U8
                 | Self::F64
                 | Self::F32
-                | Self::ArrayPtr(..)
+                | Self::Slice(..)
         )
     }
 }
@@ -118,7 +118,7 @@ impl TypeDisplay for Type {
             Self::F64 => String::from("f64"),
             Self::Bool => String::from("boolean"),
             Self::Func(func_type) => func_type.display(type_loader),
-            Self::ArrayPtr(array_ptr_type) => array_ptr_type.display(type_loader),
+            Self::Slice(slice_type) => slice_type.display(type_loader),
         }
     }
 }
@@ -148,13 +148,13 @@ impl TypeDisplay for FuncType {
 }
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
-pub struct ArrayPtrType {
+pub struct SliceType {
     pub element_type: TypeId,
 }
 
-impl TypeDisplay for ArrayPtrType {
+impl TypeDisplay for SliceType {
     fn display(&self, type_loader: &TypeLoader) -> String {
         let element = type_loader.get_type(self.element_type).unwrap();
-        format!("[*]{}", element.display(type_loader))
+        format!("[]{}", element.display(type_loader))
     }
 }

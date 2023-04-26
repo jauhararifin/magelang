@@ -4,8 +4,8 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction,
-    Package, ReturnStatement, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
+    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction, Package,
+    ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
     WhileStatement,
 };
 use magelang_syntax::{
@@ -375,7 +375,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::F32 => ExprKind::F32(0.0),
                     Type::F64 => ExprKind::F64(0.0),
                     Type::Bool => ExprKind::Bool(false),
-                    Type::ArrayPtr(_) => ExprKind::Usize(0),
+                    Type::Slice(_) => ExprKind::Usize(0),
                     _ => todo!(),
                 };
                 let value_expr = Expr {
@@ -727,9 +727,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 };
                 type_id
             }
-            ExprNode::ArrayPointer(array_pointer_node) => {
-                let element_type_id = self.get_expr_type(scope, &array_pointer_node.element);
-                self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+            ExprNode::Slice(slice_node) => {
+                let element_type_id = self.get_expr_type(scope, &slice_node.element);
+                self.type_loader.declare_type(Type::Slice(SliceType {
                     element_type: element_type_id,
                 }))
             }
@@ -863,7 +863,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             .get(u8_type_id)
             .and_then(|v| v.as_type())
             .expect("invalid state, u8 type should be found");
-        let type_id = self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+        let type_id = self.type_loader.declare_type(Type::Slice(SliceType {
             element_type: u8_type_id,
         }));
         Expr {

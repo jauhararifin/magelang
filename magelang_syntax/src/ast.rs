@@ -268,7 +268,7 @@ pub enum ExprNode {
     Unary(UnaryExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
-    ArrayPointer(ArrayPointerNode),
+    Slice(SliceNode),
     Selection(SelectionExprNode),
     Grouped(GroupedExprNode),
 }
@@ -285,7 +285,7 @@ impl AstNode for ExprNode {
             Self::Unary(val) => val.get_span(),
             Self::Call(expr) => expr.span.clone(),
             Self::Cast(val) => val.get_span(),
-            Self::ArrayPointer(val) => val.get_span(),
+            Self::Slice(val) => val.get_span(),
             Self::Selection(val) => val.get_span(),
             Self::Grouped(val) => val.get_span(),
         }
@@ -349,12 +349,12 @@ impl AstNode for CastExprNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ArrayPointerNode {
+pub struct SliceNode {
     pub span: Span,
     pub element: Box<ExprNode>,
 }
 
-impl AstNode for ArrayPointerNode {
+impl AstNode for SliceNode {
     fn get_span(&self) -> Span {
         self.span.clone()
     }
