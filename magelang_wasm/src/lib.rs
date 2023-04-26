@@ -312,7 +312,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         match stmt {
             Statement::SetLocal(id, expr) => {
                 self.process_expr(builder, expr);
-                builder.local_set(self.variables[*id].clone());
+                builder.local_set(self.variables[*id]);
             }
             Statement::If(if_stmt) => {
                 builder.block(None, |outer_block| {
@@ -446,7 +446,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                             "memory.size" => {
                                 builder.memory_size(self.memory_id);
                             }
-                            k @ _ => panic!("unknown builtin function for {}", k),
+                            builtin_name => panic!("unknown builtin function for {builtin_name}"),
                         }
                     } else {
                         panic!("function definition is not found");
@@ -502,7 +502,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                         builder.unop(UnaryOp::I64Extend32S);
                     }
                     (Type::Slice(..), _) => {}
-                    (source @ _, target @ _) => todo!(
+                    (source, target) => todo!(
                         "casting from {} to {} is not supported yet",
                         source.display(self.type_loader),
                         target.display(self.type_loader)

@@ -1,4 +1,3 @@
-use home;
 use indexmap::IndexSet;
 use magelang_common::{FileLoader, SymbolId, SymbolLoader};
 use magelang_syntax::{parse_string_lit, AstLoader};

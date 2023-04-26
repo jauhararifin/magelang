@@ -122,7 +122,7 @@ impl Scope {
 
     pub fn is_inside_loop(&self) -> bool {
         if let ScopeKind::Loop = self.kind {
-            return true;
+            true
         } else if let Some(ref parent) = self.parent {
             parent.is_inside_loop()
         } else {

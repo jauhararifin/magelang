@@ -870,7 +870,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             type_id,
             assignable: false,
             kind: ExprKind::StringLit(StringLitExpr {
-                package_name: scope.package_name().clone().unwrap(),
+                package_name: scope.package_name().unwrap(),
                 index,
             }),
         }
@@ -1179,14 +1179,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     }
 }
 
+#[derive(Default)]
 struct ConstStrHelper {
     strs: Vec<Box<[u8]>>,
-}
-
-impl Default for ConstStrHelper {
-    fn default() -> Self {
-        Self { strs: vec![] }
-    }
 }
 
 impl ConstStrHelper {

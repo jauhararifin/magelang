@@ -75,7 +75,7 @@ fn main() {
                 .unwrap_or("main.wasm");
             let compiler = Compiler::new(&symbol_loader, &type_loader);
             compiler
-                .compile(packages, main_package, &filename)
+                .compile(packages, main_package, filename)
                 .expect("cannot compile package");
         }
     }
