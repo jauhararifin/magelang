@@ -1,0 +1,6 @@
+import wasi "std/wasi";
+
+fn main() {
+  let hello = "Hello world\n";
+  wasi.fd_write(1 as i32, hello as i32, 1 as i32, 0 as i32);
+}
