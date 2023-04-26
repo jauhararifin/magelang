@@ -1,8 +1,7 @@
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp};
+use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeLoader, UnOp};
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::PathBuf;
 use std::rc::Rc;
 use walrus::{
     ir::BinaryOp, ir::InstrSeqId, ir::UnaryOp, ActiveData, ActiveDataLocation, DataKind, FunctionBuilder, FunctionId,
@@ -14,24 +13,10 @@ pub struct Compiler<'sym, 'typ> {
     type_loader: &'typ TypeLoader,
 }
 
-const GLOBAL_MODULE_NAME: &str = "#magelang_global";
 const START_FUNC_NAME: &str = "__start";
-const GLOBAL_MEMORY_NAME: &str = "__mag_memory";
-const DATA_END_PTR: &str = "__mag_data_end";
-const HEAP_START_PTR: &str = "__mag_heap_start";
-const STACK_PTR: &str = "__mag_stack_ptr";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct GlobalId(SymbolId, SymbolId);
-
-impl GlobalId {
-    pub fn get_str(&self, symbol_loader: &SymbolLoader) -> (Rc<str>, Rc<str>) {
-        (
-            symbol_loader.get_symbol(self.0).unwrap(),
-            symbol_loader.get_symbol(self.1).unwrap(),
-        )
-    }
-}
 
 impl<'sym, 'typ> Compiler<'sym, 'typ> {
     pub fn new(symbol_loader: &'sym SymbolLoader, type_loader: &'typ TypeLoader) -> Self {
@@ -46,159 +31,144 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         let mut module = Module::default();
         module.name = Some(String::from(main_package_name.as_ref()));
 
-        let mut global_module_compiler = GlobalModuleCompiler::new(self.symbol_loader, &packages, main_package);
-        let global_module_path = global_module_compiler.compile()?;
-        let mut module_paths = vec![global_module_path];
+        ProgramCompiler::new(
+            self.symbol_loader,
+            self.type_loader,
+            &mut module,
+            &packages,
+            main_package,
+        )
+        .compile();
 
-        let (external_functions, builtin_functions) = self.process_native_functions(&packages);
-
-        for pkg in &packages {
-            let module_path = ModuleCompiler::new(
-                self.symbol_loader,
-                self.type_loader,
-                pkg,
-                &global_module_compiler.data_offset_table,
-                &external_functions,
-                &builtin_functions,
-            )
-            .compile()?;
-            module_paths.push(module_path);
-        }
-
-        println!("{:?}", module_paths);
-
+        module.emit_wasm_file("output.wasm")?;
         Ok(())
     }
-
-    fn process_native_functions(
-        &self,
-        packages: &[Rc<Package>],
-    ) -> (HashMap<GlobalId, GlobalId>, HashMap<GlobalId, String>) {
-        let mut external_functions = HashMap::<GlobalId, GlobalId>::new();
-        let mut builtin_functions = HashMap::<GlobalId, String>::new();
-
-        for pkg in packages {
-            for func in &pkg.native_functions {
-                let wasm_link_sym = self.symbol_loader.declare_symbol("wasm_link");
-                let mut is_external_func = false;
-                if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
-                    if wasm_link_tag.arguments.len() == 2 {
-                        let wasm_module = &wasm_link_tag.arguments[0];
-                        let wasm_module = self.symbol_loader.declare_symbol(wasm_module);
-                        let wasm_name = &wasm_link_tag.arguments[1];
-                        let wasm_name = self.symbol_loader.declare_symbol(wasm_name);
-                        let func_global_id = GlobalId(func.package_name, func.function_name);
-                        let linked_global_id = GlobalId(wasm_module, wasm_name);
-                        external_functions.insert(func_global_id, linked_global_id);
-                        is_external_func = true;
-                    }
-                }
-
-                let wasm_builtin_sym = self.symbol_loader.declare_symbol("wasm_builtin");
-                let mut is_builtin_func = false;
-                if let Some(wasm_builtin_tag) = func.tags.iter().find(|tag| tag.name == wasm_builtin_sym) {
-                    if let Some(builtin_name) = wasm_builtin_tag.arguments.first() {
-                        let global_id = GlobalId(func.package_name, func.function_name);
-                        builtin_functions.insert(global_id, builtin_name.clone());
-                        is_builtin_func = true;
-                    }
-                }
-
-                if !is_external_func && !is_builtin_func {
-                    panic!("native function can't be compiled");
-                }
-                if is_external_func && is_builtin_func {
-                    panic!("can't compile, ambiguous native function linking");
-                }
-            }
-        }
-
-        (external_functions, builtin_functions)
-    }
 }
 
-struct ModuleCompiler<'sym, 'typ, 'pkg> {
+pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     symbol_loader: &'sym SymbolLoader,
     type_loader: &'typ TypeLoader,
-    package: &'pkg Package,
-    module: Module,
-
-    memory_id: MemoryId,
-    imported_functions: HashMap<GlobalId, FunctionId>,
-    local_functions: HashMap<SymbolId, FunctionId>,
-    data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
-    external_functions: &'pkg HashMap<GlobalId, GlobalId>,
-    builtin_functions: &'pkg HashMap<GlobalId, String>,
+    module: &'pkg mut Module,
+    packages: &'pkg [Rc<Package>],
+    main_package: SymbolId,
+    data_offset_table: HashMap<(SymbolId, usize), usize>,
+    function_ids: HashMap<GlobalId, FunctionId>,
+    builtin_functions: HashMap<GlobalId, String>,
 }
 
-impl<'sym, 'typ, 'pkg> ModuleCompiler<'sym, 'typ, 'pkg> {
+impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     pub fn new(
         symbol_loader: &'sym SymbolLoader,
         type_loader: &'typ TypeLoader,
-        package: &'pkg Package,
-        data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
-        external_functions: &'pkg HashMap<GlobalId, GlobalId>,
-        builtin_functions: &'pkg HashMap<GlobalId, String>,
+        module: &'pkg mut Module,
+        packages: &'pkg [Rc<Package>],
+        main_package: SymbolId,
     ) -> Self {
-        let package_name = symbol_loader.get_symbol(package.name).unwrap();
-        let mut module = Module::default();
-        module.name = Some(package_name.as_ref().to_string());
-        let (memory_id, _) = module.add_import_memory(GLOBAL_MODULE_NAME, GLOBAL_MEMORY_NAME, true, 1, None);
         Self {
             symbol_loader,
             type_loader,
-            package,
             module,
-            memory_id,
-            imported_functions: HashMap::new(),
-            local_functions: HashMap::new(),
-            data_offsets,
-            external_functions,
-            builtin_functions,
+            packages,
+            main_package,
+            data_offset_table: HashMap::default(),
+            function_ids: HashMap::default(),
+            builtin_functions: HashMap::default(),
         }
     }
 
-    pub fn compile(&mut self) -> Result<PathBuf, Box<dyn Error>> {
+    fn compile(&mut self) {
+        self.declare_native_functions();
         self.declare_local_functions();
-        self.import_needed_functions();
+        self.build_main_func();
+        let memory_id = self.build_global_memory();
+        let data_size = self.build_data_segment(memory_id);
+        self.build_mem_pointers(data_size);
 
-        for func in &self.package.functions {
-            let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
-
-            let func_id = self.module.funcs.by_name(&func_name).unwrap();
-            let wasm_func = self.module.funcs.get_mut(func_id);
+        let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
+        for func in functions {
+            let func_global_id = GlobalId(func.package_name, func.function_name);
+            let func_id = self.function_ids.get(&func_global_id).unwrap();
+            let wasm_func = self.module.funcs.get_mut(*func_id);
             let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
                 unreachable!();
             };
-            let variables: Vec<_> = wasm_func.args.to_vec();
+
+            let mut variables: Vec<_> = wasm_func.args.to_vec();
+            for local in func.locals.iter().skip(func.func_type.parameters.len()) {
+                let ty = self.type_loader.get_type(*local).unwrap();
+                let ty = to_wasm_type(&ty);
+                variables.push(self.module.locals.add(ty));
+            }
+
             let builder = wasm_func.builder_mut();
 
             let mut body_builder = builder.func_body();
             let mut func_compiler = FunctionCompiler::new(
-                self.memory_id,
+                memory_id,
                 &variables,
                 self.type_loader,
-                self.package,
-                self.data_offsets,
-                &self.imported_functions,
-                &self.local_functions,
-                self.external_functions,
-                self.builtin_functions,
+                &self.data_offset_table,
+                &self.function_ids,
+                &self.builtin_functions,
             );
             func_compiler.process_statement(&mut body_builder, &func.body);
         }
+    }
 
-        let package_name = self.symbol_loader.get_symbol(self.package.name).unwrap();
-        let filename = get_module_file_path(&package_name);
-        let filedir = filename.parent().unwrap();
-        std::fs::create_dir_all(filedir).unwrap();
-        self.module.emit_wasm_file(&filename)?;
+    fn declare_native_functions(&mut self) {
+        let native_functions = self.packages.iter().flat_map(|pkg| pkg.native_functions.iter());
+        for func in native_functions {
+            let wasm_link_sym = self.symbol_loader.declare_symbol("wasm_link");
+            let mut is_external_func = false;
+            if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
+                if wasm_link_tag.arguments.len() == 2 {
+                    let wasm_module = &wasm_link_tag.arguments[0];
+                    let wasm_name = &wasm_link_tag.arguments[1];
+                    let func_global_id = GlobalId(func.package_name, func.function_name);
+                    is_external_func = true;
 
-        Ok(filename)
+                    let mut return_type = vec![];
+                    if let Some(ret_type) = &func.func_type.return_type {
+                        let ret_type = self.type_loader.get_type(*ret_type).unwrap();
+                        let ret_type = to_wasm_type(&ret_type);
+                        return_type = vec![ret_type];
+                    }
+                    let mut param_types = vec![];
+                    for param_ty in &func.func_type.parameters {
+                        let param_ty = self.type_loader.get_type(*param_ty).unwrap();
+                        let param_ty = to_wasm_type(&param_ty);
+                        param_types.push(param_ty);
+                    }
+
+                    let type_id = self.module.types.add(&param_types, &return_type);
+                    let (func_id, _) = self.module.add_import_func(wasm_module, wasm_name, type_id);
+                    self.function_ids.insert(func_global_id, func_id);
+                }
+            }
+
+            let wasm_builtin_sym = self.symbol_loader.declare_symbol("wasm_builtin");
+            let mut is_builtin_func = false;
+            if let Some(wasm_builtin_tag) = func.tags.iter().find(|tag| tag.name == wasm_builtin_sym) {
+                if let Some(builtin_name) = wasm_builtin_tag.arguments.first() {
+                    let global_id = GlobalId(func.package_name, func.function_name);
+                    self.builtin_functions.insert(global_id, builtin_name.clone());
+                    is_builtin_func = true;
+                }
+            }
+
+            if !is_external_func && !is_builtin_func {
+                panic!("native function can't be compiled");
+            }
+            if is_external_func && is_builtin_func {
+                panic!("can't compile, ambiguous native function linking");
+            }
+        }
     }
 
     fn declare_local_functions(&mut self) {
-        for func in &self.package.functions {
+        let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
+        for func in functions {
+            let package_name = self.symbol_loader.get_symbol(func.package_name).unwrap();
             let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
 
             let mut return_type = vec![];
@@ -209,140 +179,107 @@ impl<'sym, 'typ, 'pkg> ModuleCompiler<'sym, 'typ, 'pkg> {
             }
 
             let mut param_types = vec![];
+            let mut variables = vec![];
             for param_ty in &func.func_type.parameters {
                 let param_ty = self.type_loader.get_type(*param_ty).unwrap();
                 let param_ty = to_wasm_type(&param_ty);
                 param_types.push(param_ty);
-            }
-
-            let mut variables = vec![];
-            for local in &func.locals {
-                let ty = self.type_loader.get_type(*local).unwrap();
-                let ty = to_wasm_type(&ty);
-                variables.push(self.module.locals.add(ty));
+                variables.push(self.module.locals.add(param_ty));
             }
 
             let mut builder = FunctionBuilder::new(&mut self.module.types, &param_types, &return_type);
-            builder.name(func_name.as_ref().to_string());
+            let mangled_name = mangle_func(&package_name, &func_name);
+            builder.name(mangled_name);
 
-            let function_id = builder.finish(variables.iter().cloned().collect(), &mut self.module.funcs);
+            let function_id = builder.finish(
+                variables.iter().take(param_types.len()).cloned().collect(),
+                &mut self.module.funcs,
+            );
 
-            self.local_functions.insert(func.function_name, function_id);
-            self.module.exports.add(&func_name, function_id);
+            let global_id = GlobalId(func.package_name, func.function_name);
+            self.function_ids.insert(global_id, function_id);
         }
     }
 
-    fn import_needed_functions(&mut self) {
-        let mut result = vec![];
-        for func in &self.package.functions {
-            self.get_imported_functions_in_statement(&mut result, &func.body);
-        }
+    fn build_main_func(&mut self) {
+        let main_sym = self.symbol_loader.declare_symbol("main");
+        let main_func_global_id = GlobalId(self.main_package, main_sym);
+        let main_func_id = self.function_ids.get(&main_func_global_id).unwrap();
 
-        for (wasm_global_id, type_id) in result {
-            let (wasm_module, wasm_name) = wasm_global_id.get_str(self.symbol_loader);
-
-            let ty = self.type_loader.get_type(type_id).unwrap();
-            let Type::Func(func_type) = ty.as_ref() else {
-                unreachable!("invalid state, calling non-callable expression");
-            };
-
-            let mut return_type = vec![];
-            if let Some(ret_type) = func_type.return_type {
-                let ret_type = self.type_loader.get_type(ret_type).unwrap();
-                let ret_type = to_wasm_type(&ret_type);
-                return_type = vec![ret_type];
-            }
-            let mut param_types = vec![];
-            for param_ty in &func_type.parameters {
-                let param_ty = self.type_loader.get_type(*param_ty).unwrap();
-                let param_ty = to_wasm_type(&param_ty);
-                param_types.push(param_ty);
-            }
-
-            let type_id = self.module.types.add(&param_types, &return_type);
-
-            if let Some(linked) = self.external_functions.get(&wasm_global_id) {
-                let wasm_module = self.symbol_loader.get_symbol(linked.0).unwrap();
-                let wasm_name = self.symbol_loader.get_symbol(linked.1).unwrap();
-                let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
-                self.imported_functions.insert(*linked, func_id);
-            } else {
-                let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
-                self.imported_functions.insert(wasm_global_id, func_id);
-            }
-
-            let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
-            self.imported_functions.insert(wasm_global_id, func_id);
-        }
+        let mut builder = FunctionBuilder::new(&mut self.module.types, &[], &[]);
+        builder.name(String::from(START_FUNC_NAME));
+        builder.func_body().call(*main_func_id);
+        let start_func_id = builder.finish(vec![], &mut self.module.funcs);
+        self.module.start = Some(start_func_id);
     }
 
-    fn get_imported_functions_in_statement(&self, result: &mut Vec<(GlobalId, TypeId)>, stmt: &Statement) {
-        match stmt {
-            Statement::SetLocal(_, expr) => {
-                self.get_imported_functions_in_expr(result, &expr);
-            }
-            Statement::If(if_stmt) => {
-                self.get_imported_functions_in_expr(result, &if_stmt.condition);
-                self.get_imported_functions_in_statement(result, &if_stmt.body);
-                if let Some(else_body) = &if_stmt.else_body {
-                    self.get_imported_functions_in_statement(result, &else_body);
-                }
-            }
-            Statement::While(while_stmt) => {
-                self.get_imported_functions_in_expr(result, &while_stmt.condition);
-                self.get_imported_functions_in_statement(result, &while_stmt.body);
-            }
-            Statement::Block(block) => {
-                for stmt in &block.statements {
-                    self.get_imported_functions_in_statement(result, stmt);
-                }
-            }
-            Statement::Return(ret_stmt) => {
-                if let Some(ref val) = ret_stmt.value {
-                    self.get_imported_functions_in_expr(result, val);
-                }
-            }
-            Statement::Expr(expr) => {
-                self.get_imported_functions_in_expr(result, &expr);
-            }
-            _ => (),
-        }
+    fn build_global_memory(&mut self) -> MemoryId {
+        let memory_id = self.module.memories.add_local(true, 1, None);
+        self.module.exports.add("memory", memory_id);
+        memory_id
     }
 
-    fn get_imported_functions_in_expr(&self, result: &mut Vec<(GlobalId, TypeId)>, expr: &Expr) {
-        match &expr.kind {
-            ExprKind::Func(func_expr) => {
-                result.push((GlobalId(func_expr.package_name, func_expr.function_name), expr.type_id));
+    fn build_data_segment(&mut self, memory_id: MemoryId) -> usize {
+        let mut offset = 0usize;
+
+        for pkg in self.packages {
+            for (index, string) in pkg.strings.iter().enumerate() {
+                let content = string.as_ref().to_vec();
+                let content_len = (content.len() as u32).to_le_bytes();
+                let content_offset = ((offset + 8) as u32).to_le_bytes();
+                let mut data_buf = Vec::with_capacity(8 + content.len());
+                data_buf.extend_from_slice(&content_offset);
+                data_buf.extend_from_slice(&content_len);
+                data_buf.extend_from_slice(&content);
+                let data_len = data_buf.len();
+
+                self.module.data.add(
+                    DataKind::Active(ActiveData {
+                        memory: memory_id,
+                        location: ActiveDataLocation::Absolute(offset as u32),
+                    }),
+                    data_buf,
+                );
+                self.data_offset_table.insert((pkg.name, index), offset);
+                offset += data_len;
             }
-            ExprKind::Call(target, arguments) => {
-                self.get_imported_functions_in_expr(result, &target);
-                for arg in arguments.iter() {
-                    self.get_imported_functions_in_expr(result, arg);
-                }
-            }
-            ExprKind::Binary { a, op: _, b } => {
-                self.get_imported_functions_in_expr(result, a);
-                self.get_imported_functions_in_expr(result, b);
-            }
-            ExprKind::Unary { op: _, val } => {
-                self.get_imported_functions_in_expr(result, val);
-            }
-            _ => (),
         }
+
+        offset
+    }
+
+    fn build_mem_pointers(&mut self, data_size: usize) {
+        self.module.globals.add_local(
+            ValType::I32,
+            false,
+            InitExpr::Value(walrus::ir::Value::I32(data_size as i32)),
+        );
+
+        let stack_size = 0x1000;
+        let heap_start_offset = data_size + stack_size;
+        self.module.globals.add_local(
+            ValType::I32,
+            false,
+            InitExpr::Value(walrus::ir::Value::I32(heap_start_offset as i32)),
+        );
+
+        let stack_ptr = heap_start_offset;
+        self.module.globals.add_local(
+            ValType::I32,
+            true,
+            InitExpr::Value(walrus::ir::Value::I32(stack_ptr as i32)),
+        );
     }
 }
 
 struct FunctionCompiler<'typ, 'pkg> {
     type_loader: &'typ TypeLoader,
-    package: &'pkg Package,
     variables: &'pkg [LocalId],
 
     memory_id: MemoryId,
     loop_blocks: Vec<(InstrSeqId, InstrSeqId)>,
-    imported_functions: &'pkg HashMap<GlobalId, FunctionId>,
-    local_functions: &'pkg HashMap<SymbolId, FunctionId>,
+    function_ids: &'pkg HashMap<GlobalId, FunctionId>,
     data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
-    external_functions: &'pkg HashMap<GlobalId, GlobalId>,
     builtin_functions: &'pkg HashMap<GlobalId, String>,
 }
 
@@ -351,23 +288,17 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         memory_id: MemoryId,
         variables: &'pkg [LocalId],
         type_loader: &'typ TypeLoader,
-        package: &'pkg Package,
         data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
-        imported_functions: &'pkg HashMap<GlobalId, FunctionId>,
-        local_functions: &'pkg HashMap<SymbolId, FunctionId>,
-        external_functions: &'pkg HashMap<GlobalId, GlobalId>,
+        function_ids: &'pkg HashMap<GlobalId, FunctionId>,
         builtin_functions: &'pkg HashMap<GlobalId, String>,
     ) -> Self {
         Self {
             type_loader,
-            package,
             memory_id,
             variables,
             loop_blocks: vec![],
-            imported_functions,
-            local_functions,
+            function_ids,
             data_offsets,
-            external_functions,
             builtin_functions,
         }
     }
@@ -435,7 +366,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             Statement::Expr(expr) => {
                 self.process_expr(builder, expr);
-                if self.type_loader.get_type(expr.type_id).unwrap().is_void() {
+                if !self.type_loader.get_type(expr.type_id).unwrap().is_void() {
                     builder.drop();
                 }
             }
@@ -499,10 +430,8 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
                 if let ExprKind::Func(func_expr) = &target.kind {
                     let ident_pair = GlobalId(func_expr.package_name, func_expr.function_name);
-                    if let Some(wasm_global_id) = self.external_functions.get(&ident_pair) {
-                        let Some(func_id) = self.imported_functions.get(&wasm_global_id) else {
-                            unreachable!("invalid state, imported function is not defined yet");
-                        };
+
+                    if let Some(func_id) = self.function_ids.get(&ident_pair) {
                         builder.call(*func_id);
                     } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
                         match builtin_name.as_str() {
@@ -514,17 +443,8 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                             }
                             k @ _ => panic!("unknown builtin function for {}", k),
                         }
-                    } else if func_expr.package_name == self.package.name {
-                        let func_id = self
-                            .local_functions
-                            .get(&func_expr.function_name)
-                            .expect("can't find local function declaration");
-                        builder.call(*func_id);
                     } else {
-                        let Some(func_id) = self.imported_functions.get(&ident_pair) else {
-                            unreachable!("invalid state, imported function is not defined yet");
-                        };
-                        builder.call(*func_id);
+                        panic!("function definition is not found");
                     }
                 } else {
                     todo!("currently, calling by function pointer is not supported yet");
@@ -747,117 +667,8 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
     }
 }
 
-pub struct GlobalModuleCompiler<'sym, 'pkg> {
-    symbol_loader: &'sym SymbolLoader,
-    packages: &'pkg [Rc<Package>],
-    main_package: SymbolId,
-    module: Module,
-    data_offset_table: HashMap<(SymbolId, usize), usize>,
-}
-
-impl<'sym, 'pkg> GlobalModuleCompiler<'sym, 'pkg> {
-    pub fn new(symbol_loader: &'sym SymbolLoader, packages: &'pkg [Rc<Package>], main_package: SymbolId) -> Self {
-        let mut module = Module::default();
-        module.name = Some(String::from(GLOBAL_MODULE_NAME));
-        Self {
-            symbol_loader,
-            packages,
-            main_package,
-            module,
-            data_offset_table: HashMap::default(),
-        }
-    }
-
-    fn compile(&mut self) -> Result<PathBuf, Box<dyn Error>> {
-        self.build();
-
-        let filename = get_module_file_path(GLOBAL_MODULE_NAME);
-        let filedir = filename.parent().unwrap();
-        std::fs::create_dir_all(filedir).unwrap();
-        self.module.emit_wasm_file(&filename)?;
-
-        Ok(filename)
-    }
-
-    fn build(&mut self) {
-        self.build_main_func();
-        let memory_id = self.export_global_memory();
-        let data_size = self.setup_data_segments(memory_id);
-        self.setup_memory_pointers(data_size);
-    }
-
-    fn build_main_func(&mut self) {
-        let main_pkg_name = self.symbol_loader.get_symbol(self.main_package).unwrap();
-        let main_func_typeid = self.module.types.add(&[], &[]);
-        let (main_func_id, _) = self.module.add_import_func(&main_pkg_name, "main", main_func_typeid);
-
-        let mut builder = FunctionBuilder::new(&mut self.module.types, &[], &[]);
-        builder.name(String::from(START_FUNC_NAME));
-        builder.func_body().call(main_func_id);
-        let start_func_id = builder.finish(vec![], &mut self.module.funcs);
-        self.module.start = Some(start_func_id);
-    }
-
-    fn export_global_memory(&mut self) -> MemoryId {
-        let memory_id = self.module.memories.add_local(true, 1, None);
-        self.module.exports.add(GLOBAL_MEMORY_NAME, memory_id);
-        memory_id
-    }
-
-    fn setup_data_segments(&mut self, memory_id: MemoryId) -> usize {
-        let mut offset = 0usize;
-
-        for pkg in self.packages {
-            for (index, string) in pkg.strings.iter().enumerate() {
-                let content = string.as_ref().to_vec();
-                let content_len = (content.len() as u32).to_le_bytes();
-                let content_offset = ((offset + 8) as u32).to_le_bytes();
-                let mut data_buf = Vec::with_capacity(8 + content.len());
-                data_buf.extend_from_slice(&content_offset);
-                data_buf.extend_from_slice(&content_len);
-                data_buf.extend_from_slice(&content);
-                let data_len = data_buf.len();
-
-                self.module.data.add(
-                    DataKind::Active(ActiveData {
-                        memory: memory_id,
-                        location: ActiveDataLocation::Absolute(offset as u32),
-                    }),
-                    data_buf,
-                );
-                self.data_offset_table.insert((pkg.name, index), offset);
-                offset += data_len;
-            }
-        }
-
-        offset
-    }
-
-    fn setup_memory_pointers(&mut self, data_size: usize) {
-        let data_end_offset_id = self.module.globals.add_local(
-            ValType::I32,
-            false,
-            InitExpr::Value(walrus::ir::Value::I32(data_size as i32)),
-        );
-        self.module.exports.add(DATA_END_PTR, data_end_offset_id);
-
-        let stack_size = 0x1000;
-        let heap_start_offset = data_size + stack_size;
-        let heap_start_offset_id = self.module.globals.add_local(
-            ValType::I32,
-            false,
-            InitExpr::Value(walrus::ir::Value::I32(heap_start_offset as i32)),
-        );
-        self.module.exports.add(HEAP_START_PTR, heap_start_offset_id);
-
-        let stack_ptr = heap_start_offset;
-        let stack_ptr_id = self.module.globals.add_local(
-            ValType::I32,
-            true,
-            InitExpr::Value(walrus::ir::Value::I32(stack_ptr as i32)),
-        );
-        self.module.exports.add(STACK_PTR, stack_ptr_id);
-    }
+fn mangle_func(package_name: &str, function_name: &str) -> String {
+    format!("{package_name}.{function_name}")
 }
 
 fn to_wasm_type(ty: &Type) -> ValType {
@@ -869,14 +680,4 @@ fn to_wasm_type(ty: &Type) -> ValType {
         Type::ArrayPtr(_) => ValType::I32,
         _ => todo!(),
     }
-}
-
-fn get_module_file_path(pkg_name: &str) -> PathBuf {
-    let mut result = PathBuf::new();
-    result.push(".cache/wasm/");
-    for seg in pkg_name.split("/") {
-        result.push(seg);
-    }
-    result.set_extension("wasm");
-    result
 }
