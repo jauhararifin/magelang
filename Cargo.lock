@@ -973,10 +973,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "magelang_common",
- "magelang_compiler",
- "magelang_cranelift",
  "magelang_package",
- "magelang_runner",
  "magelang_semantic",
  "magelang_syntax",
  "magelang_typecheck",

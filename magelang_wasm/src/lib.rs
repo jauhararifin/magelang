@@ -26,7 +26,12 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         }
     }
 
-    pub fn compile(&self, packages: Vec<Rc<Package>>, main_package: SymbolId) -> Result<(), Box<dyn Error>> {
+    pub fn compile(
+        &self,
+        packages: Vec<Rc<Package>>,
+        main_package: SymbolId,
+        output_file: &str,
+    ) -> Result<(), Box<dyn Error>> {
         let main_package_name = self.symbol_loader.get_symbol(main_package).unwrap();
         let mut module = Module::default();
         module.name = Some(String::from(main_package_name.as_ref()));
@@ -40,7 +45,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         )
         .compile();
 
-        module.emit_wasm_file("output.wasm")?;
+        module.emit_wasm_file(output_file)?;
         Ok(())
     }
 }
