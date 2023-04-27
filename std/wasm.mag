@@ -1,6 +1,39 @@
 
 #wasm_builtin("memory.grow")
-fn memory_grow(parameter: i32): i32;
+fn memory_grow(n: i32): i32;
 
 #wasm_builtin("memory.size")
 fn memory_size(): i32;
+
+#wasm_builtin("mem.load_i64")
+fn memory_load_i64(addr: u32): i64;
+
+#wasm_builtin("mem.load_u64")
+fn memory_load_u64(addr: u32): u64;
+
+#wasm_builtin("mem.load_i32")
+fn memory_load_i32(addr: u32): i32;
+
+#wasm_builtin("mem.load_u32")
+fn memory_load_u32(addr: u32): u32;
+
+#wasm_builtin("mem.load_i16")
+fn memory_load_i16(addr: u32): i16;
+
+#wasm_builtin("mem.load_u16")
+fn memory_load_u16(addr: u32): u16;
+
+#wasm_builtin("mem.load_i8")
+fn memory_load_i8(addr: u32): i8;
+
+#wasm_builtin("mem.load_u8")
+fn memory_load_u8(addr: u32): u8;
+
+#wasm_builtin("mem.load_f64")
+fn memory_load_f64(addr: u32): f64;
+
+#wasm_builtin("mem.load_f32")
+fn memory_load_f32(addr: u32): f32;
+
+#wasm_builtin("mem.load_bool")
+fn memory_load_bool(addr: bool): bool;

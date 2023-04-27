@@ -1,6 +1,6 @@
 use magelang_common::{SymbolId, SymbolLoader};
 use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::rc::Rc;
 use walrus::{
@@ -56,6 +56,7 @@ pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     module: &'pkg mut Module,
     packages: &'pkg [Rc<Package>],
     main_package: SymbolId,
+    reachable_functions: HashSet<GlobalId>,
     data_offset_table: HashMap<(SymbolId, usize), usize>,
     function_ids: HashMap<GlobalId, FunctionId>,
     builtin_functions: HashMap<GlobalId, String>,
@@ -75,6 +76,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             module,
             packages,
             main_package,
+            reachable_functions: HashSet::default(),
             data_offset_table: HashMap::default(),
             function_ids: HashMap::default(),
             builtin_functions: HashMap::default(),
@@ -82,6 +84,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     }
 
     fn compile(&mut self) {
+        self.calculate_reachable_functions();
         self.declare_native_functions();
         self.declare_local_functions();
         self.build_main_func();
@@ -92,6 +95,10 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
             let func_global_id = GlobalId(func.package_name, func.function_name);
+            if !self.reachable_functions.contains(&func_global_id) {
+                continue;
+            }
+
             let func_id = self.function_ids.get(&func_global_id).unwrap();
             let wasm_func = self.module.funcs.get_mut(*func_id);
             let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
@@ -120,16 +127,135 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         }
     }
 
+    fn calculate_reachable_functions(&mut self) {
+        let mut local_funcs = HashMap::new();
+        for pkg in self.packages {
+            for func in &pkg.functions {
+                let global_id = GlobalId(pkg.name, func.function_name);
+                local_funcs.insert(global_id, &func.body);
+            }
+        }
+
+        let mut stack = vec![];
+        let mut in_stack = HashSet::new();
+
+        let main_sym = self.symbol_loader.declare_symbol("main");
+        stack.push(GlobalId(self.main_package, main_sym));
+        in_stack.insert(GlobalId(self.main_package, main_sym));
+
+        while let Some(func_id) = stack.pop() {
+            if self.reachable_functions.contains(&func_id) {
+                continue;
+            }
+            self.reachable_functions.insert(func_id);
+
+            let Some(body) = local_funcs.get(&func_id) else {
+                continue;
+            };
+
+            let mut called_funcs = vec![];
+            self.get_called_functions(*body, &mut called_funcs);
+            for called_func_id in called_funcs {
+                if !in_stack.contains(&called_func_id) {
+                    stack.push(called_func_id);
+                    in_stack.insert(called_func_id);
+                }
+            }
+        }
+    }
+
+    fn get_called_functions(&self, stmt: &Statement, result: &mut Vec<GlobalId>) {
+        match stmt {
+            Statement::Invalid | Statement::Continue | Statement::Break => (),
+            Statement::SetLocal(_, expr) => self.get_called_functions_in_expr(expr, result),
+            Statement::SetIndex { target, index, value } => {
+                self.get_called_functions_in_expr(target, result);
+                self.get_called_functions_in_expr(index, result);
+                self.get_called_functions_in_expr(value, result);
+            }
+            Statement::If(if_stmt) => {
+                self.get_called_functions_in_expr(&if_stmt.condition, result);
+                self.get_called_functions(&if_stmt.body, result);
+                if let Some(ref else_body) = if_stmt.else_body {
+                    self.get_called_functions(&else_body, result);
+                }
+            }
+            Statement::While(while_stmt) => {
+                self.get_called_functions_in_expr(&while_stmt.condition, result);
+                self.get_called_functions(&while_stmt.body, result);
+            }
+            Statement::Block(block_stmt) => {
+                for stmt in &block_stmt.statements {
+                    self.get_called_functions(stmt, result);
+                }
+            }
+            Statement::Return(ret_stmt) => {
+                if let Some(ref expr) = ret_stmt.value {
+                    self.get_called_functions_in_expr(expr, result);
+                }
+            }
+            Statement::Expr(expr) => self.get_called_functions_in_expr(expr, result),
+        }
+    }
+
+    fn get_called_functions_in_expr(&self, expr: &Expr, result: &mut Vec<GlobalId>) {
+        match &expr.kind {
+            ExprKind::Invalid
+            | ExprKind::I64(..)
+            | ExprKind::I32(..)
+            | ExprKind::I16(..)
+            | ExprKind::I8(..)
+            | ExprKind::U64(..)
+            | ExprKind::U32(..)
+            | ExprKind::U16(..)
+            | ExprKind::U8(..)
+            | ExprKind::F64(..)
+            | ExprKind::F32(..)
+            | ExprKind::Bool(..)
+            | ExprKind::Usize(..)
+            | ExprKind::Local(..)
+            | ExprKind::StringLit(..) => (),
+            ExprKind::Func(func_expr) => {
+                result.push(GlobalId(func_expr.package_name, func_expr.function_name));
+            }
+            ExprKind::Binary { a, op: _, b } => {
+                self.get_called_functions_in_expr(&a, result);
+                self.get_called_functions_in_expr(&b, result);
+            }
+            ExprKind::Unary { val, op: _ } => {
+                self.get_called_functions_in_expr(&val, result);
+            }
+            ExprKind::Call(func, args) => {
+                self.get_called_functions_in_expr(&func, result);
+                for arg in args {
+                    self.get_called_functions_in_expr(&arg, result);
+                }
+            }
+            ExprKind::Index(target, index) => {
+                self.get_called_functions_in_expr(&target, result);
+                self.get_called_functions_in_expr(&index, result);
+            }
+            ExprKind::Cast(value, _) => {
+                self.get_called_functions_in_expr(&value, result);
+            }
+        }
+    }
+
     fn declare_native_functions(&mut self) {
         let native_functions = self.packages.iter().flat_map(|pkg| pkg.native_functions.iter());
         for func in native_functions {
+            let func_global_id = GlobalId(func.package_name, func.function_name);
+            if !self.reachable_functions.contains(&func_global_id) {
+                continue;
+            }
+
             let wasm_link_sym = self.symbol_loader.declare_symbol("wasm_link");
             let mut is_external_func = false;
+
             if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
                 if wasm_link_tag.arguments.len() == 2 {
                     let wasm_module = &wasm_link_tag.arguments[0];
                     let wasm_name = &wasm_link_tag.arguments[1];
-                    let func_global_id = GlobalId(func.package_name, func.function_name);
                     is_external_func = true;
 
                     let mut return_type = vec![];
@@ -156,8 +282,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             if let Some(wasm_builtin_tag) = func.tags.iter().find(|tag| tag.name == wasm_builtin_sym) {
                 if let Some(builtin_name) = wasm_builtin_tag.arguments.first() {
                     // TODO: check the builtin name, and the signature.
-                    let global_id = GlobalId(func.package_name, func.function_name);
-                    self.builtin_functions.insert(global_id, builtin_name.clone());
+                    self.builtin_functions.insert(func_global_id, builtin_name.clone());
                     is_builtin_func = true;
                 }
             }
@@ -174,6 +299,11 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     fn declare_local_functions(&mut self) {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
+            let global_id = GlobalId(func.package_name, func.function_name);
+            if !self.reachable_functions.contains(&global_id) {
+                continue;
+            }
+
             let package_name = self.symbol_loader.get_symbol(func.package_name).unwrap();
             let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
 
@@ -202,7 +332,6 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 &mut self.module.funcs,
             );
 
-            let global_id = GlobalId(func.package_name, func.function_name);
             self.function_ids.insert(global_id, function_id);
         }
     }
@@ -226,7 +355,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     }
 
     fn build_data_segment(&mut self, memory_id: MemoryId) -> usize {
-        let mut offset = 0usize;
+        let mut offset = 8usize; // let's not use 0 since 0 can be considered as NULL;
 
         for pkg in self.packages {
             for (index, string) in pkg.strings.iter().enumerate() {
