@@ -32,7 +32,7 @@ pub enum ExprKind {
     Cast(Box<Expr>, TypeId),
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum BinOp {
     Add,
     Sub,
@@ -54,7 +54,7 @@ pub enum BinOp {
     LEq,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum UnOp {
     BitNot,
     Sub,

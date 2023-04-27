@@ -1,5 +1,5 @@
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeLoader, UnOp};
+use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp};
 use std::collections::HashMap;
 use std::error::Error;
 use std::rc::Rc;
@@ -155,6 +155,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             let mut is_builtin_func = false;
             if let Some(wasm_builtin_tag) = func.tags.iter().find(|tag| tag.name == wasm_builtin_sym) {
                 if let Some(builtin_name) = wasm_builtin_tag.arguments.first() {
+                    // TODO: check the builtin name, and the signature.
                     let global_id = GlobalId(func.package_name, func.function_name);
                     self.builtin_functions.insert(global_id, builtin_name.clone());
                     is_builtin_func = true;
@@ -423,252 +424,300 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Local(index) => {
                 builder.local_get(self.variables[*index]);
             }
-            ExprKind::Func(..) => unreachable!(),
             ExprKind::StringLit(str_lit) => {
                 let offset = self.data_offsets.get(&(str_lit.package_name, str_lit.index)).unwrap();
                 builder.i32_const(*offset as i32);
             }
             ExprKind::Call(target, arguments) => {
-                for arg in arguments.iter() {
-                    self.process_expr(builder, arg);
-                }
-
-                if let ExprKind::Func(func_expr) = &target.kind {
-                    let ident_pair = GlobalId(func_expr.package_name, func_expr.function_name);
-
-                    if let Some(func_id) = self.function_ids.get(&ident_pair) {
-                        builder.call(*func_id);
-                    } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
-                        match builtin_name.as_str() {
-                            "memory.grow" => {
-                                builder.memory_grow(self.memory_id);
-                            }
-                            "memory.size" => {
-                                builder.memory_size(self.memory_id);
-                            }
-                            builtin_name => panic!("unknown builtin function for {builtin_name}"),
-                        }
-                    } else {
-                        panic!("function definition is not found");
-                    }
-                } else {
-                    todo!("currently, calling by function pointer is not supported yet");
-                }
+                self.process_call_expr(builder, target, &arguments);
             }
             ExprKind::Cast(value, target_ty) => {
-                let value_ty = self.type_loader.get_type(value.type_id).unwrap();
-                let target_ty = self.type_loader.get_type(*target_ty).unwrap();
-
-                self.process_expr(builder, value);
-
-                match (value_ty.as_ref(), target_ty.as_ref()) {
-                    (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
-                    (Type::I64 | Type::U64, Type::I32 | Type::U32) => {
-                        builder.unop(UnaryOp::I32WrapI64);
-                    }
-                    (Type::I64 | Type::U64, Type::I16 | Type::U16) => {
-                        builder.unop(UnaryOp::I32WrapI64);
-                        builder.unop(UnaryOp::I32Extend16S);
-                    }
-                    (Type::I64 | Type::U64, Type::I8 | Type::U8) => {
-                        builder.unop(UnaryOp::I32WrapI64);
-                        builder.unop(UnaryOp::I32Extend8S);
-                    }
-                    (Type::I32, Type::I64) => {
-                        builder.unop(UnaryOp::I64Extend32S);
-                    }
-                    (Type::I32, _) => {}
-                    (Type::U32, Type::I64 | Type::U64) => {
-                        builder.unop(UnaryOp::I64ExtendUI32);
-                    }
-                    (Type::U32, _) => {}
-                    (Type::I16, Type::I64) => {
-                        builder.unop(UnaryOp::I64Extend16S);
-                    }
-                    (Type::I16, _) => {}
-                    (Type::U16, Type::I64 | Type::U64) => {
-                        builder.unop(UnaryOp::I64ExtendUI32);
-                    }
-                    (Type::U16, _) => {}
-                    (Type::I8, Type::I64) => {
-                        builder.unop(UnaryOp::I64Extend8S);
-                    }
-                    (Type::I8, _) => {}
-                    (Type::U8, Type::I64 | Type::U64) => {
-                        builder.unop(UnaryOp::I64ExtendUI32);
-                    }
-                    (Type::U8, _) => {}
-                    (Type::Slice(..), Type::I64) => {
-                        builder.unop(UnaryOp::I64Extend32S);
-                    }
-                    (Type::Slice(..), _) => {}
-                    (source, target) => todo!(
-                        "casting from {} to {} is not supported yet",
-                        source.display(self.type_loader),
-                        target.display(self.type_loader)
-                    ),
-                }
+                self.process_cast_expr(builder, value, *target_ty);
             }
             ExprKind::Binary { a, op, b } => {
-                if op == &BinOp::And {
-                    self.process_expr(builder, a);
-                    builder.if_else(
-                        ValType::I32,
-                        |builder| {
-                            self.process_expr(builder, b);
-                        },
-                        |builder| {
-                            builder.i32_const(0);
-                        },
-                    );
-                    return;
-                }
-
-                if op == &BinOp::Or {
-                    self.process_expr(builder, a);
-                    builder.if_else(
-                        ValType::I32,
-                        |builder| {
-                            builder.i32_const(1);
-                        },
-                        |builder| {
-                            self.process_expr(builder, b);
-                        },
-                    );
-                    return;
-                }
-
-                self.process_expr(builder, a);
-                self.process_expr(builder, b);
-
-                let ty = self.type_loader.get_type(a.type_id).unwrap();
-
-                match (op, ty.as_ref()) {
-                    (BinOp::Add, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Add),
-                    (BinOp::Add, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Add),
-                    (BinOp::Add, Type::F64) => builder.binop(BinaryOp::F64Add),
-                    (BinOp::Add, Type::F32) => builder.binop(BinaryOp::F32Add),
-
-                    (BinOp::Sub, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Sub),
-                    (BinOp::Sub, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Sub),
-                    (BinOp::Sub, Type::F64) => builder.binop(BinaryOp::F64Sub),
-                    (BinOp::Sub, Type::F32) => builder.binop(BinaryOp::F32Sub),
-
-                    (BinOp::Mul, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Mul),
-                    (BinOp::Mul, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Mul),
-                    (BinOp::Mul, Type::F64) => builder.binop(BinaryOp::F64Mul),
-                    (BinOp::Mul, Type::F32) => builder.binop(BinaryOp::F32Mul),
-
-                    (BinOp::Div, Type::I64) => builder.binop(BinaryOp::I64DivS),
-                    (BinOp::Div, Type::U64) => builder.binop(BinaryOp::I64DivU),
-                    (BinOp::Div, Type::I32) => builder.binop(BinaryOp::I32DivS),
-                    (BinOp::Div, Type::U32) => builder.binop(BinaryOp::I32DivU),
-                    (BinOp::Div, Type::F64) => builder.binop(BinaryOp::F64Div),
-                    (BinOp::Div, Type::F32) => builder.binop(BinaryOp::F32Div),
-
-                    (BinOp::Mod, Type::I64) => builder.binop(BinaryOp::I64RemS),
-                    (BinOp::Mod, Type::U64) => builder.binop(BinaryOp::I64RemU),
-                    (BinOp::Mod, Type::I32) => builder.binop(BinaryOp::I32RemS),
-                    (BinOp::Mod, Type::U32) => builder.binop(BinaryOp::I32RemU),
-
-                    (BinOp::BitOr, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Or),
-                    (BinOp::BitOr, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Or),
-
-                    (BinOp::BitAnd, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64And),
-                    (BinOp::BitAnd, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32And),
-
-                    (BinOp::BitXor, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Xor),
-                    (BinOp::BitXor, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Xor),
-
-                    (BinOp::ShiftLeft, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Shl),
-                    (BinOp::ShiftLeft, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Shl),
-                    (BinOp::ShiftRight, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64ShrU),
-                    (BinOp::ShiftRight, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32ShrU),
-
-                    (BinOp::Eq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Eq),
-                    (BinOp::Eq, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Eq),
-                    (BinOp::Eq, Type::F64) => builder.binop(BinaryOp::F64Eq),
-                    (BinOp::Eq, Type::F32) => builder.binop(BinaryOp::F32Eq),
-
-                    (BinOp::NEq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Ne),
-                    (BinOp::NEq, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Ne),
-                    (BinOp::NEq, Type::F64) => builder.binop(BinaryOp::F64Ne),
-                    (BinOp::NEq, Type::F32) => builder.binop(BinaryOp::F32Ne),
-
-                    (BinOp::Gt, Type::I64) => builder.binop(BinaryOp::I64GtS),
-                    (BinOp::Gt, Type::I32) => builder.binop(BinaryOp::I32GtS),
-                    (BinOp::Gt, Type::U64) => builder.binop(BinaryOp::I64GtU),
-                    (BinOp::Gt, Type::U32) => builder.binop(BinaryOp::I32GtU),
-                    (BinOp::Gt, Type::F32) => builder.binop(BinaryOp::F32Gt),
-                    (BinOp::Gt, Type::F64) => builder.binop(BinaryOp::F32Gt),
-
-                    (BinOp::GEq, Type::I64) => builder.binop(BinaryOp::I64GeS),
-                    (BinOp::GEq, Type::I32) => builder.binop(BinaryOp::I32GeS),
-                    (BinOp::GEq, Type::U64) => builder.binop(BinaryOp::I64GeU),
-                    (BinOp::GEq, Type::U32) => builder.binop(BinaryOp::I32GeU),
-                    (BinOp::GEq, Type::F32) => builder.binop(BinaryOp::F32Ge),
-                    (BinOp::GEq, Type::F64) => builder.binop(BinaryOp::F32Ge),
-
-                    (BinOp::Lt, Type::I64) => builder.binop(BinaryOp::I64LtS),
-                    (BinOp::Lt, Type::I32) => builder.binop(BinaryOp::I32LtS),
-                    (BinOp::Lt, Type::U64) => builder.binop(BinaryOp::I64LtU),
-                    (BinOp::Lt, Type::U32) => builder.binop(BinaryOp::I32LtU),
-                    (BinOp::Lt, Type::F32) => builder.binop(BinaryOp::F32Lt),
-                    (BinOp::Lt, Type::F64) => builder.binop(BinaryOp::F32Lt),
-
-                    (BinOp::LEq, Type::I64) => builder.binop(BinaryOp::I64LeS),
-                    (BinOp::LEq, Type::I32) => builder.binop(BinaryOp::I32LeS),
-                    (BinOp::LEq, Type::U64) => builder.binop(BinaryOp::I64LeU),
-                    (BinOp::LEq, Type::U32) => builder.binop(BinaryOp::I32LeU),
-                    (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
-                    (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
-                    _ => unreachable!(),
-                };
+                self.process_binary_expr(builder, a, *op, b);
             }
             ExprKind::Unary { op, val } => {
-                let ty = self.type_loader.get_type(val.type_id).unwrap();
-
-                match (op, ty.as_ref()) {
-                    (UnOp::BitNot, Type::I64 | Type::U64) => {
-                        builder.i64_const(-1);
-                        self.process_expr(builder, val);
-                        builder.binop(BinaryOp::I64Xor);
-                    }
-                    (UnOp::BitNot, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
-                        builder.i32_const(-1);
-                        self.process_expr(builder, val);
-                        builder.binop(BinaryOp::I32Xor);
-                    }
-                    (UnOp::Add, _) => {
-                        self.process_expr(builder, val);
-                    }
-                    (UnOp::Sub, Type::I64 | Type::U64) => {
-                        builder.i64_const(0);
-                        self.process_expr(builder, val);
-                        builder.binop(BinaryOp::I64Sub);
-                    }
-                    (UnOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
-                        builder.i32_const(0);
-                        self.process_expr(builder, val);
-                        builder.binop(BinaryOp::I32Sub);
-                    }
-                    (UnOp::Sub, Type::F64) => {
-                        self.process_expr(builder, val);
-                        builder.unop(UnaryOp::F64Neg);
-                    }
-                    (UnOp::Sub, Type::F32) => {
-                        self.process_expr(builder, val);
-                        builder.unop(UnaryOp::F32Neg);
-                    }
-                    (UnOp::Not, _) => {
-                        builder.i32_const(1);
-                        self.process_expr(builder, val);
-                        builder.binop(BinaryOp::I32Xor);
-                    }
-                    _ => unreachable!(),
-                };
+                self.process_unary_expr(builder, *op, val);
             }
+            ExprKind::Func(..) => unreachable!("function pointer is not supported yet"),
         }
+    }
+
+    fn process_call_expr(&self, builder: &mut InstrSeqBuilder, target: &Expr, arguments: &[Expr]) {
+        for arg in arguments.iter() {
+            self.process_expr(builder, arg);
+        }
+
+        let ExprKind::Func(func_expr) = &target.kind else {
+            todo!("currently, calling by function pointer is not supported yet");
+        };
+
+        let ident_pair = GlobalId(func_expr.package_name, func_expr.function_name);
+        if let Some(func_id) = self.function_ids.get(&ident_pair) {
+            builder.call(*func_id);
+        } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
+            self.process_builtin_call(builder, &builtin_name);
+        } else {
+            unreachable!("function definition is not found");
+        }
+    }
+
+    fn process_builtin_call(&self, builder: &mut InstrSeqBuilder, builtin_name: &str) {
+        match builtin_name {
+            "memory.grow" => {
+                builder.memory_grow(self.memory_id);
+            }
+            "memory.size" => {
+                builder.memory_size(self.memory_id);
+            }
+            builtin_name => panic!("unknown builtin function for {builtin_name}"),
+        }
+    }
+
+    fn process_cast_expr(&self, builder: &mut InstrSeqBuilder, value: &Expr, target_ty: TypeId) {
+        let value_ty = self.type_loader.get_type(value.type_id).unwrap();
+        let target_ty = self.type_loader.get_type(target_ty).unwrap();
+
+        self.process_expr(builder, value);
+
+        match (value_ty.as_ref(), target_ty.as_ref()) {
+            (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
+            (Type::I64 | Type::U64, Type::I32 | Type::U32) => {
+                builder.unop(UnaryOp::I32WrapI64);
+            }
+            (Type::I64 | Type::U64, Type::I16 | Type::U16) => {
+                builder.unop(UnaryOp::I32WrapI64);
+                builder.unop(UnaryOp::I32Extend16S);
+            }
+            (Type::I64 | Type::U64, Type::I8 | Type::U8) => {
+                builder.unop(UnaryOp::I32WrapI64);
+                builder.unop(UnaryOp::I32Extend8S);
+            }
+            (Type::I32, Type::I64) => {
+                builder.unop(UnaryOp::I64Extend32S);
+            }
+            (Type::I32, _) => {}
+            (Type::U32, Type::I64 | Type::U64) => {
+                builder.unop(UnaryOp::I64ExtendUI32);
+            }
+            (Type::U32, _) => {}
+            (Type::I16, Type::I64) => {
+                builder.unop(UnaryOp::I64Extend16S);
+            }
+            (Type::I16, _) => {}
+            (Type::U16, Type::I64 | Type::U64) => {
+                builder.unop(UnaryOp::I64ExtendUI32);
+            }
+            (Type::U16, _) => {}
+            (Type::I8, Type::I64) => {
+                builder.unop(UnaryOp::I64Extend8S);
+            }
+            (Type::I8, _) => {}
+            (Type::U8, Type::I64 | Type::U64) => {
+                builder.unop(UnaryOp::I64ExtendUI32);
+            }
+            (Type::U8, _) => {}
+            (Type::Slice(..), Type::I64) => {
+                builder.unop(UnaryOp::I64Extend32S);
+            }
+            (Type::Slice(..), _) => {}
+            (source, target) => todo!(
+                "casting from {} to {} is not supported yet",
+                source.display(self.type_loader),
+                target.display(self.type_loader)
+            ),
+        }
+    }
+
+    fn process_binary_expr(&self, builder: &mut InstrSeqBuilder, a: &Expr, op: BinOp, b: &Expr) {
+        if op == BinOp::And {
+            return self.process_logical_and_expr(builder, &a, &b);
+        }
+
+        if op == BinOp::Or {
+            return self.process_logical_or_expr(builder, &a, &b);
+        }
+
+        match op {
+            BinOp::And => self.process_logical_and_expr(builder, &a, &b),
+            BinOp::Or => self.process_logical_or_expr(builder, &a, &b),
+            BinOp::Add
+            | BinOp::Sub
+            | BinOp::Mul
+            | BinOp::Div
+            | BinOp::Mod
+            | BinOp::BitOr
+            | BinOp::BitAnd
+            | BinOp::BitXor
+            | BinOp::ShiftLeft
+            | BinOp::ShiftRight
+            | BinOp::Eq
+            | BinOp::NEq
+            | BinOp::Gt
+            | BinOp::GEq
+            | BinOp::Lt
+            | BinOp::LEq => self.process_numeric_binary_expr(builder, &a, op, &b),
+        }
+    }
+
+    fn process_logical_and_expr(&self, builder: &mut InstrSeqBuilder, a: &Expr, b: &Expr) {
+        self.process_expr(builder, a);
+        builder.if_else(
+            ValType::I32,
+            |builder| {
+                self.process_expr(builder, b);
+            },
+            |builder| {
+                builder.i32_const(0);
+            },
+        );
+    }
+
+    fn process_logical_or_expr(&self, builder: &mut InstrSeqBuilder, a: &Expr, b: &Expr) {
+        self.process_expr(builder, a);
+        builder.if_else(
+            ValType::I32,
+            |builder| {
+                builder.i32_const(1);
+            },
+            |builder| {
+                self.process_expr(builder, b);
+            },
+        );
+    }
+
+    fn process_numeric_binary_expr(&self, builder: &mut InstrSeqBuilder, a: &Expr, op: BinOp, b: &Expr) {
+        self.process_expr(builder, a);
+        self.process_expr(builder, b);
+
+        let ty = self.type_loader.get_type(a.type_id).unwrap();
+
+        match (op, ty.as_ref()) {
+            (BinOp::Add, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Add),
+            (BinOp::Add, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Add),
+            (BinOp::Add, Type::F64) => builder.binop(BinaryOp::F64Add),
+            (BinOp::Add, Type::F32) => builder.binop(BinaryOp::F32Add),
+
+            (BinOp::Sub, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Sub),
+            (BinOp::Sub, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Sub),
+            (BinOp::Sub, Type::F64) => builder.binop(BinaryOp::F64Sub),
+            (BinOp::Sub, Type::F32) => builder.binop(BinaryOp::F32Sub),
+
+            (BinOp::Mul, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Mul),
+            (BinOp::Mul, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Mul),
+            (BinOp::Mul, Type::F64) => builder.binop(BinaryOp::F64Mul),
+            (BinOp::Mul, Type::F32) => builder.binop(BinaryOp::F32Mul),
+
+            (BinOp::Div, Type::I64) => builder.binop(BinaryOp::I64DivS),
+            (BinOp::Div, Type::U64) => builder.binop(BinaryOp::I64DivU),
+            (BinOp::Div, Type::I32) => builder.binop(BinaryOp::I32DivS),
+            (BinOp::Div, Type::U32) => builder.binop(BinaryOp::I32DivU),
+            (BinOp::Div, Type::F64) => builder.binop(BinaryOp::F64Div),
+            (BinOp::Div, Type::F32) => builder.binop(BinaryOp::F32Div),
+
+            (BinOp::Mod, Type::I64) => builder.binop(BinaryOp::I64RemS),
+            (BinOp::Mod, Type::U64) => builder.binop(BinaryOp::I64RemU),
+            (BinOp::Mod, Type::I32) => builder.binop(BinaryOp::I32RemS),
+            (BinOp::Mod, Type::U32) => builder.binop(BinaryOp::I32RemU),
+
+            (BinOp::BitOr, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Or),
+            (BinOp::BitOr, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Or),
+
+            (BinOp::BitAnd, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64And),
+            (BinOp::BitAnd, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32And),
+
+            (BinOp::BitXor, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Xor),
+            (BinOp::BitXor, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Xor),
+
+            (BinOp::ShiftLeft, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Shl),
+            (BinOp::ShiftLeft, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Shl),
+            (BinOp::ShiftRight, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64ShrU),
+            (BinOp::ShiftRight, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32ShrU),
+
+            (BinOp::Eq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Eq),
+            (BinOp::Eq, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Eq),
+            (BinOp::Eq, Type::F64) => builder.binop(BinaryOp::F64Eq),
+            (BinOp::Eq, Type::F32) => builder.binop(BinaryOp::F32Eq),
+
+            (BinOp::NEq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Ne),
+            (BinOp::NEq, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Ne),
+            (BinOp::NEq, Type::F64) => builder.binop(BinaryOp::F64Ne),
+            (BinOp::NEq, Type::F32) => builder.binop(BinaryOp::F32Ne),
+
+            (BinOp::Gt, Type::I64) => builder.binop(BinaryOp::I64GtS),
+            (BinOp::Gt, Type::I32) => builder.binop(BinaryOp::I32GtS),
+            (BinOp::Gt, Type::U64) => builder.binop(BinaryOp::I64GtU),
+            (BinOp::Gt, Type::U32) => builder.binop(BinaryOp::I32GtU),
+            (BinOp::Gt, Type::F32) => builder.binop(BinaryOp::F32Gt),
+            (BinOp::Gt, Type::F64) => builder.binop(BinaryOp::F32Gt),
+
+            (BinOp::GEq, Type::I64) => builder.binop(BinaryOp::I64GeS),
+            (BinOp::GEq, Type::I32) => builder.binop(BinaryOp::I32GeS),
+            (BinOp::GEq, Type::U64) => builder.binop(BinaryOp::I64GeU),
+            (BinOp::GEq, Type::U32) => builder.binop(BinaryOp::I32GeU),
+            (BinOp::GEq, Type::F32) => builder.binop(BinaryOp::F32Ge),
+            (BinOp::GEq, Type::F64) => builder.binop(BinaryOp::F32Ge),
+
+            (BinOp::Lt, Type::I64) => builder.binop(BinaryOp::I64LtS),
+            (BinOp::Lt, Type::I32) => builder.binop(BinaryOp::I32LtS),
+            (BinOp::Lt, Type::U64) => builder.binop(BinaryOp::I64LtU),
+            (BinOp::Lt, Type::U32) => builder.binop(BinaryOp::I32LtU),
+            (BinOp::Lt, Type::F32) => builder.binop(BinaryOp::F32Lt),
+            (BinOp::Lt, Type::F64) => builder.binop(BinaryOp::F32Lt),
+
+            (BinOp::LEq, Type::I64) => builder.binop(BinaryOp::I64LeS),
+            (BinOp::LEq, Type::I32) => builder.binop(BinaryOp::I32LeS),
+            (BinOp::LEq, Type::U64) => builder.binop(BinaryOp::I64LeU),
+            (BinOp::LEq, Type::U32) => builder.binop(BinaryOp::I32LeU),
+            (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
+            (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
+            _ => unreachable!(),
+        };
+    }
+
+    fn process_unary_expr(&self, builder: &mut InstrSeqBuilder, op: UnOp, val: &Expr) {
+        let ty = self.type_loader.get_type(val.type_id).unwrap();
+
+        match (op, ty.as_ref()) {
+            (UnOp::BitNot, Type::I64 | Type::U64) => {
+                builder.i64_const(-1);
+                self.process_expr(builder, val);
+                builder.binop(BinaryOp::I64Xor);
+            }
+            (UnOp::BitNot, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                builder.i32_const(-1);
+                self.process_expr(builder, val);
+                builder.binop(BinaryOp::I32Xor);
+            }
+            (UnOp::Add, _) => {
+                self.process_expr(builder, val);
+            }
+            (UnOp::Sub, Type::I64 | Type::U64) => {
+                builder.i64_const(0);
+                self.process_expr(builder, val);
+                builder.binop(BinaryOp::I64Sub);
+            }
+            (UnOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                builder.i32_const(0);
+                self.process_expr(builder, val);
+                builder.binop(BinaryOp::I32Sub);
+            }
+            (UnOp::Sub, Type::F64) => {
+                self.process_expr(builder, val);
+                builder.unop(UnaryOp::F64Neg);
+            }
+            (UnOp::Sub, Type::F32) => {
+                self.process_expr(builder, val);
+                builder.unop(UnaryOp::F32Neg);
+            }
+            (UnOp::Not, _) => {
+                builder.i32_const(1);
+                self.process_expr(builder, val);
+                builder.binop(BinaryOp::I32Xor);
+            }
+            _ => unreachable!(),
+        };
     }
 }
 
