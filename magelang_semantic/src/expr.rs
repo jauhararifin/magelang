@@ -29,6 +29,7 @@ pub enum ExprKind {
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
     Unary { op: UnOp, val: Box<Expr> },
     Call(Box<Expr>, Vec<Expr>),
+    Index(Box<Expr>, Box<Expr>),
     Cast(Box<Expr>, TypeId),
 }
 

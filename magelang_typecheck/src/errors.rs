@@ -34,6 +34,14 @@ pub(crate) fn not_a_func(span: Span) -> Error {
     Error::new(span, String::from("Expression is not a function"))
 }
 
+pub(crate) fn not_indexable(span: Span) -> Error {
+    Error::new(span, String::from("Expression is not indexable"))
+}
+
+pub(crate) fn cannot_used_as_index(span: Span) -> Error {
+    Error::new(span, String::from("Expression can't be used as an index"))
+}
+
 pub(crate) fn missing_return_value(span: Span) -> Error {
     Error::new(span, String::from("Missing return value"))
 }

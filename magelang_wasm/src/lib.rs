@@ -315,6 +315,59 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 self.process_expr(builder, expr);
                 builder.local_set(self.variables[*id]);
             }
+            Statement::SetIndex { target, index, value } => {
+                let ty = self.type_loader.get_type(target.type_id).unwrap();
+                let Type::Slice(slice_ty) = ty.as_ref() else {
+                    unreachable!();
+                };
+
+                let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
+                let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+                let (size, align) = get_size_and_alignment(&element_ty);
+
+                // TODO: check index range
+
+                // index as u32 * size
+                self.process_expr(builder, index);
+                self.do_cast(builder, &index_ty, &Type::U32);
+                builder.i32_const(size as i32);
+                builder.binop(BinaryOp::I32Mul);
+
+                // *target
+                self.process_expr(builder, target);
+                builder.load(
+                    self.memory_id,
+                    walrus::ir::LoadKind::I32 { atomic: false },
+                    walrus::ir::MemArg {
+                        align: align as u32,
+                        offset: 0,
+                    },
+                );
+
+                // *target + index * size
+                builder.binop(BinaryOp::I32Add);
+
+                let store_kind = match element_ty.as_ref() {
+                    Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
+                    Type::I32 | Type::U32 => walrus::ir::StoreKind::I32 { atomic: false },
+                    Type::I16 => walrus::ir::StoreKind::I32_16 { atomic: false },
+                    Type::U16 => walrus::ir::StoreKind::I32_16 { atomic: false },
+                    Type::I8 => walrus::ir::StoreKind::I32_8 { atomic: false },
+                    Type::U8 => walrus::ir::StoreKind::I32_8 { atomic: false },
+                    Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+                    _ => todo!(),
+                };
+
+                self.process_expr(builder, value);
+                builder.store(
+                    self.memory_id,
+                    store_kind,
+                    walrus::ir::MemArg {
+                        align: align as u32,
+                        offset: 0, // because first 4 byte is for the len
+                    },
+                );
+            }
             Statement::If(if_stmt) => {
                 builder.block(None, |outer_block| {
                     let outer_id = outer_block.id();
@@ -431,6 +484,65 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Call(target, arguments) => {
                 self.process_call_expr(builder, target, &arguments);
             }
+            ExprKind::Index(target, index) => {
+                let ty = self.type_loader.get_type(target.type_id).unwrap();
+                let Type::Slice(slice_ty) = ty.as_ref() else {
+                    unreachable!();
+                };
+                let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
+                let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+                let (size, align) = get_size_and_alignment(&element_ty);
+
+                // TODO: check index range
+
+                // calculate index as i32 * size
+                self.process_expr(builder, index);
+                self.do_cast(builder, &index_ty, &Type::U32);
+                builder.i32_const(size as i32);
+                builder.binop(BinaryOp::I32Mul);
+
+                // calculate addr of target[0]
+                self.process_expr(builder, target);
+                builder.load(
+                    self.memory_id,
+                    walrus::ir::LoadKind::I32 { atomic: false },
+                    walrus::ir::MemArg {
+                        align: align as u32,
+                        offset: 0,
+                    },
+                );
+
+                // calculate *target + index * size
+                builder.binop(BinaryOp::I32Add);
+
+                let load_kind = match element_ty.as_ref() {
+                    Type::I64 | Type::U64 => walrus::ir::LoadKind::I64 { atomic: false },
+                    Type::I32 | Type::U32 => walrus::ir::LoadKind::I32 { atomic: false },
+                    Type::I16 => walrus::ir::LoadKind::I32_16 {
+                        kind: walrus::ir::ExtendedLoad::SignExtend,
+                    },
+                    Type::U16 => walrus::ir::LoadKind::I32_16 {
+                        kind: walrus::ir::ExtendedLoad::ZeroExtend,
+                    },
+                    Type::I8 => walrus::ir::LoadKind::I32_8 {
+                        kind: walrus::ir::ExtendedLoad::SignExtend,
+                    },
+                    Type::U8 => walrus::ir::LoadKind::I32_8 {
+                        kind: walrus::ir::ExtendedLoad::ZeroExtend,
+                    },
+                    Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+                    _ => todo!(),
+                };
+
+                builder.load(
+                    self.memory_id,
+                    load_kind,
+                    walrus::ir::MemArg {
+                        align: align as u32,
+                        offset: 0, // because first 4 byte is for the len
+                    },
+                );
+            }
             ExprKind::Cast(value, target_ty) => {
                 self.process_cast_expr(builder, value, *target_ty);
             }
@@ -480,8 +592,11 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         let target_ty = self.type_loader.get_type(target_ty).unwrap();
 
         self.process_expr(builder, value);
+        self.do_cast(builder, &value_ty, &target_ty);
+    }
 
-        match (value_ty.as_ref(), target_ty.as_ref()) {
+    fn do_cast(&self, builder: &mut InstrSeqBuilder, src: &Type, dst: &Type) {
+        match (src, dst) {
             (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
             (Type::I64 | Type::U64, Type::I32 | Type::U32) => {
                 builder.unop(UnaryOp::I32WrapI64);
@@ -595,17 +710,23 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
         match (op, ty.as_ref()) {
             (BinOp::Add, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Add),
-            (BinOp::Add, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Add),
+            (BinOp::Add, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                builder.binop(BinaryOp::I32Add)
+            }
             (BinOp::Add, Type::F64) => builder.binop(BinaryOp::F64Add),
             (BinOp::Add, Type::F32) => builder.binop(BinaryOp::F32Add),
 
             (BinOp::Sub, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Sub),
-            (BinOp::Sub, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Sub),
+            (BinOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                builder.binop(BinaryOp::I32Sub)
+            }
             (BinOp::Sub, Type::F64) => builder.binop(BinaryOp::F64Sub),
             (BinOp::Sub, Type::F32) => builder.binop(BinaryOp::F32Sub),
 
             (BinOp::Mul, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Mul),
-            (BinOp::Mul, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Mul),
+            (BinOp::Mul, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+                builder.binop(BinaryOp::I32Mul)
+            }
             (BinOp::Mul, Type::F64) => builder.binop(BinaryOp::F64Mul),
             (BinOp::Mul, Type::F32) => builder.binop(BinaryOp::F32Mul),
 
@@ -672,7 +793,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             (BinOp::LEq, Type::U32) => builder.binop(BinaryOp::I32LeU),
             (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
             (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
-            _ => unreachable!(),
+            (op, ty) => unreachable!("cannot perform op {op:?} for {ty:?}"),
         };
     }
 
@@ -732,6 +853,25 @@ fn to_wasm_type(ty: &Type) -> ValType {
         Type::F64 => ValType::F64,
         Type::F32 => ValType::F32,
         Type::Slice(_) => ValType::I32,
-        _ => todo!(),
+        Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+    }
+}
+
+// can we guarantee: size is multiple of alignment?
+fn get_size_and_alignment(ty: &Type) -> (usize, usize) {
+    match ty {
+        Type::I64 => (std::mem::size_of::<i64>(), std::mem::align_of::<i64>()),
+        Type::U64 => (std::mem::size_of::<u64>(), std::mem::align_of::<u64>()),
+        Type::I32 => (std::mem::size_of::<i32>(), std::mem::align_of::<i32>()),
+        Type::U32 => (std::mem::size_of::<u32>(), std::mem::align_of::<u32>()),
+        Type::I16 => (std::mem::size_of::<i16>(), std::mem::align_of::<i16>()),
+        Type::U16 => (std::mem::size_of::<u16>(), std::mem::align_of::<u16>()),
+        Type::I8 => (std::mem::size_of::<i8>(), std::mem::align_of::<i8>()),
+        Type::U8 => (std::mem::size_of::<u8>(), std::mem::align_of::<u8>()),
+        Type::F64 => (std::mem::size_of::<f64>(), std::mem::align_of::<f64>()),
+        Type::F32 => (std::mem::size_of::<f32>(), std::mem::align_of::<f32>()),
+        Type::Bool => (std::mem::size_of::<bool>(), std::mem::align_of::<bool>()),
+        Type::Slice(..) => (std::mem::size_of::<i32>(), std::mem::align_of::<i32>()),
+        Type::Invalid | Type::Void | Type::Func(..) => todo!(),
     }
 }

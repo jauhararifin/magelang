@@ -270,6 +270,7 @@ pub enum ExprNode {
     Cast(CastExprNode),
     Slice(SliceNode),
     Selection(SelectionExprNode),
+    Index(IndexExprNode),
     Grouped(GroupedExprNode),
 }
 
@@ -287,6 +288,7 @@ impl AstNode for ExprNode {
             Self::Cast(val) => val.get_span(),
             Self::Slice(val) => val.get_span(),
             Self::Selection(val) => val.get_span(),
+            Self::Index(val) => val.get_span(),
             Self::Grouped(val) => val.get_span(),
         }
     }
@@ -370,6 +372,20 @@ impl AstNode for SelectionExprNode {
     fn get_span(&self) -> Span {
         let mut s = self.value.get_span();
         s.union(&self.selection.span);
+        s
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IndexExprNode {
+    pub value: Box<ExprNode>,
+    pub index: Box<ExprNode>,
+}
+
+impl AstNode for IndexExprNode {
+    fn get_span(&self) -> Span {
+        let mut s = self.value.get_span();
+        s.union(&self.index.get_span());
         s
     }
 }

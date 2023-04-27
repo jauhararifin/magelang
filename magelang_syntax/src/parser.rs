@@ -1,8 +1,8 @@
 use crate::ast::{
     AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ElseIfStatementNode,
-    ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, ItemNode, LetKind, LetStatementNode,
-    PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, SliceNode, StatementNode,
-    TagNode, UnaryExprNode, WhileStatementNode,
+    ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind,
+    LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, SliceNode,
+    StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
@@ -456,14 +456,27 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     fn parse_unary_expr(&mut self) -> Option<ExprNode> {
         if UNARY_OP.contains(&self.kind()) {
             let op = self.tokens.pop_front().unwrap();
-            let value = self.parse_call_expr()?;
+            let value = self.parse_index_expr()?;
             Some(ExprNode::Unary(UnaryExprNode {
                 op,
                 value: Box::new(value),
             }))
         } else {
-            self.parse_call_expr()
+            self.parse_index_expr()
         }
+    }
+
+    fn parse_index_expr(&mut self) -> Option<ExprNode> {
+        let value = self.parse_call_expr()?;
+        if self.take_if(TokenKind::OpenSquare).is_none() {
+            return Some(value);
+        };
+        let index = self.parse_expr()?;
+        self.take(TokenKind::CloseSquare)?;
+        Some(ExprNode::Index(IndexExprNode {
+            value: Box::new(value),
+            index: Box::new(index),
+        }))
     }
 
     fn parse_call_expr(&mut self) -> Option<ExprNode> {

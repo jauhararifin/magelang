@@ -10,8 +10,8 @@ use magelang_semantic::{
 };
 use magelang_syntax::{
     parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
-    CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, ItemNode, LetKind,
-    LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
+    CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
+    LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
     UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
@@ -473,6 +473,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         let statement = match receiver.kind {
             ExprKind::Local(id) => Statement::SetLocal(id, value_expr),
+            ExprKind::Index(target, index) => Statement::SetIndex {
+                target: *target,
+                index: *index,
+                value: value_expr,
+            },
             ExprKind::Invalid
             | ExprKind::I64(..)
             | ExprKind::I32(..)
@@ -752,6 +757,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ExprNode::Call(call_expr) => self.get_call_expr(scope, str_helper, call_expr),
             ExprNode::Cast(cast_expr) => self.get_cast_expr(scope, str_helper, cast_expr),
             ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, str_helper, selection_expr),
+            ExprNode::Index(index_expr) => self.get_index_expr(scope, str_helper, index_expr),
             ExprNode::Grouped(expr) => self.get_expr(scope, str_helper, &expr.value),
             _ => todo!(),
         }
@@ -1168,6 +1174,33 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         let package_scope = self.get_package_scope(package_id);
         Some(self.get_expr_from_scope_symbol(&package_scope, &sel_expr.selection))
+    }
+
+    fn get_index_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, index_expr: &IndexExprNode) -> Expr {
+        let target = self.get_expr(scope, str_helper, &index_expr.value);
+
+        let target_ty = self.type_loader.get_type(target.type_id).unwrap();
+        let Type::Slice(slice_ty) = target_ty.as_ref() else {
+            self.err_channel.push(not_indexable(index_expr.value.get_span()));
+            return self.invalid_value_expr();
+        };
+
+        let index = self.get_expr(scope, str_helper, &index_expr.index);
+        let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+        if !index_ty.is_int() {
+            self.err_channel.push(cannot_used_as_index(index_expr.index.get_span()));
+            return Expr {
+                type_id: slice_ty.element_type,
+                assignable: true,
+                kind: ExprKind::Invalid,
+            };
+        }
+
+        return Expr {
+            type_id: slice_ty.element_type,
+            assignable: true,
+            kind: ExprKind::Index(Box::new(target), Box::new(index)),
+        };
     }
 
     fn invalid_value_expr(&self) -> Expr {
