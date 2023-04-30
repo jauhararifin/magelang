@@ -1,7 +1,4 @@
 /target
 .vscode
 .cache
-
-a.wasm
-test.wasm
-test.wat
+temp/
