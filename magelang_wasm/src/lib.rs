@@ -154,7 +154,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             };
 
             let mut called_funcs = vec![];
-            self.get_called_functions(body, &mut called_funcs);
+            Self::get_called_functions(body, &mut called_funcs);
             for called_func_id in called_funcs {
                 if !in_stack.contains(&called_func_id) {
                     stack.push(called_func_id);
@@ -164,41 +164,41 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         }
     }
 
-    fn get_called_functions(&self, stmt: &Statement, result: &mut Vec<GlobalId>) {
+    fn get_called_functions(stmt: &Statement, result: &mut Vec<GlobalId>) {
         match stmt {
             Statement::Invalid | Statement::Continue | Statement::Break => (),
-            Statement::SetLocal(_, expr) => self.get_called_functions_in_expr(expr, result),
+            Statement::SetLocal(_, expr) => Self::get_called_functions_in_expr(expr, result),
             Statement::SetIndex { target, index, value } => {
-                self.get_called_functions_in_expr(target, result);
-                self.get_called_functions_in_expr(index, result);
-                self.get_called_functions_in_expr(value, result);
+                Self::get_called_functions_in_expr(target, result);
+                Self::get_called_functions_in_expr(index, result);
+                Self::get_called_functions_in_expr(value, result);
             }
             Statement::If(if_stmt) => {
-                self.get_called_functions_in_expr(&if_stmt.condition, result);
-                self.get_called_functions(&if_stmt.body, result);
+                Self::get_called_functions_in_expr(&if_stmt.condition, result);
+                Self::get_called_functions(&if_stmt.body, result);
                 if let Some(ref else_body) = if_stmt.else_body {
-                    self.get_called_functions(else_body, result);
+                    Self::get_called_functions(else_body, result);
                 }
             }
             Statement::While(while_stmt) => {
-                self.get_called_functions_in_expr(&while_stmt.condition, result);
-                self.get_called_functions(&while_stmt.body, result);
+                Self::get_called_functions_in_expr(&while_stmt.condition, result);
+                Self::get_called_functions(&while_stmt.body, result);
             }
             Statement::Block(block_stmt) => {
                 for stmt in &block_stmt.statements {
-                    self.get_called_functions(stmt, result);
+                    Self::get_called_functions(stmt, result);
                 }
             }
             Statement::Return(ret_stmt) => {
                 if let Some(ref expr) = ret_stmt.value {
-                    self.get_called_functions_in_expr(expr, result);
+                    Self::get_called_functions_in_expr(expr, result);
                 }
             }
-            Statement::Expr(expr) => self.get_called_functions_in_expr(expr, result),
+            Statement::Expr(expr) => Self::get_called_functions_in_expr(expr, result),
         }
     }
 
-    fn get_called_functions_in_expr(&self, expr: &Expr, result: &mut Vec<GlobalId>) {
+    fn get_called_functions_in_expr(expr: &Expr, result: &mut Vec<GlobalId>) {
         match &expr.kind {
             ExprKind::Invalid
             | ExprKind::I64(..)
@@ -219,24 +219,24 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 result.push(GlobalId(func_expr.package_name, func_expr.function_name));
             }
             ExprKind::Binary { a, op: _, b } => {
-                self.get_called_functions_in_expr(a, result);
-                self.get_called_functions_in_expr(b, result);
+                Self::get_called_functions_in_expr(a, result);
+                Self::get_called_functions_in_expr(b, result);
             }
             ExprKind::Unary { val, op: _ } => {
-                self.get_called_functions_in_expr(val, result);
+                Self::get_called_functions_in_expr(val, result);
             }
             ExprKind::Call(func, args) => {
-                self.get_called_functions_in_expr(func, result);
+                Self::get_called_functions_in_expr(func, result);
                 for arg in args {
-                    self.get_called_functions_in_expr(arg, result);
+                    Self::get_called_functions_in_expr(arg, result);
                 }
             }
             ExprKind::Index(target, index) => {
-                self.get_called_functions_in_expr(target, result);
-                self.get_called_functions_in_expr(index, result);
+                Self::get_called_functions_in_expr(target, result);
+                Self::get_called_functions_in_expr(index, result);
             }
             ExprKind::Cast(value, _) => {
-                self.get_called_functions_in_expr(value, result);
+                Self::get_called_functions_in_expr(value, result);
             }
         }
     }
