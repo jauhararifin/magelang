@@ -1,4 +1,5 @@
 use crate::scanner::CharPos;
+use std::rc::Rc;
 
 pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> Option<StringLitResult> {
     let mut text_iter = source.peekable();
@@ -106,16 +107,33 @@ pub(crate) enum StringLitErrKind {
 }
 
 // parse_string_lit assumes that s is a valid string literal.
-pub fn parse_string_lit(s: &str) -> &str {
+pub fn parse_string_lit(s: &str) -> Rc<str> {
     let s = &s[1..s.len() - 1];
-    s
 
-    // let mut result = String::default();
-    // for c in s.chars() {
-    //     result.push(c);
-    // }
-    //
-    //
+    let mut value = String::default();
+    let mut after_backslash = false;
+    for c in s.chars() {
+        if after_backslash {
+            match c {
+                'n' => value.push('\n'),
+                'r' => value.push('\r'),
+                't' => value.push('\t'),
+                '\\' => value.push('\\'),
+                '0' => value.push('\0'),
+                '"' => value.push('"'),
+                '\'' => value.push('\''),
+                '`' => value.push('`'),
+                _ => panic!("the parsed string literal is not a valid string literal"),
+            };
+        } else if c == '\\' {
+            after_backslash = true;
+            continue;
+        } else {
+            value.push(c);
+        }
+    }
+
+    value.into()
 }
 
 #[cfg(test)]

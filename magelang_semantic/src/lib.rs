@@ -4,9 +4,10 @@ mod types;
 
 pub use expr::{BinOp, Expr, ExprKind, FuncExpr, StringLitExpr, UnOp};
 pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
-pub use types::{SliceType, FuncType, Type, TypeDisplay, TypeId, TypeLoader};
+pub use types::{FuncType, SliceType, Type, TypeDisplay, TypeId, TypeLoader};
 
 use magelang_common::SymbolId;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Package {
@@ -27,7 +28,7 @@ pub struct NativeFunction {
 #[derive(Debug)]
 pub struct Tag {
     pub name: SymbolId,
-    pub arguments: Vec<String>,
+    pub arguments: Vec<Rc<str>>,
 }
 
 #[derive(Debug)]

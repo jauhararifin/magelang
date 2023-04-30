@@ -59,7 +59,7 @@ pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     reachable_functions: HashSet<GlobalId>,
     data_offset_table: HashMap<(SymbolId, usize), usize>,
     function_ids: HashMap<GlobalId, FunctionId>,
-    builtin_functions: HashMap<GlobalId, String>,
+    builtin_functions: HashMap<GlobalId, Rc<str>>,
 }
 
 impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
@@ -415,7 +415,7 @@ struct FunctionCompiler<'typ, 'pkg> {
     loop_blocks: Vec<(InstrSeqId, InstrSeqId)>,
     function_ids: &'pkg HashMap<GlobalId, FunctionId>,
     data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
-    builtin_functions: &'pkg HashMap<GlobalId, String>,
+    builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
 }
 
 impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
@@ -425,7 +425,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         type_loader: &'typ TypeLoader,
         data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
         function_ids: &'pkg HashMap<GlobalId, FunctionId>,
-        builtin_functions: &'pkg HashMap<GlobalId, String>,
+        builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
     ) -> Self {
         Self {
             type_loader,

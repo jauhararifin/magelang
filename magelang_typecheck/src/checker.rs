@@ -225,11 +225,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let mut tags = vec![];
                 for tag in &signature.tags {
                     let name = self.symbol_loader.declare_symbol(&tag.name.value);
-                    let arguments = tag
-                        .arguments
-                        .iter()
-                        .map(|tok| String::from(parse_string_lit(&tok.value)))
-                        .collect();
+                    let arguments = tag.arguments.iter().map(|tok| parse_string_lit(&tok.value)).collect();
                     tags.push(Tag { name, arguments });
                 }
 
@@ -863,7 +859,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn get_str_lit_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, tok: &Token) -> Expr {
         let string_lit = parse_string_lit(&tok.value);
-        let index = str_helper.declare_str(string_lit);
+        let index = str_helper.declare_str(&string_lit);
         let u8_type_id = self.symbol_loader.declare_symbol(U8);
         let u8_type_id = scope
             .get(u8_type_id)
@@ -1196,11 +1192,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             };
         }
 
-        return Expr {
+        Expr {
             type_id: slice_ty.element_type,
             assignable: true,
             kind: ExprKind::Index(Box::new(target), Box::new(index)),
-        };
+        }
     }
 
     fn invalid_value_expr(&self) -> Expr {
