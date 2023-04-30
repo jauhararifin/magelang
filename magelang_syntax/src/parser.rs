@@ -637,6 +637,3 @@ const BINOP_PRECEDENCE: &[TokenKind] = &[
 
 const UNARY_OP: &[TokenKind] = &[TokenKind::BitNot, TokenKind::Sub, TokenKind::Add, TokenKind::Not];
 
-pub fn parse_string_lit(s: &str) -> &str {
-    s[1..s.len() - 1].into()
-}
