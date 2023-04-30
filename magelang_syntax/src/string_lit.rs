@@ -25,7 +25,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
             });
 
             let mut consumed = end_offset - start_offset + 1;
-            while let Some(char_pos) = text_iter.next() {
+            for char_pos in text_iter {
                 consumed += 1;
                 if char_pos.ch == opening_quote {
                     break;

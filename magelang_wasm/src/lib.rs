@@ -154,7 +154,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             };
 
             let mut called_funcs = vec![];
-            self.get_called_functions(*body, &mut called_funcs);
+            self.get_called_functions(body, &mut called_funcs);
             for called_func_id in called_funcs {
                 if !in_stack.contains(&called_func_id) {
                     stack.push(called_func_id);
@@ -177,7 +177,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 self.get_called_functions_in_expr(&if_stmt.condition, result);
                 self.get_called_functions(&if_stmt.body, result);
                 if let Some(ref else_body) = if_stmt.else_body {
-                    self.get_called_functions(&else_body, result);
+                    self.get_called_functions(else_body, result);
                 }
             }
             Statement::While(while_stmt) => {
@@ -219,24 +219,24 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 result.push(GlobalId(func_expr.package_name, func_expr.function_name));
             }
             ExprKind::Binary { a, op: _, b } => {
-                self.get_called_functions_in_expr(&a, result);
-                self.get_called_functions_in_expr(&b, result);
+                self.get_called_functions_in_expr(a, result);
+                self.get_called_functions_in_expr(b, result);
             }
             ExprKind::Unary { val, op: _ } => {
-                self.get_called_functions_in_expr(&val, result);
+                self.get_called_functions_in_expr(val, result);
             }
             ExprKind::Call(func, args) => {
-                self.get_called_functions_in_expr(&func, result);
+                self.get_called_functions_in_expr(func, result);
                 for arg in args {
-                    self.get_called_functions_in_expr(&arg, result);
+                    self.get_called_functions_in_expr(arg, result);
                 }
             }
             ExprKind::Index(target, index) => {
-                self.get_called_functions_in_expr(&target, result);
-                self.get_called_functions_in_expr(&index, result);
+                self.get_called_functions_in_expr(target, result);
+                self.get_called_functions_in_expr(index, result);
             }
             ExprKind::Cast(value, _) => {
-                self.get_called_functions_in_expr(&value, result);
+                self.get_called_functions_in_expr(value, result);
             }
         }
     }
@@ -611,7 +611,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 builder.i32_const(*offset as i32);
             }
             ExprKind::Call(target, arguments) => {
-                self.process_call_expr(builder, target, &arguments);
+                self.process_call_expr(builder, target, arguments);
             }
             ExprKind::Index(target, index) => {
                 let ty = self.type_loader.get_type(target.type_id).unwrap();
@@ -698,7 +698,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         if let Some(func_id) = self.function_ids.get(&ident_pair) {
             builder.call(*func_id);
         } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
-            self.process_builtin_call(builder, &builtin_name);
+            self.process_builtin_call(builder, builtin_name);
         } else {
             unreachable!("function definition is not found");
         }
@@ -776,16 +776,16 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
     fn process_binary_expr(&self, builder: &mut InstrSeqBuilder, a: &Expr, op: BinOp, b: &Expr) {
         if op == BinOp::And {
-            return self.process_logical_and_expr(builder, &a, &b);
+            return self.process_logical_and_expr(builder, a, b);
         }
 
         if op == BinOp::Or {
-            return self.process_logical_or_expr(builder, &a, &b);
+            return self.process_logical_or_expr(builder, a, b);
         }
 
         match op {
-            BinOp::And => self.process_logical_and_expr(builder, &a, &b),
-            BinOp::Or => self.process_logical_or_expr(builder, &a, &b),
+            BinOp::And => self.process_logical_and_expr(builder, a, b),
+            BinOp::Or => self.process_logical_or_expr(builder, a, b),
             BinOp::Add
             | BinOp::Sub
             | BinOp::Mul
@@ -801,7 +801,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             | BinOp::Gt
             | BinOp::GEq
             | BinOp::Lt
-            | BinOp::LEq => self.process_numeric_binary_expr(builder, &a, op, &b),
+            | BinOp::LEq => self.process_numeric_binary_expr(builder, a, op, b),
         }
     }
 
