@@ -154,11 +154,12 @@ mod tests {
     use crate::scanner::CharPos;
 
     macro_rules! test_parse_string_lit {
-        ($name:ident, $s:expr, $e:expr, $consumed:expr $(,$errs:expr)*) => {
+        ($name:ident, $s:expr, $e:expr, $content:expr, $consumed:expr $(,$errs:expr)*) => {
             #[test]
             fn $name() {
                 let text = $s;
                 let expected_value = $e;
+                let expected_content = $content;
                 let expected_errors = vec![$($errs),*];
                 let expected_consumed = $consumed;
 
@@ -169,6 +170,7 @@ mod tests {
                     .collect();
                 let result = scan_string_lit(char_pos.iter()).expect("should return a single string");
                 assert_eq!(result.value.as_str(), expected_value);
+                assert_eq!(result.content.as_str(), expected_content);
 
                 let errors: Vec<_> = result.errors.iter().map(|err| err.kind).collect();
                 assert_eq!(errors, expected_errors);
@@ -177,29 +179,33 @@ mod tests {
         };
     }
 
-    test_parse_string_lit!(happy_path, "\"some string\"", "\"some string\"", 13);
+    test_parse_string_lit!(happy_path, "\"some string\"", "\"some string\"", "some string", 13);
     test_parse_string_lit!(
         tab_escape,
         "\"this char (\t) is a tab\"",
         "\"this char (\t) is a tab\"",
+        "this char (\t) is a tab",
         24
     );
     test_parse_string_lit!(
         carriage_return_escape,
         "\"this char (\r) is a CR\"",
         "\"this char (\r) is a CR\"",
+        "this char (\r) is a CR",
         23
     );
     test_parse_string_lit!(
         double_quote_escape,
         "\"There is a \\\" quote here\"",
         "\"There is a \\\" quote here\"",
+        "There is a \" quote here",
         26
     );
     test_parse_string_lit!(
         contain_newline,
         "\"some string \n with newline\"",
         "\"some string ",
+        "some string ",
         28,
         StringLitErrKind::FoundNewline
     );
