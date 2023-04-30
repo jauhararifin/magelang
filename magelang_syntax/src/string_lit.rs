@@ -10,6 +10,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
     let mut end_offset = start_offset;
 
     let mut value = String::from(opening_quote);
+    let mut content = String::default();
     let mut after_backslash = false;
     let mut is_closed = false;
     let mut errors = vec![];
@@ -34,6 +35,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 
             return Some(StringLitResult {
                 value,
+                content,
                 offset: start_offset,
                 len: end_offset - start_offset + 1,
                 consumed,
@@ -43,14 +45,38 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 
         if after_backslash {
             match ch {
-                'n' => value.push_str("\\n"),
-                'r' => value.push_str("\\r"),
-                't' => value.push_str("\\t"),
-                '\\' => value.push_str("\\\\"),
-                '0' => value.push_str("\\0"),
-                '"' => value.push_str("\\\""),
-                '\'' => value.push_str("\\\'"),
-                '`' => value.push_str("\\`"),
+                'n' => {
+                    value.push_str("\\n");
+                    content.push('\n');
+                }
+                'r' => {
+                    value.push_str("\\r");
+                    content.push('\r');
+                }
+                't' => {
+                    value.push_str("\\t");
+                    content.push('\t');
+                }
+                '\\' => {
+                    value.push_str("\\\\");
+                    content.push('\\');
+                }
+                '0' => {
+                    value.push_str("\\0");
+                    content.push('\0');
+                }
+                '"' => {
+                    value.push_str("\\\"");
+                    content.push('"');
+                }
+                '\'' => {
+                    value.push_str("\\\'");
+                    content.push('\'');
+                }
+                '`' => {
+                    value.push_str("\\`");
+                    content.push('`');
+                }
                 _ => errors.push(StringLitError {
                     kind: StringLitErrKind::UnexpectedChar(ch),
                     offset,
@@ -65,6 +91,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
             break;
         } else {
             value.push(ch);
+            content.push(ch);
         }
     }
 
@@ -77,6 +104,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 
     Some(StringLitResult {
         value,
+        content,
         offset: start_offset,
         len: end_offset - start_offset + 1,
         consumed: end_offset - start_offset + 1,
@@ -87,6 +115,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 #[derive(Debug)]
 pub(crate) struct StringLitResult {
     pub value: String,
+    pub content: String,
     pub offset: usize,
     pub len: usize,
     pub consumed: usize,
@@ -108,32 +137,15 @@ pub(crate) enum StringLitErrKind {
 
 // parse_string_lit assumes that s is a valid string literal.
 pub fn parse_string_lit(s: &str) -> Rc<str> {
-    let s = &s[1..s.len() - 1];
-
-    let mut value = String::default();
-    let mut after_backslash = false;
-    for c in s.chars() {
-        if after_backslash {
-            match c {
-                'n' => value.push('\n'),
-                'r' => value.push('\r'),
-                't' => value.push('\t'),
-                '\\' => value.push('\\'),
-                '0' => value.push('\0'),
-                '"' => value.push('"'),
-                '\'' => value.push('\''),
-                '`' => value.push('`'),
-                _ => panic!("the parsed string literal is not a valid string literal"),
-            };
-        } else if c == '\\' {
-            after_backslash = true;
-            continue;
-        } else {
-            value.push(c);
-        }
-    }
-
-    value.into()
+    let charpos: Vec<_> = s
+        .chars()
+        .enumerate()
+        .map(|(offset, ch)| CharPos { offset, ch })
+        .collect();
+    scan_string_lit(charpos.iter())
+        .expect("the parsed string literal should be a valid string literal")
+        .content
+        .into()
 }
 
 #[cfg(test)]
