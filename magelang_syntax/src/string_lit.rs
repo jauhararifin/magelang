@@ -212,10 +212,14 @@ pub fn parse_string_lit(s: &str) -> Rc<[u8]> {
         .enumerate()
         .map(|(offset, ch)| CharPos { offset, ch })
         .collect();
-    scan_string_lit(charpos.iter())
-        .expect("the parsed string literal should be a valid string literal")
-        .content
-        .into()
+    let result = scan_string_lit(charpos.iter()).expect("the parsed string literal should be a valid string literal");
+    if !result.errors.is_empty() {
+        panic!(
+            "the parsed string is not a valid string due to these errors {:?}",
+            result.errors
+        );
+    }
+    result.content.into()
 }
 
 #[cfg(test)]
@@ -262,6 +266,15 @@ mod tests {
         "\"some string",
         [],
         12,
+        StringLitErrKind::MissingClosingQuote
+    );
+    test_parse_string_lit!(
+        multi_errors,
+        "\"some \\xyz string",
+        "\"some \\xyz string",
+        [],
+        17,
+        StringLitErrKind::UnexpectedChar('y'),
         StringLitErrKind::MissingClosingQuote
     );
     test_parse_string_lit!(
