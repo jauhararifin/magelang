@@ -257,6 +257,14 @@ mod tests {
         13
     );
     test_parse_string_lit!(
+        missing_closing_quote,
+        "\"some string",
+        "\"some string",
+        [],
+        12,
+        StringLitErrKind::MissingClosingQuote
+    );
+    test_parse_string_lit!(
         tab_escape,
         "\"this char (\t) is a tab\"",
         "\"this char (\t) is a tab\"",
