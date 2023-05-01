@@ -131,16 +131,16 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
             }
             State::ReadBinary1(byte) => {
                 if ch >= '0' && ch <= '9' {
-                    let byte = byte << 16 + ch as u8 - '0' as u8 + 0x0u8;
+                    let byte = (byte << 4) | (ch as u8 - '0' as u8 + 0x0u8);
                     content.push(byte);
                     state = State::Normal;
                 } else if ch >= 'a' && ch <= 'f' {
-                    let byt = byte << 16 + ch as u8 - 'a' as u8 + 0xau8;
-                    content.push(byt);
+                    let byte = (byte << 4) | (ch as u8 - 'a' as u8 + 0xau8);
+                    content.push(byte);
                     state = State::Normal;
                 } else if ch >= 'A' && ch <= 'F' {
-                    let byt = byte << 16 + ch as u8 - 'A' as u8 + 0xAu8;
-                    content.push(byt);
+                    let byte = (byte << 4) | (ch as u8 - 'A' as u8 + 0xAu8);
+                    content.push(byte);
                     state = State::Normal;
                 } else if ch == opening_quote {
                     errors.push(StringLitError {
@@ -235,12 +235,12 @@ mod tests {
                     .map(|(offset, ch)| CharPos { ch, offset })
                     .collect();
                 let result = scan_string_lit(char_pos.iter()).expect("should return a single string");
-                assert_eq!(result.value.as_str(), expected_value);
-                assert_eq!(result.content, expected_content);
+                assert_eq!(result.value.as_str(), expected_value, "value mismatched");
+                assert_eq!(result.content, expected_content, "content mismatched");
 
                 let errors: Vec<_> = result.errors.iter().map(|err| err.kind).collect();
-                assert_eq!(errors, expected_errors);
-                assert_eq!(result.consumed, expected_consumed);
+                assert_eq!(errors, expected_errors, "error mismatched");
+                assert_eq!(result.consumed, expected_consumed, "the number of consumed chars don't matched");
             }
         };
     }
@@ -280,5 +280,17 @@ mod tests {
         "some string ".as_bytes(),
         28,
         StringLitErrKind::FoundNewline
+    );
+    test_parse_string_lit!(
+        escaped_raw_byte,
+        "\"this is a \\x00\\x01\\x02\\xfF raw bytes\"",
+        "\"this is a \\x00\\x01\\x02\\xfF raw bytes\"",
+        {
+            let mut p = "this is a ".as_bytes().to_vec();
+            p.extend_from_slice(&[0u8, 1u8, 2u8, 0xffu8]);
+            p.extend_from_slice(" raw bytes".as_bytes());
+            p
+        },
+        38
     );
 }
