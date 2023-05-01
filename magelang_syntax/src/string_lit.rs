@@ -168,6 +168,10 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
         });
     }
 
+    if !errors.is_empty() {
+        content = vec![];
+    }
+
     Some(StringLitResult {
         value,
         content,
@@ -292,5 +296,37 @@ mod tests {
             p
         },
         38
+    );
+    test_parse_string_lit!(
+        escaped_raw_byte_with_err,
+        "\"raw byte \\x*f\"",
+        "\"raw byte \\x*f\"",
+        [],
+        15,
+        StringLitErrKind::UnexpectedChar('*')
+    );
+    test_parse_string_lit!(
+        escaped_raw_byte_with_err2,
+        "\"raw byte \\x\"",
+        "\"raw byte \\x\"",
+        [],
+        13,
+        StringLitErrKind::UnexpectedChar('"')
+    );
+    test_parse_string_lit!(
+        escaped_raw_byte_with_err3,
+        "\"raw byte \\xa\"",
+        "\"raw byte \\xa\"",
+        [],
+        14,
+        StringLitErrKind::UnexpectedChar('"')
+    );
+    test_parse_string_lit!(
+        escaped_raw_byte_with_err4,
+        "\"raw byte \\xah\"",
+        "\"raw byte \\xah\"",
+        [],
+        15,
+        StringLitErrKind::UnexpectedChar('h')
     );
 }
