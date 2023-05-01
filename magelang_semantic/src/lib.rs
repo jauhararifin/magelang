@@ -28,7 +28,7 @@ pub struct NativeFunction {
 #[derive(Debug)]
 pub struct Tag {
     pub name: SymbolId,
-    pub arguments: Vec<Rc<str>>,
+    pub arguments: Vec<Rc<[u8]>>,
 }
 
 #[derive(Debug)]

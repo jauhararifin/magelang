@@ -170,7 +170,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
             let object = match first_item {
                 ItemNode::Import(import_node) => {
-                    let package_path = parse_string_lit(&import_node.path.value);
+                    let package_path = parse_string_lit(&import_node.path.value).to_vec();
+                    let Ok(package_path) = String::from_utf8(package_path) else {
+                        self.err_channel.push(not_a_valid_utf8_package(import_node.path.span.clone()));
+                        continue;
+                    };
                     let package_path = self.symbol_loader.declare_symbol(package_path);
                     Object::Package(package_path)
                 }
@@ -1214,8 +1218,8 @@ struct ConstStrHelper {
 }
 
 impl ConstStrHelper {
-    fn declare_str(&mut self, value: &str) -> usize {
-        self.strs.push(value.as_bytes().into());
+    fn declare_str(&mut self, value: &[u8]) -> usize {
+        self.strs.push(value.into());
         self.strs.len() - 1
     }
 

@@ -22,6 +22,10 @@ pub(crate) fn empty_package_path(span: Span) -> Error {
     Error::new(span, String::from("Package path cannot be an empty string"))
 }
 
+pub(crate) fn not_a_valid_utf8_package(span: Span) -> Error {
+    Error::new(span, String::from("Package path is not a valid utf-8 string"))
+}
+
 pub(crate) fn not_a_value(span: Span) -> Error {
     Error::new(span, String::from("Expression is not a value"))
 }

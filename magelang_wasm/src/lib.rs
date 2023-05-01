@@ -254,8 +254,10 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
 
             if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
                 if wasm_link_tag.arguments.len() == 2 {
-                    let wasm_module = &wasm_link_tag.arguments[0];
-                    let wasm_name = &wasm_link_tag.arguments[1];
+                    let wasm_module = String::from_utf8(wasm_link_tag.arguments[0].to_vec())
+                        .expect("module name should be a valid utf-8 string");
+                    let wasm_name = String::from_utf8(wasm_link_tag.arguments[1].to_vec())
+                        .expect("imported name should be a valid utf-8 string");
                     is_external_func = true;
 
                     let mut return_type = vec![];
@@ -272,7 +274,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                     }
 
                     let type_id = self.module.types.add(&param_types, &return_type);
-                    let (func_id, _) = self.module.add_import_func(wasm_module, wasm_name, type_id);
+                    let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
                     self.function_ids.insert(func_global_id, func_id);
                 }
             }
@@ -281,8 +283,10 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             let mut is_builtin_func = false;
             if let Some(wasm_builtin_tag) = func.tags.iter().find(|tag| tag.name == wasm_builtin_sym) {
                 if let Some(builtin_name) = wasm_builtin_tag.arguments.first() {
+                    let builtin_name = String::from_utf8(builtin_name.to_vec())
+                        .expect("the function builtin name has to be a valud utf-8 string");
                     // TODO: check the builtin name, and the signature.
-                    self.builtin_functions.insert(func_global_id, builtin_name.clone());
+                    self.builtin_functions.insert(func_global_id, builtin_name.into());
                     is_builtin_func = true;
                 }
             }

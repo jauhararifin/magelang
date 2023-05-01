@@ -50,7 +50,9 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
             let file_id = self.file_loader.declare_file(path);
             let ast = self.ast_loader.get_ast(file_id);
             for import_node in ast.imports() {
-                let next_pkg = parse_string_lit(&import_node.path.value);
+                let next_pkg = parse_string_lit(&import_node.path.value).to_vec();
+                let Ok(next_pkg) = String::from_utf8(next_pkg) else { continue; };
+
                 let next_pkg = self.symbol_loader.declare_symbol(next_pkg);
                 if !packages.contains(&next_pkg) {
                     packages.insert(next_pkg);

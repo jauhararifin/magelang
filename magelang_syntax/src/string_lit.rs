@@ -1,6 +1,14 @@
 use crate::scanner::CharPos;
 use std::rc::Rc;
 
+enum State {
+    Normal,
+    AfterBlackslash,
+    ReadBinary0,
+    ReadBinary1(u8),
+    Closed,
+}
+
 pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> Option<StringLitResult> {
     let mut text_iter = source.peekable();
 
@@ -10,9 +18,8 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
     let mut end_offset = start_offset;
 
     let mut value = String::from(opening_quote);
-    let mut content = String::default();
-    let mut after_backslash = false;
-    let mut is_closed = false;
+    let mut content = Vec::<u8>::default();
+    let mut state = State::Normal;
     let mut errors = vec![];
 
     while let Some(char_pos) = text_iter.next() {
@@ -43,59 +50,118 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
             });
         }
 
-        if after_backslash {
-            match ch {
-                'n' => {
-                    value.push_str("\\n");
-                    content.push('\n');
+        value.push(ch);
+
+        match state {
+            State::Normal => {
+                if ch == '\\' {
+                    state = State::AfterBlackslash;
+                } else if ch == opening_quote {
+                    state = State::Closed;
+                    break;
+                } else {
+                    let mut buff = [0u8; 4];
+                    let res = ch.encode_utf8(&mut buff);
+                    content.extend_from_slice(res.as_bytes());
                 }
-                'r' => {
-                    value.push_str("\\r");
-                    content.push('\r');
+            }
+            State::AfterBlackslash => {
+                match ch {
+                    'n' => {
+                        content.push('\n' as u8);
+                        state = State::Normal;
+                    }
+                    'r' => {
+                        content.push('\r' as u8);
+                        state = State::Normal;
+                    }
+                    't' => {
+                        content.push('\t' as u8);
+                        state = State::Normal;
+                    }
+                    '\\' => {
+                        content.push('\\' as u8);
+                        state = State::Normal;
+                    }
+                    '0' => {
+                        content.push(0);
+                        state = State::Normal;
+                    }
+                    '"' => {
+                        content.push('"' as u8);
+                        state = State::Normal;
+                    }
+                    '\'' => {
+                        content.push('\'' as u8);
+                        state = State::Normal;
+                    }
+                    'x' => {
+                        state = State::ReadBinary0;
+                    }
+                    _ => {
+                        errors.push(StringLitError {
+                            kind: StringLitErrKind::UnexpectedChar(ch),
+                            offset,
+                        });
+                        state = State::Normal;
+                    }
+                };
+            }
+            State::ReadBinary0 => {
+                if ch >= '0' && ch <= '9' {
+                    state = State::ReadBinary1(ch as u8 - '0' as u8 + 0x0u8);
+                } else if ch >= 'a' && ch <= 'f' {
+                    state = State::ReadBinary1(ch as u8 - 'a' as u8 + 0xau8);
+                } else if ch >= 'A' && ch <= 'F' {
+                    state = State::ReadBinary1(ch as u8 - 'A' as u8 + 0xAu8);
+                } else if ch == opening_quote {
+                    errors.push(StringLitError {
+                        kind: StringLitErrKind::UnexpectedChar(ch),
+                        offset,
+                    });
+                    state = State::Closed;
+                    break;
+                } else {
+                    errors.push(StringLitError {
+                        kind: StringLitErrKind::UnexpectedChar(ch),
+                        offset,
+                    });
+                    state = State::Normal;
                 }
-                't' => {
-                    value.push_str("\\t");
-                    content.push('\t');
+            }
+            State::ReadBinary1(byte) => {
+                if ch >= '0' && ch <= '9' {
+                    let byte = byte << 16 + ch as u8 - '0' as u8 + 0x0u8;
+                    content.push(byte);
+                    state = State::Normal;
+                } else if ch >= 'a' && ch <= 'f' {
+                    let byt = byte << 16 + ch as u8 - 'a' as u8 + 0xau8;
+                    content.push(byt);
+                    state = State::Normal;
+                } else if ch >= 'A' && ch <= 'F' {
+                    let byt = byte << 16 + ch as u8 - 'A' as u8 + 0xAu8;
+                    content.push(byt);
+                    state = State::Normal;
+                } else if ch == opening_quote {
+                    errors.push(StringLitError {
+                        kind: StringLitErrKind::UnexpectedChar(ch),
+                        offset,
+                    });
+                    state = State::Closed;
+                    break;
+                } else {
+                    errors.push(StringLitError {
+                        kind: StringLitErrKind::UnexpectedChar(ch),
+                        offset,
+                    });
+                    state = State::Normal;
                 }
-                '\\' => {
-                    value.push_str("\\\\");
-                    content.push('\\');
-                }
-                '0' => {
-                    value.push_str("\\0");
-                    content.push('\0');
-                }
-                '"' => {
-                    value.push_str("\\\"");
-                    content.push('"');
-                }
-                '\'' => {
-                    value.push_str("\\\'");
-                    content.push('\'');
-                }
-                '`' => {
-                    value.push_str("\\`");
-                    content.push('`');
-                }
-                _ => errors.push(StringLitError {
-                    kind: StringLitErrKind::UnexpectedChar(ch),
-                    offset,
-                }),
-            };
-            after_backslash = false;
-        } else if ch == '\\' {
-            after_backslash = true;
-        } else if ch == opening_quote {
-            value.push(ch);
-            is_closed = true;
-            break;
-        } else {
-            value.push(ch);
-            content.push(ch);
+            }
+            State::Closed => unreachable!(),
         }
     }
 
-    if !is_closed {
+    if !matches!(state, State::Closed) {
         errors.push(StringLitError {
             kind: StringLitErrKind::MissingClosingQuote,
             offset: end_offset,
@@ -115,7 +181,7 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 #[derive(Debug)]
 pub(crate) struct StringLitResult {
     pub value: String,
-    pub content: String,
+    pub content: Vec<u8>,
     pub offset: usize,
     pub len: usize,
     pub consumed: usize,
@@ -136,7 +202,7 @@ pub(crate) enum StringLitErrKind {
 }
 
 // parse_string_lit assumes that s is a valid string literal.
-pub fn parse_string_lit(s: &str) -> Rc<str> {
+pub fn parse_string_lit(s: &str) -> Rc<[u8]> {
     let charpos: Vec<_> = s
         .chars()
         .enumerate()
@@ -170,7 +236,7 @@ mod tests {
                     .collect();
                 let result = scan_string_lit(char_pos.iter()).expect("should return a single string");
                 assert_eq!(result.value.as_str(), expected_value);
-                assert_eq!(result.content.as_str(), expected_content);
+                assert_eq!(result.content, expected_content);
 
                 let errors: Vec<_> = result.errors.iter().map(|err| err.kind).collect();
                 assert_eq!(errors, expected_errors);
@@ -179,33 +245,39 @@ mod tests {
         };
     }
 
-    test_parse_string_lit!(happy_path, "\"some string\"", "\"some string\"", "some string", 13);
+    test_parse_string_lit!(
+        happy_path,
+        "\"some string\"",
+        "\"some string\"",
+        "some string".as_bytes(),
+        13
+    );
     test_parse_string_lit!(
         tab_escape,
         "\"this char (\t) is a tab\"",
         "\"this char (\t) is a tab\"",
-        "this char (\t) is a tab",
+        "this char (\t) is a tab".as_bytes(),
         24
     );
     test_parse_string_lit!(
         carriage_return_escape,
         "\"this char (\r) is a CR\"",
         "\"this char (\r) is a CR\"",
-        "this char (\r) is a CR",
+        "this char (\r) is a CR".as_bytes(),
         23
     );
     test_parse_string_lit!(
         double_quote_escape,
         "\"There is a \\\" quote here\"",
         "\"There is a \\\" quote here\"",
-        "There is a \" quote here",
+        "There is a \" quote here".as_bytes(),
         26
     );
     test_parse_string_lit!(
         contain_newline,
         "\"some string \n with newline\"",
         "\"some string ",
-        "some string ",
+        "some string ".as_bytes(),
         28,
         StringLitErrKind::FoundNewline
     );
