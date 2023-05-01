@@ -5,5 +5,5 @@ fn main() {
 
   hello[2] = hello[2] + 1 as u8;
 
-  wasi.fd_write(1 as i32, hello as i32, 1 as i32, 0 as i32);
+  wasi.fd_write(1, hello as i32, 1, 0);
 }
