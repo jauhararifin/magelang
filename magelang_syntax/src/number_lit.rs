@@ -188,12 +188,13 @@ pub(crate) struct NumberLitResult {
 
 // NumberValue represents integer * 10 ^ exp
 #[derive(Default, Debug, PartialEq, Eq)]
-pub(crate) struct NumberValue {
+pub struct NumberValue {
     pub integer: usize,
     pub exp: isize,
 }
 
 impl NumberValue {
+    #[allow(dead_code)]
     pub(crate) fn new(integer: usize, exp: isize) -> Self {
         Self { integer, exp }
     }
@@ -210,6 +211,54 @@ pub(crate) enum NumberLitErrorKind {
     InvalidDigit { digit: char, base: u8 },
     NonDecimalFraction,
 }
+
+// parse_number_lit assumes that s is a valid number literal for T.
+// TODO: check for bound error.
+// TODO: use more efficicent float number construction, check "Eisel-Lemire" algorithm.
+pub fn parse_number_lit<T>(s: &str) -> Result<T, ()>
+where
+    T: Default + From<NumberValue>,
+{
+    let charpos: Vec<_> = s
+        .chars()
+        .enumerate()
+        .map(|(offset, ch)| CharPos { offset, ch })
+        .collect();
+    let result = scan_number_lit(charpos.iter()).expect("the parsed number literal should be a valid number literal");
+    Ok(result.num_value.into())
+}
+
+macro_rules! impl_int_from_number_value {
+    ($t:ty) => {
+        impl From<NumberValue> for $t {
+            fn from(value: NumberValue) -> Self {
+                value.integer as $t
+            }
+        }
+    };
+}
+
+impl_int_from_number_value!(i8);
+impl_int_from_number_value!(u8);
+impl_int_from_number_value!(i16);
+impl_int_from_number_value!(u16);
+impl_int_from_number_value!(i32);
+impl_int_from_number_value!(u32);
+impl_int_from_number_value!(i64);
+impl_int_from_number_value!(u64);
+
+macro_rules! impl_real_from_number_value {
+    ($t:ty) => {
+        impl From<NumberValue> for $t {
+            fn from(value: NumberValue) -> Self {
+                value.integer as $t * (10 as $t).powf(value.exp as $t)
+            }
+        }
+    };
+}
+
+impl_real_from_number_value!(f32);
+impl_real_from_number_value!(f64);
 
 #[cfg(test)]
 mod tests {

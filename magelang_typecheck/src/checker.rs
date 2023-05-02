@@ -9,10 +9,10 @@ use magelang_semantic::{
     WhileStatement,
 };
 use magelang_syntax::{
-    parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
-    CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
-    LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
-    UnaryExprNode, WhileStatementNode,
+    parse_number_lit, parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode,
+    CallExprNode, CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode,
+    IndexExprNode, ItemNode, LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode,
+    StatementNode, Token, TokenKind, UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
 use std::iter::zip;
@@ -803,14 +803,14 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn get_int_lit_expr(&self, scope: &Rc<Scope>, tok: &Token, expected_type: Option<&Type>) -> Expr {
         let kind = match expected_type.unwrap_or(&Type::Bool) {
-            Type::I32 => tok.value.parse::<i32>().map(ExprKind::I32),
-            Type::I16 => tok.value.parse::<i16>().map(ExprKind::I16),
-            Type::I8 => tok.value.parse::<i8>().map(ExprKind::I8),
-            Type::U64 => tok.value.parse::<u64>().map(ExprKind::U64),
-            Type::U32 => tok.value.parse::<u32>().map(ExprKind::U32),
-            Type::U16 => tok.value.parse::<u16>().map(ExprKind::U16),
-            Type::U8 => tok.value.parse::<u8>().map(ExprKind::U8),
-            _ => tok.value.parse::<i64>().map(ExprKind::I64),
+            Type::I32 => parse_number_lit::<i32>(&tok.value).map(ExprKind::I32),
+            Type::I16 => parse_number_lit::<i16>(&tok.value).map(ExprKind::I16),
+            Type::I8 => parse_number_lit::<i8>(&tok.value).map(ExprKind::I8),
+            Type::U64 => parse_number_lit::<u64>(&tok.value).map(ExprKind::U64),
+            Type::U32 => parse_number_lit::<u32>(&tok.value).map(ExprKind::U32),
+            Type::U16 => parse_number_lit::<u16>(&tok.value).map(ExprKind::U16),
+            Type::U8 => parse_number_lit::<u8>(&tok.value).map(ExprKind::U8),
+            _ => parse_number_lit::<i64>(&tok.value).map(ExprKind::I64),
         };
 
         let kind = match kind {

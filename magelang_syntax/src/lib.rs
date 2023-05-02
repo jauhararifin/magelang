@@ -7,6 +7,7 @@ mod string_lit;
 mod tokens;
 
 pub use ast::*;
+pub use number_lit::parse_number_lit;
 pub use string_lit::parse_string_lit;
 pub use tokens::{Token, TokenKind};
 

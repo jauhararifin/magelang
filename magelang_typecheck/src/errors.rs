@@ -1,7 +1,7 @@
 use magelang_common::{Error, Pos, Span};
 use magelang_syntax::Token;
 use std::fmt::Display;
-use std::num::{ParseFloatError, ParseIntError};
+use std::num::ParseFloatError;
 
 pub(crate) fn redeclared_symbol(name: &str, declared_at: Pos, redeclared_at: Span) -> Error {
     Error::new(
@@ -10,8 +10,8 @@ pub(crate) fn redeclared_symbol(name: &str, declared_at: Pos, redeclared_at: Spa
     )
 }
 
-pub(crate) fn invalid_integer_literal(span: Span, parse_int_err: ParseIntError) -> Error {
-    Error::new(span, format!("Invalid integer literal: {parse_int_err}"))
+pub(crate) fn invalid_integer_literal(span: Span, _parse_int_err: ()) -> Error {
+    Error::new(span, format!("Invalid integer literal"))
 }
 
 pub(crate) fn invalid_real_literal(span: Span, parse_real_err: ParseFloatError) -> Error {
