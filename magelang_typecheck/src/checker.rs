@@ -810,7 +810,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Type::U32 => tok.value.parse::<u32>().map(ExprKind::U32),
             Type::U16 => tok.value.parse::<u16>().map(ExprKind::U16),
             Type::U8 => tok.value.parse::<u8>().map(ExprKind::U8),
-            Type::I64 | _ => tok.value.parse::<i64>().map(ExprKind::I64),
+            _ => tok.value.parse::<i64>().map(ExprKind::I64),
         };
 
         let kind = match kind {
@@ -829,7 +829,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Type::U32 => self.symbol_loader.declare_symbol(U32),
             Type::U16 => self.symbol_loader.declare_symbol(U16),
             Type::U8 => self.symbol_loader.declare_symbol(U8),
-            Type::I64 | _ => self.symbol_loader.declare_symbol(I64),
+            _ => self.symbol_loader.declare_symbol(I64),
         };
 
         let type_id = scope

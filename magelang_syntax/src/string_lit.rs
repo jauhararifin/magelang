@@ -68,19 +68,19 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
             State::AfterBlackslash => {
                 match ch {
                     'n' => {
-                        content.push('\n' as u8);
+                        content.push(b'\n');
                         state = State::Normal;
                     }
                     'r' => {
-                        content.push('\r' as u8);
+                        content.push(b'\r');
                         state = State::Normal;
                     }
                     't' => {
-                        content.push('\t' as u8);
+                        content.push(b'\t');
                         state = State::Normal;
                     }
                     '\\' => {
-                        content.push('\\' as u8);
+                        content.push(b'\\');
                         state = State::Normal;
                     }
                     '0' => {
@@ -88,11 +88,11 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                         state = State::Normal;
                     }
                     '"' => {
-                        content.push('"' as u8);
+                        content.push(b'"');
                         state = State::Normal;
                     }
                     '\'' => {
-                        content.push('\'' as u8);
+                        content.push(b'\'');
                         state = State::Normal;
                     }
                     'x' => {
@@ -108,12 +108,12 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                 };
             }
             State::ReadBinary0 => {
-                if ch >= '0' && ch <= '9' {
-                    state = State::ReadBinary1(ch as u8 - '0' as u8 + 0x0u8);
-                } else if ch >= 'a' && ch <= 'f' {
-                    state = State::ReadBinary1(ch as u8 - 'a' as u8 + 0xau8);
-                } else if ch >= 'A' && ch <= 'F' {
-                    state = State::ReadBinary1(ch as u8 - 'A' as u8 + 0xAu8);
+                if ('0'..='9').contains(&ch) {
+                    state = State::ReadBinary1(ch as u8 - b'0');
+                } else if ('a'..='f').contains(&ch) {
+                    state = State::ReadBinary1(ch as u8 - b'a' + 0xau8);
+                } else if ('A'..='F').contains(&ch) {
+                    state = State::ReadBinary1(ch as u8 - b'A' + 0xAu8);
                 } else if ch == opening_quote {
                     errors.push(StringLitError {
                         kind: StringLitErrKind::UnexpectedChar(ch),
@@ -130,16 +130,16 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                 }
             }
             State::ReadBinary1(byte) => {
-                if ch >= '0' && ch <= '9' {
-                    let byte = (byte << 4) | (ch as u8 - '0' as u8 + 0x0u8);
+                if ('0'..='9').contains(&ch) {
+                    let byte = (byte << 4) | (ch as u8 - b'0');
                     content.push(byte);
                     state = State::Normal;
-                } else if ch >= 'a' && ch <= 'f' {
-                    let byte = (byte << 4) | (ch as u8 - 'a' as u8 + 0xau8);
+                } else if ('a' ..='f').contains(&ch) {
+                    let byte = (byte << 4) | (ch as u8 - b'a' + 0xau8);
                     content.push(byte);
                     state = State::Normal;
-                } else if ch >= 'A' && ch <= 'F' {
-                    let byte = (byte << 4) | (ch as u8 - 'A' as u8 + 0xAu8);
+                } else if ('A' ..='F').contains(&ch) {
+                    let byte = (byte << 4) | (ch as u8 - b'A' + 0xAu8);
                     content.push(byte);
                     state = State::Normal;
                 } else if ch == opening_quote {
