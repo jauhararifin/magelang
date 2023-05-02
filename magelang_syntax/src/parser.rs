@@ -456,7 +456,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     fn parse_unary_expr(&mut self) -> Option<ExprNode> {
         if UNARY_OP.contains(&self.kind()) {
             let op = self.tokens.pop_front().unwrap();
-            let value = self.parse_index_expr()?;
+            let value = self.parse_unary_expr()?;
             Some(ExprNode::Unary(UnaryExprNode {
                 op,
                 value: Box::new(value),
@@ -636,4 +636,3 @@ const BINOP_PRECEDENCE: &[TokenKind] = &[
 ];
 
 const UNARY_OP: &[TokenKind] = &[TokenKind::BitNot, TokenKind::Sub, TokenKind::Add, TokenKind::Not];
-

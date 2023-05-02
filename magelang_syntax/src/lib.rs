@@ -1,13 +1,14 @@
 mod ast;
 mod errors;
+mod number_lit;
 mod parser;
 mod scanner;
 mod string_lit;
 mod tokens;
 
 pub use ast::*;
-pub use tokens::{Token, TokenKind};
 pub use string_lit::parse_string_lit;
+pub use tokens::{Token, TokenKind};
 
 use crate::parser::parse;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolLoader};

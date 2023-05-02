@@ -1,4 +1,7 @@
-use crate::errors::{missing_closing_quote, unexpected_char, unexpected_newline};
+use crate::errors::{
+    invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char, unexpected_newline,
+};
+use crate::number_lit::{scan_number_lit, NumberLitErrorKind};
 use crate::string_lit::{scan_string_lit, StringLitErrKind};
 use crate::tokens::{Token, TokenKind};
 use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span};
@@ -176,32 +179,39 @@ impl<'err> Scanner<'err> {
     }
 
     fn scan_number_lit(&mut self) -> Option<Token> {
-        let tok = self.source_code.next_if(|c| c.is_ascii_digit())?;
+        let number_lit_result = scan_number_lit(self.source_code.iter())?;
 
-        let mut value = String::from(tok.ch);
-        while let Some(c) = self.source_code.next_if(|c| c.is_ascii_digit()) {
-            value.push(c.ch);
-        }
-
-        if let Some(dot) = self.source_code.next_if(|c| c == '.') {
-            value.push(dot.ch);
-            while let Some(c) = self.source_code.next_if(|c| c.is_ascii_digit()) {
-                value.push(c.ch);
+        for err in &number_lit_result.errors {
+            match err.kind {
+                NumberLitErrorKind::InvalidDigit { digit, base } => self.err_channel.push(invalid_digit_in_base(
+                    Span::new(self.file_id, err.offset, 1),
+                    digit,
+                    base,
+                )),
+                NumberLitErrorKind::NonDecimalFraction => {
+                    self.err_channel
+                        .push(non_decimal_fraction(Span::new(self.file_id, err.offset, 1)))
+                }
             }
-            let span = Span::new(self.file_id, tok.offset, value.len());
-            return Some(Token {
-                kind: TokenKind::RealLit,
-                value: value.into(),
-                span,
-            });
         }
 
-        let span = Span::new(self.file_id, tok.offset, value.len());
-        Some(Token {
-            kind: TokenKind::IntegerLit,
-            value: value.into(),
-            span,
-        })
+        for _ in 0..number_lit_result.consumed {
+            self.source_code.pop_front();
+        }
+
+        if number_lit_result.is_fractional {
+            Some(Token {
+                kind: TokenKind::RealLit,
+                value: number_lit_result.value.into(),
+                span: Span::new(self.file_id, number_lit_result.offset, number_lit_result.len),
+            })
+        } else {
+            Some(Token {
+                kind: TokenKind::IntegerLit,
+                value: number_lit_result.value.into(),
+                span: Span::new(self.file_id, number_lit_result.offset, number_lit_result.len),
+            })
+        }
     }
 
     fn scan_symbol(&mut self) -> Option<Token> {
