@@ -23,6 +23,9 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
     let mut source = source.peekable();
 
     let mut num_value = NumberValue::default();
+    let mut decimal_exp = 0isize;
+    let mut exp = 0isize;
+    let mut exponent_sign = false;
     let mut value = String::default();
     let offset = source.peek().map(|c| c.offset).unwrap_or_default();
 
@@ -42,15 +45,23 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 
         match state {
             State::Init => match c.ch {
-                '0' => state = State::Prefix,
-                '1'..='9' => state = State::Integer(Base::Dec),
+                '0' => {
+                    state = State::Prefix;
+                }
+                '1'..='9' => {
+                    num_value.integer = num_value.integer * 10 + c.ch as usize - '0' as usize;
+                    state = State::Integer(Base::Dec);
+                }
                 _ => return None,
             },
             State::Prefix => match c.ch {
                 'x' => state = State::Integer(Base::Hex),
                 'b' => state = State::Integer(Base::Bin),
                 'o' => state = State::Integer(Base::Oct),
-                '0'..='7' => state = State::Integer(Base::Oct),
+                '0'..='7' => {
+                    num_value.integer = (num_value.integer << 3) + c.ch as usize - '0' as usize;
+                    state = State::Integer(Base::Oct);
+                }
                 'e' | 'E' => state = State::Exponent,
                 '.' => {
                     is_fractional = true;
@@ -73,10 +84,18 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                     offset: c.offset,
                 }),
 
-                (Base::Bin, '0' | '1')
-                | (Base::Dec, '0'..='9')
-                | (Base::Oct, '0'..='7')
-                | (Base::Hex, '0'..='9' | 'a'..='f' | 'A'..='F') => (),
+                (Base::Bin, '0' | '1') => {
+                    num_value.integer = num_value.integer << 1 | (if c.ch == '1' { 1 } else { 0 })
+                }
+                (Base::Dec, '0'..='9') => num_value.integer = num_value.integer * 10 + c.ch as usize - '0' as usize,
+                (Base::Oct, '0'..='7') => num_value.integer = (num_value.integer << 3) + c.ch as usize - '0' as usize,
+                (Base::Hex, '0'..='9') => num_value.integer = (num_value.integer << 4) + c.ch as usize - '0' as usize,
+                (Base::Hex, 'a'..='f') => {
+                    num_value.integer = (num_value.integer << 4) + c.ch as usize + 10 - 'a' as usize
+                }
+                (Base::Hex, 'A'..='F') => {
+                    num_value.integer = (num_value.integer << 4) + c.ch as usize + 10 - 'A' as usize
+                }
 
                 (Base::Bin, '2'..='9') => errors.push(NumberLitError {
                     kind: NumberLitErrorKind::InvalidDigit { digit: c.ch, base: 2 },
@@ -96,7 +115,10 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
             },
             State::Fraction => match c.ch {
                 'e' | 'E' => state = State::Exponent,
-                '0'..='9' => (),
+                '0'..='9' => {
+                    num_value.integer = num_value.integer * 10 + c.ch as usize - '0' as usize;
+                    decimal_exp -= 1;
+                }
                 'a'..='z' | 'A'..='Z' => {
                     state = State::InvalidSuffix;
                     continue;
@@ -104,7 +126,10 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                 _ => break,
             },
             State::Exponent => match c.ch {
-                '-' => state = State::ExponentAfterSign,
+                '-' => {
+                    exponent_sign = true;
+                    state = State::ExponentAfterSign;
+                }
                 '0'..='9' => state = State::ExponentAfterSign,
                 'a'..='z' | 'A'..='Z' => {
                     state = State::InvalidSuffix;
@@ -113,7 +138,9 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                 _ => break,
             },
             State::ExponentAfterSign => match c.ch {
-                '0'..='9' => (),
+                '0'..='9' => {
+                    exp = exp * 10 + c.ch as isize - '0' as isize;
+                }
                 'a'..='z' | 'A'..='Z' => {
                     state = State::InvalidSuffix;
                     continue;
@@ -129,6 +156,8 @@ pub(crate) fn scan_number_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
         let c = source.next().unwrap();
         value.push(c.ch);
     }
+
+    num_value.exp = decimal_exp + if exponent_sign { -exp } else { exp };
 
     let len = value.len();
     if len == 0 {
@@ -157,11 +186,17 @@ pub(crate) struct NumberLitResult {
     pub errors: Vec<NumberLitError>,
 }
 
+// NumberValue represents integer * 10 ^ exp
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(crate) struct NumberValue {
     pub integer: usize,
-    pub frac: usize,
-    pub exp: usize,
+    pub exp: isize,
+}
+
+impl NumberValue {
+    pub(crate) fn new(integer: usize, exp: isize) -> Self {
+        Self { integer, exp }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -204,7 +239,7 @@ mod tests {
         "12345",
         NumberLitResult {
             value: "12345".into(),
-            num_value: NumberValue::default(),
+            num_value: NumberValue::new(12345, 0),
             is_fractional: false,
             offset: 0,
             len: 5,
@@ -217,7 +252,7 @@ mod tests {
         "0777",
         NumberLitResult {
             value: "0777".into(),
-            num_value: NumberValue::default(),
+            num_value: NumberValue::new(0o777, 0),
             is_fractional: false,
             offset: 0,
             len: 4,
@@ -230,7 +265,7 @@ mod tests {
         "0o777",
         NumberLitResult {
             value: "0o777".into(),
-            num_value: NumberValue::default(),
+            num_value: NumberValue::new(0o777, 0),
             is_fractional: false,
             offset: 0,
             len: 5,
@@ -239,11 +274,11 @@ mod tests {
         }
     );
     test_parse_number_lit!(
-        binaru_value,
+        binary_value,
         "0b11010101011",
         NumberLitResult {
             value: "0b11010101011".into(),
-            num_value: NumberValue::default(),
+            num_value: NumberValue::new(0b11010101011, 0),
             is_fractional: false,
             offset: 0,
             len: 13,
@@ -253,14 +288,14 @@ mod tests {
     );
     test_parse_number_lit!(
         hex_value,
-        "0xdeadbeef0123456789",
+        "0xdeadbeef09",
         NumberLitResult {
-            value: "0xdeadbeef0123456789".into(),
-            num_value: NumberValue::default(),
+            value: "0xdeadbeef09".into(),
+            num_value: NumberValue::new(0xdeadbeef09, 0),
             is_fractional: false,
             offset: 0,
-            len: 20,
-            consumed: 20,
+            len: 12,
+            consumed: 12,
             errors: vec![],
         }
     );
