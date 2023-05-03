@@ -15,7 +15,7 @@ pub struct PackageNode {
 
 impl AstNode for PackageNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -72,7 +72,7 @@ pub struct ImportNode {
 
 impl AstNode for ImportNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -85,7 +85,7 @@ pub struct FunctionNode {
 
 impl AstNode for FunctionNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -100,7 +100,7 @@ pub struct SignatureNode {
 
 impl AstNode for SignatureNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -113,7 +113,7 @@ pub struct TagNode {
 
 impl AstNode for TagNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -126,7 +126,7 @@ pub struct ParameterNode {
 
 impl AstNode for ParameterNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -151,8 +151,8 @@ impl AstNode for StatementNode {
             Self::Block(node) => node.get_pos(),
             Self::If(node) => node.get_pos(),
             Self::While(node) => node.get_pos(),
-            Self::Continue(token) => token.pos.clone(),
-            Self::Break(token) => token.pos.clone(),
+            Self::Continue(token) => token.pos,
+            Self::Break(token) => token.pos,
             Self::Return(node) => node.get_pos(),
             Self::Expr(node) => node.get_pos(),
         }
@@ -175,7 +175,7 @@ pub enum LetKind {
 
 impl AstNode for LetStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -188,7 +188,7 @@ pub struct AssignStatementNode {
 
 impl AstNode for AssignStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -200,7 +200,7 @@ pub struct BlockStatementNode {
 
 impl AstNode for BlockStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -215,7 +215,7 @@ pub struct IfStatementNode {
 
 impl AstNode for IfStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -228,7 +228,7 @@ pub struct ElseIfStatementNode {
 
 impl AstNode for ElseIfStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -241,7 +241,7 @@ pub struct WhileStatementNode {
 
 impl AstNode for WhileStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -253,7 +253,7 @@ pub struct ReturnStatementNode {
 
 impl AstNode for ReturnStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -277,14 +277,14 @@ pub enum ExprNode {
 impl AstNode for ExprNode {
     fn get_pos(&self) -> Pos {
         match self {
-            Self::Ident(val) => val.pos.clone(),
-            Self::IntegerLiteral(val) => val.pos.clone(),
-            Self::RealLiteral(val) => val.pos.clone(),
-            Self::BooleanLit(val) => val.pos.clone(),
-            Self::StringLit(val) => val.pos.clone(),
+            Self::Ident(val) => val.pos,
+            Self::IntegerLiteral(val) => val.pos,
+            Self::RealLiteral(val) => val.pos,
+            Self::BooleanLit(val) => val.pos,
+            Self::StringLit(val) => val.pos,
             Self::Binary(val) => val.get_pos(),
             Self::Unary(val) => val.get_pos(),
-            Self::Call(expr) => expr.pos.clone(),
+            Self::Call(expr) => expr.pos,
             Self::Cast(val) => val.get_pos(),
             Self::Slice(val) => val.get_pos(),
             Self::Selection(val) => val.get_pos(),
@@ -328,7 +328,7 @@ pub struct CallExprNode {
 
 impl AstNode for CallExprNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 
@@ -352,7 +352,7 @@ pub struct SliceNode {
 
 impl AstNode for SliceNode {
     fn get_pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
 }
 

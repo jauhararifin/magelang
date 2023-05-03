@@ -5,22 +5,22 @@ pub fn value_from_string_lit(literal: &str) -> Rc<[u8]> {
     let mut result = vec![];
     let mut literal = literal[1..literal.len() - 1].bytes();
     while let Some(c) = literal.next() {
-        if c == '\\' as u8 {
+        if c == b'\\' {
             let c = literal
                 .next()
                 .expect("the input str literal is not a valid string literal");
             let escaped_char = match c as char {
-                'n' => '\n' as u8,
-                'r' => '\r' as u8,
-                't' => '\t' as u8,
+                'n' => b'\n',
+                'r' => b'\r',
+                't' => b'\t',
                 '0' => 0u8,
-                '"' => '"' as u8,
-                '\'' => '\'' as u8,
+                '"' => b'"',
+                '\'' => b'\'',
                 'x' => {
                     let into_u8 = |c: u8| match c as char {
-                        '0'..='9' => c as u8 - '0' as u8,
-                        'a'..='f' => c as u8 - 'a' as u8,
-                        'A'..='F' => c as u8 - 'A' as u8,
+                        '0'..='9' => c - b'0',
+                        'a'..='f' => c - b'a',
+                        'A'..='F' => c - b'A',
                         _ => unreachable!("the input str literal is not a valid string literal"),
                     };
                     let b0 = into_u8(

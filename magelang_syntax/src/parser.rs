@@ -222,7 +222,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_parameter(&mut self) -> Option<ParameterNode> {
         let name = self.take(TokenKind::Ident)?;
-        let pos = name.pos.clone();
+        let pos = name.pos;
         let _ = self.take(TokenKind::Colon)?;
         let Some(type_expr) = self.parse_expr() else {
             self.err_channel.push(unexpected_parsing(
@@ -308,7 +308,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         let mut else_body = None;
 
         while let Some(else_tok) = self.take_if(TokenKind::Else) {
-            let else_pos = else_tok.pos.clone();
+            let else_pos = else_tok.pos;
             if self.take_if(TokenKind::If).is_some() {
                 let condition = self.parse_expr()?;
                 let body = self.parse_block_stmt()?;
@@ -556,7 +556,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             Some(token)
         } else {
             self.err_channel
-                .push(unexpected_parsing(token.pos.clone(), kind, token.kind));
+                .push(unexpected_parsing(token.pos, kind, token.kind));
             None
         }
     }

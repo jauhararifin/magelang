@@ -7,7 +7,7 @@ pub(crate) fn unexpected_char(pos: Pos, ch: char) -> Error {
 }
 
 pub(crate) fn unexpected_token(token: &Token) -> Error {
-    Error::new(token.pos.clone(), format!("Unexpected token '{}'", token.kind))
+    Error::new(token.pos, format!("Unexpected token '{}'", token.kind))
 }
 
 pub(crate) fn invalid_digit_in_base(pos: Pos, digit: char, base: u8) -> Error {

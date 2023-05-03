@@ -11,7 +11,7 @@ pub(crate) fn redeclared_symbol(name: &str, declared_at: PosInfo, redeclared_at:
 }
 
 pub(crate) fn invalid_integer_literal(pos: Pos, _parse_int_err: ()) -> Error {
-    Error::new(pos, format!("Invalid integer literal"))
+    Error::new(pos, "Invalid integer literal".to_string())
 }
 
 pub(crate) fn invalid_real_literal(pos: Pos, parse_real_err: ParseFloatError) -> Error {
@@ -86,7 +86,7 @@ pub(crate) fn casting_unsupported(pos: Pos, initial_ty: impl Display, target_ty:
 
 pub(crate) fn undeclared_symbol(token: Token) -> Error {
     Error::new(
-        token.pos.clone(),
+        token.pos,
         format!("Symbol {} is not declared yet", token.value.as_ref()),
     )
 }

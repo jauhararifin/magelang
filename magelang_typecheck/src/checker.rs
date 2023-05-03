@@ -172,7 +172,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 ItemNode::Import(import_node) => {
                     let package_path = value_from_string_lit(&import_node.path.value).to_vec();
                     let Ok(package_path) = String::from_utf8(package_path) else {
-                        self.err_channel.push(not_a_valid_utf8_package(import_node.path.pos.clone()));
+                        self.err_channel.push(not_a_valid_utf8_package(import_node.path.pos));
                         continue;
                     };
                     let package_path = self.symbol_loader.declare_symbol(package_path);
@@ -205,7 +205,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let func_type = self.get_func_type(scope, &func_node.signature);
         if !func_type.parameters.is_empty() || func_type.return_type.is_some() {
             self.err_channel
-                .push(invalid_main_func(func_node.signature.pos.clone()));
+                .push(invalid_main_func(func_node.signature.pos));
         }
     }
 
@@ -251,7 +251,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     fn check_import(&self, import_node: &ImportNode) {
         let path = value_from_string_lit(&import_node.path.value);
         if path.is_empty() {
-            self.err_channel.push(empty_package_path(import_node.path.pos.clone()));
+            self.err_channel.push(empty_package_path(import_node.path.pos));
         }
     }
 
@@ -614,7 +614,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn check_continue_statement(&self, scope: &Rc<Scope>, token: &Token) -> StatementInfo {
         if !scope.is_inside_loop() {
-            self.err_channel.push(not_in_a_loop(token.pos.clone(), "continue"));
+            self.err_channel.push(not_in_a_loop(token.pos, "continue"));
             StatementInfo {
                 statement: Statement::Invalid,
                 is_returning: false,
@@ -631,7 +631,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn check_break_statement(&self, scope: &Rc<Scope>, token: &Token) -> StatementInfo {
         if !scope.is_inside_loop() {
-            self.err_channel.push(not_in_a_loop(token.pos.clone(), "break"));
+            self.err_channel.push(not_in_a_loop(token.pos, "break"));
             StatementInfo {
                 statement: Statement::Invalid,
                 is_returning: false,
@@ -728,7 +728,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return self.type_loader.declare_type(Type::Invalid);
                 };
                 let Some(type_id) = object.as_type() else {
-                    self.err_channel.push(not_a_type(tok.pos.clone()));
+                    self.err_channel.push(not_a_type(tok.pos));
                     return self.type_loader.declare_type(Type::Invalid);
                 };
                 type_id
@@ -796,7 +796,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }),
             },
             _ => {
-                self.err_channel.push(not_a_value(tok.pos.clone()));
+                self.err_channel.push(not_a_value(tok.pos));
                 self.invalid_value_expr()
             }
         }
@@ -817,7 +817,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let kind = match kind {
             Ok(v) => v,
             Err(err) => {
-                self.err_channel.push(invalid_integer_literal(tok.pos.clone(), err));
+                self.err_channel.push(invalid_integer_literal(tok.pos, err));
                 ExprKind::Invalid
             }
         };
@@ -849,7 +849,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let kind = match tok.value.parse::<f64>() {
             Ok(v) => ExprKind::F64(v),
             Err(err) => {
-                self.err_channel.push(invalid_real_literal(tok.pos.clone(), err));
+                self.err_channel.push(invalid_real_literal(tok.pos, err));
                 ExprKind::Invalid
             }
         };
@@ -1096,7 +1096,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         if call_expr.arguments.len() != func_type.parameters.len() {
             self.err_channel.push(unmatch_function_arguments(
-                call_expr.pos.clone(),
+                call_expr.pos,
                 func_type.parameters.len(),
                 call_expr.arguments.len(),
             ));
