@@ -1,9 +1,9 @@
-use magelang_common::{Error, Pos, Span};
+use magelang_common::{Error, PosInfo, Span};
 use magelang_syntax::Token;
 use std::fmt::Display;
 use std::num::ParseFloatError;
 
-pub(crate) fn redeclared_symbol(name: &str, declared_at: Pos, redeclared_at: Span) -> Error {
+pub(crate) fn redeclared_symbol(name: &str, declared_at: PosInfo, redeclared_at: Span) -> Error {
     Error::new(
         redeclared_at,
         format!("Symbol {name} is redeclared. First declared at {declared_at}"),

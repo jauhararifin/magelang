@@ -29,13 +29,13 @@ impl Span {
 }
 
 #[derive(Debug)]
-pub struct Pos {
+pub struct PosInfo {
     pub path: Rc<Path>,
     pub line: usize,
     pub col: usize,
 }
 
-impl std::fmt::Display for Pos {
+impl std::fmt::Display for PosInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}:{}", &self.path.to_str().unwrap(), self.line, self.col)
     }

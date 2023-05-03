@@ -1,5 +1,5 @@
 use crate::errors::{Error, ErrorAccumulator};
-use crate::pos::{Pos, Span};
+use crate::pos::{PosInfo, Span};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -18,11 +18,11 @@ pub struct FileInfo {
 }
 
 impl FileInfo {
-    pub fn get_pos(&self, span: &Span) -> Pos {
+    pub fn get_pos(&self, span: &Span) -> PosInfo {
         let line = self.newlines.partition_point(|off| *off < span.start) + 1;
         let line_offset = if line <= 1 { 0 } else { self.newlines[line - 2] };
         let col = span.start - line_offset + 1;
-        Pos {
+        PosInfo {
             path: self.path.clone(),
             line,
             col,
