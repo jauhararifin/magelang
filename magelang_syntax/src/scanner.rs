@@ -1,6 +1,4 @@
-use crate::errors::{
-    invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char, unexpected_newline,
-};
+use crate::errors::{invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char};
 use crate::number_lit::{scan_number_lit, NumberLitErrorKind};
 use crate::string_lit::{scan_string_lit, StringLitErrKind};
 use crate::tokens::{Token, TokenKind};
@@ -155,9 +153,6 @@ impl<'err> Scanner<'err> {
 
         for err in &string_lit_result.errors {
             match err.kind {
-                StringLitErrKind::FoundNewline => self
-                    .err_channel
-                    .push(unexpected_newline(Pos::new(self.file_id, err.offset))),
                 StringLitErrKind::MissingClosingQuote => self
                     .err_channel
                     .push(missing_closing_quote(Pos::new(self.file_id, err.offset))),
@@ -168,7 +163,7 @@ impl<'err> Scanner<'err> {
             }
         }
 
-        for _ in 0..string_lit_result.consumed {
+        for _ in 0..string_lit_result.value.len() {
             self.source_code.pop_front();
         }
 

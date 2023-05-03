@@ -26,29 +26,6 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
         let (ch, offset) = (char_pos.ch, char_pos.offset);
         end_offset = offset;
 
-        if ch == '\n' {
-            errors.push(StringLitError {
-                kind: StringLitErrKind::FoundNewline,
-                offset,
-            });
-
-            let mut consumed = end_offset - start_offset + 1;
-            for char_pos in text_iter {
-                consumed += 1;
-                if char_pos.ch == opening_quote {
-                    break;
-                }
-            }
-
-            return Some(StringLitResult {
-                value,
-                content,
-                offset: start_offset,
-                consumed,
-                errors,
-            });
-        }
-
         value.push(ch);
 
         match state {
@@ -175,7 +152,6 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
         value,
         content,
         offset: start_offset,
-        consumed: end_offset - start_offset + 1,
         errors,
     })
 }
@@ -185,7 +161,6 @@ pub(crate) struct StringLitResult {
     pub value: String,
     pub content: Vec<u8>,
     pub offset: u32,
-    pub consumed: u32,
     pub errors: Vec<StringLitError>,
 }
 
@@ -197,7 +172,6 @@ pub(crate) struct StringLitError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StringLitErrKind {
-    FoundNewline,
     MissingClosingQuote,
     UnexpectedChar(char),
 }
@@ -228,14 +202,13 @@ mod tests {
     use crate::scanner::CharPos;
 
     macro_rules! test_parse_string_lit {
-        ($name:ident, $s:expr, $e:expr, $content:expr, $consumed:expr $(,$errs:expr)*) => {
+        ($name:ident, $s:expr, $e:expr, $content:expr $(,$errs:expr)*) => {
             #[test]
             fn $name() {
                 let text = $s;
                 let expected_value = $e;
                 let expected_content = $content;
                 let expected_errors = vec![$($errs),*];
-                let expected_consumed = $consumed;
 
                 let char_pos: Vec<_> = text
                     .chars()
@@ -248,7 +221,6 @@ mod tests {
 
                 let errors: Vec<_> = result.errors.iter().map(|err| err.kind).collect();
                 assert_eq!(errors, expected_errors, "error mismatched");
-                assert_eq!(result.consumed, expected_consumed, "the number of consumed chars don't matched");
             }
         };
     }
@@ -257,15 +229,13 @@ mod tests {
         happy_path,
         "\"some string\"",
         "\"some string\"",
-        "some string".as_bytes(),
-        13
+        "some string".as_bytes()
     );
     test_parse_string_lit!(
         missing_closing_quote,
         "\"some string",
         "\"some string",
         [],
-        12,
         StringLitErrKind::MissingClosingQuote
     );
     test_parse_string_lit!(
@@ -273,7 +243,6 @@ mod tests {
         "\"some \\xyz string",
         "\"some \\xyz string",
         [],
-        17,
         StringLitErrKind::UnexpectedChar('y'),
         StringLitErrKind::MissingClosingQuote
     );
@@ -281,30 +250,19 @@ mod tests {
         tab_escape,
         "\"this char (\t) is a tab\"",
         "\"this char (\t) is a tab\"",
-        "this char (\t) is a tab".as_bytes(),
-        24
+        "this char (\t) is a tab".as_bytes()
     );
     test_parse_string_lit!(
         carriage_return_escape,
         "\"this char (\r) is a CR\"",
         "\"this char (\r) is a CR\"",
-        "this char (\r) is a CR".as_bytes(),
-        23
+        "this char (\r) is a CR".as_bytes()
     );
     test_parse_string_lit!(
         double_quote_escape,
         "\"There is a \\\" quote here\"",
         "\"There is a \\\" quote here\"",
-        "There is a \" quote here".as_bytes(),
-        26
-    );
-    test_parse_string_lit!(
-        contain_newline,
-        "\"some string \n with newline\"",
-        "\"some string ",
-        "some string ".as_bytes(),
-        28,
-        StringLitErrKind::FoundNewline
+        "There is a \" quote here".as_bytes()
     );
     test_parse_string_lit!(
         escaped_raw_byte,
@@ -315,15 +273,13 @@ mod tests {
             p.extend_from_slice(&[0u8, 1u8, 2u8, 0xffu8]);
             p.extend_from_slice(" raw bytes".as_bytes());
             p
-        },
-        38
+        }
     );
     test_parse_string_lit!(
         escaped_raw_byte_with_err,
         "\"raw byte \\x*f\"",
         "\"raw byte \\x*f\"",
         [],
-        15,
         StringLitErrKind::UnexpectedChar('*')
     );
     test_parse_string_lit!(
@@ -331,7 +287,6 @@ mod tests {
         "\"raw byte \\x\"",
         "\"raw byte \\x\"",
         [],
-        13,
         StringLitErrKind::UnexpectedChar('"')
     );
     test_parse_string_lit!(
@@ -339,7 +294,6 @@ mod tests {
         "\"raw byte \\xa\"",
         "\"raw byte \\xa\"",
         [],
-        14,
         StringLitErrKind::UnexpectedChar('"')
     );
     test_parse_string_lit!(
@@ -347,7 +301,6 @@ mod tests {
         "\"raw byte \\xah\"",
         "\"raw byte \\xah\"",
         [],
-        15,
         StringLitErrKind::UnexpectedChar('h')
     );
 }

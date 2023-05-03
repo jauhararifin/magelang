@@ -10,10 +10,6 @@ pub(crate) fn unexpected_token(token: &Token) -> Error {
     Error::new(token.pos.clone(), format!("Unexpected token '{}'", token.kind))
 }
 
-pub(crate) fn unexpected_newline(pos: Pos) -> Error {
-    Error::new(pos, String::from("Unexpected newline"))
-}
-
 pub(crate) fn invalid_digit_in_base(pos: Pos, digit: char, base: u8) -> Error {
     Error::new(
         pos,
