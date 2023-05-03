@@ -3,13 +3,13 @@ use std::path::Path;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Span {
+pub struct Pos {
     pub file_id: FileId,
     pub start: usize,
     pub len: usize,
 }
 
-impl Span {
+impl Pos {
     pub fn new(file_id: FileId, offset: usize, len: usize) -> Self {
         Self {
             file_id,

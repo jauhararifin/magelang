@@ -1,13 +1,13 @@
-use crate::pos::Span;
+use crate::pos::Pos;
 use std::cell::RefCell;
 
 pub struct Error {
-    pub span: Option<Span>,
+    pub span: Option<Pos>,
     pub message: String,
 }
 
 impl Error {
-    pub fn new(span: Span, message: String) -> Self {
+    pub fn new(span: Pos, message: String) -> Self {
         Self {
             span: Some(span),
             message,

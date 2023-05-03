@@ -4,7 +4,7 @@ use crate::errors::{
 use crate::number_lit::{scan_number_lit, NumberLitErrorKind};
 use crate::string_lit::{scan_string_lit, StringLitErrKind};
 use crate::tokens::{Token, TokenKind};
-use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span};
+use magelang_common::{ErrorAccumulator, FileId, FileInfo, Pos};
 use std::collections::VecDeque;
 
 pub(crate) fn scan(err_channel: &ErrorAccumulator, file_info: &FileInfo) -> Vec<Token> {
@@ -123,7 +123,7 @@ impl<'err> Scanner<'err> {
             value.push(c.ch);
         }
 
-        let span = Span::new(self.file_id, tok.offset, value.len());
+        let span = Pos::new(self.file_id, tok.offset, value.len());
         let kind = match value.as_str() {
             "let" => TokenKind::Let,
             "if" => TokenKind::If,
@@ -154,15 +154,15 @@ impl<'err> Scanner<'err> {
             match err.kind {
                 StringLitErrKind::FoundNewline => {
                     self.err_channel
-                        .push(unexpected_newline(Span::new(self.file_id, err.offset, 1)))
+                        .push(unexpected_newline(Pos::new(self.file_id, err.offset, 1)))
                 }
                 StringLitErrKind::MissingClosingQuote => {
                     self.err_channel
-                        .push(missing_closing_quote(Span::new(self.file_id, err.offset, 1)))
+                        .push(missing_closing_quote(Pos::new(self.file_id, err.offset, 1)))
                 }
                 StringLitErrKind::UnexpectedChar(ch) => {
                     self.err_channel
-                        .push(unexpected_char(Span::new(self.file_id, err.offset, 1), ch));
+                        .push(unexpected_char(Pos::new(self.file_id, err.offset, 1), ch));
                 }
             }
         }
@@ -174,7 +174,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::StringLit,
             value: string_lit_result.value.into(),
-            span: Span::new(self.file_id, string_lit_result.offset, string_lit_result.len),
+            span: Pos::new(self.file_id, string_lit_result.offset, string_lit_result.len),
         })
     }
 
@@ -184,13 +184,13 @@ impl<'err> Scanner<'err> {
         for err in &number_lit_result.errors {
             match err.kind {
                 NumberLitErrorKind::InvalidDigit { digit, base } => self.err_channel.push(invalid_digit_in_base(
-                    Span::new(self.file_id, err.offset, 1),
+                    Pos::new(self.file_id, err.offset, 1),
                     digit,
                     base,
                 )),
                 NumberLitErrorKind::NonDecimalFraction => {
                     self.err_channel
-                        .push(non_decimal_fraction(Span::new(self.file_id, err.offset, 1)))
+                        .push(non_decimal_fraction(Pos::new(self.file_id, err.offset, 1)))
                 }
             }
         }
@@ -203,13 +203,13 @@ impl<'err> Scanner<'err> {
             Some(Token {
                 kind: TokenKind::RealLit,
                 value: number_lit_result.value.into(),
-                span: Span::new(self.file_id, number_lit_result.offset, number_lit_result.len),
+                span: Pos::new(self.file_id, number_lit_result.offset, number_lit_result.len),
             })
         } else {
             Some(Token {
                 kind: TokenKind::IntegerLit,
                 value: number_lit_result.value.into(),
-                span: Span::new(self.file_id, number_lit_result.offset, number_lit_result.len),
+                span: Pos::new(self.file_id, number_lit_result.offset, number_lit_result.len),
             })
         }
     }
@@ -240,7 +240,7 @@ impl<'err> Scanner<'err> {
         if let TokenKind::Invalid = kind {
             None
         } else {
-            let span = Span::new(path, offset, value.len());
+            let span = Pos::new(path, offset, value.len());
             Some(Token {
                 kind,
                 value: value.into(),
@@ -251,7 +251,7 @@ impl<'err> Scanner<'err> {
 
     fn scan_comment(&mut self) -> Option<Token> {
         let value = self.next_if_prefix("//")?;
-        let mut span = Span::new(self.file_id, value[0].offset, 2);
+        let mut span = Pos::new(self.file_id, value[0].offset, 2);
         let mut value = String::from("//");
 
         while let Some(c) = self.source_code.pop_front() {
@@ -259,7 +259,7 @@ impl<'err> Scanner<'err> {
             if c.ch == '\n' {
                 break;
             }
-            span.union(&Span::new(self.file_id, c.offset, 1));
+            span.union(&Pos::new(self.file_id, c.offset, 1));
         }
 
         Some(Token {
@@ -287,12 +287,12 @@ impl<'err> Scanner<'err> {
     fn scan_unexpected_chars(&mut self) -> Option<Token> {
         let char_pos = self.source_code.pop_front()?;
         let c = char_pos.ch;
-        let span = Span::new(self.file_id, char_pos.offset, 1);
+        let span = Pos::new(self.file_id, char_pos.offset, 1);
         self.err_channel.push(unexpected_char(span, c));
         Some(Token {
             kind: TokenKind::Invalid,
             value: String::from(c).into(),
-            span: Span::new(self.file_id, char_pos.offset, 1),
+            span: Pos::new(self.file_id, char_pos.offset, 1),
         })
     }
 }

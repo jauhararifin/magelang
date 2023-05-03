@@ -1,11 +1,11 @@
-use magelang_common::Span;
+use magelang_common::Pos;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
     pub value: Rc<str>,
-    pub span: Span,
+    pub span: Pos,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -8,7 +8,7 @@ use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
 use crate::tokens::{Token, TokenKind};
 use indexmap::IndexMap;
-use magelang_common::{ErrorAccumulator, FileId, FileInfo, Span, SymbolId, SymbolLoader};
+use magelang_common::{ErrorAccumulator, FileId, FileInfo, Pos, SymbolId, SymbolLoader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -76,7 +76,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_root(mut self) -> PackageNode {
         let mut items = IndexMap::<SymbolId, Vec<ItemNode>>::new();
-        let mut span = Span::new(self.file_id, 0, 0);
+        let mut span = Pos::new(self.file_id, 0, 0);
 
         loop {
             if self.kind() == TokenKind::Eof {
@@ -564,7 +564,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             Token {
                 kind: TokenKind::Eof,
                 value: "".into(),
-                span: Span::new(self.file_id, self.last_offset, 0),
+                span: Pos::new(self.file_id, self.last_offset, 0),
             }
         }
     }

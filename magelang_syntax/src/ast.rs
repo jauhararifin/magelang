@@ -1,20 +1,20 @@
 use crate::tokens::Token;
 use indexmap::IndexMap;
-use magelang_common::{Span, SymbolId};
+use magelang_common::{Pos, SymbolId};
 
 pub trait AstNode {
-    fn get_span(&self) -> Span;
+    fn get_span(&self) -> Pos;
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PackageNode {
-    pub span: Span,
+    pub span: Pos,
     pub items: IndexMap<SymbolId, Vec<ItemNode>>,
     pub comments: Vec<Token>,
 }
 
 impl AstNode for PackageNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
@@ -54,7 +54,7 @@ impl ItemNode {
 }
 
 impl AstNode for ItemNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         match self {
             Self::Import(node) => node.get_span(),
             Self::Function(node) => node.get_span(),
@@ -65,33 +65,33 @@ impl AstNode for ItemNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImportNode {
-    pub span: Span,
+    pub span: Pos,
     pub name: Token,
     pub path: Token,
 }
 
 impl AstNode for ImportNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct FunctionNode {
-    pub span: Span,
+    pub span: Pos,
     pub signature: SignatureNode,
     pub body: BlockStatementNode,
 }
 
 impl AstNode for FunctionNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SignatureNode {
-    pub span: Span,
+    pub span: Pos,
     pub tags: Vec<TagNode>,
     pub name: Token,
     pub parameters: Vec<ParameterNode>,
@@ -99,33 +99,33 @@ pub struct SignatureNode {
 }
 
 impl AstNode for SignatureNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TagNode {
-    pub span: Span,
+    pub span: Pos,
     pub name: Token,
     pub arguments: Vec<Token>,
 }
 
 impl AstNode for TagNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParameterNode {
-    pub span: Span,
+    pub span: Pos,
     pub name: Token,
     pub type_expr: ExprNode,
 }
 
 impl AstNode for ParameterNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
@@ -144,7 +144,7 @@ pub enum StatementNode {
 }
 
 impl AstNode for StatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         match self {
             Self::Let(node) => node.get_span(),
             Self::Assign(node) => node.get_span(),
@@ -161,7 +161,7 @@ impl AstNode for StatementNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct LetStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub name: Token,
     pub kind: LetKind,
 }
@@ -174,39 +174,39 @@ pub enum LetKind {
 }
 
 impl AstNode for LetStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct AssignStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub receiver: ExprNode,
     pub value: ExprNode,
 }
 
 impl AstNode for AssignStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BlockStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub statements: Vec<StatementNode>,
 }
 
 impl AstNode for BlockStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IfStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub condition: ExprNode,
     pub body: BlockStatementNode,
     pub else_ifs: Vec<ElseIfStatementNode>,
@@ -214,45 +214,45 @@ pub struct IfStatementNode {
 }
 
 impl AstNode for IfStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ElseIfStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub condition: ExprNode,
     pub body: BlockStatementNode,
 }
 
 impl AstNode for ElseIfStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct WhileStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub condition: ExprNode,
     pub body: BlockStatementNode,
 }
 
 impl AstNode for WhileStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReturnStatementNode {
-    pub span: Span,
+    pub span: Pos,
     pub value: Option<ExprNode>,
 }
 
 impl AstNode for ReturnStatementNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
@@ -275,7 +275,7 @@ pub enum ExprNode {
 }
 
 impl AstNode for ExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         match self {
             Self::Ident(val) => val.span.clone(),
             Self::IntegerLiteral(val) => val.span.clone(),
@@ -302,7 +302,7 @@ pub struct BinaryExprNode {
 }
 
 impl AstNode for BinaryExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         let mut s = self.a.get_span();
         s.union(&self.b.get_span());
         s
@@ -316,7 +316,7 @@ pub struct UnaryExprNode {
 }
 
 impl AstNode for UnaryExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         let mut s = self.op.span.clone();
         s.union(&self.value.get_span());
         s
@@ -325,13 +325,13 @@ impl AstNode for UnaryExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct CallExprNode {
-    pub span: Span,
+    pub span: Pos,
     pub target: Box<ExprNode>,
     pub arguments: Vec<ExprNode>,
 }
 
 impl AstNode for CallExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
@@ -343,7 +343,7 @@ pub struct CastExprNode {
 }
 
 impl AstNode for CastExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         let mut s = self.value.get_span();
         s.union(&self.target.get_span());
         s
@@ -352,12 +352,12 @@ impl AstNode for CastExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SliceNode {
-    pub span: Span,
+    pub span: Pos,
     pub element: Box<ExprNode>,
 }
 
 impl AstNode for SliceNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.span.clone()
     }
 }
@@ -369,7 +369,7 @@ pub struct SelectionExprNode {
 }
 
 impl AstNode for SelectionExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         let mut s = self.value.get_span();
         s.union(&self.selection.span);
         s
@@ -383,7 +383,7 @@ pub struct IndexExprNode {
 }
 
 impl AstNode for IndexExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         let mut s = self.value.get_span();
         s.union(&self.index.get_span());
         s
@@ -396,7 +396,7 @@ pub struct GroupedExprNode {
 }
 
 impl AstNode for GroupedExprNode {
-    fn get_span(&self) -> Span {
+    fn get_span(&self) -> Pos {
         self.value.get_span()
     }
 }
