@@ -1,12 +1,10 @@
 mod ast;
 mod errors;
-mod number_lit;
 mod parser;
 mod scanner;
 mod tokens;
 
 pub use ast::*;
-pub use number_lit::parse_number_lit;
 pub use tokens::{Token, TokenKind};
 
 use crate::parser::parse;

@@ -1,5 +1,4 @@
 use crate::errors::{invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char};
-use crate::number_lit::{scan_number_lit, NumberLitErrorKind};
 use crate::tokens::{Token, TokenKind};
 use magelang_common::{ErrorAccumulator, FileId, FileInfo, Pos};
 use std::collections::VecDeque;
@@ -227,37 +226,151 @@ impl<'err> Scanner<'err> {
     }
 
     fn scan_number_lit(&mut self) -> Option<Token> {
-        let number_lit_result = scan_number_lit(self.source_code.iter())?;
+        #[derive(Clone, Copy)]
+        pub enum Base {
+            Bin,
+            Dec,
+            Oct,
+            Hex,
+        }
+        #[derive(Clone, Copy)]
+        enum State {
+            Init,
+            Prefix,
+            Integer(Base),
+            Fraction,
+            Exponent,
+            ExponentAfterSign,
+            InvalidSuffix,
+        }
 
-        for err in &number_lit_result.errors {
-            match err.kind {
-                NumberLitErrorKind::InvalidDigit { digit, base } => {
-                    self.err_channel
-                        .push(invalid_digit_in_base(Pos::new(self.file_id, err.offset), digit, base))
-                }
-                NumberLitErrorKind::NonDecimalFraction => self
-                    .err_channel
-                    .push(non_decimal_fraction(Pos::new(self.file_id, err.offset))),
+        let mut value = String::default();
+        let mut offset = None;
+        let mut state = State::Init;
+        let mut is_fractional = false;
+        let mut is_valid = true;
+
+        loop {
+            while let Some(c) = self.source_code.next_if(|c| c == '_') {
+                value.push(c.ch);
             }
+
+            let Some(char_pos) = self.source_code.front() else {
+                break;
+            };
+            let c = char_pos.ch;
+            if offset.is_none() {
+                offset = Some(char_pos.offset);
+            }
+
+            match state {
+                State::Init => match c {
+                    '0' => {
+                        state = State::Prefix;
+                    }
+                    '1'..='9' => state = State::Integer(Base::Dec),
+                    _ => return None,
+                },
+                State::Prefix => match c {
+                    'x' => state = State::Integer(Base::Hex),
+                    'b' => state = State::Integer(Base::Bin),
+                    'o' => state = State::Integer(Base::Oct),
+                    '0'..='7' => state = State::Integer(Base::Oct),
+                    'e' | 'E' => state = State::Exponent,
+                    '.' => {
+                        is_fractional = true;
+                        state = State::Fraction;
+                    }
+                    'a'..='z' | 'A'..='Z' => {
+                        state = State::InvalidSuffix;
+                        continue;
+                    }
+                    _ => break,
+                },
+                State::Integer(base) => match (base, c) {
+                    (Base::Dec, 'e' | 'E') => state = State::Exponent,
+                    (Base::Dec, '.') => {
+                        is_fractional = true;
+                        state = State::Fraction;
+                    }
+                    (_, '.') => {
+                        is_valid = false;
+                        self.err_channel
+                            .push(non_decimal_fraction(Pos::new(self.file_id, char_pos.offset)));
+                    }
+                    (Base::Bin, '0' | '1')
+                    | (Base::Dec, '0'..='9')
+                    | (Base::Oct, '0'..='7')
+                    | (Base::Hex, '0'..='9')
+                    | (Base::Hex, 'a'..='f')
+                    | (Base::Hex, 'A'..='F') => (),
+                    (Base::Bin, '2'..='9') => {
+                        is_valid = false;
+                        self.err_channel
+                            .push(invalid_digit_in_base(Pos::new(self.file_id, char_pos.offset), c, 2))
+                    }
+                    (Base::Oct, '8'..='9') => {
+                        is_valid = false;
+                        self.err_channel
+                            .push(invalid_digit_in_base(Pos::new(self.file_id, char_pos.offset), c, 8))
+                    }
+                    (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z') | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
+                        state = State::InvalidSuffix;
+                        continue;
+                    }
+                    _ => break,
+                },
+                State::Fraction => match c {
+                    'e' | 'E' => state = State::Exponent,
+                    '0'..='9' => (),
+                    'a'..='z' | 'A'..='Z' => {
+                        state = State::InvalidSuffix;
+                        continue;
+                    }
+                    _ => break,
+                },
+                State::Exponent => match c {
+                    '-' => state = State::ExponentAfterSign,
+                    '0'..='9' => state = State::ExponentAfterSign,
+                    'a'..='z' | 'A'..='Z' => {
+                        state = State::InvalidSuffix;
+                        continue;
+                    }
+                    _ => break,
+                },
+                State::ExponentAfterSign => match c {
+                    '0'..='9' => (),
+                    'a'..='z' | 'A'..='Z' => {
+                        state = State::InvalidSuffix;
+                        continue;
+                    }
+                    _ => break,
+                },
+                State::InvalidSuffix => match c {
+                    '0'..='9' | 'a'..='z' | 'A'..='Z' => (),
+                    _ => break,
+                },
+            }
+
+            let c = self.source_code.pop_front().unwrap();
+            value.push(c.ch);
         }
 
-        for _ in 0..number_lit_result.consumed {
-            self.source_code.pop_front();
-        }
+        let offset = offset?;
 
-        if number_lit_result.is_fractional {
+        if is_fractional {
             Some(Token {
                 kind: TokenKind::RealLit,
-                value: number_lit_result.value.into(),
-                is_valid: number_lit_result.errors.is_empty(),
-                pos: Pos::new(self.file_id, number_lit_result.offset),
+                value: value.into(),
+                is_valid,
+                pos: Pos::new(self.file_id, offset),
             })
         } else {
             Some(Token {
                 kind: TokenKind::IntegerLit,
-                value: number_lit_result.value.into(),
-                is_valid: number_lit_result.errors.is_empty(),
-                pos: Pos::new(self.file_id, number_lit_result.offset),
+                value: value.into(),
+                is_valid,
+                pos: Pos::new(self.file_id, offset),
             })
         }
     }
@@ -428,4 +541,41 @@ mod tests {
         false,
         Error::new(Pos::new(FileId::new(0), 13), "Unexpected character 'h'".to_string())
     );
+
+    macro_rules! test_scan_number_lit {
+        ($name:ident, $source:expr, $is_valid:expr, $kind:expr $(,$errors:expr)*) => {
+            #[test]
+            fn $name() {
+                let err_accumulator = ErrorAccumulator::default();
+                let text = $source;
+                let source_code = text
+                    .char_indices()
+                    .map(|(offset, ch)| CharPos {
+                        offset: offset as u32,
+                        ch,
+                    })
+                    .collect::<VecDeque<_>>();
+                let mut scanner = Scanner::new(&err_accumulator, FileId::new(0), source_code);
+                let tok = scanner
+                    .scan_number_lit()
+                    .expect("expected to scan a single number literal");
+
+                assert_eq!(tok.kind, $kind);
+                assert_eq!(tok.value, text.into());
+                assert_eq!(tok.is_valid, $is_valid);
+
+                let expected_errors = vec![$($errors),*];
+                assert_eq!(err_accumulator.take(), expected_errors);
+            }
+        };
+    }
+
+    test_scan_number_lit!(decimal_value, "12345", true, TokenKind::IntegerLit);
+    test_scan_number_lit!(octal_value1, "0777", true, TokenKind::IntegerLit);
+    test_scan_number_lit!(octal_value2, "0o777", true, TokenKind::IntegerLit);
+    test_scan_number_lit!(binary_value, "0b11010101011", true, TokenKind::IntegerLit);
+    test_scan_number_lit!(hex_value, "0xdeadbeef09", true, TokenKind::IntegerLit);
+    test_scan_number_lit!(decimal_floating_value1, "12345.67e-10", true, TokenKind::RealLit);
+    test_scan_number_lit!(decimal_floating_value2, "12345.e-10", true, TokenKind::RealLit);
+    test_scan_number_lit!(decimal_floating_value3, "12e10", true, TokenKind::IntegerLit);
 }
