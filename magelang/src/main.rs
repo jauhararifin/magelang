@@ -52,9 +52,9 @@ fn main() {
             let mut has_error = false;
             for err in err_accumulator.take() {
                 has_error = true;
-                if let Some(span) = &err.span {
-                    let file_info = file_loader.get_file(span.file_id).unwrap();
-                    let pos = file_info.get_pos(span);
+                if let Some(pos) = &err.pos {
+                    let file_info = file_loader.get_file(pos.file_id).unwrap();
+                    let pos = file_info.get_pos(pos);
                     eprintln!("{}: {}", pos, err.message);
                 } else {
                     eprintln!("{}", err.message);

@@ -140,26 +140,22 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_import(&mut self) -> Option<ImportNode> {
         let import_tok = self.take(TokenKind::Import)?;
-        let span = import_tok.pos;
+        let pos = import_tok.pos;
         let name = self.take(TokenKind::Ident)?;
         let path = self.take(TokenKind::StringLit)?;
         self.take(TokenKind::SemiColon)?;
-        Some(ImportNode { pos: span, name, path })
+        Some(ImportNode { pos, name, path })
     }
 
     fn parse_func(&mut self, tags: Vec<TagNode>) -> Option<ItemNode> {
         let signature = self.parse_signature(tags)?;
-        let span = signature.get_pos();
+        let pos = signature.get_pos();
         if self.take_if(TokenKind::SemiColon).is_some() {
             return Some(ItemNode::NativeFunction(signature));
         }
 
         let body = self.parse_block_stmt()?;
-        Some(ItemNode::Function(FunctionNode {
-            pos: span,
-            signature,
-            body,
-        }))
+        Some(ItemNode::Function(FunctionNode { pos, signature, body }))
     }
 
     fn parse_signature(&mut self, tags: Vec<TagNode>) -> Option<SignatureNode> {

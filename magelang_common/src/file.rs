@@ -18,10 +18,10 @@ pub struct FileInfo {
 }
 
 impl FileInfo {
-    pub fn get_pos(&self, span: &Pos) -> PosInfo {
-        let line = self.newlines.partition_point(|off| *off < span.offset) as u32 + 1;
+    pub fn get_pos(&self, pos: &Pos) -> PosInfo {
+        let line = self.newlines.partition_point(|off| *off < pos.offset) as u32 + 1;
         let line_offset = if line <= 1 { 0 } else { self.newlines[line as usize - 2] };
-        let col = span.offset - line_offset + 1;
+        let col = pos.offset - line_offset + 1;
         PosInfo {
             path: self.path.clone(),
             line,

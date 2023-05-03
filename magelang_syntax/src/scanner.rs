@@ -239,18 +239,18 @@ impl<'err> Scanner<'err> {
         if let TokenKind::Invalid = kind {
             None
         } else {
-            let span = Pos::new(path, offset);
+            let pos = Pos::new(path, offset);
             Some(Token {
                 kind,
                 value: value.into(),
-                pos: span,
+                pos,
             })
         }
     }
 
     fn scan_comment(&mut self) -> Option<Token> {
         let value = self.next_if_prefix("//")?;
-        let span = Pos::new(self.file_id, value[0].offset);
+        let pos = Pos::new(self.file_id, value[0].offset);
         let mut value = String::from("//");
 
         while let Some(c) = self.source_code.pop_front() {
@@ -263,7 +263,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::Comment,
             value: value.into(),
-            pos: span,
+            pos,
         })
     }
 
@@ -285,8 +285,8 @@ impl<'err> Scanner<'err> {
     fn scan_unexpected_chars(&mut self) -> Option<Token> {
         let char_pos = self.source_code.pop_front()?;
         let c = char_pos.ch;
-        let span = Pos::new(self.file_id, char_pos.offset);
-        self.err_channel.push(unexpected_char(span, c));
+        let pos = Pos::new(self.file_id, char_pos.offset);
+        self.err_channel.push(unexpected_char(pos, c));
         Some(Token {
             kind: TokenKind::Invalid,
             value: String::from(c).into(),

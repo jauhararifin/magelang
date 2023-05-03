@@ -2,20 +2,20 @@ use crate::pos::Pos;
 use std::cell::RefCell;
 
 pub struct Error {
-    pub span: Option<Pos>,
+    pub pos: Option<Pos>,
     pub message: String,
 }
 
 impl Error {
-    pub fn new(span: Pos, message: String) -> Self {
+    pub fn new(pos: Pos, message: String) -> Self {
         Self {
-            span: Some(span),
+            pos: Some(pos),
             message,
         }
     }
 
     pub fn standalone(message: String) -> Self {
-        Self { span: None, message }
+        Self { pos: None, message }
     }
 }
 
