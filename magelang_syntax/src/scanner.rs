@@ -189,10 +189,10 @@ impl<'err> Scanner<'err> {
                 },
                 State::ReadHex(remaining) => match ch {
                     '0'..='9' | 'a'..='f' | 'A'..='F' => {
-                        state = if remaining == 0 {
+                        state = if remaining == 1 {
                             State::Normal
                         } else {
-                            State::ReadHex(remaining)
+                            State::ReadHex(remaining - 1)
                         }
                     }
                     '"' => {
@@ -345,4 +345,87 @@ impl<'err> Scanner<'err> {
             pos: Pos::new(self.file_id, char_pos.offset),
         })
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use magelang_common::Error;
+
+    macro_rules! test_scan_string_lit {
+        ($name:ident, $source:expr, $is_valid:expr $(,$errors:expr)*) => {
+            #[test]
+            fn $name() {
+                let err_accumulator = ErrorAccumulator::default();
+                let text = $source;
+                let source_code = text
+                    .char_indices()
+                    .map(|(offset, ch)| CharPos {
+                        offset: offset as u32,
+                        ch,
+                    })
+                    .collect::<VecDeque<_>>();
+                let mut scanner = Scanner::new(&err_accumulator, FileId::new(0), source_code);
+                let tok = scanner
+                    .scan_string_lit()
+                    .expect("expected to scan a single string literal");
+
+                assert_eq!(tok.kind, TokenKind::StringLit);
+                assert_eq!(tok.value, text.into());
+                assert_eq!(tok.is_valid, $is_valid);
+
+                let expected_errors = vec![$($errors),*];
+                assert_eq!(err_accumulator.take(), expected_errors);
+            }
+        };
+    }
+
+    test_scan_string_lit!(happy_path, "\"some string\"", true);
+    test_scan_string_lit!(
+        missing_closing_quote,
+        "\"some string",
+        false,
+        Error::new(
+            Pos::new(FileId::new(0), 11),
+            "Missing closing quote in string literal".to_string()
+        )
+    );
+    test_scan_string_lit!(
+        multi_errors,
+        "\"some \\xyz string",
+        false,
+        Error::new(Pos::new(FileId::new(0), 8), "Unexpected character 'y'".to_string()),
+        Error::new(
+            Pos::new(FileId::new(0), 16),
+            "Missing closing quote in string literal".to_string()
+        )
+    );
+    test_scan_string_lit!(tab_escape, "\"this char (\\t) is a tab\"", true);
+    test_scan_string_lit!(carriage_return_escape, "\"this char (\\r) is a CR\"", true);
+    test_scan_string_lit!(double_quote_escape, "\"this char (\\\") is a double quote\"", true);
+    test_scan_string_lit!(escaped_raw_bytes, "\"this is a \\x00\\x01\\x02\\xfF raw bytes\"", true);
+    test_scan_string_lit!(
+        escaped_raw_bytes_with_err,
+        "\"raw byte \\x*f\"",
+        false,
+        Error::new(Pos::new(FileId::new(0), 12), "Unexpected character '*'".to_string())
+    );
+    test_scan_string_lit!(
+        escaped_raw_bytes_with_err2,
+        "\"raw byte \\x\"",
+        false,
+        Error::new(Pos::new(FileId::new(0), 12), "Unexpected character '\"'".to_string())
+    );
+    test_scan_string_lit!(
+        escaped_raw_bytes_with_err3,
+        "\"raw byte \\xa\"",
+        false,
+        Error::new(Pos::new(FileId::new(0), 13), "Unexpected character '\"'".to_string())
+    );
+    test_scan_string_lit!(
+        escaped_raw_bytes_with_err4,
+        "\"raw byte \\xah\"",
+        false,
+        Error::new(Pos::new(FileId::new(0), 13), "Unexpected character 'h'".to_string())
+    );
 }

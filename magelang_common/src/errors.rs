@@ -1,6 +1,7 @@
 use crate::pos::Pos;
 use std::cell::RefCell;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Error {
     pub pos: Option<Pos>,
     pub message: String,

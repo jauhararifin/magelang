@@ -9,6 +9,12 @@ use std::rc::Rc;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct FileId(u32);
 
+impl FileId {
+    pub fn new(val: u32) -> Self {
+        Self(val)
+    }
+}
+
 #[derive(Debug)]
 pub struct FileInfo {
     pub id: FileId,
