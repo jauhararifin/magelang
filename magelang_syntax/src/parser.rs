@@ -539,6 +539,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             Token {
                 kind: TokenKind::Eof,
                 value: "".into(),
+                is_valid: true,
                 pos: Pos::new(self.file_id, self.last_offset),
             }
         }

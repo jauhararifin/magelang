@@ -143,6 +143,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind,
             value: value.into(),
+            is_valid: true,
             pos,
         })
     }
@@ -159,6 +160,7 @@ impl<'err> Scanner<'err> {
         let pos = Pos::new(self.file_id, tok.offset);
         let mut last_offset = tok.offset;
         let mut value = String::from('"');
+        let mut is_valid = true;
         let mut state = State::Normal;
 
         while let Some(char_pos) = self.source_code.pop_front() {
@@ -181,6 +183,7 @@ impl<'err> Scanner<'err> {
                     _ => {
                         self.err_channel
                             .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        is_valid = false;
                         state = State::Normal;
                     }
                 },
@@ -195,11 +198,13 @@ impl<'err> Scanner<'err> {
                     '"' => {
                         self.err_channel
                             .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        is_valid = false;
                         state = State::Closed;
                     }
                     _ => {
                         self.err_channel
                             .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        is_valid = false;
                         state = State::Normal;
                     }
                 },
@@ -210,11 +215,13 @@ impl<'err> Scanner<'err> {
         if !matches!(state, State::Closed) {
             self.err_channel
                 .push(missing_closing_quote(Pos::new(self.file_id, last_offset)));
+            is_valid = false;
         }
 
         Some(Token {
             kind: TokenKind::StringLit,
             value: value.into(),
+            is_valid,
             pos,
         })
     }
@@ -242,12 +249,14 @@ impl<'err> Scanner<'err> {
             Some(Token {
                 kind: TokenKind::RealLit,
                 value: number_lit_result.value.into(),
+                is_valid: number_lit_result.errors.is_empty(),
                 pos: Pos::new(self.file_id, number_lit_result.offset),
             })
         } else {
             Some(Token {
                 kind: TokenKind::IntegerLit,
                 value: number_lit_result.value.into(),
+                is_valid: number_lit_result.errors.is_empty(),
                 pos: Pos::new(self.file_id, number_lit_result.offset),
             })
         }
@@ -283,6 +292,7 @@ impl<'err> Scanner<'err> {
             Some(Token {
                 kind,
                 value: value.into(),
+                is_valid: true,
                 pos,
             })
         }
@@ -303,6 +313,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::Comment,
             value: value.into(),
+            is_valid: true,
             pos,
         })
     }
@@ -330,6 +341,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::Invalid,
             value: String::from(c).into(),
+            is_valid: false,
             pos: Pos::new(self.file_id, char_pos.offset),
         })
     }
