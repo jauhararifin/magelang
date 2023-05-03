@@ -10,7 +10,10 @@ use std::collections::VecDeque;
 pub(crate) fn scan(err_channel: &ErrorAccumulator, file_info: &FileInfo) -> Vec<Token> {
     let mut source_code = VecDeque::new();
     for (offset, ch) in file_info.text.chars().enumerate() {
-        source_code.push_back(CharPos { ch, offset });
+        source_code.push_back(CharPos {
+            ch,
+            offset: offset as u32,
+        });
     }
 
     let mut scanner = Scanner::new(err_channel, file_info.id, source_code);
@@ -25,7 +28,7 @@ pub(crate) fn scan(err_channel: &ErrorAccumulator, file_info: &FileInfo) -> Vec<
 #[derive(Debug)]
 pub(crate) struct CharPos {
     pub ch: char,
-    pub offset: usize,
+    pub offset: u32,
 }
 
 trait QueueExt {
@@ -123,7 +126,7 @@ impl<'err> Scanner<'err> {
             value.push(c.ch);
         }
 
-        let span = Pos::new(self.file_id, tok.offset, value.len());
+        let pos = Pos::new(self.file_id, tok.offset);
         let kind = match value.as_str() {
             "let" => TokenKind::Let,
             "if" => TokenKind::If,
@@ -143,7 +146,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind,
             value: value.into(),
-            span,
+            pos,
         })
     }
 
@@ -152,17 +155,15 @@ impl<'err> Scanner<'err> {
 
         for err in &string_lit_result.errors {
             match err.kind {
-                StringLitErrKind::FoundNewline => {
-                    self.err_channel
-                        .push(unexpected_newline(Pos::new(self.file_id, err.offset, 1)))
-                }
-                StringLitErrKind::MissingClosingQuote => {
-                    self.err_channel
-                        .push(missing_closing_quote(Pos::new(self.file_id, err.offset, 1)))
-                }
+                StringLitErrKind::FoundNewline => self
+                    .err_channel
+                    .push(unexpected_newline(Pos::new(self.file_id, err.offset))),
+                StringLitErrKind::MissingClosingQuote => self
+                    .err_channel
+                    .push(missing_closing_quote(Pos::new(self.file_id, err.offset))),
                 StringLitErrKind::UnexpectedChar(ch) => {
                     self.err_channel
-                        .push(unexpected_char(Pos::new(self.file_id, err.offset, 1), ch));
+                        .push(unexpected_char(Pos::new(self.file_id, err.offset), ch));
                 }
             }
         }
@@ -174,7 +175,7 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::StringLit,
             value: string_lit_result.value.into(),
-            span: Pos::new(self.file_id, string_lit_result.offset, string_lit_result.len),
+            pos: Pos::new(self.file_id, string_lit_result.offset),
         })
     }
 
@@ -183,15 +184,13 @@ impl<'err> Scanner<'err> {
 
         for err in &number_lit_result.errors {
             match err.kind {
-                NumberLitErrorKind::InvalidDigit { digit, base } => self.err_channel.push(invalid_digit_in_base(
-                    Pos::new(self.file_id, err.offset, 1),
-                    digit,
-                    base,
-                )),
-                NumberLitErrorKind::NonDecimalFraction => {
+                NumberLitErrorKind::InvalidDigit { digit, base } => {
                     self.err_channel
-                        .push(non_decimal_fraction(Pos::new(self.file_id, err.offset, 1)))
+                        .push(invalid_digit_in_base(Pos::new(self.file_id, err.offset), digit, base))
                 }
+                NumberLitErrorKind::NonDecimalFraction => self
+                    .err_channel
+                    .push(non_decimal_fraction(Pos::new(self.file_id, err.offset))),
             }
         }
 
@@ -203,13 +202,13 @@ impl<'err> Scanner<'err> {
             Some(Token {
                 kind: TokenKind::RealLit,
                 value: number_lit_result.value.into(),
-                span: Pos::new(self.file_id, number_lit_result.offset, number_lit_result.len),
+                pos: Pos::new(self.file_id, number_lit_result.offset),
             })
         } else {
             Some(Token {
                 kind: TokenKind::IntegerLit,
                 value: number_lit_result.value.into(),
-                span: Pos::new(self.file_id, number_lit_result.offset, number_lit_result.len),
+                pos: Pos::new(self.file_id, number_lit_result.offset),
             })
         }
     }
@@ -240,18 +239,18 @@ impl<'err> Scanner<'err> {
         if let TokenKind::Invalid = kind {
             None
         } else {
-            let span = Pos::new(path, offset, value.len());
+            let span = Pos::new(path, offset);
             Some(Token {
                 kind,
                 value: value.into(),
-                span,
+                pos: span,
             })
         }
     }
 
     fn scan_comment(&mut self) -> Option<Token> {
         let value = self.next_if_prefix("//")?;
-        let mut span = Pos::new(self.file_id, value[0].offset, 2);
+        let span = Pos::new(self.file_id, value[0].offset);
         let mut value = String::from("//");
 
         while let Some(c) = self.source_code.pop_front() {
@@ -259,13 +258,12 @@ impl<'err> Scanner<'err> {
             if c.ch == '\n' {
                 break;
             }
-            span.union(&Pos::new(self.file_id, c.offset, 1));
         }
 
         Some(Token {
             kind: TokenKind::Comment,
             value: value.into(),
-            span,
+            pos: span,
         })
     }
 
@@ -287,12 +285,12 @@ impl<'err> Scanner<'err> {
     fn scan_unexpected_chars(&mut self) -> Option<Token> {
         let char_pos = self.source_code.pop_front()?;
         let c = char_pos.ch;
-        let span = Pos::new(self.file_id, char_pos.offset, 1);
+        let span = Pos::new(self.file_id, char_pos.offset);
         self.err_channel.push(unexpected_char(span, c));
         Some(Token {
             kind: TokenKind::Invalid,
             value: String::from(c).into(),
-            span: Pos::new(self.file_id, char_pos.offset, 1),
+            pos: Pos::new(self.file_id, char_pos.offset),
         })
     }
 }

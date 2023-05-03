@@ -7,7 +7,7 @@ pub(crate) fn unexpected_char(span: Pos, ch: char) -> Error {
 }
 
 pub(crate) fn unexpected_token(token: &Token) -> Error {
-    Error::new(token.span.clone(), format!("Unexpected token '{}'", token.kind))
+    Error::new(token.pos.clone(), format!("Unexpected token '{}'", token.kind))
 }
 
 pub(crate) fn unexpected_newline(span: Pos) -> Error {

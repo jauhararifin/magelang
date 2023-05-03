@@ -44,7 +44,7 @@ struct FileParser<'err, 'sym> {
     tokens: VecDeque<Token>,
     comments: Vec<Token>,
     file_id: FileId,
-    last_offset: usize,
+    last_offset: u32,
 }
 
 impl<'err, 'sym> FileParser<'err, 'sym> {
@@ -76,22 +76,20 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_root(mut self) -> PackageNode {
         let mut items = IndexMap::<SymbolId, Vec<ItemNode>>::new();
-        let mut span = Pos::new(self.file_id, 0, 0);
+        let pos = Pos::new(self.file_id, 0);
 
         loop {
             if self.kind() == TokenKind::Eof {
                 break;
             }
             if let Some(item) = self.parse_item_node() {
-                span.union(&item.get_span());
-                let name = item.name();
-                let name = self.symbol_loader.declare_symbol(name);
+                let name = self.symbol_loader.declare_symbol(item.name());
                 items.entry(name).or_default().push(item);
             }
         }
 
         PackageNode {
-            span,
+            pos,
             items,
             comments: self.comments,
         }
@@ -108,7 +106,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             return None;
         }
 
-        let mut span = tok.span.clone();
+        let pos = tok.pos;
 
         let item = match &tok.kind {
             TokenKind::Fn => self.parse_func(tags),
@@ -122,11 +120,8 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             if let Some(tok) = self.take_if(TokenKind::SemiColon) {
                 tokens.push(tok);
             }
-            for tok in &tokens {
-                span.union(&tok.span);
-            }
             self.err_channel
-                .push(unexpected_parsing(span, "declaration", "invalid syntax"));
+                .push(unexpected_parsing(pos, "declaration", "invalid syntax"));
         }
 
         item
@@ -134,69 +129,69 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_tag(&mut self) -> Option<TagNode> {
         let pound_tag = self.take_if(TokenKind::Pound)?;
-        let mut span = pound_tag.span;
+        let pos = pound_tag.pos;
         let name = self.take(TokenKind::Ident)?;
-        let (_, arguments, close_brac) =
+        let (_, arguments, _) =
             self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
                 this.take_if(TokenKind::StringLit)
             })?;
-        span.union(&close_brac.span);
-        Some(TagNode { span, name, arguments })
+        Some(TagNode { pos, name, arguments })
     }
 
     fn parse_import(&mut self) -> Option<ImportNode> {
         let import_tok = self.take(TokenKind::Import)?;
-        let mut span = import_tok.span;
+        let span = import_tok.pos;
         let name = self.take(TokenKind::Ident)?;
         let path = self.take(TokenKind::StringLit)?;
-        let semicolon = self.take(TokenKind::SemiColon)?;
-        span.union(&semicolon.span);
-        Some(ImportNode { span, name, path })
+        self.take(TokenKind::SemiColon)?;
+        Some(ImportNode { pos: span, name, path })
     }
 
     fn parse_func(&mut self, tags: Vec<TagNode>) -> Option<ItemNode> {
         let signature = self.parse_signature(tags)?;
-        let mut span = signature.get_span();
+        let span = signature.get_pos();
         if self.take_if(TokenKind::SemiColon).is_some() {
             return Some(ItemNode::NativeFunction(signature));
         }
 
         let body = self.parse_block_stmt()?;
-        span.union(&body.get_span());
-        Some(ItemNode::Function(FunctionNode { span, signature, body }))
+        Some(ItemNode::Function(FunctionNode {
+            pos: span,
+            signature,
+            body,
+        }))
     }
 
     fn parse_signature(&mut self, tags: Vec<TagNode>) -> Option<SignatureNode> {
         let func = self.take(TokenKind::Fn)?;
-        let mut span = func.span;
-        if let Some(tag) = tags.first() {
-            span.union(&tag.span);
-        }
+        let pos = if let Some(tag) = tags.first() {
+            tag.pos
+        } else {
+            func.pos
+        };
         let name = self.take(TokenKind::Ident)?;
-        let (_, parameters, close_brac) = self.parse_sequence(
+        let (_, parameters, _) = self.parse_sequence(
             TokenKind::OpenBrac,
             TokenKind::Comma,
             TokenKind::CloseBrac,
             Self::parse_parameter,
         )?;
-        span.union(&close_brac.span);
         let return_type = if self.take_if(TokenKind::Colon).is_some() {
             let Some(expr) = self.parse_expr() else {
                 self.err_channel.push(unexpected_parsing(
-                    span,
+                    pos,
                     "type expression",
                     "nothing",
                 ));
                 return None;
             };
-            span.union(&expr.get_span());
             Some(expr)
         } else {
             None
         };
 
         Some(SignatureNode {
-            span,
+            pos,
             tags,
             name,
             parameters,
@@ -231,18 +226,17 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_parameter(&mut self) -> Option<ParameterNode> {
         let name = self.take(TokenKind::Ident)?;
-        let mut span = name.span.clone();
+        let pos = name.pos.clone();
         let _ = self.take(TokenKind::Colon)?;
         let Some(type_expr) = self.parse_expr() else {
             self.err_channel.push(unexpected_parsing(
-                span,
+                pos,
                 "type expression",
                 "nothing",
             ));
             return None;
         };
-        span.union(&type_expr.get_span());
-        Some(ParameterNode { span, name, type_expr })
+        Some(ParameterNode { pos, name, type_expr })
     }
 
     fn parse_stmt(&mut self) -> Option<StatementNode> {
@@ -256,12 +250,11 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             TokenKind::Return => StatementNode::Return(self.parse_return_stmt()?),
             _ => {
                 let expr = self.parse_expr()?;
-                let mut span = expr.get_span();
+                let pos = expr.get_pos();
                 if self.take_if(TokenKind::Equal).is_some() {
                     let value = self.parse_expr()?;
-                    span.union(&value.get_span());
                     StatementNode::Assign(AssignStatementNode {
-                        span,
+                        pos,
                         receiver: expr,
                         value,
                     })
@@ -274,7 +267,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_let_stmt(&mut self) -> Option<LetStatementNode> {
         let let_tok = self.take(TokenKind::Let)?;
-        let mut span = let_tok.span;
+        let pos = let_tok.pos;
 
         let name = self.take(TokenKind::Ident)?;
 
@@ -282,18 +275,16 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             let ty = self.parse_expr()?;
             if self.take_if(TokenKind::Equal).is_some() {
                 let value = self.parse_expr()?;
-                let semicolon = self.take(TokenKind::SemiColon)?;
-                span.union(&semicolon.span);
+                self.take(TokenKind::SemiColon)?;
                 Some(LetStatementNode {
-                    span,
+                    pos,
                     name,
                     kind: LetKind::TypeValue { ty, value },
                 })
             } else {
-                let semicolon = self.take(TokenKind::SemiColon)?;
-                span.union(&semicolon.span);
+                self.take(TokenKind::SemiColon)?;
                 Some(LetStatementNode {
-                    span,
+                    pos,
                     name,
                     kind: LetKind::TypeOnly { ty },
                 })
@@ -301,10 +292,9 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         } else {
             self.take(TokenKind::Equal)?;
             let value = self.parse_expr()?;
-            let semicolon = self.take(TokenKind::SemiColon)?;
-            span.union(&semicolon.span);
+            self.take(TokenKind::SemiColon)?;
             Some(LetStatementNode {
-                span,
+                pos,
                 name,
                 kind: LetKind::ValueOnly { value },
             })
@@ -313,38 +303,33 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_if_stmt(&mut self) -> Option<IfStatementNode> {
         let if_tok = self.take(TokenKind::If)?;
-        let mut span = if_tok.span;
+        let pos = if_tok.pos;
 
         let condition = self.parse_expr()?;
         let body = self.parse_block_stmt()?;
-        span.union(&body.span);
 
         let mut else_ifs = vec![];
         let mut else_body = None;
 
         while let Some(else_tok) = self.take_if(TokenKind::Else) {
-            let mut else_span = else_tok.span.clone();
+            let else_pos = else_tok.pos.clone();
             if self.take_if(TokenKind::If).is_some() {
                 let condition = self.parse_expr()?;
                 let body = self.parse_block_stmt()?;
-                else_span.union(&body.get_span());
-                span.union(&else_span);
                 else_ifs.push(ElseIfStatementNode {
-                    span: else_span,
+                    pos: else_pos,
                     condition,
                     body,
                 });
             } else {
                 let body = self.parse_block_stmt()?;
-                else_span.union(&body.get_span());
-                span.union(&else_span);
                 else_body = Some(body);
                 break;
             }
         }
 
         Some(IfStatementNode {
-            span,
+            pos,
             condition,
             body,
             else_ifs,
@@ -354,18 +339,17 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn parse_while_stmt(&mut self) -> Option<WhileStatementNode> {
         let while_tok = self.take(TokenKind::While)?;
-        let mut span = while_tok.span;
+        let pos = while_tok.pos;
 
         let condition = self.parse_expr()?;
         let body = self.parse_block_stmt()?;
-        span.union(&body.span);
 
-        Some(WhileStatementNode { span, condition, body })
+        Some(WhileStatementNode { pos, condition, body })
     }
 
     fn parse_block_stmt(&mut self) -> Option<BlockStatementNode> {
         let open = self.take(TokenKind::OpenBlock)?;
-        let mut span = open.span;
+        let pos = open.pos;
         let mut statements = vec![];
         loop {
             let tok = self.token();
@@ -380,32 +364,29 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
                 self.tokens.pop_front();
             }
         }
-        let close = self.take(TokenKind::CloseBlock)?;
-        span.union(&close.span);
-        Some(BlockStatementNode { span, statements })
+        self.take(TokenKind::CloseBlock)?;
+        Some(BlockStatementNode { pos, statements })
     }
 
     fn parse_return_stmt(&mut self) -> Option<ReturnStatementNode> {
         let return_tok = self.take(TokenKind::Return)?;
-        let mut span = return_tok.span;
-        if let Some(semicolon_tok) = self.take_if(TokenKind::SemiColon) {
-            span.union(&semicolon_tok.span);
-            return Some(ReturnStatementNode { span, value: None });
+        let pos = return_tok.pos;
+        if self.take_if(TokenKind::SemiColon).is_some() {
+            return Some(ReturnStatementNode { pos, value: None });
         }
 
         let Some(value) = self.parse_expr() else {
             self.err_channel.push(unexpected_parsing(
-                span,
+                pos,
                 "type expression",
                 "nothing",
             ));
             return None;
         };
 
-        let semicolon_tok = self.take(TokenKind::SemiColon)?;
-        span.union(&semicolon_tok.span);
+        self.take(TokenKind::SemiColon)?;
         Some(ReturnStatementNode {
-            span,
+            pos,
             value: Some(value),
         })
     }
@@ -486,16 +467,15 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             return Some(target);
         }
 
-        let (_, arguments, close_brac) =
+        let (_, arguments, _) =
             self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
                 this.parse_expr()
             })?;
 
-        let mut span = target.get_span();
-        span.union(&close_brac.span);
+        let pos = target.get_pos();
 
         Some(ExprNode::Call(CallExprNode {
-            span,
+            pos,
             target: Box::new(target),
             arguments,
         }))
@@ -505,12 +485,11 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         let Some(open_square_tok) = self.take_if(TokenKind::OpenSquare) else {
             return self.parse_selection_expr();
         };
-        let mut span = open_square_tok.span;
+        let pos = open_square_tok.pos;
         self.take(TokenKind::CloseSquare);
         let element = self.parse_selection_expr()?;
-        span.union(&element.get_span());
         Some(ExprNode::Slice(SliceNode {
-            span,
+            pos,
             element: Box::new(element),
         }))
     }
@@ -564,7 +543,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             Token {
                 kind: TokenKind::Eof,
                 value: "".into(),
-                span: Pos::new(self.file_id, self.last_offset, 0),
+                pos: Pos::new(self.file_id, self.last_offset),
             }
         }
     }
@@ -575,12 +554,12 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
     fn take(&mut self, kind: TokenKind) -> Option<Token> {
         let token = self.tokens.pop_front()?;
-        self.last_offset = token.span.start + token.span.len;
+        self.last_offset = token.pos.offset + token.value.len() as u32;
         if token.kind == kind {
             Some(token)
         } else {
             self.err_channel
-                .push(unexpected_parsing(token.span.clone(), kind, token.kind));
+                .push(unexpected_parsing(token.pos.clone(), kind, token.kind));
             None
         }
     }
@@ -592,7 +571,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             .and_then(|tok| if tok.kind == kind { Some(tok) } else { None });
         if tok.is_some() {
             let tok = self.tokens.pop_front().unwrap();
-            self.last_offset = tok.span.start + tok.span.len;
+            self.last_offset = tok.pos.offset + tok.value.len() as u32;
             Some(tok)
         } else {
             None
@@ -604,7 +583,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         while let Some(tok) = self.tokens.front() {
             if !kind.contains(&tok.kind) {
                 let tok = self.tokens.pop_front().unwrap();
-                self.last_offset = tok.span.start + tok.span.len;
+                self.last_offset = tok.pos.offset + tok.value.len() as u32;
                 tokens.push(tok);
             } else {
                 break;

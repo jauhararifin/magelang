@@ -86,7 +86,7 @@ pub(crate) fn casting_unsupported(span: Pos, initial_ty: impl Display, target_ty
 
 pub(crate) fn undeclared_symbol(token: Token) -> Error {
     Error::new(
-        token.span.clone(),
+        token.pos.clone(),
         format!("Symbol {} is not declared yet", token.value.as_ref()),
     )
 }

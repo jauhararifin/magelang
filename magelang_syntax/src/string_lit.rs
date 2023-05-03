@@ -44,7 +44,6 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                 value,
                 content,
                 offset: start_offset,
-                len: end_offset - start_offset + 1,
                 consumed,
                 errors,
             });
@@ -134,11 +133,11 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
                     let byte = (byte << 4) | (ch as u8 - b'0');
                     content.push(byte);
                     state = State::Normal;
-                } else if ('a' ..='f').contains(&ch) {
+                } else if ('a'..='f').contains(&ch) {
                     let byte = (byte << 4) | (ch as u8 - b'a' + 0xau8);
                     content.push(byte);
                     state = State::Normal;
-                } else if ('A' ..='F').contains(&ch) {
+                } else if ('A'..='F').contains(&ch) {
                     let byte = (byte << 4) | (ch as u8 - b'A' + 0xAu8);
                     content.push(byte);
                     state = State::Normal;
@@ -176,7 +175,6 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
         value,
         content,
         offset: start_offset,
-        len: end_offset - start_offset + 1,
         consumed: end_offset - start_offset + 1,
         errors,
     })
@@ -186,16 +184,15 @@ pub(crate) fn scan_string_lit<'a>(source: impl Iterator<Item = &'a CharPos>) -> 
 pub(crate) struct StringLitResult {
     pub value: String,
     pub content: Vec<u8>,
-    pub offset: usize,
-    pub len: usize,
-    pub consumed: usize,
+    pub offset: u32,
+    pub consumed: u32,
     pub errors: Vec<StringLitError>,
 }
 
 #[derive(Debug)]
 pub(crate) struct StringLitError {
     pub kind: StringLitErrKind,
-    pub offset: usize,
+    pub offset: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,7 +207,10 @@ pub fn parse_string_lit(s: &str) -> Rc<[u8]> {
     let charpos: Vec<_> = s
         .chars()
         .enumerate()
-        .map(|(offset, ch)| CharPos { offset, ch })
+        .map(|(offset, ch)| CharPos {
+            offset: offset as u32,
+            ch,
+        })
         .collect();
     let result = scan_string_lit(charpos.iter()).expect("the parsed string literal should be a valid string literal");
     if !result.errors.is_empty() {
@@ -240,7 +240,7 @@ mod tests {
                 let char_pos: Vec<_> = text
                     .chars()
                     .enumerate()
-                    .map(|(offset, ch)| CharPos { ch, offset })
+                    .map(|(offset, ch)| CharPos { ch, offset: offset as u32 })
                     .collect();
                 let result = scan_string_lit(char_pos.iter()).expect("should return a single string");
                 assert_eq!(result.value.as_str(), expected_value, "value mismatched");

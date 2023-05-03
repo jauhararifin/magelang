@@ -1,5 +1,5 @@
 use crate::errors::{Error, ErrorAccumulator};
-use crate::pos::{PosInfo, Pos};
+use crate::pos::{Pos, PosInfo};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -7,21 +7,21 @@ use std::path::Path;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct FileId(usize);
+pub struct FileId(u32);
 
 #[derive(Debug)]
 pub struct FileInfo {
     pub id: FileId,
     pub path: Rc<Path>,
-    pub newlines: Vec<usize>,
+    pub newlines: Vec<u32>,
     pub text: String,
 }
 
 impl FileInfo {
     pub fn get_pos(&self, span: &Pos) -> PosInfo {
-        let line = self.newlines.partition_point(|off| *off < span.start) + 1;
-        let line_offset = if line <= 1 { 0 } else { self.newlines[line - 2] };
-        let col = span.start - line_offset + 1;
+        let line = self.newlines.partition_point(|off| *off < span.offset) as u32 + 1;
+        let line_offset = if line <= 1 { 0 } else { self.newlines[line as usize - 2] };
+        let col = span.offset - line_offset + 1;
         PosInfo {
             path: self.path.clone(),
             line,
@@ -57,7 +57,7 @@ impl<'err> FileLoader<'err> {
         if let Some(file_id) = path_to_id.get(&path) {
             *file_id
         } else {
-            let file_id = FileId(count);
+            let file_id = FileId(count as u32);
             path_to_id.insert(path.clone(), file_id);
             id_to_path.insert(file_id, path);
             file_id
@@ -81,10 +81,10 @@ impl<'err> FileLoader<'err> {
                 }
             };
 
-            let newlines: Vec<usize> = text
+            let newlines: Vec<u32> = text
                 .chars()
                 .enumerate()
-                .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
+                .filter_map(|(i, c)| if c == '\n' { Some(i as u32) } else { None })
                 .collect();
 
             let file_info = Rc::new(FileInfo {

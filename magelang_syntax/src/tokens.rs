@@ -5,7 +5,7 @@ use std::rc::Rc;
 pub struct Token {
     pub kind: TokenKind,
     pub value: Rc<str>,
-    pub span: Pos,
+    pub pos: Pos,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

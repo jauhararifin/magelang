@@ -180,7 +180,7 @@ pub(crate) struct NumberLitResult {
     pub value: String,
     pub num_value: NumberValue,
     pub is_fractional: bool,
-    pub offset: usize,
+    pub offset: u32,
     pub len: usize,
     pub consumed: usize,
     pub errors: Vec<NumberLitError>,
@@ -203,7 +203,7 @@ impl NumberValue {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct NumberLitError {
     pub kind: NumberLitErrorKind,
-    pub offset: usize,
+    pub offset: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -222,7 +222,10 @@ where
     let charpos: Vec<_> = s
         .chars()
         .enumerate()
-        .map(|(offset, ch)| CharPos { offset, ch })
+        .map(|(offset, ch)| CharPos {
+            offset: offset as u32,
+            ch,
+        })
         .collect();
     let result = scan_number_lit(charpos.iter()).expect("the parsed number literal should be a valid number literal");
     Ok(result.num_value.into())
@@ -275,7 +278,10 @@ mod tests {
                 let char_pos: Vec<_> = text
                     .chars()
                     .enumerate()
-                    .map(|(offset, ch)| CharPos { ch, offset })
+                    .map(|(offset, ch)| CharPos {
+                        ch,
+                        offset: offset as u32,
+                    })
                     .collect();
                 let result = scan_number_lit(char_pos.iter()).expect("should return a single number result");
                 assert_eq!(result, expected_result, "result mismatched");
