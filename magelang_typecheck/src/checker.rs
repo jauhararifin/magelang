@@ -4,15 +4,15 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction, Package,
-    ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
-    WhileStatement,
+    value_from_string_lit, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement,
+    NativeFunction, Package, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId,
+    TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
-    parse_number_lit, parse_string_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode,
-    CallExprNode, CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode,
-    IndexExprNode, ItemNode, LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode,
-    StatementNode, Token, TokenKind, UnaryExprNode, WhileStatementNode,
+    parse_number_lit, AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode,
+    CastExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
+    LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
+    UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
 use std::iter::zip;
@@ -170,7 +170,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
             let object = match first_item {
                 ItemNode::Import(import_node) => {
-                    let package_path = parse_string_lit(&import_node.path.value).to_vec();
+                    let package_path = value_from_string_lit(&import_node.path.value).to_vec();
                     let Ok(package_path) = String::from_utf8(package_path) else {
                         self.err_channel.push(not_a_valid_utf8_package(import_node.path.pos.clone()));
                         continue;
@@ -229,7 +229,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let mut tags = vec![];
                 for tag in &signature.tags {
                     let name = self.symbol_loader.declare_symbol(&tag.name.value);
-                    let arguments = tag.arguments.iter().map(|tok| parse_string_lit(&tok.value)).collect();
+                    let arguments = tag
+                        .arguments
+                        .iter()
+                        .map(|tok| value_from_string_lit(&tok.value))
+                        .collect();
                     tags.push(Tag { name, arguments });
                 }
 
@@ -245,7 +249,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     }
 
     fn check_import(&self, import_node: &ImportNode) {
-        let path = parse_string_lit(&import_node.path.value);
+        let path = value_from_string_lit(&import_node.path.value);
         if path.is_empty() {
             self.err_channel.push(empty_package_path(import_node.path.pos.clone()));
         }
@@ -539,11 +543,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let bool_type_id = self.type_loader.declare_type(Type::Bool);
         if condition.type_id != bool_type_id {
             let ty = self.type_loader.get_type(condition.type_id).unwrap();
-            self.err_channel.push(type_mismatch(
-                cond_expr.get_pos(),
-                "bool",
-                ty.display(self.type_loader),
-            ));
+            self.err_channel
+                .push(type_mismatch(cond_expr.get_pos(), "bool", ty.display(self.type_loader)));
         }
 
         let body_stmt_info = self.check_block_statement(state, scope, str_helper, body, ScopeKind::Basic);
@@ -889,7 +890,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     }
 
     fn get_str_lit_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, tok: &Token) -> Expr {
-        let string_lit = parse_string_lit(&tok.value);
+        let string_lit = value_from_string_lit(&tok.value);
         let index = str_helper.declare_str(&string_lit);
         let u8_type_id = self.symbol_loader.declare_symbol(U8);
         let u8_type_id = scope

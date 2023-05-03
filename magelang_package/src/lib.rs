@@ -1,6 +1,7 @@
 use indexmap::IndexSet;
 use magelang_common::{FileLoader, SymbolId, SymbolLoader};
-use magelang_syntax::{parse_string_lit, AstLoader};
+use magelang_semantic::value_from_string_lit;
+use magelang_syntax::AstLoader;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -50,7 +51,7 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
             let file_id = self.file_loader.declare_file(path);
             let ast = self.ast_loader.get_ast(file_id);
             for import_node in ast.imports() {
-                let next_pkg = parse_string_lit(&import_node.path.value).to_vec();
+                let next_pkg = value_from_string_lit(&import_node.path.value).to_vec();
                 let Ok(next_pkg) = String::from_utf8(next_pkg) else { continue; };
 
                 let next_pkg = self.symbol_loader.declare_symbol(next_pkg);

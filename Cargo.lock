@@ -276,6 +276,7 @@ dependencies = [
  "home",
  "indexmap",
  "magelang_common",
+ "magelang_semantic",
  "magelang_syntax",
 ]
 
