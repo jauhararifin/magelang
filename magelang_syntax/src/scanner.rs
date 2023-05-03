@@ -1,6 +1,5 @@
 use crate::errors::{invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char};
 use crate::number_lit::{scan_number_lit, NumberLitErrorKind};
-use crate::string_lit::{scan_string_lit, StringLitErrKind};
 use crate::tokens::{Token, TokenKind};
 use magelang_common::{ErrorAccumulator, FileId, FileInfo, Pos};
 use std::collections::VecDeque;
@@ -43,6 +42,12 @@ impl QueueExt for VecDeque<CharPos> {
     }
 }
 
+struct Scanner<'err> {
+    err_channel: &'err ErrorAccumulator,
+    file_id: FileId,
+    source_code: VecDeque<CharPos>,
+}
+
 static SYMBOLS: &[(&str, TokenKind)] = &[
     (":", TokenKind::Colon),
     (";", TokenKind::SemiColon),
@@ -78,12 +83,6 @@ static SYMBOLS: &[(&str, TokenKind)] = &[
     ("~", TokenKind::BitNot),
     ("#", TokenKind::Pound),
 ];
-
-struct Scanner<'err> {
-    err_channel: &'err ErrorAccumulator,
-    file_id: FileId,
-    source_code: VecDeque<CharPos>,
-}
 
 impl<'err> Scanner<'err> {
     fn new(err_channel: &'err ErrorAccumulator, file_id: FileId, source_code: VecDeque<CharPos>) -> Self {
@@ -149,28 +148,74 @@ impl<'err> Scanner<'err> {
     }
 
     fn scan_string_lit(&mut self) -> Option<Token> {
-        let string_lit_result = scan_string_lit(self.source_code.iter())?;
+        enum State {
+            Normal,
+            AfterBlackslash,
+            ReadHex(u8),
+            Closed,
+        }
 
-        for err in &string_lit_result.errors {
-            match err.kind {
-                StringLitErrKind::MissingClosingQuote => self
-                    .err_channel
-                    .push(missing_closing_quote(Pos::new(self.file_id, err.offset))),
-                StringLitErrKind::UnexpectedChar(ch) => {
-                    self.err_channel
-                        .push(unexpected_char(Pos::new(self.file_id, err.offset), ch));
-                }
+        let tok = self.source_code.next_if(|c| c == '"')?;
+        let pos = Pos::new(self.file_id, tok.offset);
+        let mut last_offset = tok.offset;
+        let mut value = String::from('"');
+        let mut state = State::Normal;
+
+        while let Some(char_pos) = self.source_code.pop_front() {
+            let ch = char_pos.ch;
+            let offset = char_pos.offset;
+            last_offset = offset;
+            value.push(ch);
+            match state {
+                State::Normal => match ch {
+                    '\\' => state = State::AfterBlackslash,
+                    '"' => {
+                        state = State::Closed;
+                        break;
+                    }
+                    _ => (),
+                },
+                State::AfterBlackslash => match ch {
+                    'n' | 'r' | 't' | '\\' | '0' | '"' | '\'' => state = State::Normal,
+                    'x' => state = State::ReadHex(2),
+                    _ => {
+                        self.err_channel
+                            .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        state = State::Normal;
+                    }
+                },
+                State::ReadHex(remaining) => match ch {
+                    '0'..='9' | 'a'..='f' | 'A'..='F' => {
+                        state = if remaining == 0 {
+                            State::Normal
+                        } else {
+                            State::ReadHex(remaining)
+                        }
+                    }
+                    '"' => {
+                        self.err_channel
+                            .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        state = State::Closed;
+                    }
+                    _ => {
+                        self.err_channel
+                            .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        state = State::Normal;
+                    }
+                },
+                State::Closed => unreachable!(),
             }
         }
 
-        for _ in 0..string_lit_result.value.len() {
-            self.source_code.pop_front();
+        if !matches!(state, State::Closed) {
+            self.err_channel
+                .push(missing_closing_quote(Pos::new(self.file_id, last_offset)));
         }
 
         Some(Token {
             kind: TokenKind::StringLit,
-            value: string_lit_result.value.into(),
-            pos: Pos::new(self.file_id, string_lit_result.offset),
+            value: value.into(),
+            pos,
         })
     }
 
