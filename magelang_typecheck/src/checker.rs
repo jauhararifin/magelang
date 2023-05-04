@@ -946,7 +946,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn get_binary_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, expr: &BinaryExprNode) -> Expr {
         let a_expr = self.get_expr(scope, str_helper, &expr.a, None);
-        let b_expr = self.get_expr(scope, str_helper, &expr.b, None);
+        let a_ty = self.type_loader.get_type(a_expr.type_id).unwrap();
+
+        let b_expr = self.get_expr(scope, str_helper, &expr.b, Some(&a_ty));
+        let b_ty = self.type_loader.get_type(b_expr.type_id).unwrap();
 
         let op_name = match expr.op.kind {
             TokenKind::Add => "add",
@@ -969,9 +972,6 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             TokenKind::LEq => "leq",
             _ => unreachable!("found invalid token for binary operator"),
         };
-
-        let a_ty = self.type_loader.get_type(a_expr.type_id).unwrap();
-        let b_ty = self.type_loader.get_type(b_expr.type_id).unwrap();
 
         if a_expr.type_id != b_expr.type_id {
             self.err_channel.push(binop_type_mismatch(

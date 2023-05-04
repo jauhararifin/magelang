@@ -6,5 +6,13 @@ fn main() {
   wasi.fd_write(1, hello as i32, 1, 0);
 
   let jauhar: *i32 = 36;
-  *jauhar = 123;
+  *jauhar = 44;
+  let jauhar: *i32 = 40;
+  *jauhar = 10;
+  let jauhar: []i32 = 36 as []i32;
+  let i: i32 = 0;
+  while i < 10 {
+    jauhar[i] = i;
+    i = i + 1;
+  }
 }
