@@ -1,7 +1,7 @@
-use magelang_common::{Error, PosInfo, Pos};
+use magelang_common::{Error, Pos, PosInfo};
 use magelang_syntax::Token;
 use std::fmt::Display;
-use std::num::{ParseIntError, ParseFloatError};
+use std::num::{ParseFloatError, ParseIntError};
 
 pub(crate) fn redeclared_symbol(name: &str, declared_at: PosInfo, redeclared_at: Pos) -> Error {
     Error::new(
@@ -107,10 +107,7 @@ pub(crate) fn invalid_main_func(pos: Pos) -> Error {
 }
 
 pub(crate) fn unmatch_function_arguments(pos: Pos, expected: usize, found: usize) -> Error {
-    Error::new(
-        pos,
-        format!("Function expects {expected} arguments, but found {found}"),
-    )
+    Error::new(pos, format!("Function expects {expected} arguments, but found {found}"))
 }
 
 pub(crate) fn expr_unassignable(pos: Pos) -> Error {

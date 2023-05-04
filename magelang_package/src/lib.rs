@@ -51,6 +51,9 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
             let file_id = self.file_loader.declare_file(path);
             let ast = self.ast_loader.get_ast(file_id);
             for import_node in ast.imports() {
+                if !import_node.path.is_valid {
+                    continue;
+                }
                 let next_pkg = value_from_string_lit(&import_node.path.value).to_vec();
                 let Ok(next_pkg) = String::from_utf8(next_pkg) else { continue; };
 
