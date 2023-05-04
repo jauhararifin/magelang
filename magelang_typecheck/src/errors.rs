@@ -34,6 +34,10 @@ pub(crate) fn not_a_type(pos: Pos) -> Error {
     Error::new(pos, String::from("Expression is not a type"))
 }
 
+pub(crate) fn cannot_deref_a_non_pointer(pos: Pos) -> Error {
+    Error::new(pos, String::from("Cannot dereference non pointer type"))
+}
+
 pub(crate) fn not_a_func(pos: Pos) -> Error {
     Error::new(pos, String::from("Expression is not a function"))
 }

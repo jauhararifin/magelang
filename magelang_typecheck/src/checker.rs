@@ -5,14 +5,14 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction, Package,
+    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction, Package, PointerType,
     ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
     WhileStatement,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
-    ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind,
-    LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
+    DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
+    LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
     UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
@@ -489,6 +489,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 index: *index,
                 value: value_expr,
             },
+            ExprKind::Deref(pointer) => Statement::SetAddr {
+                addr: *pointer,
+                value: value_expr,
+            },
             ExprKind::Invalid
             | ExprKind::I64(..)
             | ExprKind::I32(..)
@@ -507,7 +511,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::Binary { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Call { .. }
-            | ExprKind::Cast { .. } => Statement::Invalid,
+            | ExprKind::Cast { .. }
+            | ExprKind::Pointer(..) => Statement::Invalid,
         };
 
         StatementInfo {
@@ -746,6 +751,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     element_type: element_type_id,
                 }))
             }
+            ExprNode::Deref(deref_node) => {
+                let element_type_id = self.get_expr_type(scope, &deref_node.value);
+                self.type_loader.declare_type(Type::Pointer(PointerType {
+                    element_type: element_type_id,
+                }))
+            }
             _ => {
                 self.err_channel.push(not_a_type(expr_node.get_pos()));
                 self.type_loader.declare_type(Type::Invalid)
@@ -767,6 +778,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ExprNode::BooleanLit(tok) => self.get_bool_lit_expr(scope, tok),
             ExprNode::StringLit(tok) => self.get_str_lit_expr(scope, str_helper, tok),
             ExprNode::Binary(binary_expr) => self.get_binary_expr(scope, str_helper, binary_expr),
+            ExprNode::Deref(deref_expr) => self.get_deref_expr(scope, str_helper, deref_expr),
             ExprNode::Unary(unary_expr) => self.get_unary_expr(scope, str_helper, unary_expr),
             ExprNode::Call(call_expr) => self.get_call_expr(scope, str_helper, call_expr),
             ExprNode::Cast(cast_expr) => self.get_cast_expr(scope, str_helper, cast_expr),
@@ -818,6 +830,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Type::U32 => tok.value.parse::<u32>().map(ExprKind::U32),
             Type::U16 => tok.value.parse::<u16>().map(ExprKind::U16),
             Type::U8 => tok.value.parse::<u8>().map(ExprKind::U8),
+            Type::Pointer(pointer_ty) => tok
+                .value
+                .parse::<usize>()
+                .map(|val| ExprKind::Pointer(val, pointer_ty.element_type)),
             _ => tok.value.parse::<i64>().map(ExprKind::I64),
         };
 
@@ -829,21 +845,24 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             }
         };
 
-        let type_name_id = match expected_type.unwrap_or(&Type::Bool) {
-            Type::I32 => self.symbol_loader.declare_symbol(I32),
-            Type::I16 => self.symbol_loader.declare_symbol(I16),
-            Type::I8 => self.symbol_loader.declare_symbol(I8),
-            Type::U64 => self.symbol_loader.declare_symbol(U64),
-            Type::U32 => self.symbol_loader.declare_symbol(U32),
-            Type::U16 => self.symbol_loader.declare_symbol(U16),
-            Type::U8 => self.symbol_loader.declare_symbol(U8),
-            _ => self.symbol_loader.declare_symbol(I64),
+        let type_id = if let Some(Type::Pointer(pointer_ty)) = expected_type {
+            self.type_loader.declare_type(Type::Pointer(pointer_ty.clone()))
+        } else {
+            let type_name_id = match expected_type.unwrap_or(&Type::Bool) {
+                Type::I32 => self.symbol_loader.declare_symbol(I32),
+                Type::I16 => self.symbol_loader.declare_symbol(I16),
+                Type::I8 => self.symbol_loader.declare_symbol(I8),
+                Type::U64 => self.symbol_loader.declare_symbol(U64),
+                Type::U32 => self.symbol_loader.declare_symbol(U32),
+                Type::U16 => self.symbol_loader.declare_symbol(U16),
+                Type::U8 => self.symbol_loader.declare_symbol(U8),
+                _ => self.symbol_loader.declare_symbol(I64),
+            };
+            scope
+                .get(type_name_id)
+                .and_then(|v| v.as_type())
+                .expect("invalid state, type not found")
         };
-
-        let type_id = scope
-            .get(type_name_id)
-            .and_then(|v| v.as_type())
-            .expect("invalid state, type not found");
 
         Expr {
             type_id,
@@ -1056,6 +1075,23 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 op,
                 b: Box::new(b_expr),
             },
+        }
+    }
+
+    fn get_deref_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, expr: &DerefExprNode) -> Expr {
+        let addr_expr = self.get_expr(scope, str_helper, &expr.value, None);
+
+        let value_ty = self.type_loader.get_type(addr_expr.type_id).unwrap();
+        let Type::Pointer(pointer_type) = value_ty.as_ref() else {
+            self.err_channel.push(cannot_deref_a_non_pointer(expr.pos));
+            return self.invalid_value_expr();
+        };
+
+        let element_ty = pointer_type.element_type;
+        Expr {
+            type_id: element_ty,
+            assignable: true,
+            kind: ExprKind::Deref(Box::new(addr_expr)),
         }
     }
 

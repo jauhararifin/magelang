@@ -31,6 +31,8 @@ pub enum ExprKind {
     Call(Box<Expr>, Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
     Cast(Box<Expr>, TypeId),
+    Pointer(usize, TypeId),
+    Deref(Box<Expr>),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]

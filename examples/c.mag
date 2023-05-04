@@ -2,8 +2,9 @@ import wasi "std/wasi";
 
 fn main() {
   let hello = "Hello world\n";
-
   hello[2] = hello[2] + 1 as u8;
-
   wasi.fd_write(1, hello as i32, 1, 0);
+
+  let jauhar: *i32 = 36;
+  *jauhar = 123;
 }

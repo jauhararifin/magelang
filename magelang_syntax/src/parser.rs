@@ -1,8 +1,8 @@
 use crate::ast::{
-    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, ElseIfStatementNode,
-    ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind,
-    LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, SliceNode,
-    StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
+    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, DerefExprNode,
+    ElseIfStatementNode, ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
+    LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode,
+    SliceNode, StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
@@ -418,7 +418,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_cast_expr(&mut self) -> Option<ExprNode> {
-        let value = self.parse_unary_expr()?;
+        let value = self.parse_deref_expr()?;
         if self.take_if(TokenKind::As).is_some() {
             let target = self.parse_expr()?;
             Some(ExprNode::Cast(CastExprNode {
@@ -427,6 +427,18 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             }))
         } else {
             Some(value)
+        }
+    }
+
+    fn parse_deref_expr(&mut self) -> Option<ExprNode> {
+        if let Some(tok) = self.take_if(TokenKind::Mul) {
+            let value = self.parse_deref_expr()?;
+            Some(ExprNode::Deref(DerefExprNode {
+                pos: tok.pos,
+                value: Box::new(value),
+            }))
+        } else {
+            self.parse_unary_expr()
         }
     }
 
@@ -555,8 +567,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         if token.kind == kind {
             Some(token)
         } else {
-            self.err_channel
-                .push(unexpected_parsing(token.pos, kind, token.kind));
+            self.err_channel.push(unexpected_parsing(token.pos, kind, token.kind));
             None
         }
     }

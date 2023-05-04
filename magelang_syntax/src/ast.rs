@@ -265,6 +265,7 @@ pub enum ExprNode {
     BooleanLit(Token),
     StringLit(Token),
     Binary(BinaryExprNode),
+    Deref(DerefExprNode),
     Unary(UnaryExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
@@ -283,6 +284,7 @@ impl AstNode for ExprNode {
             Self::BooleanLit(val) => val.pos,
             Self::StringLit(val) => val.pos,
             Self::Binary(val) => val.get_pos(),
+            Self::Deref(val) => val.get_pos(),
             Self::Unary(val) => val.get_pos(),
             Self::Call(expr) => expr.pos,
             Self::Cast(val) => val.get_pos(),
@@ -304,6 +306,18 @@ pub struct BinaryExprNode {
 impl AstNode for BinaryExprNode {
     fn get_pos(&self) -> Pos {
         self.a.get_pos()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DerefExprNode {
+    pub pos: Pos,
+    pub value: Box<ExprNode>,
+}
+
+impl AstNode for DerefExprNode {
+    fn get_pos(&self) -> Pos {
+        self.pos
     }
 }
 

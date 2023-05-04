@@ -5,7 +5,7 @@ mod value;
 
 pub use expr::{BinOp, Expr, ExprKind, FuncExpr, StringLitExpr, UnOp};
 pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
-pub use types::{FuncType, SliceType, Type, TypeDisplay, TypeId, TypeLoader};
+pub use types::{FuncType, PointerType, SliceType, Type, TypeDisplay, TypeId, TypeLoader};
 pub use value::value_from_string_lit;
 
 use magelang_common::SymbolId;

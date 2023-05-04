@@ -61,6 +61,7 @@ pub enum Type {
     Bool,
     Func(FuncType),
     Slice(SliceType),
+    Pointer(PointerType),
 }
 
 impl Type {
@@ -97,6 +98,7 @@ impl Type {
                 | Self::F64
                 | Self::F32
                 | Self::Slice(..)
+                | Self::Pointer(..)
         )
     }
 }
@@ -119,6 +121,7 @@ impl TypeDisplay for Type {
             Self::Bool => String::from("boolean"),
             Self::Func(func_type) => func_type.display(type_loader),
             Self::Slice(slice_type) => slice_type.display(type_loader),
+            Self::Pointer(pointer_type) => pointer_type.display(type_loader),
         }
     }
 }
@@ -156,5 +159,17 @@ impl TypeDisplay for SliceType {
     fn display(&self, type_loader: &TypeLoader) -> String {
         let element = type_loader.get_type(self.element_type).unwrap();
         format!("[]{}", element.display(type_loader))
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub struct PointerType {
+    pub element_type: TypeId,
+}
+
+impl TypeDisplay for PointerType {
+    fn display(&self, type_loader: &TypeLoader) -> String {
+        let element = type_loader.get_type(self.element_type).unwrap();
+        format!("*{}", element.display(type_loader))
     }
 }

@@ -5,6 +5,7 @@ pub enum Statement {
     Invalid,
     SetLocal(usize, Expr),
     SetIndex { target: Expr, index: Expr, value: Expr },
+    SetAddr { addr: Expr, value: Expr },
     If(IfStatement),
     While(WhileStatement),
     Continue,
