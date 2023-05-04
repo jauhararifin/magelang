@@ -420,7 +420,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     fn parse_cast_expr(&mut self) -> Option<ExprNode> {
         let value = self.parse_deref_expr()?;
         if self.take_if(TokenKind::As).is_some() {
-            let target = self.parse_expr()?;
+            let target = self.parse_deref_expr()?;
             Some(ExprNode::Cast(CastExprNode {
                 value: Box::new(value),
                 target: Box::new(target),
