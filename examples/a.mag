@@ -88,10 +88,5 @@ fn main() {
     i = i + 1;
   }
 
-  let jauhar_str: [*]u8 = "jauhar";
-  let arifin_str: [*]u8 = "arifin";
-
-  wasi.fd_write(0, jauhar_str as i32, 6, 0);
-
   return;
 }

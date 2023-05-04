@@ -803,7 +803,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
     fn do_cast(&self, builder: &mut InstrSeqBuilder, src: &Type, dst: &Type) {
         match (src, dst) {
             (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
-            (Type::I64 | Type::U64, Type::I32 | Type::U32) => {
+            (Type::I64 | Type::U64, Type::I32 | Type::U32 | Type::Pointer(..)) => {
                 builder.unop(UnaryOp::I32WrapI64);
             }
             (Type::I64 | Type::U64, Type::I16 | Type::U16) => {
@@ -923,6 +923,13 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             (BinOp::Add, Type::F64) => builder.binop(BinaryOp::F64Add),
             (BinOp::Add, Type::F32) => builder.binop(BinaryOp::F32Add),
+            (BinOp::Add, Type::Pointer(ptr_ty)) => {
+                let element_ty = self.type_loader.get_type(ptr_ty.element_type).unwrap();
+                let (size, _) = get_size_and_alignment(&element_ty);
+                builder.i32_const(size as i32);
+                builder.binop(BinaryOp::I32Mul);
+                builder.binop(BinaryOp::I32Add)
+            }
 
             (BinOp::Sub, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Sub),
             (BinOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
@@ -930,6 +937,13 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             (BinOp::Sub, Type::F64) => builder.binop(BinaryOp::F64Sub),
             (BinOp::Sub, Type::F32) => builder.binop(BinaryOp::F32Sub),
+            (BinOp::Sub, Type::Pointer(ptr_ty)) => {
+                let element_ty = self.type_loader.get_type(ptr_ty.element_type).unwrap();
+                let (size, _) = get_size_and_alignment(&element_ty);
+                builder.i32_const(size as i32);
+                builder.binop(BinaryOp::I32Mul);
+                builder.binop(BinaryOp::I32Sub)
+            }
 
             (BinOp::Mul, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Mul),
             (BinOp::Mul, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {

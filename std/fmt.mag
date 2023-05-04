@@ -1,2 +1,49 @@
+import wasi "std/wasi";
 
-fn print_i64(n: i64) {}
+fn print_i64(n: i64) {
+  let pointer: *u8 = (40 + 8) as *u8;
+  let negative = false;
+
+  let count: u32 = 0;
+  if n < 0 {
+    *pointer = 45 // the ascii for '-'
+    pointer = pointer + 1;
+    count = count + 1;
+    n = n * -1;
+    negative = true;
+  }
+  if n == 0 {
+    *pointer = 48; // the ascii for '0'
+    pointer = pointer + 1;
+    count = count + 1;
+  }
+  while n > 0 {
+    *pointer = (n % 10 + 48) as u8;
+    pointer = pointer + 1;
+    count = count + 1;
+    n = n / 10;
+  }
+
+  let pointer: *u32 = 40;
+  *pointer = (40 + 8) as u32;
+  let pointer: *u32 = (40 + 4) as *u32;
+  *pointer = count;
+
+  let string_arr: []u8 = 40 as []u8;
+
+  // need to reverse string
+  let i: i32 = 0;
+  if negative {
+    i = 1;
+  }
+  let j: i32 = (count as i32) - 1;
+  while i < j {
+    let temp = string_arr[i];
+    string_arr[i] = string_arr[j];
+    string_arr[j] = temp;
+    i = i + 1;
+    j = j - 1;
+  }
+
+  wasi.fd_write(1, string_arr as i32, 1, 0);
+}
