@@ -785,7 +785,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, str_helper, selection_expr),
             ExprNode::Index(index_expr) => self.get_index_expr(scope, str_helper, index_expr),
             ExprNode::Grouped(expr) => self.get_expr(scope, str_helper, &expr.value, expected_type),
-            _ => todo!(),
+            ExprNode::Slice(..) => todo!("slice is not a value expression"),
         }
     }
 
