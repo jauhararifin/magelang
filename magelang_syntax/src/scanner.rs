@@ -1,4 +1,4 @@
-use crate::errors::{invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char};
+use crate::errors::SyntaxErrorAccumulator;
 use crate::tokens::{Token, TokenKind};
 use magelang_common::{ErrorAccumulator, FileId, Pos};
 use std::collections::VecDeque;
@@ -42,7 +42,7 @@ impl QueueExt for VecDeque<CharPos> {
 }
 
 struct Scanner<'err> {
-    err_channel: &'err ErrorAccumulator,
+    errors: SyntaxErrorAccumulator<'err>,
     file_id: FileId,
     source_code: VecDeque<CharPos>,
 }
@@ -86,7 +86,7 @@ static SYMBOLS: &[(&str, TokenKind)] = &[
 impl<'err> Scanner<'err> {
     fn new(err_channel: &'err ErrorAccumulator, file_id: FileId, source_code: VecDeque<CharPos>) -> Self {
         Self {
-            err_channel,
+            errors: SyntaxErrorAccumulator::new(err_channel, file_id),
             file_id,
             source_code,
         }
@@ -178,8 +178,7 @@ impl<'err> Scanner<'err> {
                     'n' | 'r' | 't' | '\\' | '0' | '"' | '\'' => state = State::Normal,
                     'x' => state = State::ReadHex(2),
                     _ => {
-                        self.err_channel
-                            .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        self.errors.unexpected_char(offset, ch);
                         state = State::Normal;
                     }
                 },
@@ -192,13 +191,11 @@ impl<'err> Scanner<'err> {
                         }
                     }
                     '"' => {
-                        self.err_channel
-                            .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        self.errors.unexpected_char(offset, ch);
                         state = State::Closed;
                     }
                     _ => {
-                        self.err_channel
-                            .push(unexpected_char(Pos::new(self.file_id, offset), ch));
+                        self.errors.unexpected_char(offset, ch);
                         state = State::Normal;
                     }
                 },
@@ -207,8 +204,7 @@ impl<'err> Scanner<'err> {
         }
 
         if !matches!(state, State::Closed) {
-            self.err_channel
-                .push(missing_closing_quote(Pos::new(self.file_id, last_offset)));
+            self.errors.missing_closing_quote(last_offset);
         }
 
         Some(Token {
@@ -286,8 +282,7 @@ impl<'err> Scanner<'err> {
                         state = State::Fraction;
                     }
                     (_, '.') => {
-                        self.err_channel
-                            .push(non_decimal_fraction(Pos::new(self.file_id, char_pos.offset)));
+                        self.errors.non_decimal_fraction(char_pos.offset);
                     }
                     (Base::Bin, '0' | '1')
                     | (Base::Dec, '0'..='9')
@@ -296,12 +291,10 @@ impl<'err> Scanner<'err> {
                     | (Base::Hex, 'a'..='f')
                     | (Base::Hex, 'A'..='F') => (),
                     (Base::Bin, '2'..='9') => {
-                        self.err_channel
-                            .push(invalid_digit_in_base(Pos::new(self.file_id, char_pos.offset), c, 2))
+                        self.errors.invalid_digit_in_base(char_pos.offset, c, 2);
                     }
                     (Base::Oct, '8'..='9') => {
-                        self.err_channel
-                            .push(invalid_digit_in_base(Pos::new(self.file_id, char_pos.offset), c, 8))
+                        self.errors.invalid_digit_in_base(char_pos.offset, c, 8);
                     }
                     (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z') | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
                         state = State::InvalidSuffix;
@@ -434,8 +427,7 @@ impl<'err> Scanner<'err> {
     fn scan_unexpected_chars(&mut self) -> Option<Token> {
         let char_pos = self.source_code.pop_front()?;
         let c = char_pos.ch;
-        let pos = Pos::new(self.file_id, char_pos.offset);
-        self.err_channel.push(unexpected_char(pos, c));
+        self.errors.unexpected_char(char_pos.offset, c);
         Some(Token {
             kind: TokenKind::Invalid,
             value: String::from(c).into(),

@@ -223,11 +223,10 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::Local(..)
             | ExprKind::StringLit(..)
             | ExprKind::Deref(..) => (),
-            ExprKind::Func(func_expr) => match func_expr {
-                FuncExpr::Normal(func_expr) => {
+            ExprKind::Func(func_expr) => {
+                if let FuncExpr::Normal(func_expr) = func_expr {
                     result.push(GlobalId(func_expr.package_name, func_expr.function_name));
                 }
-                _ => (),
             },
             ExprKind::Binary { a, op: _, b } => {
                 Self::get_called_functions_in_expr(a, result);

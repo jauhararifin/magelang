@@ -1,30 +1,57 @@
-use crate::Token;
-use magelang_common::{Error, Pos};
+use crate::{Token, TokenKind};
+use magelang_common::{Error, ErrorAccumulator, FileId, Pos};
 use std::fmt::Display;
 
-pub(crate) fn unexpected_char(pos: Pos, ch: char) -> Error {
-    Error::new(pos, format!("Unexpected character '{}'", ch))
+pub(crate) struct SyntaxErrorAccumulator<'err> {
+    err_accumulator: &'err ErrorAccumulator,
+    file_id: FileId,
 }
 
-pub(crate) fn unexpected_token(token: &Token) -> Error {
-    Error::new(token.pos, format!("Unexpected token '{}'", token.kind))
-}
+impl<'err> SyntaxErrorAccumulator<'err> {
+    pub fn new(err_accumulator: &'err ErrorAccumulator, file_id: FileId) -> Self {
+        Self {
+            err_accumulator,
+            file_id,
+        }
+    }
 
-pub(crate) fn invalid_digit_in_base(pos: Pos, digit: char, base: u8) -> Error {
-    Error::new(
-        pos,
-        format!("Invalid digit, cannot use {} for base {} integer", digit, base),
-    )
-}
+    pub fn unexpected_char(&self, offset: u32, ch: char) {
+        let pos = Pos::new(self.file_id, offset);
+        self.err_accumulator
+            .push(Error::new(pos, format!("Unexpected character '{ch}'")));
+    }
 
-pub(crate) fn non_decimal_fraction(pos: Pos) -> Error {
-    Error::new(pos, String::from("Can only use decimal for fractional number"))
-}
+    pub fn unexpected_token(&self, offset: u32, kind: TokenKind) {
+        let pos = Pos::new(self.file_id, offset);
+        self.err_accumulator
+            .push(Error::new(pos, format!("Unexpected token '{kind}'")));
+    }
 
-pub(crate) fn missing_closing_quote(pos: Pos) -> Error {
-    Error::new(pos, String::from("Missing closing quote in string literal"))
-}
+    pub fn invalid_digit_in_base(&self, offset: u32, digit: char, base: u8) {
+        let pos = Pos::new(self.file_id, offset);
+        self.err_accumulator.push(Error::new(
+            pos,
+            format!("Invalid digit, cannot use {digit} for base {base} integer"),
+        ));
+    }
 
-pub(crate) fn unexpected_parsing(pos: Pos, expected: impl Display, found: impl Display) -> Error {
-    Error::new(pos, format!("Expected {expected}, but found {found}"))
+    pub fn non_decimal_fraction(&self, offset: u32) {
+        let pos = Pos::new(self.file_id, offset);
+        self.err_accumulator.push(Error::new(
+            pos,
+            String::from("Can only use decimal for fractional number"),
+        ));
+    }
+
+    pub fn missing_closing_quote(&self, offset: u32) {
+        let pos = Pos::new(self.file_id, offset);
+        self.err_accumulator
+            .push(Error::new(pos, String::from("Missing closing quote in string literal")));
+    }
+
+    pub fn unexpected_parsing(&self, offset: u32, expected: impl Display, found: impl Display) {
+        let pos = Pos::new(self.file_id, offset);
+        self.err_accumulator
+            .push(Error::new(pos, format!("Expected {expected}, but found {found}")));
+    }
 }

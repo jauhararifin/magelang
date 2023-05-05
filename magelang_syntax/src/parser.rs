@@ -4,7 +4,7 @@ use crate::ast::{
     LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode,
     SliceNode, StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
 };
-use crate::errors::{unexpected_parsing, unexpected_token};
+use crate::errors::SyntaxErrorAccumulator;
 use crate::scanner::scan;
 use crate::tokens::{Token, TokenKind};
 use indexmap::IndexMap;
@@ -39,7 +39,7 @@ pub(crate) fn parse(
 }
 
 struct FileParser<'err, 'sym> {
-    err_channel: &'err ErrorAccumulator,
+    errors: SyntaxErrorAccumulator<'err>,
     symbol_loader: &'sym SymbolLoader,
 
     tokens: VecDeque<Token>,
@@ -50,7 +50,7 @@ struct FileParser<'err, 'sym> {
 
 impl<'err, 'sym> FileParser<'err, 'sym> {
     fn new(
-        err_channel: &'err ErrorAccumulator,
+        err_accumulator: &'err ErrorAccumulator,
         symbol_loader: &'sym SymbolLoader,
         file_id: FileId,
         tokens: impl Iterator<Item = Token>,
@@ -66,7 +66,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         }
 
         Self {
-            err_channel,
+            errors: SyntaxErrorAccumulator::new(err_accumulator, file_id),
             symbol_loader,
             tokens: filtered_tokens,
             comments,
@@ -107,7 +107,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             return None;
         }
 
-        let pos = tok.pos;
+        let offset = tok.pos.offset;
 
         let item = match &tok.kind {
             TokenKind::Fn => self.parse_func(tags),
@@ -121,8 +121,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             if let Some(tok) = self.take_if(TokenKind::SemiColon) {
                 tokens.push(tok);
             }
-            self.err_channel
-                .push(unexpected_parsing(pos, "declaration", "invalid syntax"));
+            self.errors.unexpected_parsing(offset, "declaration", "invalid syntax");
         }
 
         item
@@ -175,11 +174,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         )?;
         let return_type = if self.take_if(TokenKind::Colon).is_some() {
             let Some(expr) = self.parse_expr() else {
-                self.err_channel.push(unexpected_parsing(
-                    pos,
-                    "type expression",
-                    "nothing",
-                ));
+                self.errors.unexpected_parsing(pos.offset, "type_expression", "nothing");
                 return None;
             };
             Some(expr)
@@ -226,11 +221,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         let pos = name.pos;
         let _ = self.take(TokenKind::Colon)?;
         let Some(type_expr) = self.parse_expr() else {
-            self.err_channel.push(unexpected_parsing(
-                pos,
-                "type expression",
-                "nothing",
-            ));
+            self.errors.unexpected_parsing(pos.offset, "type_expression", "nothing");
             return None;
         };
         Some(ParameterNode { pos, name, type_expr })
@@ -373,11 +364,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         }
 
         let Some(value) = self.parse_expr() else {
-            self.err_channel.push(unexpected_parsing(
-                pos,
-                "type expression",
-                "nothing",
-            ));
+            self.errors.unexpected_parsing(pos.offset, "type_expression", "nothing");
             return None;
         };
 
@@ -565,7 +552,8 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             }
             TokenKind::SemiColon => None,
             _ => {
-                self.err_channel.push(unexpected_token(&self.token()));
+                let tok = self.token();
+                self.errors.unexpected_token(tok.pos.offset, tok.kind);
                 None
             }
         }
@@ -593,7 +581,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         if token.kind == kind {
             Some(token)
         } else {
-            self.err_channel.push(unexpected_parsing(token.pos, kind, token.kind));
+            self.errors.unexpected_parsing(token.pos.offset, kind, token.kind);
             None
         }
     }
