@@ -495,7 +495,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         };
         let pos = open_square_tok.pos;
         self.take(TokenKind::CloseSquare);
-        let element = self.parse_selection_expr()?;
+        let element = self.parse_slice_expr()?;
         Some(ExprNode::Slice(SliceNode {
             pos,
             element: Box::new(element),
