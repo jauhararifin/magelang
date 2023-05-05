@@ -1016,7 +1016,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
             (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
 
-            // TODO: pointer arithmetic.
+            // TODO: pointer arithmetic. Or maybe don't support pointer arithmetic
             (op, ty) => unreachable!("cannot perform op {op:?} for {ty:?}"),
         };
     }
