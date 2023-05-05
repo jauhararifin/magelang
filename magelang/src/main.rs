@@ -16,6 +16,7 @@ struct CliArgs {
 #[derive(Subcommand, Debug)]
 enum Command {
     Compile(CompileArgs),
+    Check(CheckArgs),
 }
 
 #[derive(Args, Debug)]
@@ -24,6 +25,11 @@ struct CompileArgs {
 
     #[arg(short = 'o', long = "output")]
     output_file: Option<String>,
+}
+
+#[derive(Args, Debug)]
+struct CheckArgs {
+    package_name: String,
 }
 
 fn main() {
@@ -77,6 +83,26 @@ fn main() {
             compiler
                 .compile(packages, main_package, filename)
                 .expect("cannot compile package");
+        }
+        Command::Check(arg) => {
+            let main_package = symbol_loader.declare_symbol(&arg.package_name);
+            type_checker.check_all(main_package);
+
+            let mut has_error = false;
+            for err in err_accumulator.take() {
+                has_error = true;
+                if let Some(pos) = &err.pos {
+                    let file_info = file_loader.get_file(pos.file_id).unwrap();
+                    let pos = file_info.get_pos(pos);
+                    eprintln!("{}: {}", pos, err.message);
+                } else {
+                    eprintln!("{}", err.message);
+                }
+            }
+
+            if has_error {
+                std::process::exit(1);
+            }
         }
     }
 }
