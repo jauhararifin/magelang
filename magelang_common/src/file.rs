@@ -63,7 +63,7 @@ impl<'err> FileLoader<'err> {
         if let Some(file_id) = path_to_id.get(&path) {
             *file_id
         } else {
-            let file_id = FileId(count as u32);
+            let file_id = FileId::new(count as u32);
             path_to_id.insert(path.clone(), file_id);
             id_to_path.insert(file_id, path);
             file_id

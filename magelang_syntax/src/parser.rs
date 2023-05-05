@@ -8,16 +8,17 @@ use crate::errors::{unexpected_parsing, unexpected_token};
 use crate::scanner::scan;
 use crate::tokens::{Token, TokenKind};
 use indexmap::IndexMap;
-use magelang_common::{ErrorAccumulator, FileId, FileInfo, Pos, SymbolId, SymbolLoader};
+use magelang_common::{ErrorAccumulator, FileId, Pos, SymbolId, SymbolLoader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub(crate) fn parse(
     err_channel: &ErrorAccumulator,
     symbol_loader: &SymbolLoader,
-    file_info: &FileInfo,
+    file_id: FileId,
+    source: &str,
 ) -> Rc<PackageNode> {
-    let tokens = scan(err_channel, file_info);
+    let tokens = scan(err_channel, file_id, source);
     let mut comments = vec![];
     let mut filtered_tokens = vec![];
     for tok in tokens {
@@ -32,7 +33,7 @@ pub(crate) fn parse(
         .into_iter()
         .filter(|t| t.kind != TokenKind::Comment)
         .peekable();
-    let parser = FileParser::new(err_channel, symbol_loader, file_info.id, tokens);
+    let parser = FileParser::new(err_channel, symbol_loader, file_id, tokens);
     let root = parser.parse_root();
     Rc::new(root)
 }
@@ -391,8 +392,29 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         self.parse_binary_expr(TokenKind::Or)
     }
 
+    const BINOP_PRECEDENCE: &[TokenKind] = &[
+        TokenKind::Or,
+        TokenKind::And,
+        TokenKind::BitOr,
+        TokenKind::BitXor,
+        TokenKind::BitAnd,
+        TokenKind::Eq,
+        TokenKind::NEq,
+        TokenKind::Lt,
+        TokenKind::LEq,
+        TokenKind::Gt,
+        TokenKind::GEq,
+        TokenKind::ShiftLeft,
+        TokenKind::ShiftRight,
+        TokenKind::Add,
+        TokenKind::Sub,
+        TokenKind::Mul,
+        TokenKind::Div,
+        TokenKind::Mod,
+    ];
+
     fn parse_binary_expr(&mut self, op: TokenKind) -> Option<ExprNode> {
-        let next_op = BINOP_PRECEDENCE.iter().skip_while(|p| *p != &op).nth(1);
+        let next_op = Self::BINOP_PRECEDENCE.iter().skip_while(|p| *p != &op).nth(1);
 
         let a = if let Some(next_op) = next_op {
             self.parse_binary_expr(*next_op)?
@@ -442,8 +464,10 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         }
     }
 
+    const UNARY_OP: &[TokenKind] = &[TokenKind::BitNot, TokenKind::Sub, TokenKind::Add, TokenKind::Not];
+
     fn parse_unary_expr(&mut self) -> Option<ExprNode> {
-        if UNARY_OP.contains(&self.kind()) {
+        if Self::UNARY_OP.contains(&self.kind()) {
             let op = self.tokens.pop_front().unwrap();
             let value = self.parse_unary_expr()?;
             Some(ExprNode::Unary(UnaryExprNode {
@@ -507,19 +531,22 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         if self.take_if(TokenKind::Dot).is_none() {
             return Some(value);
         };
-        let selection = self.take_if(TokenKind::IntegerLit);
-        if let Some(selection) = selection {
-            return Some(ExprNode::Selection(SelectionExprNode {
-                value: Box::new(value),
-                selection,
-            }));
-        }
 
         let selection = self.take(TokenKind::Ident)?;
-        Some(ExprNode::Selection(SelectionExprNode {
+        let mut expr = ExprNode::Selection(SelectionExprNode {
             value: Box::new(value),
             selection,
-        }))
+        });
+
+        while self.take_if(TokenKind::Dot).is_some() {
+            let selection = self.take(TokenKind::Ident)?;
+            expr = ExprNode::Selection(SelectionExprNode {
+                value: Box::new(expr),
+                selection,
+            });
+        }
+
+        Some(expr)
     }
 
     fn parse_primary_expr(&mut self) -> Option<ExprNode> {
@@ -600,25 +627,48 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 }
 
-const BINOP_PRECEDENCE: &[TokenKind] = &[
-    TokenKind::Or,
-    TokenKind::And,
-    TokenKind::BitOr,
-    TokenKind::BitXor,
-    TokenKind::BitAnd,
-    TokenKind::Eq,
-    TokenKind::NEq,
-    TokenKind::Lt,
-    TokenKind::LEq,
-    TokenKind::Gt,
-    TokenKind::GEq,
-    TokenKind::ShiftLeft,
-    TokenKind::ShiftRight,
-    TokenKind::Add,
-    TokenKind::Sub,
-    TokenKind::Mul,
-    TokenKind::Div,
-    TokenKind::Mod,
-];
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use magelang_common::ErrorAccumulator;
 
-const UNARY_OP: &[TokenKind] = &[TokenKind::BitNot, TokenKind::Sub, TokenKind::Add, TokenKind::Not];
+    macro_rules! test_parse_code_errors {
+        ($name:ident, $source:expr, $($expected_errors:expr),*) => {
+            #[test]
+            fn $name() {
+                let err_accumulator = ErrorAccumulator::default();
+                let symbol_loader = SymbolLoader::default();
+                let source_code = $source;
+                let expected_errors = vec![$($expected_errors),*];
+                parse(&err_accumulator, &symbol_loader, FileId::new(0), source_code);
+                let errors = err_accumulator.take();
+                assert_eq!(errors, expected_errors);
+            }
+        }
+    }
+
+    test_parse_code_errors!(
+        empty_main_function,
+        r#"
+        fn main() {
+        }
+        "#,
+    );
+    test_parse_code_errors!(
+        multi_dimensional_slice_type,
+        r#"
+        fn main() {
+            let t: [][]i32;
+            let t: []i32;
+        }
+        "#,
+    );
+    test_parse_code_errors!(
+        selection_expr,
+        r#"
+        fn main() {
+            let t = a.b.c.d.e();
+        }
+        "#,
+    );
+}

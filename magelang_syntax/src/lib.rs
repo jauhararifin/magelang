@@ -40,7 +40,7 @@ impl<'err, 'file, 'sym> AstLoader<'err, 'file, 'sym> {
             .entry(file_id)
             .or_insert_with(|| {
                 let file_info = self.file_loader.get_file(file_id).unwrap();
-                parse(self.err_channel, self.symbol_loader, &file_info)
+                parse(self.err_channel, self.symbol_loader, file_id, &file_info.text)
             })
             .clone()
     }

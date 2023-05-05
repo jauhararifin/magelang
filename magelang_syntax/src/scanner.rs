@@ -1,18 +1,18 @@
 use crate::errors::{invalid_digit_in_base, missing_closing_quote, non_decimal_fraction, unexpected_char};
 use crate::tokens::{Token, TokenKind};
-use magelang_common::{ErrorAccumulator, FileId, FileInfo, Pos};
+use magelang_common::{ErrorAccumulator, FileId, Pos};
 use std::collections::VecDeque;
 
-pub(crate) fn scan(err_channel: &ErrorAccumulator, file_info: &FileInfo) -> Vec<Token> {
+pub(crate) fn scan(err_channel: &ErrorAccumulator, file_id: FileId, source: &str) -> Vec<Token> {
     let mut source_code = VecDeque::new();
-    for (offset, ch) in file_info.text.chars().enumerate() {
+    for (offset, ch) in source.chars().enumerate() {
         source_code.push_back(CharPos {
             ch,
             offset: offset as u32,
         });
     }
 
-    let mut scanner = Scanner::new(err_channel, file_info.id, source_code);
+    let mut scanner = Scanner::new(err_channel, file_id, source_code);
     let mut tokens = vec![];
     while let Some(tok) = scanner.scan() {
         tokens.push(tok);
