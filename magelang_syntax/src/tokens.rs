@@ -5,7 +5,6 @@ use std::rc::Rc;
 pub struct Token {
     pub kind: TokenKind,
     pub value: Rc<str>,
-    pub is_valid: bool,
     pub pos: Pos,
 }
 

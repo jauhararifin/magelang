@@ -1,13 +1,12 @@
 use crate::errors::*;
 use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I16, I32, I64, I8, ISIZE, U16, U32, U64, U8, USIZE};
-use crate::value::parse_string_tok;
 use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement, NativeFunction, Package, PointerType,
-    ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
-    WhileStatement,
+    value_from_string_lit, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement,
+    NativeFunction, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay,
+    TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
@@ -171,7 +170,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
             let object = match first_item {
                 ItemNode::Import(import_node) => {
-                    let Some(package_path) = parse_string_tok(&import_node.path) else {
+                    let Some(package_path) = value_from_string_lit(&import_node.path.value) else {
                         continue;
                     };
                     let package_path = package_path.to_vec();
@@ -234,7 +233,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     let name = self.symbol_loader.declare_symbol(&tag.name.value);
                     let mut arguments = vec![];
                     for arg in &tag.arguments {
-                        let Some(arg) = parse_string_tok(arg) else {
+                        let Some(arg) = value_from_string_lit(&arg.value) else {
                             continue 'outer;
                         };
                         arguments.push(arg);
@@ -254,7 +253,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     }
 
     fn check_import(&self, import_node: &ImportNode) {
-        let Some(path) = parse_string_tok(&import_node.path) else {
+        let Some(path) = value_from_string_lit(&import_node.path.value) else {
             return;
         };
         if path.is_empty() {
@@ -930,7 +929,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             element_type: u8_type_id,
         }));
 
-        let Some(string_lit) = parse_string_tok(tok) else {
+        let Some(string_lit) = value_from_string_lit(&tok.value) else {
             return Expr {
                 type_id,
                 assignable: false,

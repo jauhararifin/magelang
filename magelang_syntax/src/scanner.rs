@@ -142,7 +142,6 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind,
             value: value.into(),
-            is_valid: true,
             pos,
         })
     }
@@ -159,7 +158,6 @@ impl<'err> Scanner<'err> {
         let pos = Pos::new(self.file_id, tok.offset);
         let mut last_offset = tok.offset;
         let mut value = String::from('"');
-        let mut is_valid = true;
         let mut state = State::Normal;
 
         while let Some(char_pos) = self.source_code.pop_front() {
@@ -182,7 +180,6 @@ impl<'err> Scanner<'err> {
                     _ => {
                         self.err_channel
                             .push(unexpected_char(Pos::new(self.file_id, offset), ch));
-                        is_valid = false;
                         state = State::Normal;
                     }
                 },
@@ -197,13 +194,11 @@ impl<'err> Scanner<'err> {
                     '"' => {
                         self.err_channel
                             .push(unexpected_char(Pos::new(self.file_id, offset), ch));
-                        is_valid = false;
                         state = State::Closed;
                     }
                     _ => {
                         self.err_channel
                             .push(unexpected_char(Pos::new(self.file_id, offset), ch));
-                        is_valid = false;
                         state = State::Normal;
                     }
                 },
@@ -214,13 +209,11 @@ impl<'err> Scanner<'err> {
         if !matches!(state, State::Closed) {
             self.err_channel
                 .push(missing_closing_quote(Pos::new(self.file_id, last_offset)));
-            is_valid = false;
         }
 
         Some(Token {
             kind: TokenKind::StringLit,
             value: value.into(),
-            is_valid,
             pos,
         })
     }
@@ -248,7 +241,6 @@ impl<'err> Scanner<'err> {
         let mut offset = None;
         let mut state = State::Init;
         let mut is_fractional = false;
-        let mut is_valid = true;
 
         loop {
             while let Some(c) = self.source_code.next_if(|c| c == '_') {
@@ -294,7 +286,6 @@ impl<'err> Scanner<'err> {
                         state = State::Fraction;
                     }
                     (_, '.') => {
-                        is_valid = false;
                         self.err_channel
                             .push(non_decimal_fraction(Pos::new(self.file_id, char_pos.offset)));
                     }
@@ -305,12 +296,10 @@ impl<'err> Scanner<'err> {
                     | (Base::Hex, 'a'..='f')
                     | (Base::Hex, 'A'..='F') => (),
                     (Base::Bin, '2'..='9') => {
-                        is_valid = false;
                         self.err_channel
                             .push(invalid_digit_in_base(Pos::new(self.file_id, char_pos.offset), c, 2))
                     }
                     (Base::Oct, '8'..='9') => {
-                        is_valid = false;
                         self.err_channel
                             .push(invalid_digit_in_base(Pos::new(self.file_id, char_pos.offset), c, 8))
                     }
@@ -362,14 +351,12 @@ impl<'err> Scanner<'err> {
             Some(Token {
                 kind: TokenKind::RealLit,
                 value: value.into(),
-                is_valid,
                 pos: Pos::new(self.file_id, offset),
             })
         } else {
             Some(Token {
                 kind: TokenKind::IntegerLit,
                 value: value.into(),
-                is_valid,
                 pos: Pos::new(self.file_id, offset),
             })
         }
@@ -405,7 +392,6 @@ impl<'err> Scanner<'err> {
             Some(Token {
                 kind,
                 value: value.into(),
-                is_valid: true,
                 pos,
             })
         }
@@ -426,7 +412,6 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::Comment,
             value: value.into(),
-            is_valid: true,
             pos,
         })
     }
@@ -454,7 +439,6 @@ impl<'err> Scanner<'err> {
         Some(Token {
             kind: TokenKind::Invalid,
             value: String::from(c).into(),
-            is_valid: false,
             pos: Pos::new(self.file_id, char_pos.offset),
         })
     }
@@ -466,7 +450,7 @@ mod tests {
     use magelang_common::Error;
 
     macro_rules! test_scan_string_lit {
-        ($name:ident, $source:expr, $is_valid:expr $(,$errors:expr)*) => {
+        ($name:ident, $source:expr $(,$errors:expr)*) => {
             #[test]
             fn $name() {
                 let err_accumulator = ErrorAccumulator::default();
@@ -485,7 +469,6 @@ mod tests {
 
                 assert_eq!(tok.kind, TokenKind::StringLit);
                 assert_eq!(tok.value, text.into());
-                assert_eq!(tok.is_valid, $is_valid);
 
                 let expected_errors = vec![$($errors),*];
                 assert_eq!(err_accumulator.take(), expected_errors);
@@ -493,11 +476,10 @@ mod tests {
         };
     }
 
-    test_scan_string_lit!(happy_path, "\"some string\"", true);
+    test_scan_string_lit!(happy_path, "\"some string\"");
     test_scan_string_lit!(
         missing_closing_quote,
         "\"some string",
-        false,
         Error::new(
             Pos::new(FileId::new(0), 11),
             "Missing closing quote in string literal".to_string()
@@ -506,44 +488,39 @@ mod tests {
     test_scan_string_lit!(
         multi_errors,
         "\"some \\xyz string",
-        false,
         Error::new(Pos::new(FileId::new(0), 8), "Unexpected character 'y'".to_string()),
         Error::new(
             Pos::new(FileId::new(0), 16),
             "Missing closing quote in string literal".to_string()
         )
     );
-    test_scan_string_lit!(tab_escape, "\"this char (\\t) is a tab\"", true);
-    test_scan_string_lit!(carriage_return_escape, "\"this char (\\r) is a CR\"", true);
-    test_scan_string_lit!(double_quote_escape, "\"this char (\\\") is a double quote\"", true);
-    test_scan_string_lit!(escaped_raw_bytes, "\"this is a \\x00\\x01\\x02\\xfF raw bytes\"", true);
+    test_scan_string_lit!(tab_escape, "\"this char (\\t) is a tab\"");
+    test_scan_string_lit!(carriage_return_escape, "\"this char (\\r) is a CR\"");
+    test_scan_string_lit!(double_quote_escape, "\"this char (\\\") is a double quote\"");
+    test_scan_string_lit!(escaped_raw_bytes, "\"this is a \\x00\\x01\\x02\\xfF raw bytes\"");
     test_scan_string_lit!(
         escaped_raw_bytes_with_err,
         "\"raw byte \\x*f\"",
-        false,
         Error::new(Pos::new(FileId::new(0), 12), "Unexpected character '*'".to_string())
     );
     test_scan_string_lit!(
         escaped_raw_bytes_with_err2,
         "\"raw byte \\x\"",
-        false,
         Error::new(Pos::new(FileId::new(0), 12), "Unexpected character '\"'".to_string())
     );
     test_scan_string_lit!(
         escaped_raw_bytes_with_err3,
         "\"raw byte \\xa\"",
-        false,
         Error::new(Pos::new(FileId::new(0), 13), "Unexpected character '\"'".to_string())
     );
     test_scan_string_lit!(
         escaped_raw_bytes_with_err4,
         "\"raw byte \\xah\"",
-        false,
         Error::new(Pos::new(FileId::new(0), 13), "Unexpected character 'h'".to_string())
     );
 
     macro_rules! test_scan_number_lit {
-        ($name:ident, $source:expr, $is_valid:expr, $kind:expr $(,$errors:expr)*) => {
+        ($name:ident, $source:expr, $kind:expr $(,$errors:expr)*) => {
             #[test]
             fn $name() {
                 let err_accumulator = ErrorAccumulator::default();
@@ -562,7 +539,6 @@ mod tests {
 
                 assert_eq!(tok.kind, $kind);
                 assert_eq!(tok.value, text.into());
-                assert_eq!(tok.is_valid, $is_valid);
 
                 let expected_errors = vec![$($errors),*];
                 assert_eq!(err_accumulator.take(), expected_errors);
@@ -570,12 +546,12 @@ mod tests {
         };
     }
 
-    test_scan_number_lit!(decimal_value, "12345", true, TokenKind::IntegerLit);
-    test_scan_number_lit!(octal_value1, "0777", true, TokenKind::IntegerLit);
-    test_scan_number_lit!(octal_value2, "0o777", true, TokenKind::IntegerLit);
-    test_scan_number_lit!(binary_value, "0b11010101011", true, TokenKind::IntegerLit);
-    test_scan_number_lit!(hex_value, "0xdeadbeef09", true, TokenKind::IntegerLit);
-    test_scan_number_lit!(decimal_floating_value1, "12345.67e-10", true, TokenKind::RealLit);
-    test_scan_number_lit!(decimal_floating_value2, "12345.e-10", true, TokenKind::RealLit);
-    test_scan_number_lit!(decimal_floating_value3, "12e10", true, TokenKind::IntegerLit);
+    test_scan_number_lit!(decimal_value, "12345", TokenKind::IntegerLit);
+    test_scan_number_lit!(octal_value1, "0777", TokenKind::IntegerLit);
+    test_scan_number_lit!(octal_value2, "0o777", TokenKind::IntegerLit);
+    test_scan_number_lit!(binary_value, "0b11010101011", TokenKind::IntegerLit);
+    test_scan_number_lit!(hex_value, "0xdeadbeef09", TokenKind::IntegerLit);
+    test_scan_number_lit!(decimal_floating_value1, "12345.67e-10", TokenKind::RealLit);
+    test_scan_number_lit!(decimal_floating_value2, "12345.e-10", TokenKind::RealLit);
+    test_scan_number_lit!(decimal_floating_value3, "12e10", TokenKind::IntegerLit);
 }
