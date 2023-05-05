@@ -48,10 +48,12 @@ pub trait TypeDisplay {
 pub enum Type {
     Invalid,
     Void,
+    Isize,
     I64,
     I32,
     I16,
     I8,
+    Usize,
     U64,
     U32,
     U16,
@@ -87,10 +89,12 @@ impl Type {
     pub fn is_numeric(&self) -> bool {
         matches!(
             self,
-            Self::I64
+            Self::Isize
+                | Self::I64
                 | Self::I32
                 | Self::I16
                 | Self::I8
+                | Self::Usize
                 | Self::U64
                 | Self::U32
                 | Self::U16
@@ -108,10 +112,12 @@ impl TypeDisplay for Type {
         match self {
             Self::Invalid => String::from("INVALID"),
             Self::Void => String::from("void"),
+            Self::Isize => String::from("isize"),
             Self::I64 => String::from("i64"),
             Self::I32 => String::from("i32"),
             Self::I16 => String::from("i16"),
             Self::I8 => String::from("i8"),
+            Self::Usize => String::from("usize"),
             Self::U64 => String::from("u64"),
             Self::U32 => String::from("u32"),
             Self::U16 => String::from("u16"),

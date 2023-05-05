@@ -22,6 +22,7 @@ pub enum ExprKind {
     F64(f64),
     F32(f32),
     Bool(bool),
+    Isize(i64),
     Usize(u64),
     Local(usize),
     Func(FuncExpr),

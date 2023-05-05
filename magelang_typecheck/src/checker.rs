@@ -1,5 +1,5 @@
 use crate::errors::*;
-use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I16, I32, I64, I8, U16, U32, U64, U8};
+use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I16, I32, I64, I8, ISIZE, U16, U32, U64, U8, USIZE};
 use crate::value::parse_string_tok;
 use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
@@ -505,6 +505,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::F64(..)
             | ExprKind::F32(..)
             | ExprKind::Bool(..)
+            | ExprKind::Isize(..)
             | ExprKind::Usize(..)
             | ExprKind::Func(..)
             | ExprKind::StringLit(..)
@@ -823,9 +824,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn get_int_lit_expr(&self, scope: &Rc<Scope>, tok: &Token, expected_type: Option<&Type>) -> Expr {
         let kind = match expected_type.unwrap_or(&Type::Bool) {
+            Type::Isize => tok.value.parse::<i64>().map(ExprKind::Isize),
             Type::I32 => tok.value.parse::<i32>().map(ExprKind::I32),
             Type::I16 => tok.value.parse::<i16>().map(ExprKind::I16),
             Type::I8 => tok.value.parse::<i8>().map(ExprKind::I8),
+            Type::Usize => tok.value.parse::<u64>().map(ExprKind::Usize),
             Type::U64 => tok.value.parse::<u64>().map(ExprKind::U64),
             Type::U32 => tok.value.parse::<u32>().map(ExprKind::U32),
             Type::U16 => tok.value.parse::<u16>().map(ExprKind::U16),
@@ -849,9 +852,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             self.type_loader.declare_type(Type::Pointer(pointer_ty.clone()))
         } else {
             let type_name_id = match expected_type.unwrap_or(&Type::Bool) {
+                Type::Isize => self.symbol_loader.declare_symbol(ISIZE),
                 Type::I32 => self.symbol_loader.declare_symbol(I32),
                 Type::I16 => self.symbol_loader.declare_symbol(I16),
                 Type::I8 => self.symbol_loader.declare_symbol(I8),
+                Type::Usize => self.symbol_loader.declare_symbol(USIZE),
                 Type::U64 => self.symbol_loader.declare_symbol(U64),
                 Type::U32 => self.symbol_loader.declare_symbol(U32),
                 Type::U16 => self.symbol_loader.declare_symbol(U16),

@@ -35,10 +35,12 @@ pub enum ScopeKind {
     Loop,
 }
 
+pub const ISIZE: &str = "isize";
 pub const I64: &str = "i64";
 pub const I32: &str = "i32";
 pub const I16: &str = "i16";
 pub const I8: &str = "i8";
+pub const USIZE: &str = "usize";
 pub const U64: &str = "u64";
 pub const U32: &str = "u32";
 pub const U16: &str = "u16";
@@ -51,10 +53,12 @@ impl Scope {
     pub fn global(type_loader: &TypeLoader, symbol_loader: &SymbolLoader) -> Rc<Self> {
         let mut symbols = IndexMap::<SymbolId, Object>::new();
 
+        let isize_id = symbol_loader.declare_symbol(ISIZE);
         let i64_id = symbol_loader.declare_symbol(I64);
         let i32_id = symbol_loader.declare_symbol(I32);
         let i16_id = symbol_loader.declare_symbol(I16);
         let i8_id = symbol_loader.declare_symbol(I8);
+        let usize_id = symbol_loader.declare_symbol(USIZE);
         let u64_id = symbol_loader.declare_symbol(U64);
         let u32_id = symbol_loader.declare_symbol(U32);
         let u16_id = symbol_loader.declare_symbol(U16);
@@ -63,10 +67,12 @@ impl Scope {
         let f64_id = symbol_loader.declare_symbol(F64);
         let f32_id = symbol_loader.declare_symbol(F32);
 
+        symbols.insert(isize_id, Object::Type(type_loader.declare_type(Type::Isize)));
         symbols.insert(i64_id, Object::Type(type_loader.declare_type(Type::I64)));
         symbols.insert(i32_id, Object::Type(type_loader.declare_type(Type::I32)));
         symbols.insert(i16_id, Object::Type(type_loader.declare_type(Type::I16)));
         symbols.insert(i8_id, Object::Type(type_loader.declare_type(Type::I8)));
+        symbols.insert(usize_id, Object::Type(type_loader.declare_type(Type::Usize)));
         symbols.insert(u64_id, Object::Type(type_loader.declare_type(Type::U64)));
         symbols.insert(u32_id, Object::Type(type_loader.declare_type(Type::U32)));
         symbols.insert(u16_id, Object::Type(type_loader.declare_type(Type::U16)));

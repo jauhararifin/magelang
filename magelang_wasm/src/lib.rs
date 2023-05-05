@@ -216,6 +216,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::F64(..)
             | ExprKind::F32(..)
             | ExprKind::Bool(..)
+            | ExprKind::Isize(..)
             | ExprKind::Usize(..)
             | ExprKind::Local(..)
             | ExprKind::StringLit(..)
@@ -636,6 +637,9 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Bool(val) => {
                 builder.i32_const(if *val { 1 } else { 0 });
             }
+            ExprKind::Isize(val) => {
+                builder.i32_const(*val as i32);
+            }
             ExprKind::Usize(val) => {
                 builder.i32_const(*val as i32);
             }
@@ -803,7 +807,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
     fn do_cast(&self, builder: &mut InstrSeqBuilder, src: &Type, dst: &Type) {
         match (src, dst) {
             (Type::I64 | Type::U64, Type::I64 | Type::U64) => {}
-            (Type::I64 | Type::U64, Type::I32 | Type::U32 | Type::Pointer(..)) => {
+            (
+                Type::I64 | Type::U64,
+                Type::I32 | Type::U32 | Type::Usize | Type::Isize | Type::Slice(..) | Type::Pointer(..),
+            ) => {
                 builder.unop(UnaryOp::I32WrapI64);
             }
             (Type::I64 | Type::U64, Type::I16 | Type::U16) => {
@@ -814,14 +821,14 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 builder.unop(UnaryOp::I32WrapI64);
                 builder.unop(UnaryOp::I32Extend8S);
             }
-            (Type::I32, Type::I64) => {
+            (Type::I32 | Type::Isize, Type::I64) => {
                 builder.unop(UnaryOp::I64Extend32S);
             }
-            (Type::I32, _) => {}
-            (Type::U32, Type::I64 | Type::U64) => {
+            (Type::I32 | Type::Isize, _) => {}
+            (Type::U32 | Type::Usize, Type::I64 | Type::U64) => {
                 builder.unop(UnaryOp::I64ExtendUI32);
             }
-            (Type::U32, _) => {}
+            (Type::U32 | Type::Usize, _) => {}
             (Type::I16, Type::I64) => {
                 builder.unop(UnaryOp::I64Extend16S);
             }
@@ -842,9 +849,6 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 builder.unop(UnaryOp::I64Extend32S);
             }
             (Type::Slice(..), _) => {}
-            (Type::I64, Type::Slice(..)) => {
-                builder.unop(UnaryOp::I32WrapI64);
-            }
             (source, target) => todo!(
                 "casting from {} to {} is not supported yet",
                 source.display(self.type_loader),
@@ -918,9 +922,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
         match (op, ty.as_ref()) {
             (BinOp::Add, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Add),
-            (BinOp::Add, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
-                builder.binop(BinaryOp::I32Add)
-            }
+            (
+                BinOp::Add,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => builder.binop(BinaryOp::I32Add),
             (BinOp::Add, Type::F64) => builder.binop(BinaryOp::F64Add),
             (BinOp::Add, Type::F32) => builder.binop(BinaryOp::F32Add),
             (BinOp::Add, Type::Pointer(ptr_ty)) => {
@@ -932,9 +937,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
 
             (BinOp::Sub, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Sub),
-            (BinOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
-                builder.binop(BinaryOp::I32Sub)
-            }
+            (
+                BinOp::Sub,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => builder.binop(BinaryOp::I32Sub),
             (BinOp::Sub, Type::F64) => builder.binop(BinaryOp::F64Sub),
             (BinOp::Sub, Type::F32) => builder.binop(BinaryOp::F32Sub),
             (BinOp::Sub, Type::Pointer(ptr_ty)) => {
@@ -946,9 +952,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
 
             (BinOp::Mul, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Mul),
-            (BinOp::Mul, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
-                builder.binop(BinaryOp::I32Mul)
-            }
+            (
+                BinOp::Mul,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => builder.binop(BinaryOp::I32Mul),
             (BinOp::Mul, Type::F64) => builder.binop(BinaryOp::F64Mul),
             (BinOp::Mul, Type::F32) => builder.binop(BinaryOp::F32Mul),
 
@@ -956,6 +963,8 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             (BinOp::Div, Type::U64) => builder.binop(BinaryOp::I64DivU),
             (BinOp::Div, Type::I32) => builder.binop(BinaryOp::I32DivS),
             (BinOp::Div, Type::U32) => builder.binop(BinaryOp::I32DivU),
+            (BinOp::Div, Type::Isize) => builder.binop(BinaryOp::I32DivS),
+            (BinOp::Div, Type::Usize) => builder.binop(BinaryOp::I32DivU),
             (BinOp::Div, Type::F64) => builder.binop(BinaryOp::F64Div),
             (BinOp::Div, Type::F32) => builder.binop(BinaryOp::F32Div),
 
@@ -963,56 +972,58 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             (BinOp::Mod, Type::U64) => builder.binop(BinaryOp::I64RemU),
             (BinOp::Mod, Type::I32) => builder.binop(BinaryOp::I32RemS),
             (BinOp::Mod, Type::U32) => builder.binop(BinaryOp::I32RemU),
+            (BinOp::Mod, Type::Isize) => builder.binop(BinaryOp::I32RemS),
+            (BinOp::Mod, Type::Usize) => builder.binop(BinaryOp::I32RemU),
 
             (BinOp::BitOr, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Or),
-            (BinOp::BitOr, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Or),
+            (BinOp::BitOr, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Or),
 
             (BinOp::BitAnd, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64And),
-            (BinOp::BitAnd, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32And),
+            (BinOp::BitAnd, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32And),
 
             (BinOp::BitXor, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Xor),
-            (BinOp::BitXor, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Xor),
+            (BinOp::BitXor, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Xor),
 
             (BinOp::ShiftLeft, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Shl),
-            (BinOp::ShiftLeft, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Shl),
+            (BinOp::ShiftLeft, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Shl),
             (BinOp::ShiftRight, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64ShrU),
-            (BinOp::ShiftRight, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32ShrU),
+            (BinOp::ShiftRight, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32ShrU),
 
             (BinOp::Eq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Eq),
-            (BinOp::Eq, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Eq),
+            (BinOp::Eq, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Eq),
             (BinOp::Eq, Type::F64) => builder.binop(BinaryOp::F64Eq),
             (BinOp::Eq, Type::F32) => builder.binop(BinaryOp::F32Eq),
 
             (BinOp::NEq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Ne),
-            (BinOp::NEq, Type::I32 | Type::U32) => builder.binop(BinaryOp::I32Ne),
+            (BinOp::NEq, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Ne),
             (BinOp::NEq, Type::F64) => builder.binop(BinaryOp::F64Ne),
             (BinOp::NEq, Type::F32) => builder.binop(BinaryOp::F32Ne),
 
             (BinOp::Gt, Type::I64) => builder.binop(BinaryOp::I64GtS),
-            (BinOp::Gt, Type::I32) => builder.binop(BinaryOp::I32GtS),
+            (BinOp::Gt, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32GtS),
             (BinOp::Gt, Type::U64) => builder.binop(BinaryOp::I64GtU),
-            (BinOp::Gt, Type::U32) => builder.binop(BinaryOp::I32GtU),
+            (BinOp::Gt, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32GtU),
             (BinOp::Gt, Type::F32) => builder.binop(BinaryOp::F32Gt),
             (BinOp::Gt, Type::F64) => builder.binop(BinaryOp::F32Gt),
 
             (BinOp::GEq, Type::I64) => builder.binop(BinaryOp::I64GeS),
-            (BinOp::GEq, Type::I32) => builder.binop(BinaryOp::I32GeS),
+            (BinOp::GEq, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32GeS),
             (BinOp::GEq, Type::U64) => builder.binop(BinaryOp::I64GeU),
-            (BinOp::GEq, Type::U32) => builder.binop(BinaryOp::I32GeU),
+            (BinOp::GEq, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32GeU),
             (BinOp::GEq, Type::F32) => builder.binop(BinaryOp::F32Ge),
             (BinOp::GEq, Type::F64) => builder.binop(BinaryOp::F32Ge),
 
             (BinOp::Lt, Type::I64) => builder.binop(BinaryOp::I64LtS),
-            (BinOp::Lt, Type::I32) => builder.binop(BinaryOp::I32LtS),
+            (BinOp::Lt, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32LtS),
             (BinOp::Lt, Type::U64) => builder.binop(BinaryOp::I64LtU),
-            (BinOp::Lt, Type::U32) => builder.binop(BinaryOp::I32LtU),
+            (BinOp::Lt, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32LtU),
             (BinOp::Lt, Type::F32) => builder.binop(BinaryOp::F32Lt),
             (BinOp::Lt, Type::F64) => builder.binop(BinaryOp::F32Lt),
 
             (BinOp::LEq, Type::I64) => builder.binop(BinaryOp::I64LeS),
-            (BinOp::LEq, Type::I32) => builder.binop(BinaryOp::I32LeS),
+            (BinOp::LEq, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32LeS),
             (BinOp::LEq, Type::U64) => builder.binop(BinaryOp::I64LeU),
-            (BinOp::LEq, Type::U32) => builder.binop(BinaryOp::I32LeU),
+            (BinOp::LEq, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32LeU),
             (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
             (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
 
@@ -1030,7 +1041,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 self.process_expr(builder, val);
                 builder.binop(BinaryOp::I64Xor);
             }
-            (UnOp::BitNot, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+            (
+                UnOp::BitNot,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => {
                 builder.i32_const(-1);
                 self.process_expr(builder, val);
                 builder.binop(BinaryOp::I32Xor);
@@ -1043,7 +1057,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 self.process_expr(builder, val);
                 builder.binop(BinaryOp::I64Sub);
             }
-            (UnOp::Sub, Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8) => {
+            (
+                UnOp::Sub,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => {
                 builder.i32_const(0);
                 self.process_expr(builder, val);
                 builder.binop(BinaryOp::I32Sub);
@@ -1073,7 +1090,15 @@ fn mangle_func(package_name: &str, function_name: &str) -> String {
 fn to_wasm_type(ty: &Type) -> ValType {
     match ty {
         Type::I64 | Type::U64 => ValType::I64,
-        Type::I32 | Type::U32 | Type::I16 | Type::U16 | Type::I8 | Type::U8 | Type::Bool => ValType::I32,
+        Type::Isize
+        | Type::Usize
+        | Type::I32
+        | Type::U32
+        | Type::I16
+        | Type::U16
+        | Type::I8
+        | Type::U8
+        | Type::Bool => ValType::I32,
         Type::F64 => ValType::F64,
         Type::F32 => ValType::F32,
         Type::Slice(_) => ValType::I32,
@@ -1086,7 +1111,7 @@ fn to_wasm_type(ty: &Type) -> ValType {
 fn get_size_and_alignment(ty: &Type) -> (usize, usize) {
     match ty {
         Type::I64 | Type::U64 => (8, 8),
-        Type::I32 | Type::U32 => (4, 4),
+        Type::Isize | Type::Usize | Type::I32 | Type::U32 => (4, 4),
         Type::I16 | Type::U16 => (2, 2),
         Type::I8 | Type::U8 => (1, 1),
         Type::F64 => (8, 8),

@@ -1,7 +1,7 @@
 import wasi "std/wasi";
 
 fn print_i64(n: i64) {
-  let pointer: *u8 = (40 + 8) as *u8;
+  let pointer: *u8 = (40 as usize + 8 as usize) as *u8;
   let negative = false;
 
   let count: u32 = 0;
