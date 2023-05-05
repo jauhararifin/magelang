@@ -580,13 +580,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     ) -> StatementInfo {
         let mut ifs = vec![(&node.condition, &node.body)];
         ifs.extend(node.else_ifs.iter().map(|else_if| (&else_if.condition, &else_if.body)));
-        self.check_if_like_statement(
-            state,
-            scope,
-            str_helper,
-            ifs.as_slice(),
-            node.else_body.as_ref(),
-        )
+        self.check_if_like_statement(state, scope, str_helper, ifs.as_slice(), node.else_body.as_ref())
     }
 
     fn check_if_like_statement(
