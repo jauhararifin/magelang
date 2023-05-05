@@ -5,8 +5,8 @@ use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoad
 use magelang_package::PackageUtil;
 use magelang_semantic::{
     value_from_string_lit, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement,
-    NativeFunction, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type, TypeDisplay,
-    TypeId, TypeLoader, UnOp, WhileStatement,
+    NativeFunction, NormalFunc, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type,
+    TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
@@ -374,10 +374,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let target_ty = self.type_loader.get_type(target_ty_id).unwrap();
 
                 let expr_kind = match target_ty.as_ref() {
+                    Type::Invalid => ExprKind::Invalid,
+                    Type::Isize => ExprKind::Isize(0),
                     Type::I64 => ExprKind::I64(0),
                     Type::I32 => ExprKind::I32(0),
                     Type::I16 => ExprKind::I16(0),
                     Type::I8 => ExprKind::I8(0),
+                    Type::Usize => ExprKind::Usize(0),
                     Type::U64 => ExprKind::U64(0),
                     Type::U32 => ExprKind::U32(0),
                     Type::U16 => ExprKind::U16(0),
@@ -385,8 +388,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::F32 => ExprKind::F32(0.0),
                     Type::F64 => ExprKind::F64(0.0),
                     Type::Bool => ExprKind::Bool(false),
-                    Type::Slice(_) => ExprKind::Usize(0),
-                    _ => todo!(),
+                    Type::Slice(..) => ExprKind::Usize(0),
+                    Type::Pointer(..) => ExprKind::Usize(0),
+                    Type::Func(..) => ExprKind::Func(FuncExpr::Empty),
+                    Type::Void => panic!("can't use void in local variable"),
                 };
                 let value_expr = Expr {
                     type_id: target_ty_id,
@@ -439,6 +444,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let value = self.get_expr(scope, str_helper, value, None);
                 let type_id = value.type_id;
                 let local_id = state.use_local(type_id);
+
+                let ty = self.type_loader.get_type(type_id).unwrap();
+                if ty.is_void() {
+                    todo!("cannot use void as local variable type");
+                }
+
                 StatementInfo {
                     statement: Statement::SetLocal(local_id, value),
                     is_returning: false,
@@ -511,8 +522,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::Binary { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Call { .. }
-            | ExprKind::Cast { .. }
-            | ExprKind::Pointer(..) => Statement::Invalid,
+            | ExprKind::Cast { .. } => Statement::Invalid,
         };
 
         StatementInfo {
@@ -556,7 +566,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         if condition.type_id != bool_type_id {
             let ty = self.type_loader.get_type(condition.type_id).unwrap();
             self.err_channel
-                .push(type_mismatch(cond_expr.get_pos(), "bool", ty.display(self.type_loader)));
+                .push(type_mismatch(cond_expr.get_pos(), BOOL, ty.display(self.type_loader)));
         }
 
         let body_stmt_info = self.check_block_statement(state, scope, str_helper, body, ScopeKind::Basic);
@@ -785,7 +795,19 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, str_helper, selection_expr),
             ExprNode::Index(index_expr) => self.get_index_expr(scope, str_helper, index_expr),
             ExprNode::Grouped(expr) => self.get_expr(scope, str_helper, &expr.value, expected_type),
-            ExprNode::Slice(..) => todo!("slice is not a value expression"),
+            ExprNode::Slice(..) => {
+                self.err_channel.push(not_a_value(expr_node.get_pos()));
+                let type_id = if let Some(expected_type) = expected_type {
+                    self.type_loader.declare_type(expected_type.clone())
+                } else {
+                    self.type_loader.declare_type(Type::Invalid)
+                };
+                Expr {
+                    type_id,
+                    assignable: false,
+                    kind: ExprKind::Invalid,
+                }
+            }
         }
     }
 
@@ -797,7 +819,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let symbol_id = self.symbol_loader.declare_symbol(&tok.value);
         let Some(ident_object) = scope.get(symbol_id) else {
             self.err_channel.push(undeclared_symbol(tok.clone()));
-            return self.invalid_value_expr();
+            return Expr {
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: false,
+                kind: ExprKind::Invalid,
+            };
         };
 
         match ident_object {
@@ -809,14 +835,18 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Object::Func(type_id) => Expr {
                 type_id,
                 assignable: false,
-                kind: ExprKind::Func(FuncExpr {
+                kind: ExprKind::Func(FuncExpr::Normal(NormalFunc {
                     package_name: scope.package_name().unwrap(),
                     function_name: symbol_id,
-                }),
+                })),
             },
             _ => {
                 self.err_channel.push(not_a_value(tok.pos));
-                self.invalid_value_expr()
+                Expr {
+                    type_id: self.type_loader.declare_type(Type::Invalid),
+                    assignable: false,
+                    kind: ExprKind::Invalid,
+                }
             }
         }
     }
@@ -832,10 +862,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Type::U32 => tok.value.parse::<u32>().map(ExprKind::U32),
             Type::U16 => tok.value.parse::<u16>().map(ExprKind::U16),
             Type::U8 => tok.value.parse::<u8>().map(ExprKind::U8),
-            Type::Pointer(pointer_ty) => tok
-                .value
-                .parse::<usize>()
-                .map(|val| ExprKind::Pointer(val, pointer_ty.element_type)),
+            Type::Pointer(..) => tok.value.parse::<u64>().map(ExprKind::Usize),
             _ => tok.value.parse::<i64>().map(ExprKind::I64),
         };
 
@@ -1088,7 +1115,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let value_ty = self.type_loader.get_type(addr_expr.type_id).unwrap();
         let Type::Pointer(pointer_type) = value_ty.as_ref() else {
             self.err_channel.push(cannot_deref_a_non_pointer(expr.pos));
-            return self.invalid_value_expr();
+            return Expr {
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: false,
+                kind: ExprKind::Invalid,
+            };
         };
 
         let element_ty = pointer_type.element_type;
@@ -1146,7 +1177,17 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let ty = self.type_loader.get_type(func_expr.type_id).unwrap();
         let Type::Func(func_type) = ty.as_ref() else {
             self.err_channel.push(not_a_func(call_expr.target.get_pos()));
-            return self.invalid_value_expr();
+            return Expr {
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: false,
+                kind: ExprKind::Invalid,
+            };
+        };
+
+        let ret_type = if let Some(ret_ty) = func_type.return_type {
+            ret_ty
+        } else {
+            self.type_loader.declare_type(Type::Void)
         };
 
         if call_expr.arguments.len() != func_type.parameters.len() {
@@ -1155,7 +1196,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 func_type.parameters.len(),
                 call_expr.arguments.len(),
             ));
-            return self.invalid_value_expr();
+            return Expr {
+                type_id: ret_type,
+                assignable: false,
+                kind: ExprKind::Invalid,
+            };
         }
 
         let mut arguments = vec![];
@@ -1171,17 +1216,15 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     param_ty.display(self.type_loader),
                     arg_ty.display(self.type_loader),
                 ));
-                return self.invalid_value_expr();
+                return Expr {
+                    type_id: *param,
+                    assignable: false,
+                    kind: ExprKind::Invalid,
+                };
             }
 
             arguments.push(arg_expr);
         }
-
-        let ret_type = if let Some(ret_ty) = func_type.return_type {
-            ret_ty
-        } else {
-            self.type_loader.declare_type(Type::Void)
-        };
 
         Expr {
             type_id: ret_type,
@@ -1196,7 +1239,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let target_is_number = target_ty.is_numeric();
 
         if let Type::Invalid = target_ty.as_ref() {
-            return self.invalid_value_expr();
+            return Expr {
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: false,
+                kind: ExprKind::Invalid,
+            };
         }
 
         let value = self.get_expr(scope, str_helper, &cast_expr.value, None);
@@ -1240,7 +1287,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return selection;
         }
 
-        todo!("non-package selection is not supported yet");
+        self.err_channel
+            .push(field_not_found(sel_expr.selection.pos, &sel_expr.selection.value));
+        Expr {
+            type_id: self.type_loader.declare_type(Type::Invalid),
+            assignable: false,
+            kind: ExprKind::Invalid,
+        }
     }
 
     fn get_package_selection_expr(&self, scope: &Rc<Scope>, sel_expr: &SelectionExprNode) -> Option<Expr> {
@@ -1265,7 +1318,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let target_ty = self.type_loader.get_type(target.type_id).unwrap();
         let Type::Slice(slice_ty) = target_ty.as_ref() else {
             self.err_channel.push(not_indexable(index_expr.value.get_pos()));
-            return self.invalid_value_expr();
+            return Expr{
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: false,
+                kind: ExprKind::Invalid,
+            }
         };
 
         let index = self.get_expr(scope, str_helper, &index_expr.index, None);
@@ -1283,14 +1340,6 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             type_id: slice_ty.element_type,
             assignable: true,
             kind: ExprKind::Index(Box::new(target), Box::new(index)),
-        }
-    }
-
-    fn invalid_value_expr(&self) -> Expr {
-        Expr {
-            type_id: self.type_loader.declare_type(Type::Invalid),
-            assignable: false,
-            kind: ExprKind::Invalid,
         }
     }
 }

@@ -1,5 +1,7 @@
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{BinOp, Expr, ExprKind, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp};
+use magelang_semantic::{
+    BinOp, Expr, ExprKind, FuncExpr, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
+};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::rc::Rc;
@@ -220,11 +222,13 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::Usize(..)
             | ExprKind::Local(..)
             | ExprKind::StringLit(..)
-            | ExprKind::Pointer(..)
             | ExprKind::Deref(..) => (),
-            ExprKind::Func(func_expr) => {
-                result.push(GlobalId(func_expr.package_name, func_expr.function_name));
-            }
+            ExprKind::Func(func_expr) => match func_expr {
+                FuncExpr::Normal(func_expr) => {
+                    result.push(GlobalId(func_expr.package_name, func_expr.function_name));
+                }
+                _ => (),
+            },
             ExprKind::Binary { a, op: _, b } => {
                 Self::get_called_functions_in_expr(a, result);
                 Self::get_called_functions_in_expr(b, result);
@@ -721,9 +725,6 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Unary { op, val } => {
                 self.process_unary_expr(builder, *op, val);
             }
-            ExprKind::Pointer(addr, _) => {
-                builder.i32_const(*addr as i32);
-            }
             ExprKind::Deref(addr) => {
                 let ty = self.type_loader.get_type(addr.type_id).unwrap();
                 let Type::Pointer(pointer_ty) = ty.as_ref() else {
@@ -771,16 +772,23 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         }
 
         let ExprKind::Func(func_expr) = &target.kind else {
-            todo!("currently, calling by function pointer is not supported yet");
+            unreachable!("the callee expression is not a function");
         };
 
-        let ident_pair = GlobalId(func_expr.package_name, func_expr.function_name);
-        if let Some(func_id) = self.function_ids.get(&ident_pair) {
-            builder.call(*func_id);
-        } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
-            self.process_builtin_call(builder, builtin_name);
-        } else {
-            unreachable!("function definition is not found");
+        match func_expr {
+            FuncExpr::Empty => {
+                todo!("cannot call nil function");
+            }
+            FuncExpr::Normal(func_expr) => {
+                let ident_pair = GlobalId(func_expr.package_name, func_expr.function_name);
+                if let Some(func_id) = self.function_ids.get(&ident_pair) {
+                    builder.call(*func_id);
+                } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
+                    self.process_builtin_call(builder, builtin_name);
+                } else {
+                    unreachable!("function definition is not found");
+                }
+            }
         }
     }
 
