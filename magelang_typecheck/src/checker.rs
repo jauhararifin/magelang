@@ -286,7 +286,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         );
         let body = statement_info.statement;
 
-        if func_type.return_type.is_some() && !statement_info.is_returning {
+        let function_need_return = func_type
+            .return_type
+            .map(|type_id| !self.type_loader.get_type(type_id).unwrap().is_void())
+            .unwrap_or(false);
+        if function_need_return && !statement_info.is_returning {
             self.err_channel
                 .push(missing_return_statement(func_node.signature.get_pos()));
         }
@@ -372,6 +376,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             LetKind::TypeOnly { ty } => {
                 let target_ty_id = self.get_expr_type(scope, ty);
                 let target_ty = self.type_loader.get_type(target_ty_id).unwrap();
+                let local_id = state.use_local(target_ty_id);
 
                 let expr_kind = match target_ty.as_ref() {
                     Type::Invalid => ExprKind::Invalid,
@@ -391,14 +396,27 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::Slice(..) => ExprKind::Usize(0),
                     Type::Pointer(..) => ExprKind::Usize(0),
                     Type::Func(..) => ExprKind::Func(FuncExpr::Empty),
-                    Type::Void => panic!("can't use void in local variable"),
+                    Type::Void => {
+                        self.err_channel.push(cannot_use_type_for_local(
+                            ty.get_pos(),
+                            target_ty.display(self.type_loader),
+                        ));
+                        return StatementInfo {
+                            statement: Statement::Invalid,
+                            is_returning: false,
+                            new_scope: Some(scope.new_child(
+                                ScopeKind::Basic,
+                                IndexMap::from([(name_sym, Object::Local(target_ty_id, local_id))]),
+                            )),
+                        };
+                    }
                 };
+
                 let value_expr = Expr {
                     type_id: target_ty_id,
                     assignable: false,
                     kind: expr_kind,
                 };
-                let local_id = state.use_local(target_ty_id);
 
                 StatementInfo {
                     statement: Statement::SetLocal(local_id, value_expr),
@@ -412,6 +430,22 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             LetKind::TypeValue { ty, value } => {
                 let target_ty_id = self.get_expr_type(scope, ty);
                 let target_ty = self.type_loader.get_type(target_ty_id).unwrap();
+                let local_id = state.use_local(target_ty_id);
+
+                if target_ty.is_void() {
+                    self.err_channel.push(cannot_use_type_for_local(
+                        ty.get_pos(),
+                        target_ty.display(self.type_loader),
+                    ));
+                    return StatementInfo {
+                        statement: Statement::Invalid,
+                        is_returning: false,
+                        new_scope: Some(scope.new_child(
+                            ScopeKind::Basic,
+                            IndexMap::from([(name_sym, Object::Local(target_ty_id, local_id))]),
+                        )),
+                    };
+                }
 
                 let mut value_expr = self.get_expr(scope, str_helper, value, Some(&target_ty));
                 let type_id = value_expr.type_id;
@@ -429,7 +463,6 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                         kind: ExprKind::Invalid,
                     }
                 }
-                let local_id = state.use_local(target_ty_id);
 
                 StatementInfo {
                     statement: Statement::SetLocal(local_id, value_expr),
@@ -441,13 +474,23 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }
             }
             LetKind::ValueOnly { value } => {
+                let pos = value.get_pos();
                 let value = self.get_expr(scope, str_helper, value, None);
                 let type_id = value.type_id;
                 let local_id = state.use_local(type_id);
 
                 let ty = self.type_loader.get_type(type_id).unwrap();
                 if ty.is_void() {
-                    todo!("cannot use void as local variable type");
+                    self.err_channel
+                        .push(cannot_use_type_for_local(pos, ty.display(self.type_loader)));
+                    return StatementInfo {
+                        statement: Statement::Invalid,
+                        is_returning: false,
+                        new_scope: Some(scope.new_child(
+                            ScopeKind::Basic,
+                            IndexMap::from([(name_sym, Object::Local(type_id, local_id))]),
+                        )),
+                    };
                 }
 
                 StatementInfo {

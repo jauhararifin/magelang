@@ -48,6 +48,7 @@ pub const U8: &str = "u8";
 pub const BOOL: &str = "bool";
 pub const F64: &str = "f64";
 pub const F32: &str = "f32";
+pub const VOID: &str = "void";
 
 impl Scope {
     pub fn global(type_loader: &TypeLoader, symbol_loader: &SymbolLoader) -> Rc<Self> {
@@ -66,6 +67,7 @@ impl Scope {
         let bool_id = symbol_loader.declare_symbol(BOOL);
         let f64_id = symbol_loader.declare_symbol(F64);
         let f32_id = symbol_loader.declare_symbol(F32);
+        let void_id = symbol_loader.declare_symbol(VOID);
 
         symbols.insert(isize_id, Object::Type(type_loader.declare_type(Type::Isize)));
         symbols.insert(i64_id, Object::Type(type_loader.declare_type(Type::I64)));
@@ -80,6 +82,7 @@ impl Scope {
         symbols.insert(bool_id, Object::Type(type_loader.declare_type(Type::Bool)));
         symbols.insert(f64_id, Object::Type(type_loader.declare_type(Type::F64)));
         symbols.insert(f32_id, Object::Type(type_loader.declare_type(Type::F32)));
+        symbols.insert(void_id, Object::Type(type_loader.declare_type(Type::Void)));
 
         Rc::new(Self {
             parent: None,

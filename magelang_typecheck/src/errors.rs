@@ -125,3 +125,7 @@ pub(crate) fn not_in_a_loop(pos: Pos, name: &str) -> Error {
 pub(crate) fn field_not_found(pos: Pos, field_name: &str) -> Error {
     Error::new(pos, format!("A field named {field_name} is not present"))
 }
+
+pub(crate) fn cannot_use_type_for_local(pos: Pos, ty: impl Display) -> Error {
+    Error::new(pos, format!("Cannot use {ty} type for a local variable"))
+}
