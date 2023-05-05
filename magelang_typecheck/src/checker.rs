@@ -140,11 +140,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let first_item = item_iter.next().unwrap();
         for item in item_iter {
             let declared_at = first_item.get_pos();
-            let declared_at = self
-                .file_loader
-                .get_file(file_id)
-                .expect("cannot find file")
-                .get_pos(&declared_at);
+            let declared_at = self.file_loader.get_file(file_id).unwrap().get_pos(&declared_at);
 
             let name = self.symbol_loader.get_symbol(name).unwrap();
             self.err_channel
@@ -932,10 +928,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Type::U8 => self.symbol_loader.declare_symbol(U8),
                 _ => self.symbol_loader.declare_symbol(I64),
             };
-            scope
-                .get(type_name_id)
-                .and_then(|v| v.as_type())
-                .expect("invalid state, type not found")
+            scope.get(type_name_id).and_then(|v| v.as_type()).unwrap()
         };
 
         Expr {
@@ -955,10 +948,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         };
 
         let f64_type_id = self.symbol_loader.declare_symbol(F64);
-        let f64_type_id = scope
-            .get(f64_type_id)
-            .and_then(|v| v.as_type())
-            .expect("invalid state, f64 type should be found");
+        let f64_type_id = scope.get(f64_type_id).and_then(|v| v.as_type()).unwrap();
 
         Expr {
             type_id: f64_type_id,
@@ -977,10 +967,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         };
 
         let bool_type_id = self.symbol_loader.declare_symbol(BOOL);
-        let bool_type_id = scope
-            .get(bool_type_id)
-            .and_then(|v| v.as_type())
-            .expect("invalid state, bool type should be found");
+        let bool_type_id = scope.get(bool_type_id).and_then(|v| v.as_type()).unwrap();
 
         Expr {
             type_id: bool_type_id,
@@ -991,10 +978,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
     fn get_str_lit_expr(&self, scope: &Rc<Scope>, str_helper: &mut ConstStrHelper, tok: &Token) -> Expr {
         let u8_type_id = self.symbol_loader.declare_symbol(U8);
-        let u8_type_id = scope
-            .get(u8_type_id)
-            .and_then(|v| v.as_type())
-            .expect("invalid state, u8 type should be found");
+        let u8_type_id = scope.get(u8_type_id).and_then(|v| v.as_type()).unwrap();
         let type_id = self.type_loader.declare_type(Type::Slice(SliceType {
             element_type: u8_type_id,
         }));

@@ -671,4 +671,22 @@ mod tests {
         }
         "#,
     );
+    test_parse_code_errors!(
+        function_signatures,
+        r#"
+        fn some_function() {
+        }
+
+        fn some_function(a: i32, b: i64) {
+        }
+
+        fn some_function(): void {
+        }
+
+        fn some_function(a: i32, b: i32): i32 {
+        }
+
+        fn some_function();
+        "#,
+    );
 }
