@@ -10,8 +10,8 @@ use magelang_semantic::{
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
-    DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
-    LetKind, LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
+    DerefExprNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind,
+    LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
     UnaryExprNode, WhileStatementNode,
 };
 use std::cell::RefCell;
@@ -578,13 +578,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         str_helper: &mut ConstStrHelper,
         node: &IfStatementNode,
     ) -> StatementInfo {
+        let mut ifs = vec![(&node.condition, &node.body)];
+        ifs.extend(node.else_ifs.iter().map(|else_if| (&else_if.condition, &else_if.body)));
         self.check_if_like_statement(
             state,
             scope,
             str_helper,
-            &node.condition,
-            &node.body,
-            node.else_ifs.as_slice(),
+            ifs.as_slice(),
             node.else_body.as_ref(),
         )
     }
@@ -594,33 +594,23 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         state: &mut FunctionCheckState,
         scope: &Rc<Scope>,
         str_helper: &mut ConstStrHelper,
-        cond_expr: &ExprNode,
-        body: &BlockStatementNode,
-        else_ifs: &[ElseIfStatementNode],
+        ifs: &[(&ExprNode, &BlockStatementNode)],
         else_body: Option<&BlockStatementNode>,
     ) -> StatementInfo {
-        let condition = self.get_expr(scope, str_helper, cond_expr, Some(&Type::Bool));
+        let condition = self.get_expr(scope, str_helper, ifs[0].0, Some(&Type::Bool));
 
         let bool_type_id = self.type_loader.declare_type(Type::Bool);
         if condition.type_id != bool_type_id {
             let ty = self.type_loader.get_type(condition.type_id).unwrap();
             self.err_channel
-                .push(type_mismatch(cond_expr.get_pos(), BOOL, ty.display(self.type_loader)));
+                .push(type_mismatch(ifs[0].0.get_pos(), BOOL, ty.display(self.type_loader)));
         }
 
-        let body_stmt_info = self.check_block_statement(state, scope, str_helper, body, ScopeKind::Basic);
+        let body_stmt_info = self.check_block_statement(state, scope, str_helper, ifs[0].1, ScopeKind::Basic);
 
         let mut is_returning = body_stmt_info.is_returning && else_body.is_some();
-        let else_body = if let Some(else_if) = else_ifs.first() {
-            let stmt_info = self.check_if_like_statement(
-                state,
-                scope,
-                str_helper,
-                &else_if.condition,
-                &else_if.body,
-                &else_ifs[1..],
-                else_body,
-            );
+        let else_body = if ifs.len() > 1 {
+            let stmt_info = self.check_if_like_statement(state, scope, str_helper, &ifs[1..], else_body);
             is_returning = is_returning && stmt_info.is_returning;
             Some(Box::new(stmt_info.statement))
         } else if let Some(else_body) = else_body {
