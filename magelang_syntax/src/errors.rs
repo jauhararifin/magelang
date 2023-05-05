@@ -1,4 +1,4 @@
-use crate::{Token, TokenKind};
+use crate::TokenKind;
 use magelang_common::{Error, ErrorAccumulator, FileId, Pos};
 use std::fmt::Display;
 
