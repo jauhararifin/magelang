@@ -7,7 +7,7 @@ use std::error::Error;
 use std::rc::Rc;
 use walrus::{
     ir::BinaryOp, ir::InstrSeqId, ir::UnaryOp, ActiveData, ActiveDataLocation, DataKind, FunctionBuilder, FunctionId,
-    FunctionKind, InitExpr, InstrSeqBuilder, LocalId, MemoryId, Module, ValType,
+    FunctionKind, GlobalId as WasmGlobalId, InitExpr, InstrSeqBuilder, LocalId, MemoryId, Module, ValType,
 };
 
 pub struct Compiler<'sym, 'typ> {
@@ -56,6 +56,7 @@ pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     symbol_loader: &'sym SymbolLoader,
     type_loader: &'typ TypeLoader,
     module: &'pkg mut Module,
+    data_end_ptr: Option<WasmGlobalId>,
     packages: &'pkg [Rc<Package>],
     main_package: SymbolId,
     reachable_functions: HashSet<GlobalId>,
@@ -76,6 +77,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             symbol_loader,
             type_loader,
             module,
+            data_end_ptr: None,
             packages,
             main_package,
             reachable_functions: HashSet::default(),
@@ -91,8 +93,8 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         self.declare_local_functions();
         self.build_main_func();
         let memory_id = self.build_global_memory();
-        let data_size = self.build_data_segment(memory_id);
-        self.build_mem_pointers(data_size);
+        let data_end = self.build_data_segment(memory_id);
+        self.build_mem_pointers(data_end);
 
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
@@ -121,6 +123,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 memory_id,
                 &variables,
                 self.type_loader,
+                self.data_end_ptr.unwrap(),
                 &self.data_offset_table,
                 &self.function_ids,
                 &self.builtin_functions,
@@ -223,6 +226,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::Local(..)
             | ExprKind::SizeOf(..)
             | ExprKind::AlignOf(..)
+            | ExprKind::DataEnd
             | ExprKind::StringLit(..)
             | ExprKind::Deref(..) => (),
             ExprKind::Func(func_expr) => {
@@ -399,15 +403,15 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         offset
     }
 
-    fn build_mem_pointers(&mut self, data_size: usize) {
-        self.module.globals.add_local(
+    fn build_mem_pointers(&mut self, data_end: usize) {
+        self.data_end_ptr = Some(self.module.globals.add_local(
             ValType::I32,
             false,
-            InitExpr::Value(walrus::ir::Value::I32(data_size as i32)),
-        );
+            InitExpr::Value(walrus::ir::Value::I32(data_end as i32)),
+        ));
 
         let stack_size = 0x1000;
-        let heap_start_offset = data_size + stack_size;
+        let heap_start_offset = data_end + stack_size;
         self.module.globals.add_local(
             ValType::I32,
             false,
@@ -425,6 +429,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
 
 struct FunctionCompiler<'typ, 'pkg> {
     type_loader: &'typ TypeLoader,
+    data_end_ptr: WasmGlobalId,
     variables: &'pkg [LocalId],
 
     memory_id: MemoryId,
@@ -439,12 +444,14 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         memory_id: MemoryId,
         variables: &'pkg [LocalId],
         type_loader: &'typ TypeLoader,
+        data_end_ptr: WasmGlobalId,
         data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
         function_ids: &'pkg HashMap<GlobalId, FunctionId>,
         builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
     ) -> Self {
         Self {
             type_loader,
+            data_end_ptr,
             memory_id,
             variables,
             loop_blocks: vec![],
@@ -660,6 +667,9 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 let ty = self.type_loader.get_type(*type_id).unwrap();
                 let (_, align) = get_size_and_alignment(&ty);
                 builder.i32_const(align as i32);
+            }
+            ExprKind::DataEnd => {
+                builder.global_get(self.data_end_ptr);
             }
             ExprKind::StringLit(str_lit) => {
                 let offset = self.data_offsets.get(&(str_lit.package_name, str_lit.index)).unwrap();

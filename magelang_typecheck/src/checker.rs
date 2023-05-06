@@ -558,6 +558,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::Usize(..)
             | ExprKind::SizeOf(..)
             | ExprKind::AlignOf(..)
+            | ExprKind::DataEnd
             | ExprKind::Func(..)
             | ExprKind::StringLit(..)
             | ExprKind::Binary { .. }
@@ -1237,6 +1238,26 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     type_id: self.type_loader.declare_type(Type::Usize),
                     assignable: false,
                     kind: ExprKind::AlignOf(type_id),
+                }
+            }
+            "@data_end" => {
+                if builtin_call.arguments.len() != 0 {
+                    self.err_channel.push(unmatch_function_arguments(
+                        builtin_call.get_pos(),
+                        0,
+                        builtin_call.arguments.len(),
+                    ));
+                    return Expr {
+                        type_id: self.type_loader.declare_type(Type::Usize),
+                        assignable: false,
+                        kind: ExprKind::Invalid,
+                    };
+                }
+
+                Expr {
+                    type_id: self.type_loader.declare_type(Type::Usize),
+                    assignable: false,
+                    kind: ExprKind::DataEnd,
                 }
             }
             _ => {
