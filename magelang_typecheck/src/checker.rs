@@ -1337,7 +1337,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return Expr {
                         type_id: self.type_loader.declare_type(Type::Usize),
                         assignable: false,
-                        comp_const: false,
+                        comp_const: true,
                         kind: ExprKind::Invalid,
                     };
                 }
@@ -1345,7 +1345,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id: self.type_loader.declare_type(Type::Usize),
                     assignable: false,
-                    comp_const: false,
+                    comp_const: true,
                     kind: ExprKind::DataEnd,
                 }
             }

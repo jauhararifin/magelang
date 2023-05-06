@@ -82,7 +82,16 @@ impl Type {
     pub fn is_int(&self) -> bool {
         matches!(
             self,
-            Self::I64 | Self::I32 | Self::I16 | Self::I8 | Self::U64 | Self::U32 | Self::U16 | Self::U8
+            Self::I64
+                | Self::I32
+                | Self::I16
+                | Self::I8
+                | Self::U64
+                | Self::U32
+                | Self::U16
+                | Self::U8
+                | Self::Usize
+                | Self::Isize
         )
     }
 

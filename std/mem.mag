@@ -1,0 +1,34 @@
+import wasm "std/wasm";
+
+let last_offset: usize = @data_end();
+
+fn alloc(size: usize): usize {
+  while last_offset % 8 != 0 {
+    last_offset = last_offset + 1;
+  }
+  let ptr = last_offset;
+  last_offset = last_offset + size;
+
+  let needed_page = (last_offset + 65535) / 65536;
+  let need_additional = needed_page - wasm.memory_size();
+  if need_additional > 0 {
+    wasm.memory_grow(need_additional);
+  }
+
+  return ptr;
+}
+
+fn free(ptr: usize) {}
+
+fn make_slice(type_size: usize, len: usize): usize {
+  let need_to_alloc = len * type_size + 8;
+  let slice_ptr = alloc(need_to_alloc);
+
+  let ptr: *usize = slice_ptr as *usize;
+  *ptr = slice_ptr + 8;
+
+  let len_ptr: *usize = (slice_ptr + 4) as *usize;
+  *len_ptr = len;
+
+  return slice_ptr;
+}

@@ -97,7 +97,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let memory_id = self.build_global_memory();
         let data_end = self.build_data_segment(memory_id);
         self.build_mem_pointers(data_end);
-        self.declare_globals();
+        self.declare_globals(data_end);
 
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
@@ -263,41 +263,41 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         }
     }
 
-    fn declare_globals(&mut self) {
+    fn declare_globals(&mut self, data_end: usize) {
         let globals = self.packages.iter().flat_map(|pkg| pkg.globals.iter());
         for global in globals {
             let ty = self.type_loader.get_type(global.type_id).unwrap();
             let wasm_ty = to_wasm_type(&ty);
 
             let val = match global.value.kind {
-                ExprKind::I64(val) => InitExpr::Value(walrus::ir::Value::I64(val)),
-                ExprKind::I32(val) => InitExpr::Value(walrus::ir::Value::I32(val)),
-                ExprKind::I16(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
-                ExprKind::I8(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
-                ExprKind::U64(val) => InitExpr::Value(walrus::ir::Value::I64(val as i64)),
-                ExprKind::U32(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
-                ExprKind::U16(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
-                ExprKind::U8(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
-                ExprKind::F64(val) => InitExpr::Value(walrus::ir::Value::F64(val)),
-                ExprKind::F32(val) => InitExpr::Value(walrus::ir::Value::F32(val)),
-                ExprKind::Bool(val) => InitExpr::Value(walrus::ir::Value::I32(if val { 1 } else { 0 })),
-                ExprKind::Isize(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
-                ExprKind::Usize(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::I64(val) => walrus::ir::Value::I64(val),
+                ExprKind::I32(val) => walrus::ir::Value::I32(val),
+                ExprKind::I16(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::I8(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::U64(val) => walrus::ir::Value::I64(val as i64),
+                ExprKind::U32(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::U16(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::U8(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::F64(val) => walrus::ir::Value::F64(val),
+                ExprKind::F32(val) => walrus::ir::Value::F32(val),
+                ExprKind::Bool(val) => walrus::ir::Value::I32(if val { 1 } else { 0 }),
+                ExprKind::Isize(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::Usize(val) => walrus::ir::Value::I32(val as i32),
                 ExprKind::SizeOf(type_id) => {
                     let ty = self.type_loader.get_type(type_id).unwrap();
                     let (size, _) = get_size_and_alignment(&ty);
-                    InitExpr::Value(walrus::ir::Value::I32(size as i32))
+                    walrus::ir::Value::I32(size as i32)
                 }
                 ExprKind::AlignOf(type_id) => {
                     let ty = self.type_loader.get_type(type_id).unwrap();
                     let (_, align) = get_size_and_alignment(&ty);
-                    InitExpr::Value(walrus::ir::Value::I32(align as i32))
+                    walrus::ir::Value::I32(align as i32)
                 }
-                ExprKind::DataEnd => InitExpr::Global(self.data_end_ptr.unwrap()),
+                ExprKind::DataEnd => walrus::ir::Value::I32(data_end as i32),
                 _ => todo!(),
             };
 
-            let id = self.module.globals.add_local(wasm_ty, true, val);
+            let id = self.module.globals.add_local(wasm_ty, true, InitExpr::Value(val));
             self.globals
                 .insert(GlobalId(global.package_name, global.variable_name), id);
         }
@@ -443,6 +443,10 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 );
                 self.data_offset_table.insert((pkg.name, index), offset);
                 offset += data_len;
+
+                // need to align to 4
+                let to_add = (4 - offset % 4) % 4;
+                offset += to_add;
             }
         }
 
@@ -580,7 +584,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 let (_, align) = get_size_and_alignment(&element_ty);
                 let store_kind = match element_ty.as_ref() {
                     Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
-                    Type::I32 | Type::U32 => walrus::ir::StoreKind::I32 { atomic: false },
+                    Type::I32 | Type::U32 | Type::Usize | Type::Isize => walrus::ir::StoreKind::I32 { atomic: false },
                     Type::I16 => walrus::ir::StoreKind::I32_16 { atomic: false },
                     Type::U16 => walrus::ir::StoreKind::I32_16 { atomic: false },
                     Type::I8 => walrus::ir::StoreKind::I32_8 { atomic: false },
@@ -1197,11 +1201,11 @@ fn to_wasm_type(ty: &Type) -> ValType {
 // can we guarantee: size is multiple of alignment?
 fn get_size_and_alignment(ty: &Type) -> (usize, usize) {
     match ty {
-        Type::I64 | Type::U64 => (8, 8),
+        Type::I64 | Type::U64 => (8, 4),
         Type::Isize | Type::Usize | Type::I32 | Type::U32 => (4, 4),
         Type::I16 | Type::U16 => (2, 2),
         Type::I8 | Type::U8 => (1, 1),
-        Type::F64 => (8, 8),
+        Type::F64 => (8, 4),
         Type::F32 => (4, 4),
         Type::Bool => (1, 1),
         Type::Slice(..) => (4, 4),

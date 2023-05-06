@@ -1,49 +1,46 @@
 import wasi "std/wasi";
+import mem "std/mem";
 
 fn print_i64(n: i64) {
-  let pointer: *u8 = (40 as usize + 8 as usize) as *u8;
-  let negative = false;
+  let negative = n < 0;
+
+  let slice = mem.make_slice(@size_of(u8), 32) as []u8;
+
+  if n < 0 {
+    n = n * -1;
+  }
 
   let count: u32 = 0;
-  if n < 0 {
-    *pointer = 45 // the ascii for '-'
-    pointer = pointer + 1;
-    count = count + 1;
-    n = n * -1;
-    negative = true;
-  }
   if n == 0 {
-    *pointer = 48; // the ascii for '0'
-    pointer = pointer + 1;
+    slice[count] = 48; // the ascii for '0'
     count = count + 1;
   }
+
   while n > 0 {
-    *pointer = (n % 10 + 48) as u8;
-    pointer = pointer + 1;
+    slice[count] = (n % 10 + 48) as u8;
     count = count + 1;
     n = n / 10;
   }
 
-  let pointer: *u32 = 40;
-  *pointer = (40 + 8) as u32;
-  let pointer: *u32 = (40 + 4) as *u32;
-  *pointer = count;
-
-  let string_arr: []u8 = 40 as []u8;
-
-  // need to reverse string
-  let i: i32 = 0;
+  let final_count = count;
   if negative {
+      final_count = final_count + 1;
+  }
+  let string = mem.make_slice(@size_of(u8), final_count as usize) as []u8;
+
+  let i = 0;
+  if negative {
+    string[0] = 45; // the ascii for '-'
     i = 1;
   }
-  let j: i32 = count as i32 - 1;
-  while i < j {
-    let temp = string_arr[i];
-    string_arr[i] = string_arr[j];
-    string_arr[j] = temp;
+
+  let j = count as isize - 1;
+  while j >= 0 {
+    string[i] = slice[j];
     i = i + 1;
     j = j - 1;
   }
 
-  wasi.fd_write(1, string_arr as i32, 1, 0);
+  wasi.fd_write(1, string as i32, 1, 0);
 }
+

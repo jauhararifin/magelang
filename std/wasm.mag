@@ -1,7 +1,7 @@
 
 #wasm_builtin("memory.grow")
-fn memory_grow(n: i32): i32;
+fn memory_grow(n: usize): usize;
 
 #wasm_builtin("memory.size")
-fn memory_size(): i32;
+fn memory_size(): usize;
 
