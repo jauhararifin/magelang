@@ -57,6 +57,7 @@ pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     type_loader: &'typ TypeLoader,
     module: &'pkg mut Module,
     data_end_ptr: Option<WasmGlobalId>,
+    globals: HashMap<GlobalId, WasmGlobalId>,
     packages: &'pkg [Rc<Package>],
     main_package: SymbolId,
     reachable_functions: HashSet<GlobalId>,
@@ -78,6 +79,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             type_loader,
             module,
             data_end_ptr: None,
+            globals: HashMap::default(),
             packages,
             main_package,
             reachable_functions: HashSet::default(),
@@ -95,6 +97,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let memory_id = self.build_global_memory();
         let data_end = self.build_data_segment(memory_id);
         self.build_mem_pointers(data_end);
+        self.declare_globals();
 
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
@@ -125,6 +128,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 self.type_loader,
                 self.data_end_ptr.unwrap(),
                 &self.data_offset_table,
+                &self.globals,
                 &self.function_ids,
                 &self.builtin_functions,
             );
@@ -173,6 +177,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         match stmt {
             Statement::Invalid | Statement::Continue | Statement::Break => (),
             Statement::SetLocal(_, expr) => Self::get_called_functions_in_expr(expr, result),
+            Statement::SetGlobal(_global_expr, _value) => (),
             Statement::SetIndex { target, index, value } => {
                 Self::get_called_functions_in_expr(target, result);
                 Self::get_called_functions_in_expr(index, result);
@@ -228,6 +233,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::AlignOf(..)
             | ExprKind::DataEnd
             | ExprKind::StringLit(..)
+            | ExprKind::Global(..)
             | ExprKind::Deref(..) => (),
             ExprKind::Func(func_expr) => {
                 if let FuncExpr::Normal(func_expr) = func_expr {
@@ -254,6 +260,46 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             ExprKind::Cast(value, _) => {
                 Self::get_called_functions_in_expr(value, result);
             }
+        }
+    }
+
+    fn declare_globals(&mut self) {
+        let globals = self.packages.iter().flat_map(|pkg| pkg.globals.iter());
+        for global in globals {
+            let ty = self.type_loader.get_type(global.type_id).unwrap();
+            let wasm_ty = to_wasm_type(&ty);
+
+            let val = match global.value.kind {
+                ExprKind::I64(val) => InitExpr::Value(walrus::ir::Value::I64(val)),
+                ExprKind::I32(val) => InitExpr::Value(walrus::ir::Value::I32(val)),
+                ExprKind::I16(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::I8(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::U64(val) => InitExpr::Value(walrus::ir::Value::I64(val as i64)),
+                ExprKind::U32(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::U16(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::U8(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::F64(val) => InitExpr::Value(walrus::ir::Value::F64(val)),
+                ExprKind::F32(val) => InitExpr::Value(walrus::ir::Value::F32(val)),
+                ExprKind::Bool(val) => InitExpr::Value(walrus::ir::Value::I32(if val { 1 } else { 0 })),
+                ExprKind::Isize(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::Usize(val) => InitExpr::Value(walrus::ir::Value::I32(val as i32)),
+                ExprKind::SizeOf(type_id) => {
+                    let ty = self.type_loader.get_type(type_id).unwrap();
+                    let (size, _) = get_size_and_alignment(&ty);
+                    InitExpr::Value(walrus::ir::Value::I32(size as i32))
+                }
+                ExprKind::AlignOf(type_id) => {
+                    let ty = self.type_loader.get_type(type_id).unwrap();
+                    let (_, align) = get_size_and_alignment(&ty);
+                    InitExpr::Value(walrus::ir::Value::I32(align as i32))
+                }
+                ExprKind::DataEnd => InitExpr::Global(self.data_end_ptr.unwrap()),
+                _ => todo!(),
+            };
+
+            let id = self.module.globals.add_local(wasm_ty, true, val);
+            self.globals
+                .insert(GlobalId(global.package_name, global.variable_name), id);
         }
     }
 
@@ -434,6 +480,7 @@ struct FunctionCompiler<'typ, 'pkg> {
 
     memory_id: MemoryId,
     loop_blocks: Vec<(InstrSeqId, InstrSeqId)>,
+    globals: &'pkg HashMap<GlobalId, WasmGlobalId>,
     function_ids: &'pkg HashMap<GlobalId, FunctionId>,
     data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
     builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
@@ -446,6 +493,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         type_loader: &'typ TypeLoader,
         data_end_ptr: WasmGlobalId,
         data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
+        globals: &'pkg HashMap<GlobalId, WasmGlobalId>,
         function_ids: &'pkg HashMap<GlobalId, FunctionId>,
         builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
     ) -> Self {
@@ -455,6 +503,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             memory_id,
             variables,
             loop_blocks: vec![],
+            globals,
             function_ids,
             data_offsets,
             builtin_functions,
@@ -466,6 +515,11 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             Statement::SetLocal(id, expr) => {
                 self.process_expr(builder, expr);
                 builder.local_set(self.variables[*id]);
+            }
+            Statement::SetGlobal(global_expr, value) => {
+                self.process_expr(builder, value);
+                let global_id = GlobalId(global_expr.package_name, global_expr.variable_name);
+                builder.global_set(*self.globals.get(&global_id).unwrap());
             }
             Statement::SetIndex { target, index, value } => {
                 let ty = self.type_loader.get_type(target.type_id).unwrap();
@@ -657,6 +711,10 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             ExprKind::Local(index) => {
                 builder.local_get(self.variables[*index]);
+            }
+            ExprKind::Global(global_expr) => {
+                let global_id = GlobalId(global_expr.package_name, global_expr.variable_name);
+                builder.global_get(*self.globals.get(&global_id).unwrap());
             }
             ExprKind::SizeOf(type_id) => {
                 let ty = self.type_loader.get_type(*type_id).unwrap();

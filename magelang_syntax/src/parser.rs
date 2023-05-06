@@ -1,7 +1,7 @@
 use crate::ast::{
     AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode, CastExprNode,
-    DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode,
-    IndexExprNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode,
+    DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, GlobalNode, GroupedExprNode, IfStatementNode,
+    ImportNode, IndexExprNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode,
     SelectionExprNode, SignatureNode, SliceNode, StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::SyntaxErrorAccumulator;
@@ -110,6 +110,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         let offset = tok.pos.offset;
 
         let item = match &tok.kind {
+            TokenKind::Let => self.parse_global(),
             TokenKind::Fn => self.parse_func(tags),
             TokenKind::Import => self.parse_import().map(ItemNode::Import),
             _ => None,
@@ -145,6 +146,20 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         let path = self.take(TokenKind::StringLit)?;
         self.take(TokenKind::SemiColon)?;
         Some(ImportNode { pos, name, path })
+    }
+
+    fn parse_global(&mut self) -> Option<ItemNode> {
+        let let_tok = self.take(TokenKind::Let)?;
+        let pos = let_tok.pos;
+
+        let name = self.take(TokenKind::Ident)?;
+        self.take(TokenKind::Colon)?;
+        let ty = self.parse_expr()?;
+        self.take(TokenKind::Equal)?;
+        let value = self.parse_expr()?;
+        self.take(TokenKind::SemiColon)?;
+
+        Some(ItemNode::Global(GlobalNode { pos, name, ty, value }))
     }
 
     fn parse_func(&mut self, tags: Vec<TagNode>) -> Option<ItemNode> {

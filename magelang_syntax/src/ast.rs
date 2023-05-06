@@ -31,6 +31,7 @@ impl PackageNode {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ItemNode {
     Import(ImportNode),
+    Global(GlobalNode),
     Function(FunctionNode),
     NativeFunction(SignatureNode),
 }
@@ -39,6 +40,7 @@ impl ItemNode {
     pub fn name(&self) -> &str {
         match self {
             Self::Import(node) => &node.name.value,
+            Self::Global(node) => &node.name.value,
             Self::Function(node) => &node.signature.name.value,
             Self::NativeFunction(node) => &node.name.value,
         }
@@ -57,6 +59,7 @@ impl AstNode for ItemNode {
     fn get_pos(&self) -> Pos {
         match self {
             Self::Import(node) => node.get_pos(),
+            Self::Global(node) => node.get_pos(),
             Self::Function(node) => node.get_pos(),
             Self::NativeFunction(node) => node.get_pos(),
         }
@@ -71,6 +74,20 @@ pub struct ImportNode {
 }
 
 impl AstNode for ImportNode {
+    fn get_pos(&self) -> Pos {
+        self.pos
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct GlobalNode {
+    pub pos: Pos,
+    pub name: Token,
+    pub ty: ExprNode,
+    pub value: ExprNode,
+}
+
+impl AstNode for GlobalNode {
     fn get_pos(&self) -> Pos {
         self.pos
     }

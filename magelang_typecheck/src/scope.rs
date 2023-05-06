@@ -14,6 +14,7 @@ pub enum Object {
     Package(SymbolId),
     Func(TypeId),
     Local(TypeId, usize),
+    Global(TypeId),
     Type(TypeId),
 }
 

@@ -4,9 +4,9 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileId, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    value_from_string_lit, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, IfStatement,
-    NativeFunction, NormalFunc, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type,
-    TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
+    value_from_string_lit, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, Global, GlobalExpr,
+    IfStatement, NativeFunction, NormalFunc, Package, PointerType, ReturnStatement, SliceType, Statement,
+    StringLitExpr, Tag, Type, TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode,
@@ -31,6 +31,7 @@ pub struct TypeChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
 
 #[derive(Default)]
 struct PackageCheckState {
+    globals: Vec<Global>,
     functions: Vec<Func>,
     native_functions: Vec<NativeFunction>,
 }
@@ -121,6 +122,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         Rc::new(Package {
             name: package_name,
+            globals: state.globals,
             functions: state.functions,
             native_functions: state.native_functions,
             strings: str_helper.take(),
@@ -177,6 +179,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     let package_path = self.symbol_loader.declare_symbol(package_path);
                     Object::Package(package_path)
                 }
+                ItemNode::Global(global_node) => {
+                    let type_id = self.get_expr_type(&global_scope, &global_node.ty);
+                    Object::Global(type_id)
+                }
                 ItemNode::Function(func_node) => {
                     let func_ty = self.get_func_type(&global_scope, &func_node.signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
@@ -217,6 +223,55 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
     ) {
         match item_node {
             ItemNode::Import(import_node) => self.check_import(import_node),
+            ItemNode::Global(global_node) => {
+                let type_id = self.get_expr_type(scope, &global_node.ty);
+                let ty = self.type_loader.get_type(type_id).unwrap();
+                let value = self.get_expr(scope, str_helper, &global_node.value, Some(&ty));
+                let value_ty = self.type_loader.get_type(value.type_id).unwrap();
+
+                if !value.comp_const {
+                    self.err_channel.push(not_a_constant(global_node.value.get_pos()));
+                    state.globals.push(Global {
+                        package_name: scope.package_name().unwrap(),
+                        variable_name: self.symbol_loader.declare_symbol(&global_node.name.value),
+                        type_id,
+                        value: Expr {
+                            type_id,
+                            assignable: false,
+                            comp_const: true,
+                            kind: ExprKind::Invalid,
+                        },
+                    });
+                    return;
+                }
+
+                if !ty.is_assignable_with(&value_ty) {
+                    self.err_channel.push(type_mismatch(
+                        global_node.value.get_pos(),
+                        ty.display(self.type_loader),
+                        value_ty.display(self.type_loader),
+                    ));
+                    state.globals.push(Global {
+                        package_name: scope.package_name().unwrap(),
+                        variable_name: self.symbol_loader.declare_symbol(&global_node.name.value),
+                        type_id,
+                        value: Expr {
+                            type_id,
+                            assignable: false,
+                            comp_const: true,
+                            kind: ExprKind::Invalid,
+                        },
+                    });
+                    return;
+                }
+
+                state.globals.push(Global {
+                    package_name: scope.package_name().unwrap(),
+                    variable_name: self.symbol_loader.declare_symbol(&global_node.name.value),
+                    type_id,
+                    value,
+                });
+            }
             ItemNode::Function(func_node) => {
                 let func = self.check_fn(scope, str_helper, func_node);
                 state.functions.push(func);
@@ -536,6 +591,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         let statement = match receiver.kind {
             ExprKind::Local(id) => Statement::SetLocal(id, value_expr),
+            ExprKind::Global(global_expr) => Statement::SetGlobal(global_expr, value_expr),
             ExprKind::Index(target, index) => Statement::SetIndex {
                 target: *target,
                 index: *index,
@@ -866,6 +922,15 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 assignable: true,
                 comp_const: false,
                 kind: ExprKind::Local(index),
+            },
+            Object::Global(type_id) => Expr {
+                type_id,
+                assignable: true,
+                comp_const: false,
+                kind: ExprKind::Global(GlobalExpr {
+                    package_name: scope.package_name().unwrap(),
+                    variable_name: symbol_id,
+                }),
             },
             Object::Func(type_id) => Expr {
                 type_id,

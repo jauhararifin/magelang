@@ -65,6 +65,10 @@ pub(crate) fn function_is_void(pos: Pos) -> Error {
     )
 }
 
+pub(crate) fn not_a_constant(pos: Pos) -> Error {
+    Error::new(pos, String::from("The expression is not a constant"))
+}
+
 pub(crate) fn type_mismatch(pos: Pos, expected: impl Display, got: impl Display) -> Error {
     Error::new(pos, format!("Cannot use {got} for type {expected}"))
 }
