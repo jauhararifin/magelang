@@ -25,6 +25,8 @@ pub enum ExprKind {
     Isize(i64),
     Usize(u64),
     Local(usize),
+    SizeOf(TypeId),
+    AlignOf(TypeId),
     Func(FuncExpr),
     StringLit(StringLitExpr),
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },

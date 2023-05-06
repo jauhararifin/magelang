@@ -221,13 +221,15 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::Isize(..)
             | ExprKind::Usize(..)
             | ExprKind::Local(..)
+            | ExprKind::SizeOf(..)
+            | ExprKind::AlignOf(..)
             | ExprKind::StringLit(..)
             | ExprKind::Deref(..) => (),
             ExprKind::Func(func_expr) => {
                 if let FuncExpr::Normal(func_expr) = func_expr {
                     result.push(GlobalId(func_expr.package_name, func_expr.function_name));
                 }
-            },
+            }
             ExprKind::Binary { a, op: _, b } => {
                 Self::get_called_functions_in_expr(a, result);
                 Self::get_called_functions_in_expr(b, result);
@@ -648,6 +650,16 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             ExprKind::Local(index) => {
                 builder.local_get(self.variables[*index]);
+            }
+            ExprKind::SizeOf(type_id) => {
+                let ty = self.type_loader.get_type(*type_id).unwrap();
+                let (size, _) = get_size_and_alignment(&ty);
+                builder.i32_const(size as i32);
+            }
+            ExprKind::AlignOf(type_id) => {
+                let ty = self.type_loader.get_type(*type_id).unwrap();
+                let (_, align) = get_size_and_alignment(&ty);
+                builder.i32_const(align as i32);
             }
             ExprKind::StringLit(str_lit) => {
                 let offset = self.data_offsets.get(&(str_lit.package_name, str_lit.index)).unwrap();

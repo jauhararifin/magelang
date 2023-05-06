@@ -267,6 +267,7 @@ pub enum ExprNode {
     Binary(BinaryExprNode),
     Deref(DerefExprNode),
     Unary(UnaryExprNode),
+    BuiltinCall(BuiltinCallExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
     Slice(SliceNode),
@@ -286,6 +287,7 @@ impl AstNode for ExprNode {
             Self::Binary(val) => val.get_pos(),
             Self::Deref(val) => val.get_pos(),
             Self::Unary(val) => val.get_pos(),
+            Self::BuiltinCall(expr) => expr.get_pos(),
             Self::Call(expr) => expr.pos,
             Self::Cast(val) => val.get_pos(),
             Self::Slice(val) => val.get_pos(),
@@ -330,6 +332,18 @@ pub struct UnaryExprNode {
 impl AstNode for UnaryExprNode {
     fn get_pos(&self) -> Pos {
         self.op.pos
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BuiltinCallExprNode {
+    pub target: Token,
+    pub arguments: Vec<ExprNode>,
+}
+
+impl AstNode for BuiltinCallExprNode {
+    fn get_pos(&self) -> Pos {
+        self.target.pos
     }
 }
 

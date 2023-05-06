@@ -94,7 +94,8 @@ impl<'err> Scanner<'err> {
 
     fn scan(&mut self) -> Option<Token> {
         self.skip_whitespace();
-        self.scan_word()
+        self.scan_builtin()
+            .or_else(|| self.scan_word())
             .or_else(|| self.scan_string_lit())
             .or_else(|| self.scan_number_lit())
             .or_else(|| self.scan_comment())
@@ -110,6 +111,22 @@ impl<'err> Scanner<'err> {
                 break;
             }
         }
+    }
+
+    fn scan_builtin(&mut self) -> Option<Token> {
+        let tok = self.source_code.next_if(|c| c == '@')?;
+        let pos = Pos::new(self.file_id, tok.offset);
+
+        let mut value = String::from(tok.ch);
+        let valid_char = |c: char| c.is_alphabetic() || c.is_ascii_digit() || c == '_';
+        while let Some(c) = self.source_code.next_if(valid_char) {
+            value.push(c.ch);
+        }
+        Some(Token {
+            kind: TokenKind::Builtin,
+            value: value.into(),
+            pos,
+        })
     }
 
     fn scan_word(&mut self) -> Option<Token> {

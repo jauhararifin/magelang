@@ -1,8 +1,8 @@
 use crate::ast::{
-    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode, DerefExprNode,
-    ElseIfStatementNode, ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode,
-    LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode,
-    SliceNode, StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
+    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode, CastExprNode,
+    DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, GroupedExprNode, IfStatementNode, ImportNode,
+    IndexExprNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode,
+    SelectionExprNode, SignatureNode, SliceNode, StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::SyntaxErrorAccumulator;
 use crate::scanner::scan;
@@ -467,7 +467,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_index_expr(&mut self) -> Option<ExprNode> {
-        let value = self.parse_call_expr()?;
+        let value = self.parse_builtin_call_expr()?;
         if self.take_if(TokenKind::OpenSquare).is_none() {
             return Some(value);
         };
@@ -477,6 +477,17 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             value: Box::new(value),
             index: Box::new(index),
         }))
+    }
+
+    fn parse_builtin_call_expr(&mut self) -> Option<ExprNode> {
+        let Some(target) = self.take_if(TokenKind::Builtin) else {
+            return self.parse_call_expr();
+        };
+        let (_, arguments, _) =
+            self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
+                this.parse_expr()
+            })?;
+        Some(ExprNode::BuiltinCall(BuiltinCallExprNode { target, arguments }))
     }
 
     fn parse_call_expr(&mut self) -> Option<ExprNode> {
@@ -656,6 +667,14 @@ mod tests {
         r#"
         fn main() {
             let t = a.b.c.d.e();
+        }
+        "#,
+    );
+    test_parse_code_errors!(
+        builtin_call_expr,
+        r#"
+        fn main() {
+            let t = @size_of(i32);
         }
         "#,
     );

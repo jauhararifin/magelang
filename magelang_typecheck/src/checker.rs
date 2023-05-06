@@ -9,8 +9,8 @@ use magelang_semantic::{
     TypeDisplay, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
-    AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, CallExprNode, CastExprNode,
-    DerefExprNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind,
+    AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode,
+    CastExprNode, DerefExprNode, ExprNode, FunctionNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind,
     LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
     UnaryExprNode, WhileStatementNode,
 };
@@ -556,6 +556,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::Bool(..)
             | ExprKind::Isize(..)
             | ExprKind::Usize(..)
+            | ExprKind::SizeOf(..)
+            | ExprKind::AlignOf(..)
             | ExprKind::Func(..)
             | ExprKind::StringLit(..)
             | ExprKind::Binary { .. }
@@ -813,6 +815,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ExprNode::Binary(binary_expr) => self.get_binary_expr(scope, str_helper, binary_expr),
             ExprNode::Deref(deref_expr) => self.get_deref_expr(scope, str_helper, deref_expr),
             ExprNode::Unary(unary_expr) => self.get_unary_expr(scope, str_helper, unary_expr),
+            ExprNode::BuiltinCall(builtin_call_expr) => {
+                self.get_builtin_call_expr(scope, builtin_call_expr, expected_type)
+            }
             ExprNode::Call(call_expr) => self.get_call_expr(scope, str_helper, call_expr),
             ExprNode::Cast(cast_expr) => self.get_cast_expr(scope, str_helper, cast_expr),
             ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, str_helper, selection_expr),
@@ -1180,6 +1185,74 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 op,
                 val: Box::new(val_expr),
             },
+        }
+    }
+
+    fn get_builtin_call_expr(
+        &self,
+        scope: &Rc<Scope>,
+        builtin_call: &BuiltinCallExprNode,
+        expected_type: Option<&Type>,
+    ) -> Expr {
+        match builtin_call.target.value.as_ref() {
+            "@size_of" => {
+                if builtin_call.arguments.len() != 1 {
+                    self.err_channel.push(unmatch_function_arguments(
+                        builtin_call.get_pos(),
+                        1,
+                        builtin_call.arguments.len(),
+                    ));
+                    return Expr {
+                        type_id: self.type_loader.declare_type(Type::Usize),
+                        assignable: false,
+                        kind: ExprKind::Invalid,
+                    };
+                }
+
+                let type_expr = builtin_call.arguments.first().unwrap();
+                let type_id = self.get_expr_type(scope, type_expr);
+                Expr {
+                    type_id: self.type_loader.declare_type(Type::Usize),
+                    assignable: false,
+                    kind: ExprKind::SizeOf(type_id),
+                }
+            }
+            "@align_of" => {
+                if builtin_call.arguments.len() != 1 {
+                    self.err_channel.push(unmatch_function_arguments(
+                        builtin_call.get_pos(),
+                        1,
+                        builtin_call.arguments.len(),
+                    ));
+                    return Expr {
+                        type_id: self.type_loader.declare_type(Type::Usize),
+                        assignable: false,
+                        kind: ExprKind::Invalid,
+                    };
+                }
+
+                let type_expr = builtin_call.arguments.first().unwrap();
+                let type_id = self.get_expr_type(scope, type_expr);
+                Expr {
+                    type_id: self.type_loader.declare_type(Type::Usize),
+                    assignable: false,
+                    kind: ExprKind::AlignOf(type_id),
+                }
+            }
+            _ => {
+                self.err_channel
+                    .push(no_such_builtin(builtin_call.target.pos, &builtin_call.target.value));
+                let type_id = if let Some(expected_type) = expected_type {
+                    self.type_loader.declare_type(expected_type.clone())
+                } else {
+                    self.type_loader.declare_type(Type::Invalid)
+                };
+                Expr {
+                    type_id,
+                    assignable: false,
+                    kind: ExprKind::Invalid,
+                }
+            }
         }
     }
 

@@ -95,6 +95,10 @@ pub(crate) fn undeclared_symbol(token: Token) -> Error {
     )
 }
 
+pub(crate) fn no_such_builtin(pos: Pos, name: &str) -> Error {
+    Error::new(pos, format!("There is no builtin function named {name}"))
+}
+
 pub(crate) fn missing_return_statement(pos: Pos) -> Error {
     Error::new(pos, String::from("Missing return statement for function"))
 }
