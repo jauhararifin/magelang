@@ -5,6 +5,7 @@ use magelang_common::SymbolId;
 pub struct Expr {
     pub type_id: TypeId,
     pub assignable: bool,
+    pub comp_const: bool,
     pub kind: ExprKind,
 }
 

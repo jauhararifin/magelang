@@ -411,6 +411,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let value_expr = Expr {
                     type_id: target_ty_id,
                     assignable: false,
+                    comp_const: true,
                     kind: expr_kind,
                 };
 
@@ -456,6 +457,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     value_expr = Expr {
                         type_id: target_ty_id,
                         assignable: false,
+                        comp_const: false,
                         kind: ExprKind::Invalid,
                     }
                 }
@@ -527,6 +529,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             value_expr = Expr {
                 type_id: receiver.type_id,
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             }
         }
@@ -834,6 +837,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id,
                     assignable: false,
+                    comp_const: false,
                     kind: ExprKind::Invalid,
                 }
             }
@@ -851,6 +855,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: self.type_loader.declare_type(Type::Invalid),
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         };
@@ -859,11 +864,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Object::Local(type_id, index) => Expr {
                 type_id,
                 assignable: true,
+                comp_const: false,
                 kind: ExprKind::Local(index),
             },
             Object::Func(type_id) => Expr {
                 type_id,
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Func(FuncExpr::Normal(NormalFunc {
                     package_name: scope.package_name().unwrap(),
                     function_name: symbol_id,
@@ -874,6 +881,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id: self.type_loader.declare_type(Type::Invalid),
                     assignable: false,
+                    comp_const: false,
                     kind: ExprKind::Invalid,
                 }
             }
@@ -924,6 +932,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id,
             assignable: false,
+            comp_const: true,
             kind,
         }
     }
@@ -943,6 +952,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: f64_type_id,
             assignable: false,
+            comp_const: true,
             kind,
         }
     }
@@ -962,6 +972,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: bool_type_id,
             assignable: false,
+            comp_const: true,
             kind,
         }
     }
@@ -977,6 +988,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id,
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         };
@@ -985,6 +997,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id,
             assignable: false,
+            comp_const: true,
             kind: ExprKind::StringLit(StringLitExpr {
                 package_name: scope.package_name().unwrap(),
                 index,
@@ -1031,6 +1044,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: a_expr.type_id,
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         }
@@ -1118,6 +1132,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: result_type_id,
             assignable: false,
+            comp_const: false,
             kind: ExprKind::Binary {
                 a: Box::new(a_expr),
                 op,
@@ -1135,6 +1150,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: self.type_loader.declare_type(Type::Invalid),
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         };
@@ -1143,6 +1159,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: element_ty,
             assignable: true,
+            comp_const: false,
             kind: ExprKind::Deref(Box::new(addr_expr)),
         }
     }
@@ -1182,6 +1199,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: val_expr.type_id,
             assignable: false,
+            comp_const: false,
             kind: ExprKind::Unary {
                 op,
                 val: Box::new(val_expr),
@@ -1206,6 +1224,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return Expr {
                         type_id: self.type_loader.declare_type(Type::Usize),
                         assignable: false,
+                        comp_const: false,
                         kind: ExprKind::Invalid,
                     };
                 }
@@ -1215,6 +1234,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id: self.type_loader.declare_type(Type::Usize),
                     assignable: false,
+                    comp_const: true,
                     kind: ExprKind::SizeOf(type_id),
                 }
             }
@@ -1228,6 +1248,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return Expr {
                         type_id: self.type_loader.declare_type(Type::Usize),
                         assignable: false,
+                        comp_const: true,
                         kind: ExprKind::Invalid,
                     };
                 }
@@ -1237,6 +1258,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id: self.type_loader.declare_type(Type::Usize),
                     assignable: false,
+                    comp_const: true,
                     kind: ExprKind::AlignOf(type_id),
                 }
             }
@@ -1250,6 +1272,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     return Expr {
                         type_id: self.type_loader.declare_type(Type::Usize),
                         assignable: false,
+                        comp_const: false,
                         kind: ExprKind::Invalid,
                     };
                 }
@@ -1257,6 +1280,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id: self.type_loader.declare_type(Type::Usize),
                     assignable: false,
+                    comp_const: false,
                     kind: ExprKind::DataEnd,
                 }
             }
@@ -1271,6 +1295,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 Expr {
                     type_id,
                     assignable: false,
+                    comp_const: false,
                     kind: ExprKind::Invalid,
                 }
             }
@@ -1285,6 +1310,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: self.type_loader.declare_type(Type::Invalid),
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         };
@@ -1304,6 +1330,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: ret_type,
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         }
@@ -1324,6 +1351,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 return Expr {
                     type_id: *param,
                     assignable: false,
+                    comp_const: false,
                     kind: ExprKind::Invalid,
                 };
             }
@@ -1334,6 +1362,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: ret_type,
             assignable: false,
+            comp_const: false,
             kind: ExprKind::Call(Box::new(func_expr), arguments),
         }
     }
@@ -1347,6 +1376,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: self.type_loader.declare_type(Type::Invalid),
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         }
@@ -1373,6 +1403,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: target_type_id,
             assignable: false,
+            comp_const: false,
             kind,
         }
     }
@@ -1397,6 +1428,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: self.type_loader.declare_type(Type::Invalid),
             assignable: false,
+            comp_const: false,
             kind: ExprKind::Invalid,
         }
     }
@@ -1426,6 +1458,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr{
                 type_id: self.type_loader.declare_type(Type::Invalid),
                 assignable: false,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             }
         };
@@ -1437,6 +1470,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return Expr {
                 type_id: slice_ty.element_type,
                 assignable: true,
+                comp_const: false,
                 kind: ExprKind::Invalid,
             };
         }
@@ -1444,6 +1478,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         Expr {
             type_id: slice_ty.element_type,
             assignable: true,
+            comp_const: false,
             kind: ExprKind::Index(Box::new(target), Box::new(index)),
         }
     }
