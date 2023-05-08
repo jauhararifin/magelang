@@ -4,8 +4,7 @@ import mem "std/mem";
 fn print_i64(n: i64) {
   let negative = n < 0;
 
-  let slice = mem.make_slice(@size_of(u8), 32) as []u8;
-
+  let slice: [*]u8 = mem.alloc(@size_of(u8) * 32) as [*]u8;
   if n < 0 {
     n = n * -1;
   }
@@ -24,7 +23,7 @@ fn print_i64(n: i64) {
 
   let final_count = count;
   if negative {
-      final_count = final_count + 1;
+    final_count = final_count + 1;
   }
   let string = mem.make_slice(@size_of(u8), final_count as usize) as []u8;
 
@@ -43,4 +42,3 @@ fn print_i64(n: i64) {
 
   wasi.fd_write(1, string as i32, 1, 0);
 }
-

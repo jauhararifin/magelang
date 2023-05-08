@@ -287,7 +287,8 @@ pub enum ExprNode {
     BuiltinCall(BuiltinCallExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
-    Slice(SliceNode),
+    ArrayPtr(ArrayPtrExprNode),
+    Slice(SliceExprNode),
     Selection(SelectionExprNode),
     Index(IndexExprNode),
     Grouped(GroupedExprNode),
@@ -307,6 +308,7 @@ impl AstNode for ExprNode {
             Self::BuiltinCall(expr) => expr.get_pos(),
             Self::Call(expr) => expr.pos,
             Self::Cast(val) => val.get_pos(),
+            Self::ArrayPtr(val) => val.get_pos(),
             Self::Slice(val) => val.get_pos(),
             Self::Selection(val) => val.get_pos(),
             Self::Index(val) => val.get_pos(),
@@ -390,12 +392,24 @@ impl AstNode for CastExprNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct SliceNode {
+pub struct ArrayPtrExprNode {
     pub pos: Pos,
     pub element: Box<ExprNode>,
 }
 
-impl AstNode for SliceNode {
+impl AstNode for ArrayPtrExprNode {
+    fn get_pos(&self) -> Pos {
+        self.pos
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SliceExprNode {
+    pub pos: Pos,
+    pub element: Box<ExprNode>,
+}
+
+impl AstNode for SliceExprNode {
     fn get_pos(&self) -> Pos {
         self.pos
     }

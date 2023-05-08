@@ -4,8 +4,8 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    value_from_string_lit, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, Global, GlobalExpr,
-    IfStatement, NativeFunction, NormalFunc, Package, PointerType, ReturnStatement, SliceType, Statement,
+    value_from_string_lit, ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, Global,
+    GlobalExpr, IfStatement, NativeFunction, NormalFunc, Package, PointerType, ReturnStatement, SliceType, Statement,
     StringLitExpr, Tag, Type, TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
@@ -438,6 +438,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::Bool => ExprKind::Bool(false),
                     Type::Slice(..) => ExprKind::Usize(0),
                     Type::Pointer(..) => ExprKind::Usize(0),
+                    Type::ArrayPtr(..) => ExprKind::Usize(0),
                     Type::Func(..) => ExprKind::Func(FuncExpr::Empty),
                     Type::Void => {
                         self.errors.cannot_use_type_for_local(ty.get_pos(), target_ty_id);
@@ -816,6 +817,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     element_type: element_type_id,
                 }))
             }
+            ExprNode::ArrayPtr(array_ptr_node) => {
+                let element_type_id = self.get_expr_type(scope, &array_ptr_node.element);
+                self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+                    element_type: element_type_id,
+                }))
+            }
             ExprNode::Deref(deref_node) => {
                 let element_type_id = self.get_expr_type(scope, &deref_node.value);
                 self.type_loader.declare_type(Type::Pointer(PointerType {
@@ -853,7 +860,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ExprNode::Selection(selection_expr) => self.get_selection_expr(scope, str_helper, selection_expr),
             ExprNode::Index(index_expr) => self.get_index_expr(scope, str_helper, index_expr),
             ExprNode::Grouped(expr) => self.get_expr(scope, str_helper, &expr.value, expected_type),
-            ExprNode::Slice(..) => {
+            ExprNode::Slice(..) | ExprNode::ArrayPtr(..) => {
                 self.errors.not_a_value(expr_node.get_pos());
                 let type_id = if let Some(expected_type) = expected_type {
                     self.type_loader.declare_type(expected_type.clone())
@@ -1452,13 +1459,17 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let target = self.get_expr(scope, str_helper, &index_expr.value, None);
 
         let target_ty = self.type_loader.get_type(target.type_id).unwrap();
-        let Type::Slice(slice_ty) = target_ty.as_ref() else {
-            self.errors.not_indexable(index_expr.value.get_pos());
-            return Expr{
-                type_id: self.type_loader.declare_type(Type::Invalid),
-                assignable: false,
-                comp_const: false,
-                kind: ExprKind::Invalid,
+        let element_ty = match target_ty.as_ref() {
+            Type::Slice(slice_ty) => slice_ty.element_type,
+            Type::ArrayPtr(array_ptr_ty) => array_ptr_ty.element_type,
+            _ => {
+                self.errors.not_indexable(index_expr.value.get_pos());
+                return Expr {
+                    type_id: self.type_loader.declare_type(Type::Invalid),
+                    assignable: false,
+                    comp_const: false,
+                    kind: ExprKind::Invalid,
+                };
             }
         };
 
@@ -1467,7 +1478,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         if !index_ty.is_int() {
             self.errors.cannot_used_as_index(index_expr.index.get_pos());
             return Expr {
-                type_id: slice_ty.element_type,
+                type_id: element_ty,
                 assignable: true,
                 comp_const: false,
                 kind: ExprKind::Invalid,
@@ -1475,7 +1486,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         Expr {
-            type_id: slice_ty.element_type,
+            type_id: element_ty,
             assignable: true,
             comp_const: false,
             kind: ExprKind::Index(Box::new(target), Box::new(index)),

@@ -64,6 +64,7 @@ pub enum Type {
     Func(FuncType),
     Slice(SliceType),
     Pointer(PointerType),
+    ArrayPtr(ArrayPtrType),
 }
 
 impl Type {
@@ -112,6 +113,7 @@ impl Type {
                 | Self::F32
                 | Self::Slice(..)
                 | Self::Pointer(..)
+                | Self::ArrayPtr(..)
         )
     }
 }
@@ -137,6 +139,7 @@ impl TypeDisplay for Type {
             Self::Func(func_type) => func_type.display(type_loader),
             Self::Slice(slice_type) => slice_type.display(type_loader),
             Self::Pointer(pointer_type) => pointer_type.display(type_loader),
+            Self::ArrayPtr(array_ptr_type) => array_ptr_type.display(type_loader),
         }
     }
 }
@@ -186,5 +189,17 @@ impl TypeDisplay for PointerType {
     fn display(&self, type_loader: &TypeLoader) -> String {
         let element = type_loader.get_type(self.element_type).unwrap();
         format!("*{}", element.display(type_loader))
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub struct ArrayPtrType {
+    pub element_type: TypeId,
+}
+
+impl TypeDisplay for ArrayPtrType {
+    fn display(&self, type_loader: &TypeLoader) -> String {
+        let element = type_loader.get_type(self.element_type).unwrap();
+        format!("[*]{}", element.display(type_loader))
     }
 }

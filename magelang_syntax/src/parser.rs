@@ -1,8 +1,9 @@
 use crate::ast::{
-    AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode, CastExprNode,
-    DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, GlobalNode, GroupedExprNode, IfStatementNode,
-    ImportNode, IndexExprNode, ItemNode, LetKind, LetStatementNode, PackageNode, ParameterNode, ReturnStatementNode,
-    SelectionExprNode, SignatureNode, SliceNode, StatementNode, TagNode, UnaryExprNode, WhileStatementNode,
+    ArrayPtrExprNode, AssignStatementNode, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode,
+    CallExprNode, CastExprNode, DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, GlobalNode,
+    GroupedExprNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind, LetStatementNode, PackageNode,
+    ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, SliceExprNode, StatementNode, TagNode,
+    UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::SyntaxErrorAccumulator;
 use crate::scanner::scan;
@@ -531,12 +532,24 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             return self.parse_selection_expr();
         };
         let pos = open_square_tok.pos;
+
+        let is_array_ptr = self.take_if(TokenKind::Mul).is_some();
         self.take(TokenKind::CloseSquare);
+
         let element = self.parse_slice_expr()?;
-        Some(ExprNode::Slice(SliceNode {
-            pos,
-            element: Box::new(element),
-        }))
+        let expr = if is_array_ptr {
+            ExprNode::ArrayPtr(ArrayPtrExprNode {
+                pos,
+                element: Box::new(element),
+            })
+        } else {
+            ExprNode::Slice(SliceExprNode {
+                pos,
+                element: Box::new(element),
+            })
+        };
+
+        Some(expr)
     }
 
     fn parse_selection_expr(&mut self) -> Option<ExprNode> {

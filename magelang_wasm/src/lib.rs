@@ -527,56 +527,11 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             Statement::SetIndex { target, index, value } => {
                 let ty = self.type_loader.get_type(target.type_id).unwrap();
-                let Type::Slice(slice_ty) = ty.as_ref() else {
-                    unreachable!();
-                };
-
-                let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
-                let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-                let (size, align) = get_size_and_alignment(&element_ty);
-
-                // TODO: check index range
-
-                // index as u32 * size
-                self.process_expr(builder, index);
-                self.do_cast(builder, &index_ty, &Type::U32);
-                builder.i32_const(size as i32);
-                builder.binop(BinaryOp::I32Mul);
-
-                // *target
-                self.process_expr(builder, target);
-                builder.load(
-                    self.memory_id,
-                    walrus::ir::LoadKind::I32 { atomic: false },
-                    walrus::ir::MemArg {
-                        align: align as u32,
-                        offset: 0,
-                    },
-                );
-
-                // *target + index * size
-                builder.binop(BinaryOp::I32Add);
-
-                let store_kind = match element_ty.as_ref() {
-                    Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
-                    Type::I32 | Type::U32 => walrus::ir::StoreKind::I32 { atomic: false },
-                    Type::I16 => walrus::ir::StoreKind::I32_16 { atomic: false },
-                    Type::U16 => walrus::ir::StoreKind::I32_16 { atomic: false },
-                    Type::I8 => walrus::ir::StoreKind::I32_8 { atomic: false },
-                    Type::U8 => walrus::ir::StoreKind::I32_8 { atomic: false },
-                    Type::Invalid | Type::Void | Type::Func(..) => todo!(),
-                    _ => todo!(),
-                };
-
-                self.process_expr(builder, value);
-                builder.store(
-                    self.memory_id,
-                    store_kind,
-                    walrus::ir::MemArg {
-                        align: align as u32,
-                        offset: 0,
-                    },
-                );
+                match ty.as_ref() {
+                    Type::Slice(..) => self.process_slice_index(builder, target, index, value),
+                    Type::ArrayPtr(..) => self.process_array_ptr_index(builder, target, index, value),
+                    _ => unreachable!(),
+                }
             }
             Statement::SetAddr { addr, value } => {
                 let element_ty = self.type_loader.get_type(value.type_id).unwrap();
@@ -669,6 +624,101 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         }
     }
 
+    fn process_slice_index(&mut self, builder: &mut InstrSeqBuilder, target: &Expr, index: &Expr, value: &Expr) {
+        let ty = self.type_loader.get_type(target.type_id).unwrap();
+        let Type::Slice(slice_ty) = ty.as_ref() else {
+            unreachable!();
+        };
+
+        let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
+        let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+        let (size, align) = get_size_and_alignment(&element_ty);
+
+        // TODO: check index range
+
+        // index as u32 * size
+        self.process_expr(builder, index);
+        self.do_cast(builder, &index_ty, &Type::U32);
+        builder.i32_const(size as i32);
+        builder.binop(BinaryOp::I32Mul);
+
+        // *target
+        self.process_expr(builder, target);
+        builder.load(
+            self.memory_id,
+            walrus::ir::LoadKind::I32 { atomic: false },
+            walrus::ir::MemArg {
+                align: align as u32,
+                offset: 0,
+            },
+        );
+
+        // *target + index * size
+        builder.binop(BinaryOp::I32Add);
+
+        let store_kind = match element_ty.as_ref() {
+            Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
+            Type::I32 | Type::U32 => walrus::ir::StoreKind::I32 { atomic: false },
+            Type::I16 => walrus::ir::StoreKind::I32_16 { atomic: false },
+            Type::U16 => walrus::ir::StoreKind::I32_16 { atomic: false },
+            Type::I8 => walrus::ir::StoreKind::I32_8 { atomic: false },
+            Type::U8 => walrus::ir::StoreKind::I32_8 { atomic: false },
+            Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+            _ => todo!(),
+        };
+
+        self.process_expr(builder, value);
+        builder.store(
+            self.memory_id,
+            store_kind,
+            walrus::ir::MemArg {
+                align: align as u32,
+                offset: 0,
+            },
+        );
+    }
+
+    fn process_array_ptr_index(&mut self, builder: &mut InstrSeqBuilder, target: &Expr, index: &Expr, value: &Expr) {
+        let ty = self.type_loader.get_type(target.type_id).unwrap();
+        let Type::ArrayPtr(array_ptr_ty) = ty.as_ref() else {
+            unreachable!();
+        };
+
+        let element_ty = self.type_loader.get_type(array_ptr_ty.element_type).unwrap();
+        let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+        let (size, align) = get_size_and_alignment(&element_ty);
+
+        // i * size
+        builder.i32_const(size as i32);
+        self.process_expr(builder, index);
+        self.do_cast(builder, &index_ty, &Type::U32);
+        builder.binop(BinaryOp::I32Mul);
+        // target + i * size
+        self.process_expr(builder, target);
+        builder.binop(BinaryOp::I32Add);
+
+        let store_kind = match element_ty.as_ref() {
+            Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
+            Type::I32 | Type::U32 => walrus::ir::StoreKind::I32 { atomic: false },
+            Type::I16 => walrus::ir::StoreKind::I32_16 { atomic: false },
+            Type::U16 => walrus::ir::StoreKind::I32_16 { atomic: false },
+            Type::I8 => walrus::ir::StoreKind::I32_8 { atomic: false },
+            Type::U8 => walrus::ir::StoreKind::I32_8 { atomic: false },
+            Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+            _ => todo!(),
+        };
+
+        self.process_expr(builder, value);
+        builder.store(
+            self.memory_id,
+            store_kind,
+            walrus::ir::MemArg {
+                align: align as u32,
+                offset: 0,
+            },
+        );
+    }
+
     fn process_expr(&self, builder: &mut InstrSeqBuilder, expr: &Expr) {
         match &expr.kind {
             ExprKind::Invalid => unreachable!(),
@@ -742,62 +792,12 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             }
             ExprKind::Index(target, index) => {
                 let ty = self.type_loader.get_type(target.type_id).unwrap();
-                let Type::Slice(slice_ty) = ty.as_ref() else {
-                    unreachable!();
-                };
-                let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
-                let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-                let (size, align) = get_size_and_alignment(&element_ty);
 
-                // TODO: check index range
-
-                // calculate index as i32 * size
-                self.process_expr(builder, index);
-                self.do_cast(builder, &index_ty, &Type::U32);
-                builder.i32_const(size as i32);
-                builder.binop(BinaryOp::I32Mul);
-
-                // calculate addr of target[0]
-                self.process_expr(builder, target);
-                builder.load(
-                    self.memory_id,
-                    walrus::ir::LoadKind::I32 { atomic: false },
-                    walrus::ir::MemArg {
-                        align: align as u32,
-                        offset: 0,
-                    },
-                );
-
-                // calculate *target + index * size
-                builder.binop(BinaryOp::I32Add);
-
-                let load_kind = match element_ty.as_ref() {
-                    Type::I64 | Type::U64 => walrus::ir::LoadKind::I64 { atomic: false },
-                    Type::I32 | Type::U32 => walrus::ir::LoadKind::I32 { atomic: false },
-                    Type::I16 => walrus::ir::LoadKind::I32_16 {
-                        kind: walrus::ir::ExtendedLoad::SignExtend,
-                    },
-                    Type::U16 => walrus::ir::LoadKind::I32_16 {
-                        kind: walrus::ir::ExtendedLoad::ZeroExtend,
-                    },
-                    Type::I8 => walrus::ir::LoadKind::I32_8 {
-                        kind: walrus::ir::ExtendedLoad::SignExtend,
-                    },
-                    Type::U8 => walrus::ir::LoadKind::I32_8 {
-                        kind: walrus::ir::ExtendedLoad::ZeroExtend,
-                    },
-                    Type::Invalid | Type::Void | Type::Func(..) => todo!(),
-                    _ => todo!(),
-                };
-
-                builder.load(
-                    self.memory_id,
-                    load_kind,
-                    walrus::ir::MemArg {
-                        align: align as u32,
-                        offset: 0,
-                    },
-                );
+                match ty.as_ref() {
+                    Type::Slice(..) => self.process_slice_index_expr(builder, target, index),
+                    Type::ArrayPtr(..) => self.process_array_ptr_index_expr(builder, target, index),
+                    _ => unreachable!(),
+                }
             }
             ExprKind::Cast(value, target_ty) => {
                 self.process_cast_expr(builder, value, *target_ty);
@@ -873,6 +873,114 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 }
             }
         }
+    }
+
+    fn process_slice_index_expr(&self, builder: &mut InstrSeqBuilder, target: &Expr, index: &Expr) {
+        let ty = self.type_loader.get_type(target.type_id).unwrap();
+        let Type::Slice(slice_ty) = ty.as_ref() else {
+            unreachable!();
+        };
+        let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
+        let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+        let (size, align) = get_size_and_alignment(&element_ty);
+
+        // TODO: check index range
+
+        // calculate index as i32 * size
+        self.process_expr(builder, index);
+        self.do_cast(builder, &index_ty, &Type::U32);
+        builder.i32_const(size as i32);
+        builder.binop(BinaryOp::I32Mul);
+
+        // calculate addr of target[0]
+        self.process_expr(builder, target);
+        builder.load(
+            self.memory_id,
+            walrus::ir::LoadKind::I32 { atomic: false },
+            walrus::ir::MemArg {
+                align: align as u32,
+                offset: 0,
+            },
+        );
+
+        // calculate *target + index * size
+        builder.binop(BinaryOp::I32Add);
+
+        let load_kind = match element_ty.as_ref() {
+            Type::I64 | Type::U64 => walrus::ir::LoadKind::I64 { atomic: false },
+            Type::I32 | Type::U32 => walrus::ir::LoadKind::I32 { atomic: false },
+            Type::I16 => walrus::ir::LoadKind::I32_16 {
+                kind: walrus::ir::ExtendedLoad::SignExtend,
+            },
+            Type::U16 => walrus::ir::LoadKind::I32_16 {
+                kind: walrus::ir::ExtendedLoad::ZeroExtend,
+            },
+            Type::I8 => walrus::ir::LoadKind::I32_8 {
+                kind: walrus::ir::ExtendedLoad::SignExtend,
+            },
+            Type::U8 => walrus::ir::LoadKind::I32_8 {
+                kind: walrus::ir::ExtendedLoad::ZeroExtend,
+            },
+            Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+            _ => todo!(),
+        };
+
+        builder.load(
+            self.memory_id,
+            load_kind,
+            walrus::ir::MemArg {
+                align: align as u32,
+                offset: 0,
+            },
+        );
+    }
+
+    fn process_array_ptr_index_expr(&self, builder: &mut InstrSeqBuilder, target: &Expr, index: &Expr) {
+        let ty = self.type_loader.get_type(target.type_id).unwrap();
+        let Type::ArrayPtr(array_ptr_ty) = ty.as_ref() else {
+            unreachable!();
+        };
+
+        let element_ty = self.type_loader.get_type(array_ptr_ty.element_type).unwrap();
+        let index_ty = self.type_loader.get_type(index.type_id).unwrap();
+        let (size, align) = get_size_and_alignment(&element_ty);
+
+        // i * size
+        builder.i32_const(size as i32);
+        self.process_expr(builder, index);
+        self.do_cast(builder, &index_ty, &Type::U32);
+        builder.binop(BinaryOp::I32Mul);
+        // target + i * size
+        self.process_expr(builder, target);
+        builder.binop(BinaryOp::I32Add);
+
+        let load_kind = match element_ty.as_ref() {
+            Type::I64 | Type::U64 => walrus::ir::LoadKind::I64 { atomic: false },
+            Type::I32 | Type::U32 => walrus::ir::LoadKind::I32 { atomic: false },
+            Type::I16 => walrus::ir::LoadKind::I32_16 {
+                kind: walrus::ir::ExtendedLoad::SignExtend,
+            },
+            Type::U16 => walrus::ir::LoadKind::I32_16 {
+                kind: walrus::ir::ExtendedLoad::ZeroExtend,
+            },
+            Type::I8 => walrus::ir::LoadKind::I32_8 {
+                kind: walrus::ir::ExtendedLoad::SignExtend,
+            },
+            Type::U8 => walrus::ir::LoadKind::I32_8 {
+                kind: walrus::ir::ExtendedLoad::ZeroExtend,
+            },
+            Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+            _ => todo!(),
+        };
+
+        builder.load(
+            self.memory_id,
+            load_kind,
+            walrus::ir::MemArg {
+                align: align as u32,
+                offset: 0,
+            },
+        );
     }
 
     fn process_builtin_call(&self, builder: &mut InstrSeqBuilder, builtin_name: &str) {
@@ -1019,13 +1127,6 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ) => builder.binop(BinaryOp::I32Add),
             (BinOp::Add, Type::F64) => builder.binop(BinaryOp::F64Add),
             (BinOp::Add, Type::F32) => builder.binop(BinaryOp::F32Add),
-            (BinOp::Add, Type::Pointer(ptr_ty)) => {
-                let element_ty = self.type_loader.get_type(ptr_ty.element_type).unwrap();
-                let (size, _) = get_size_and_alignment(&element_ty);
-                builder.i32_const(size as i32);
-                builder.binop(BinaryOp::I32Mul);
-                builder.binop(BinaryOp::I32Add)
-            }
 
             (BinOp::Sub, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Sub),
             (
@@ -1034,13 +1135,6 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ) => builder.binop(BinaryOp::I32Sub),
             (BinOp::Sub, Type::F64) => builder.binop(BinaryOp::F64Sub),
             (BinOp::Sub, Type::F32) => builder.binop(BinaryOp::F32Sub),
-            (BinOp::Sub, Type::Pointer(ptr_ty)) => {
-                let element_ty = self.type_loader.get_type(ptr_ty.element_type).unwrap();
-                let (size, _) = get_size_and_alignment(&element_ty);
-                builder.i32_const(size as i32);
-                builder.binop(BinaryOp::I32Mul);
-                builder.binop(BinaryOp::I32Sub)
-            }
 
             (BinOp::Mul, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Mul),
             (
@@ -1118,7 +1212,6 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
             (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
 
-            // TODO: pointer arithmetic. Or maybe don't support pointer arithmetic
             (op, ty) => unreachable!("cannot perform op {op:?} for {ty:?}"),
         };
     }
@@ -1194,6 +1287,7 @@ fn to_wasm_type(ty: &Type) -> ValType {
         Type::F32 => ValType::F32,
         Type::Slice(_) => ValType::I32,
         Type::Pointer(_) => ValType::I32,
+        Type::ArrayPtr(_) => ValType::I32,
         Type::Invalid | Type::Void | Type::Func(..) => todo!(),
     }
 }
@@ -1210,6 +1304,7 @@ fn get_size_and_alignment(ty: &Type) -> (usize, usize) {
         Type::Bool => (1, 1),
         Type::Slice(..) => (4, 4),
         Type::Pointer(..) => (4, 4),
+        Type::ArrayPtr(..) => (4, 4),
         Type::Invalid | Type::Void | Type::Func(..) => todo!(),
     }
 }
