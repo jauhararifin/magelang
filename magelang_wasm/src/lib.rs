@@ -229,6 +229,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::Isize(..)
             | ExprKind::Usize(..)
             | ExprKind::Local(..)
+            | ExprKind::ZeroOf(..)
             | ExprKind::SizeOf(..)
             | ExprKind::AlignOf(..)
             | ExprKind::DataEnd
@@ -769,6 +770,28 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Global(global_expr) => {
                 let global_id = GlobalId(global_expr.package_name, global_expr.variable_name);
                 builder.global_get(*self.globals.get(&global_id).unwrap());
+            }
+            ExprKind::ZeroOf(type_id) => {
+                let ty = self.type_loader.get_type(*type_id).unwrap();
+                match ty.as_ref() {
+                    Type::Isize => builder.i32_const(0),
+                    Type::I64 => builder.i64_const(0),
+                    Type::I32 => builder.i32_const(0),
+                    Type::I16 => builder.i32_const(0),
+                    Type::I8 => builder.i32_const(0),
+                    Type::Usize => builder.i32_const(0),
+                    Type::U64 => builder.i64_const(0),
+                    Type::U32 => builder.i32_const(0),
+                    Type::U16 => builder.i32_const(0),
+                    Type::U8 => builder.i32_const(0),
+                    Type::F32 => builder.i32_const(0),
+                    Type::F64 => builder.i32_const(0),
+                    Type::Bool => builder.i32_const(0),
+                    Type::Slice(..) => builder.i32_const(0),
+                    Type::Pointer(..) => builder.i32_const(0),
+                    Type::ArrayPtr(..) => builder.i32_const(0),
+                    Type::Void | Type::Func(..) | Type::Invalid => builder.i32_const(0),
+                };
             }
             ExprKind::SizeOf(type_id) => {
                 let ty = self.type_loader.get_type(*type_id).unwrap();

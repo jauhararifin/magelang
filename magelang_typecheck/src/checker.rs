@@ -422,24 +422,24 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let local_id = state.use_local(target_ty_id);
 
                 let expr_kind = match target_ty.as_ref() {
+                    Type::Isize
+                    | Type::I64
+                    | Type::I32
+                    | Type::I16
+                    | Type::I8
+                    | Type::Usize
+                    | Type::U64
+                    | Type::U32
+                    | Type::U16
+                    | Type::U8
+                    | Type::F32
+                    | Type::F64
+                    | Type::Bool
+                    | Type::Slice(..)
+                    | Type::Pointer(..)
+                    | Type::ArrayPtr(..)
+                    | Type::Func(..) => ExprKind::ZeroOf(target_ty_id),
                     Type::Invalid => ExprKind::Invalid,
-                    Type::Isize => ExprKind::Isize(0),
-                    Type::I64 => ExprKind::I64(0),
-                    Type::I32 => ExprKind::I32(0),
-                    Type::I16 => ExprKind::I16(0),
-                    Type::I8 => ExprKind::I8(0),
-                    Type::Usize => ExprKind::Usize(0),
-                    Type::U64 => ExprKind::U64(0),
-                    Type::U32 => ExprKind::U32(0),
-                    Type::U16 => ExprKind::U16(0),
-                    Type::U8 => ExprKind::U8(0),
-                    Type::F32 => ExprKind::F32(0.0),
-                    Type::F64 => ExprKind::F64(0.0),
-                    Type::Bool => ExprKind::Bool(false),
-                    Type::Slice(..) => ExprKind::Usize(0),
-                    Type::Pointer(..) => ExprKind::Usize(0),
-                    Type::ArrayPtr(..) => ExprKind::Usize(0),
-                    Type::Func(..) => ExprKind::Func(FuncExpr::Empty),
                     Type::Void => {
                         self.errors.cannot_use_type_for_local(ty.get_pos(), target_ty_id);
                         return StatementInfo {
@@ -594,6 +594,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::Bool(..)
             | ExprKind::Isize(..)
             | ExprKind::Usize(..)
+            | ExprKind::ZeroOf(..)
             | ExprKind::SizeOf(..)
             | ExprKind::AlignOf(..)
             | ExprKind::DataEnd

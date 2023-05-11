@@ -26,6 +26,7 @@ pub enum ExprKind {
     Isize(i64),
     Usize(u64),
     Local(usize),
+    ZeroOf(TypeId),
     SizeOf(TypeId),
     AlignOf(TypeId),
     DataEnd,
