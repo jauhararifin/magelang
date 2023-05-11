@@ -177,17 +177,26 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }
                 ItemNode::Global(global_node) => {
                     let type_id = self.get_expr_type(&global_scope, &global_node.ty);
-                    Object::Global(type_id)
+                    Object::Global {
+                        type_id,
+                        assignable: true,
+                    }
                 }
                 ItemNode::Function(func_node) => {
                     let func_ty = self.get_func_type(&global_scope, &func_node.signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
-                    Object::Func(type_id)
+                    Object::Global {
+                        type_id,
+                        assignable: false,
+                    }
                 }
                 ItemNode::NativeFunction(signature) => {
                     let func_ty = self.get_func_type(&global_scope, signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
-                    Object::Func(type_id)
+                    Object::Global {
+                        type_id,
+                        assignable: false,
+                    }
                 }
             };
 
@@ -598,7 +607,6 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::SizeOf(..)
             | ExprKind::AlignOf(..)
             | ExprKind::DataEnd
-            | ExprKind::Func(..)
             | ExprKind::StringLit(..)
             | ExprKind::Binary { .. }
             | ExprKind::Unary { .. }
@@ -901,20 +909,11 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 comp_const: false,
                 kind: ExprKind::Local(index),
             },
-            Object::Global(type_id) => Expr {
+            Object::Global { type_id, assignable } => Expr {
                 type_id,
-                assignable: true,
+                assignable,
                 comp_const: false,
                 kind: ExprKind::Global(GlobalId {
-                    package_name: scope.package_name().unwrap(),
-                    item_name: symbol_id,
-                }),
-            },
-            Object::Func(type_id) => Expr {
-                type_id,
-                assignable: false,
-                comp_const: false,
-                kind: ExprKind::Func(GlobalId {
                     package_name: scope.package_name().unwrap(),
                     item_name: symbol_id,
                 }),

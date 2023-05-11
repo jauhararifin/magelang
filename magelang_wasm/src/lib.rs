@@ -57,7 +57,7 @@ pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     globals: HashMap<GlobalId, WasmGlobalId>,
     packages: &'pkg [Rc<Package>],
     main_package: SymbolId,
-    reachable_functions: HashSet<GlobalId>,
+    reachable_globals: HashSet<GlobalId>,
     data_offset_table: HashMap<(SymbolId, usize), usize>,
     function_ids: HashMap<GlobalId, FunctionId>,
     builtin_functions: HashMap<GlobalId, Rc<str>>,
@@ -79,7 +79,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             globals: HashMap::default(),
             packages,
             main_package,
-            reachable_functions: HashSet::default(),
+            reachable_globals: HashSet::default(),
             data_offset_table: HashMap::default(),
             function_ids: HashMap::default(),
             builtin_functions: HashMap::default(),
@@ -87,7 +87,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     }
 
     fn compile(&mut self) {
-        self.calculate_reachable_functions();
+        self.calculate_reachable_globals();
         self.declare_native_functions();
         self.declare_local_functions();
         self.build_main_func();
@@ -99,7 +99,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
             let func_global_id = GlobalId::new(func.package_name, func.function_name);
-            if !self.reachable_functions.contains(&func_global_id) {
+            if !self.reachable_globals.contains(&func_global_id) {
                 continue;
             }
 
@@ -133,12 +133,12 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         }
     }
 
-    fn calculate_reachable_functions(&mut self) {
-        let mut local_funcs = HashMap::new();
+    fn calculate_reachable_globals(&mut self) {
+        let mut func_to_body = HashMap::new();
         for pkg in self.packages {
             for func in &pkg.functions {
                 let global_id = GlobalId::new(pkg.name, func.function_name);
-                local_funcs.insert(global_id, &func.body);
+                func_to_body.insert(global_id, &func.body);
             }
         }
 
@@ -150,17 +150,17 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         in_stack.insert(GlobalId::new(self.main_package, main_sym));
 
         while let Some(func_id) = stack.pop() {
-            if self.reachable_functions.contains(&func_id) {
+            if self.reachable_globals.contains(&func_id) {
                 continue;
             }
-            self.reachable_functions.insert(func_id.clone());
+            self.reachable_globals.insert(func_id.clone());
 
-            let Some(body) = local_funcs.get(&func_id) else {
+            let Some(body) = func_to_body.get(&func_id) else {
                 continue;
             };
 
             let mut called_funcs = vec![];
-            Self::get_called_functions(body, &mut called_funcs);
+            Self::get_used_globals(body, &mut called_funcs);
             for called_func_id in called_funcs {
                 if !in_stack.contains(&called_func_id) {
                     stack.push(called_func_id.clone());
@@ -170,46 +170,46 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         }
     }
 
-    fn get_called_functions(stmt: &Statement, result: &mut Vec<GlobalId>) {
+    fn get_used_globals(stmt: &Statement, result: &mut Vec<GlobalId>) {
         match stmt {
             Statement::Invalid | Statement::Continue | Statement::Break => (),
-            Statement::SetLocal(_, expr) => Self::get_called_functions_in_expr(expr, result),
+            Statement::SetLocal(_, expr) => Self::get_used_globals_in_expr(expr, result),
             Statement::SetGlobal(_global_expr, _value) => (),
             Statement::SetIndex { target, index, value } => {
-                Self::get_called_functions_in_expr(target, result);
-                Self::get_called_functions_in_expr(index, result);
-                Self::get_called_functions_in_expr(value, result);
+                Self::get_used_globals_in_expr(target, result);
+                Self::get_used_globals_in_expr(index, result);
+                Self::get_used_globals_in_expr(value, result);
             }
             Statement::SetAddr { addr, value } => {
-                Self::get_called_functions_in_expr(addr, result);
-                Self::get_called_functions_in_expr(value, result);
+                Self::get_used_globals_in_expr(addr, result);
+                Self::get_used_globals_in_expr(value, result);
             }
             Statement::If(if_stmt) => {
-                Self::get_called_functions_in_expr(&if_stmt.condition, result);
-                Self::get_called_functions(&if_stmt.body, result);
+                Self::get_used_globals_in_expr(&if_stmt.condition, result);
+                Self::get_used_globals(&if_stmt.body, result);
                 if let Some(ref else_body) = if_stmt.else_body {
-                    Self::get_called_functions(else_body, result);
+                    Self::get_used_globals(else_body, result);
                 }
             }
             Statement::While(while_stmt) => {
-                Self::get_called_functions_in_expr(&while_stmt.condition, result);
-                Self::get_called_functions(&while_stmt.body, result);
+                Self::get_used_globals_in_expr(&while_stmt.condition, result);
+                Self::get_used_globals(&while_stmt.body, result);
             }
             Statement::Block(block_stmt) => {
                 for stmt in &block_stmt.statements {
-                    Self::get_called_functions(stmt, result);
+                    Self::get_used_globals(stmt, result);
                 }
             }
             Statement::Return(ret_stmt) => {
                 if let Some(ref expr) = ret_stmt.value {
-                    Self::get_called_functions_in_expr(expr, result);
+                    Self::get_used_globals_in_expr(expr, result);
                 }
             }
-            Statement::Expr(expr) => Self::get_called_functions_in_expr(expr, result),
+            Statement::Expr(expr) => Self::get_used_globals_in_expr(expr, result),
         }
     }
 
-    fn get_called_functions_in_expr(expr: &Expr, result: &mut Vec<GlobalId>) {
+    fn get_used_globals_in_expr(expr: &Expr, result: &mut Vec<GlobalId>) {
         match &expr.kind {
             ExprKind::Invalid
             | ExprKind::I64(..)
@@ -231,30 +231,27 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::AlignOf(..)
             | ExprKind::DataEnd
             | ExprKind::StringLit(..)
-            | ExprKind::Global(..)
             | ExprKind::Deref(..) => (),
-            ExprKind::Func(global_id) => {
-                result.push(global_id.clone());
-            }
+            ExprKind::Global(global_id) => result.push(global_id.clone()),
             ExprKind::Binary { a, op: _, b } => {
-                Self::get_called_functions_in_expr(a, result);
-                Self::get_called_functions_in_expr(b, result);
+                Self::get_used_globals_in_expr(a, result);
+                Self::get_used_globals_in_expr(b, result);
             }
             ExprKind::Unary { val, op: _ } => {
-                Self::get_called_functions_in_expr(val, result);
+                Self::get_used_globals_in_expr(val, result);
             }
             ExprKind::Call(func, args) => {
-                Self::get_called_functions_in_expr(func, result);
+                Self::get_used_globals_in_expr(func, result);
                 for arg in args {
-                    Self::get_called_functions_in_expr(arg, result);
+                    Self::get_used_globals_in_expr(arg, result);
                 }
             }
             ExprKind::Index(target, index) => {
-                Self::get_called_functions_in_expr(target, result);
-                Self::get_called_functions_in_expr(index, result);
+                Self::get_used_globals_in_expr(target, result);
+                Self::get_used_globals_in_expr(index, result);
             }
             ExprKind::Cast(value, _) => {
-                Self::get_called_functions_in_expr(value, result);
+                Self::get_used_globals_in_expr(value, result);
             }
         }
     }
@@ -303,7 +300,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let native_functions = self.packages.iter().flat_map(|pkg| pkg.native_functions.iter());
         for func in native_functions {
             let func_global_id = GlobalId::new(func.package_name, func.function_name);
-            if !self.reachable_functions.contains(&func_global_id) {
+            if !self.reachable_globals.contains(&func_global_id) {
                 continue;
             }
 
@@ -362,7 +359,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
             let global_id = GlobalId::new(func.package_name, func.function_name);
-            if !self.reachable_functions.contains(&global_id) {
+            if !self.reachable_globals.contains(&global_id) {
                 continue;
             }
 
@@ -861,7 +858,6 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                     },
                 );
             }
-            ExprKind::Func(..) => unreachable!("function pointer is not supported yet"),
         }
     }
 
@@ -870,7 +866,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             self.process_expr(builder, arg);
         }
 
-        let ExprKind::Func(global_id) = &target.kind else {
+        let ExprKind::Global(global_id) = &target.kind else {
             unreachable!("the callee expression is not a function");
         };
 

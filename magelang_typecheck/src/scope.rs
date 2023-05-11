@@ -12,9 +12,8 @@ pub struct Scope {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Object {
     Package(SymbolId),
-    Func(TypeId),
     Local(TypeId, usize),
-    Global(TypeId),
+    Global{type_id: TypeId, assignable: bool},
     Type(TypeId),
 }
 

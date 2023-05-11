@@ -30,7 +30,6 @@ pub enum ExprKind {
     SizeOf(TypeId),
     AlignOf(TypeId),
     DataEnd,
-    Func(GlobalId),
     Global(GlobalId),
     StringLit(StringLitExpr),
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
