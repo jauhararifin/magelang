@@ -1459,26 +1459,51 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let target = self.get_expr(scope, str_helper, &index_expr.value, None);
 
         let target_ty = self.type_loader.get_type(target.type_id).unwrap();
-        let element_ty = match target_ty.as_ref() {
-            Type::Slice(slice_ty) => slice_ty.element_type,
-            Type::ArrayPtr(array_ptr_ty) => array_ptr_ty.element_type,
+        match target_ty.as_ref() {
+            Type::Slice(slice_ty) => {
+                self.get_array_ptr_index_expr(scope, str_helper, target, slice_ty.element_type, index_expr)
+            }
+            Type::ArrayPtr(array_ptr_ty) => {
+                self.get_array_ptr_index_expr(scope, str_helper, target, array_ptr_ty.element_type, index_expr)
+            }
             _ => {
                 self.errors.not_indexable(index_expr.value.get_pos());
-                return Expr {
+                Expr {
                     type_id: self.type_loader.declare_type(Type::Invalid),
                     assignable: false,
                     comp_const: false,
                     kind: ExprKind::Invalid,
-                };
+                }
             }
-        };
+        }
+    }
 
-        let index = self.get_expr(scope, str_helper, &index_expr.index, None);
+    fn get_array_ptr_index_expr(
+        &self,
+        scope: &Rc<Scope>,
+        str_helper: &mut ConstStrHelper,
+        target: Expr,
+        element_type_id: TypeId,
+        index_expr: &IndexExprNode,
+    ) -> Expr {
+        if index_expr.index.len() != 1 {
+            self.errors
+                .unmatch_index_arguments(index_expr.get_pos(), 1, index_expr.index.len());
+            return Expr {
+                type_id: element_type_id,
+                assignable: true,
+                comp_const: false,
+                kind: ExprKind::Invalid,
+            };
+        }
+
+        let index_node = index_expr.index.get(0).unwrap();
+        let index = self.get_expr(scope, str_helper, &index_node, None);
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
         if !index_ty.is_int() {
-            self.errors.cannot_used_as_index(index_expr.index.get_pos());
+            self.errors.cannot_used_as_index(index_node.get_pos());
             return Expr {
-                type_id: element_ty,
+                type_id: element_type_id,
                 assignable: true,
                 comp_const: false,
                 kind: ExprKind::Invalid,
@@ -1486,7 +1511,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         Expr {
-            type_id: element_ty,
+            type_id: element_type_id,
             assignable: true,
             comp_const: false,
             kind: ExprKind::Index(Box::new(target), Box::new(index)),

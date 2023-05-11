@@ -111,6 +111,7 @@ pub struct SignatureNode {
     pub pos: Pos,
     pub tags: Vec<TagNode>,
     pub name: Token,
+    pub type_parameters: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<ExprNode>,
 }
@@ -131,6 +132,17 @@ pub struct TagNode {
 impl AstNode for TagNode {
     fn get_pos(&self) -> Pos {
         self.pos
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TypeParameterNode {
+    pub name: Token,
+}
+
+impl AstNode for TypeParameterNode {
+    fn get_pos(&self) -> Pos {
+        self.name.pos
     }
 }
 
@@ -430,7 +442,7 @@ impl AstNode for SelectionExprNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct IndexExprNode {
     pub value: Box<ExprNode>,
-    pub index: Box<ExprNode>,
+    pub index: Vec<ExprNode>,
 }
 
 impl AstNode for IndexExprNode {

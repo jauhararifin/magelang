@@ -3,7 +3,7 @@ use crate::ast::{
     CallExprNode, CastExprNode, DerefExprNode, ElseIfStatementNode, ExprNode, FunctionNode, GlobalNode,
     GroupedExprNode, IfStatementNode, ImportNode, IndexExprNode, ItemNode, LetKind, LetStatementNode, PackageNode,
     ParameterNode, ReturnStatementNode, SelectionExprNode, SignatureNode, SliceExprNode, StatementNode, TagNode,
-    UnaryExprNode, WhileStatementNode,
+    TypeParameterNode, UnaryExprNode, WhileStatementNode,
 };
 use crate::errors::SyntaxErrorAccumulator;
 use crate::scanner::scan;
@@ -182,6 +182,22 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             func.pos
         };
         let name = self.take(TokenKind::Ident)?;
+
+        let type_parameters = if self.kind() == TokenKind::OpenSquare {
+            let (_, type_parameters, _) = self.parse_sequence(
+                TokenKind::OpenSquare,
+                TokenKind::Comma,
+                TokenKind::CloseSquare,
+                |parser| parser.take(TokenKind::Ident),
+            )?;
+            type_parameters
+                .into_iter()
+                .map(|name| TypeParameterNode { name })
+                .collect()
+        } else {
+            vec![]
+        };
+
         let (_, parameters, _) = self.parse_sequence(
             TokenKind::OpenBrac,
             TokenKind::Comma,
@@ -202,6 +218,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
             pos,
             tags,
             name,
+            type_parameters,
             parameters,
             return_type,
         })
@@ -472,59 +489,62 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     fn parse_unary_expr(&mut self) -> Option<ExprNode> {
         if Self::UNARY_OP.contains(&self.kind()) {
             let op = self.tokens.pop_front().unwrap();
-            let value = self.parse_unary_expr()?;
+            let value = self.parse_call_like_expr()?;
             Some(ExprNode::Unary(UnaryExprNode {
                 op,
                 value: Box::new(value),
             }))
         } else {
-            self.parse_index_expr()
+            self.parse_call_like_expr()
         }
     }
 
-    fn parse_index_expr(&mut self) -> Option<ExprNode> {
-        let value = self.parse_builtin_call_expr()?;
-        if self.take_if(TokenKind::OpenSquare).is_none() {
-            return Some(value);
+    fn parse_call_like_expr(&mut self) -> Option<ExprNode> {
+        let mut target = if let Some(target) = self.take_if(TokenKind::Builtin) {
+            let (_, arguments, _) =
+                self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
+                    this.parse_expr()
+                })?;
+            ExprNode::BuiltinCall(BuiltinCallExprNode { target, arguments })
+        } else {
+            self.parse_slice_expr()?
         };
-        let index = self.parse_expr()?;
-        self.take(TokenKind::CloseSquare)?;
-        Some(ExprNode::Index(IndexExprNode {
-            value: Box::new(value),
-            index: Box::new(index),
-        }))
-    }
 
-    fn parse_builtin_call_expr(&mut self) -> Option<ExprNode> {
-        let Some(target) = self.take_if(TokenKind::Builtin) else {
-            return self.parse_call_expr();
-        };
-        let (_, arguments, _) =
-            self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
-                this.parse_expr()
-            })?;
-        Some(ExprNode::BuiltinCall(BuiltinCallExprNode { target, arguments }))
-    }
+        let mut pos = target.get_pos();
 
-    fn parse_call_expr(&mut self) -> Option<ExprNode> {
-        let target = self.parse_slice_expr()?;
-
-        if self.kind() != TokenKind::OpenBrac {
-            return Some(target);
+        loop {
+            target = match self.kind() {
+                TokenKind::OpenSquare => {
+                    let (_, arguments, _) = self.parse_sequence(
+                        TokenKind::OpenSquare,
+                        TokenKind::Comma,
+                        TokenKind::CloseSquare,
+                        |this| this.parse_expr(),
+                    )?;
+                    ExprNode::Index(IndexExprNode {
+                        value: Box::new(target),
+                        index: arguments,
+                    })
+                }
+                TokenKind::OpenBrac => {
+                    let (_, arguments, _) =
+                        self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
+                            this.parse_expr()
+                        })?;
+                    ExprNode::Call(CallExprNode {
+                        pos,
+                        target: Box::new(target),
+                        arguments,
+                    })
+                }
+                _ => {
+                    break;
+                }
+            };
+            pos = target.get_pos();
         }
 
-        let (_, arguments, _) =
-            self.parse_sequence(TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
-                this.parse_expr()
-            })?;
-
-        let pos = target.get_pos();
-
-        Some(ExprNode::Call(CallExprNode {
-            pos,
-            target: Box::new(target),
-            arguments,
-        }))
+        Some(target)
     }
 
     fn parse_slice_expr(&mut self) -> Option<ExprNode> {
@@ -724,4 +744,14 @@ mod tests {
         fn some_function();
         "#,
     );
+    test_parse_code_errors!(
+        call_index_expr,
+        r#"
+        fn some_function() {
+            let a = ident()[a,b,c](a,b,c)[]();
+            let b = ident[a,b,c](a,b,c)[]()[0];
+        }
+        "#,
+    );
 }
+

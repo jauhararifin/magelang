@@ -151,6 +151,13 @@ impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
         ));
     }
 
+    pub fn unmatch_index_arguments(&self, pos: Pos, expected: usize, found: usize) {
+        self.err_accumulator.push(Error::new(
+            pos,
+            format!("Expression expects {expected} arguments, but found {found}"),
+        ));
+    }
+
     pub fn expr_unassignable(&self, pos: Pos) {
         self.err_accumulator
             .push(Error::new(pos, String::from("Expression is not assignable")));
