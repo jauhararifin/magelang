@@ -30,8 +30,8 @@ pub enum ExprKind {
     SizeOf(TypeId),
     AlignOf(TypeId),
     DataEnd,
-    Func(FuncExpr),
-    Global(GlobalExpr),
+    Func(GlobalId),
+    Global(GlobalId),
     StringLit(StringLitExpr),
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
     Unary { op: UnOp, val: Box<Expr> },
@@ -39,6 +39,21 @@ pub enum ExprKind {
     Index(Box<Expr>, Box<Expr>),
     Cast(Box<Expr>, TypeId),
     Deref(Box<Expr>),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct GlobalId {
+    pub package_name: SymbolId,
+    pub item_name: SymbolId,
+}
+
+impl GlobalId {
+    pub fn new(package_name: SymbolId, item_name: SymbolId) -> Self {
+        Self {
+            package_name,
+            item_name,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -69,24 +84,6 @@ pub enum UnOp {
     Sub,
     Add,
     Not,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct GlobalExpr {
-    pub package_name: SymbolId,
-    pub variable_name: SymbolId,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum FuncExpr {
-    Empty,
-    Normal(NormalFunc),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct NormalFunc {
-    pub package_name: SymbolId,
-    pub function_name: SymbolId,
 }
 
 #[derive(Debug, PartialEq)]

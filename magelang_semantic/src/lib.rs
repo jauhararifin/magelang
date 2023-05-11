@@ -3,7 +3,7 @@ mod statement;
 mod types;
 mod value;
 
-pub use expr::{BinOp, Expr, ExprKind, FuncExpr, GlobalExpr, NormalFunc, StringLitExpr, UnOp};
+pub use expr::{BinOp, Expr, ExprKind, GlobalId, StringLitExpr, UnOp};
 pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
 pub use types::{ArrayPtrType, FuncType, PointerType, SliceType, Type, TypeDisplay, TypeId, TypeLoader};
 pub use value::value_from_string_lit;

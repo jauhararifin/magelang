@@ -1,10 +1,10 @@
-use crate::expr::{Expr, GlobalExpr};
+use crate::expr::{Expr, GlobalId};
 
 #[derive(Debug)]
 pub enum Statement {
     Invalid,
     SetLocal(usize, Expr),
-    SetGlobal(GlobalExpr, Expr),
+    SetGlobal(GlobalId, Expr),
     SetIndex { target: Expr, index: Expr, value: Expr },
     SetAddr { addr: Expr, value: Expr },
     If(IfStatement),

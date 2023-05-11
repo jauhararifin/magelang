@@ -4,9 +4,9 @@ use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
-    value_from_string_lit, ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncExpr, FuncType, Global,
-    GlobalExpr, IfStatement, NativeFunction, NormalFunc, Package, PointerType, ReturnStatement, SliceType, Statement,
-    StringLitExpr, Tag, Type, TypeId, TypeLoader, UnOp, WhileStatement,
+    value_from_string_lit, ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncType, Global, GlobalId,
+    IfStatement, NativeFunction, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type,
+    TypeId, TypeLoader, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode,
@@ -905,19 +905,19 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 type_id,
                 assignable: true,
                 comp_const: false,
-                kind: ExprKind::Global(GlobalExpr {
+                kind: ExprKind::Global(GlobalId {
                     package_name: scope.package_name().unwrap(),
-                    variable_name: symbol_id,
+                    item_name: symbol_id,
                 }),
             },
             Object::Func(type_id) => Expr {
                 type_id,
                 assignable: false,
                 comp_const: false,
-                kind: ExprKind::Func(FuncExpr::Normal(NormalFunc {
+                kind: ExprKind::Func(GlobalId {
                     package_name: scope.package_name().unwrap(),
-                    function_name: symbol_id,
-                })),
+                    item_name: symbol_id,
+                }),
             },
             _ => {
                 self.errors.not_a_value(tok.pos);

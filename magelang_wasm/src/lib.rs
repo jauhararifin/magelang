@@ -1,6 +1,6 @@
 use magelang_common::{SymbolId, SymbolLoader};
 use magelang_semantic::{
-    BinOp, Expr, ExprKind, FuncExpr, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
+    BinOp, Expr, ExprKind, GlobalId, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
 };
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -16,9 +16,6 @@ pub struct Compiler<'sym, 'typ> {
 }
 
 const START_FUNC_NAME: &str = "__start";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct GlobalId(SymbolId, SymbolId);
 
 impl<'sym, 'typ> Compiler<'sym, 'typ> {
     pub fn new(symbol_loader: &'sym SymbolLoader, type_loader: &'typ TypeLoader) -> Self {
@@ -101,7 +98,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
 
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
-            let func_global_id = GlobalId(func.package_name, func.function_name);
+            let func_global_id = GlobalId::new(func.package_name, func.function_name);
             if !self.reachable_functions.contains(&func_global_id) {
                 continue;
             }
@@ -140,7 +137,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let mut local_funcs = HashMap::new();
         for pkg in self.packages {
             for func in &pkg.functions {
-                let global_id = GlobalId(pkg.name, func.function_name);
+                let global_id = GlobalId::new(pkg.name, func.function_name);
                 local_funcs.insert(global_id, &func.body);
             }
         }
@@ -149,14 +146,14 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let mut in_stack = HashSet::new();
 
         let main_sym = self.symbol_loader.declare_symbol("main");
-        stack.push(GlobalId(self.main_package, main_sym));
-        in_stack.insert(GlobalId(self.main_package, main_sym));
+        stack.push(GlobalId::new(self.main_package, main_sym));
+        in_stack.insert(GlobalId::new(self.main_package, main_sym));
 
         while let Some(func_id) = stack.pop() {
             if self.reachable_functions.contains(&func_id) {
                 continue;
             }
-            self.reachable_functions.insert(func_id);
+            self.reachable_functions.insert(func_id.clone());
 
             let Some(body) = local_funcs.get(&func_id) else {
                 continue;
@@ -166,8 +163,8 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             Self::get_called_functions(body, &mut called_funcs);
             for called_func_id in called_funcs {
                 if !in_stack.contains(&called_func_id) {
-                    stack.push(called_func_id);
-                    in_stack.insert(called_func_id);
+                    stack.push(called_func_id.clone());
+                    in_stack.insert(called_func_id.clone());
                 }
             }
         }
@@ -236,10 +233,8 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
             | ExprKind::StringLit(..)
             | ExprKind::Global(..)
             | ExprKind::Deref(..) => (),
-            ExprKind::Func(func_expr) => {
-                if let FuncExpr::Normal(func_expr) = func_expr {
-                    result.push(GlobalId(func_expr.package_name, func_expr.function_name));
-                }
+            ExprKind::Func(global_id) => {
+                result.push(global_id.clone());
             }
             ExprKind::Binary { a, op: _, b } => {
                 Self::get_called_functions_in_expr(a, result);
@@ -300,14 +295,14 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
 
             let id = self.module.globals.add_local(wasm_ty, true, InitExpr::Value(val));
             self.globals
-                .insert(GlobalId(global.package_name, global.variable_name), id);
+                .insert(GlobalId::new(global.package_name, global.variable_name), id);
         }
     }
 
     fn declare_native_functions(&mut self) {
         let native_functions = self.packages.iter().flat_map(|pkg| pkg.native_functions.iter());
         for func in native_functions {
-            let func_global_id = GlobalId(func.package_name, func.function_name);
+            let func_global_id = GlobalId::new(func.package_name, func.function_name);
             if !self.reachable_functions.contains(&func_global_id) {
                 continue;
             }
@@ -338,7 +333,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
 
                     let type_id = self.module.types.add(&param_types, &return_type);
                     let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
-                    self.function_ids.insert(func_global_id, func_id);
+                    self.function_ids.insert(func_global_id.clone(), func_id);
                 }
             }
 
@@ -366,7 +361,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     fn declare_local_functions(&mut self) {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
-            let global_id = GlobalId(func.package_name, func.function_name);
+            let global_id = GlobalId::new(func.package_name, func.function_name);
             if !self.reachable_functions.contains(&global_id) {
                 continue;
             }
@@ -405,7 +400,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
 
     fn build_main_func(&mut self) {
         let main_sym = self.symbol_loader.declare_symbol("main");
-        let main_func_global_id = GlobalId(self.main_package, main_sym);
+        let main_func_global_id = GlobalId::new(self.main_package, main_sym);
         let main_func_id = self.function_ids.get(&main_func_global_id).unwrap();
 
         let mut builder = FunctionBuilder::new(&mut self.module.types, &[], &[]);
@@ -521,9 +516,8 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 self.process_expr(builder, expr);
                 builder.local_set(self.variables[*id]);
             }
-            Statement::SetGlobal(global_expr, value) => {
+            Statement::SetGlobal(global_id, value) => {
                 self.process_expr(builder, value);
-                let global_id = GlobalId(global_expr.package_name, global_expr.variable_name);
                 builder.global_set(*self.globals.get(&global_id).unwrap());
             }
             Statement::SetIndex { target, index, value } => {
@@ -767,8 +761,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Local(index) => {
                 builder.local_get(self.variables[*index]);
             }
-            ExprKind::Global(global_expr) => {
-                let global_id = GlobalId(global_expr.package_name, global_expr.variable_name);
+            ExprKind::Global(global_id) => {
                 builder.global_get(*self.globals.get(&global_id).unwrap());
             }
             ExprKind::ZeroOf(type_id) => {
@@ -877,24 +870,16 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             self.process_expr(builder, arg);
         }
 
-        let ExprKind::Func(func_expr) = &target.kind else {
+        let ExprKind::Func(global_id) = &target.kind else {
             unreachable!("the callee expression is not a function");
         };
 
-        match func_expr {
-            FuncExpr::Empty => {
-                todo!("cannot call nil function");
-            }
-            FuncExpr::Normal(func_expr) => {
-                let ident_pair = GlobalId(func_expr.package_name, func_expr.function_name);
-                if let Some(func_id) = self.function_ids.get(&ident_pair) {
-                    builder.call(*func_id);
-                } else if let Some(builtin_name) = self.builtin_functions.get(&ident_pair) {
-                    self.process_builtin_call(builder, builtin_name);
-                } else {
-                    unreachable!("function definition is not found");
-                }
-            }
+        if let Some(func_id) = self.function_ids.get(global_id) {
+            builder.call(*func_id);
+        } else if let Some(builtin_name) = self.builtin_functions.get(global_id) {
+            self.process_builtin_call(builder, builtin_name);
+        } else {
+            unreachable!("function definition is not found");
         }
     }
 
