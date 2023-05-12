@@ -1603,7 +1603,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             type_id,
             assignable: true,
             comp_const: false,
-            kind: ExprKind::FuncInit(global_id, type_arguments),
+            kind: ExprKind::FuncInit(global_id, type_arguments.into()),
         }
     }
 
@@ -1645,7 +1645,10 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Type::ArrayPtr(array_ptr_type) => self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
                 element_type: self.transform_opaque_type(name_to_type, array_ptr_type.element_type),
             })),
-            Type::Opaque(name) => *name_to_type.get(name).expect("todo: handle the error"),
+            Type::Opaque(name) => name_to_type
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| self.type_loader.declare_type(Type::Invalid)),
         }
     }
 }
