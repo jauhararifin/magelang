@@ -23,7 +23,7 @@ pub struct TypeChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
     errors: TypecheckErrorAccumulator<'err, 'file, 'sym, 'typ>,
     symbol_loader: &'sym SymbolLoader,
     file_loader: &'file FileLoader<'err>,
-    ast_loader: &'ast AstLoader<'err, 'file, 'sym>,
+    ast_loader: &'ast AstLoader<'err, 'file>,
     package_util: &'pkg PackageUtil<'err, 'file, 'sym, 'ast>,
     type_loader: &'typ TypeLoader,
 
@@ -60,7 +60,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         err_channel: &'err ErrorAccumulator,
         symbol_loader: &'sym SymbolLoader,
         file_loader: &'file FileLoader<'err>,
-        ast_loader: &'ast AstLoader<'err, 'file, 'sym>,
+        ast_loader: &'ast AstLoader<'err, 'file>,
         package_util: &'pkg PackageUtil<'err, 'file, 'sym, 'ast>,
         type_loader: &'typ TypeLoader,
         type_printer: &'typ TypePrinter<'sym, 'typ>,
@@ -87,10 +87,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let file_id = self.file_loader.declare_file(path);
                 let ast = self.ast_loader.get_ast(file_id);
                 let scope = self.get_package_scope(pkg_name);
-
-                let main = self.symbol_loader.declare_symbol("main");
-                if let Some(main) = ast.items.get(&main) {
-                    self.check_main_func(&scope, main.first().unwrap());
+                if let Some(main) = ast.items.iter().filter(|item_node| item_node.name() == "main").next() {
+                    self.check_main_func(&scope, main);
                 } else {
                     self.errors.missing_main();
                 }
@@ -114,8 +112,14 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let scope = self.get_package_scope(package_name);
         let mut str_helper = ConstStrHelper::default();
 
-        for (name, items) in &ast.items {
-            self.check_named_items(&mut state, scope.clone(), &mut str_helper, *name, items);
+        let mut name_to_items = IndexMap::<SymbolId, Vec<&ItemNode>>::new();
+        for item_node in &ast.items {
+            let name = self.symbol_loader.declare_symbol(item_node.name());
+            name_to_items.entry(name).or_default().push(item_node);
+        }
+
+        for (name, items) in name_to_items {
+            self.check_named_items(&mut state, scope.clone(), &mut str_helper, name, &items);
         }
 
         Rc::new(Package {
@@ -133,7 +137,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         package_scope: Rc<Scope>,
         str_helper: &mut ConstStrHelper,
         name: SymbolId,
-        items: &[ItemNode],
+        items: &[&ItemNode],
     ) {
         let mut item_iter = items.iter();
         let first_item = item_iter.next().unwrap();
@@ -155,12 +159,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let global_scope = self.get_global_scope();
 
         let mut symbols = IndexMap::<SymbolId, Object>::new();
-        for (name, items) in &package_node.items {
-            let Some(first_item) = items.first() else {
-                continue
-            };
+        for item_node in &package_node.items {
+            let name = self.symbol_loader.declare_symbol(item_node.name());
+            if symbols.contains_key(&name) {
+                continue;
+            }
 
-            let object = match first_item {
+            let object = match item_node {
                 ItemNode::Import(import_node) => {
                     let Some(package_path) = value_from_string_lit(&import_node.path.value) else {
                         continue;
@@ -200,7 +205,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }
             };
 
-            symbols.insert(*name, object);
+            symbols.insert(name, object);
         }
 
         global_scope.new_child(ScopeKind::Package(package_name), symbols)

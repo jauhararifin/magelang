@@ -8,17 +8,11 @@ use crate::ast::{
 use crate::errors::SyntaxErrorAccumulator;
 use crate::scanner::scan;
 use crate::tokens::{Token, TokenKind};
-use indexmap::IndexMap;
-use magelang_common::{ErrorAccumulator, FileId, Pos, SymbolId, SymbolLoader};
+use magelang_common::{ErrorAccumulator, FileId, Pos};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-pub(crate) fn parse(
-    err_channel: &ErrorAccumulator,
-    symbol_loader: &SymbolLoader,
-    file_id: FileId,
-    source: &str,
-) -> Rc<PackageNode> {
+pub(crate) fn parse(err_channel: &ErrorAccumulator, file_id: FileId, source: &str) -> Rc<PackageNode> {
     let tokens = scan(err_channel, file_id, source);
     let mut comments = vec![];
     let mut filtered_tokens = vec![];
@@ -34,28 +28,21 @@ pub(crate) fn parse(
         .into_iter()
         .filter(|t| t.kind != TokenKind::Comment)
         .peekable();
-    let parser = FileParser::new(err_channel, symbol_loader, file_id, tokens);
+    let parser = FileParser::new(err_channel, file_id, tokens);
     let root = parser.parse_root();
     Rc::new(root)
 }
 
-struct FileParser<'err, 'sym> {
+struct FileParser<'err> {
     errors: SyntaxErrorAccumulator<'err>,
-    symbol_loader: &'sym SymbolLoader,
-
     tokens: VecDeque<Token>,
     comments: Vec<Token>,
     file_id: FileId,
     last_offset: u32,
 }
 
-impl<'err, 'sym> FileParser<'err, 'sym> {
-    fn new(
-        err_accumulator: &'err ErrorAccumulator,
-        symbol_loader: &'sym SymbolLoader,
-        file_id: FileId,
-        tokens: impl Iterator<Item = Token>,
-    ) -> Self {
+impl<'err> FileParser<'err> {
+    fn new(err_accumulator: &'err ErrorAccumulator, file_id: FileId, tokens: impl Iterator<Item = Token>) -> Self {
         let mut comments = vec![];
         let mut filtered_tokens = VecDeque::new();
         for tok in tokens {
@@ -68,7 +55,6 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
 
         Self {
             errors: SyntaxErrorAccumulator::new(err_accumulator, file_id),
-            symbol_loader,
             tokens: filtered_tokens,
             comments,
             file_id,
@@ -77,7 +63,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_root(mut self) -> PackageNode {
-        let mut items = IndexMap::<SymbolId, Vec<ItemNode>>::new();
+        let mut items = Vec::<ItemNode>::new();
         let pos = Pos::new(self.file_id, 0);
 
         loop {
@@ -85,8 +71,7 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
                 break;
             }
             if let Some(item) = self.parse_item_node() {
-                let name = self.symbol_loader.declare_symbol(item.name());
-                items.entry(name).or_default().push(item);
+                items.push(item);
             }
         }
 
@@ -690,10 +675,9 @@ mod tests {
             #[test]
             fn $name() {
                 let err_accumulator = ErrorAccumulator::default();
-                let symbol_loader = SymbolLoader::default();
                 let source_code = $source;
                 let expected_errors = vec![$($expected_errors),*];
-                parse(&err_accumulator, &symbol_loader, FileId::new(0), source_code);
+                parse(&err_accumulator, FileId::new(0), source_code);
                 let errors = err_accumulator.take();
                 assert_eq!(errors, expected_errors);
             }

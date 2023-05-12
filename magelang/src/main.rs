@@ -40,7 +40,7 @@ fn main() {
     let file_loader = FileLoader::new(&err_accumulator);
     let type_loader = TypeLoader::default();
     let type_printer = TypePrinter::new(&symbol_loader, &type_loader);
-    let ast_loader = AstLoader::new(&err_accumulator, &file_loader, &symbol_loader);
+    let ast_loader = AstLoader::new(&err_accumulator, &file_loader);
     let package_util = PackageUtil::new(&file_loader, &ast_loader, &symbol_loader);
     let type_checker = TypeChecker::new(
         &err_accumulator,

@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 pub struct PackageUtil<'err, 'file, 'sym, 'ast> {
     file_loader: &'file FileLoader<'err>,
-    ast_loader: &'ast AstLoader<'err, 'file, 'sym>,
+    ast_loader: &'ast AstLoader<'err, 'file>,
     symbol_loader: &'sym SymbolLoader,
     stdlib_path: PathBuf,
 }
@@ -19,7 +19,7 @@ const CODE_EXTENSION: &str = "mag";
 impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
     pub fn new(
         file_loader: &'file FileLoader<'err>,
-        ast_loader: &'ast AstLoader<'err, 'file, 'sym>,
+        ast_loader: &'ast AstLoader<'err, 'file>,
         symbol_loader: &'sym SymbolLoader,
     ) -> Self {
         let stdlib_path = std::env::var(STDLIB_PATH_KEY)

@@ -1,6 +1,5 @@
 use crate::tokens::Token;
-use indexmap::IndexMap;
-use magelang_common::{Pos, SymbolId};
+use magelang_common::Pos;
 
 pub trait AstNode {
     fn get_pos(&self) -> Pos;
@@ -9,7 +8,7 @@ pub trait AstNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct PackageNode {
     pub pos: Pos,
-    pub items: IndexMap<SymbolId, Vec<ItemNode>>,
+    pub items: Vec<ItemNode>,
     pub comments: Vec<Token>,
 }
 
@@ -21,10 +20,7 @@ impl AstNode for PackageNode {
 
 impl PackageNode {
     pub fn imports(&self) -> impl Iterator<Item = &ImportNode> {
-        self.items
-            .values()
-            .flat_map(|v| v.iter())
-            .filter_map(ItemNode::as_import)
+        self.items.iter().filter_map(ItemNode::as_import)
     }
 }
 
