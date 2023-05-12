@@ -38,7 +38,7 @@ import fmt "std/fmt";
 fn gcd(a: i64, b: i64): i64 {
   // loop using while keyword
   while b != 0 {
-    // create a new variable using var
+    // create a new variable using let
     let t: i64 = b;
     b = a % b;
     a = t;
@@ -53,7 +53,6 @@ fn main() {
   let b: i64 = 165;
   // calling a function
   let c: i64 = gcd(a, b);
-  // calling native function
   fmt.print_i64(c);
 }
 ```

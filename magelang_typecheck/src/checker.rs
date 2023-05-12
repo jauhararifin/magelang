@@ -174,14 +174,14 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Object::Package(package_path)
                 }
                 ItemNode::Global(global_node) => {
-                    let type_id = self.get_expr_type(&global_scope, &global_node.ty);
+                    let type_id = self.get_expr_type(global_scope, &global_node.ty);
                     Object::Global {
                         type_id,
                         assignable: true,
                     }
                 }
                 ItemNode::Function(func_node) => {
-                    let scope = self.get_func_template_scope(&global_scope, &func_node.signature);
+                    let scope = self.get_func_template_scope(global_scope, &func_node.signature);
                     let func_ty = self.get_func_type(&scope, &func_node.signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
                     Object::Global {
@@ -190,7 +190,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     }
                 }
                 ItemNode::NativeFunction(signature) => {
-                    let scope = self.get_func_template_scope(&global_scope, signature);
+                    let scope = self.get_func_template_scope(global_scope, signature);
                     let func_ty = self.get_func_type(&scope, signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
                     Object::Global {
@@ -212,7 +212,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return;
         };
 
-        let scope = self.get_func_template_scope(&scope, &func_node.signature);
+        let scope = self.get_func_template_scope(scope, &func_node.signature);
         let func_type = self.get_func_type(&scope, &func_node.signature);
         let has_type_parameters = !func_type.type_parameters.is_empty();
         let has_parameters = !func_type.parameters.is_empty();
@@ -283,7 +283,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 state.functions.push(func);
             }
             ItemNode::NativeFunction(signature) => {
-                let scope = self.get_func_template_scope(&scope, signature);
+                let scope = self.get_func_template_scope(scope, signature);
                 let func_type = self.get_func_type(&scope, signature);
 
                 let mut tags = vec![];
@@ -323,7 +323,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let mut symbols = IndexMap::<SymbolId, Object>::new();
         let mut func_state = FunctionCheckState::default();
 
-        let scope = self.get_func_template_scope(&scope, &func_node.signature);
+        let scope = self.get_func_template_scope(scope, &func_node.signature);
         let func_type = self.get_func_type(&scope, &func_node.signature);
 
         let param_types = func_type.parameters.iter();
@@ -1319,7 +1319,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 }
             }
             "@data_end" => {
-                if builtin_call.arguments.len() != 0 {
+                if !builtin_call.arguments.is_empty() {
                     self.errors
                         .unmatch_function_arguments(builtin_call.get_pos(), 0, builtin_call.arguments.len());
                     return Expr {
@@ -1539,7 +1539,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
 
         let index_node = index_expr.index.get(0).unwrap();
-        let index = self.get_expr(scope, str_helper, &index_node, None);
+        let index = self.get_expr(scope, str_helper, index_node, None);
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
         if !index_ty.is_int() {
             self.errors.cannot_used_as_index(index_node.get_pos());

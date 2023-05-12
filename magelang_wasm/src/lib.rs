@@ -230,19 +230,19 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                     self.get_used_globals_in_expr(type_args, value, result);
                 }
                 Statement::If(if_stmt) => {
-                    self.get_used_globals_in_expr(&type_args, &if_stmt.condition, result);
+                    self.get_used_globals_in_expr(type_args, &if_stmt.condition, result);
                     stmt_stack.push(&if_stmt.body);
                     if let Some(ref else_body) = if_stmt.else_body {
                         stmt_stack.push(else_body);
                     }
                 }
                 Statement::While(while_stmt) => {
-                    self.get_used_globals_in_expr(&type_args, &while_stmt.condition, result);
+                    self.get_used_globals_in_expr(type_args, &while_stmt.condition, result);
                     stmt_stack.push(&while_stmt.body);
                 }
                 Statement::Block(block_stmt) => {
                     for stmt in &block_stmt.statements {
-                        stmt_stack.push(&stmt);
+                        stmt_stack.push(stmt);
                     }
                 }
                 Statement::Return(ret_stmt) => {
@@ -458,7 +458,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 }
 
                 let mut builder = FunctionBuilder::new(&mut self.module.types, &param_types, &return_type);
-                let mangled_name = mangle_func(&package_name, &func_name, &type_params);
+                let mangled_name = mangle_func(&package_name, &func_name, type_params);
                 builder.name(mangled_name);
 
                 let function_id = builder.finish(
@@ -598,7 +598,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
             }
             Statement::SetGlobal(global_id, value) => {
                 self.process_expr(builder, value);
-                builder.global_set(*self.globals.get(&global_id).unwrap());
+                builder.global_set(*self.globals.get(global_id).unwrap());
             }
             Statement::SetIndex { target, index, value } => {
                 let ty = self.type_loader.get_type(target.type_id).unwrap();
@@ -707,7 +707,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
 
         let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &element_ty);
 
         // TODO: check index range
 
@@ -761,7 +761,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
 
         let element_ty = self.type_loader.get_type(array_ptr_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &element_ty);
 
         // i * size
         builder.i32_const(size as i32);
@@ -842,7 +842,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
                 builder.local_get(self.variables[*index]);
             }
             ExprKind::Global(global_id) => {
-                builder.global_get(*self.globals.get(&global_id).unwrap());
+                builder.global_get(*self.globals.get(global_id).unwrap());
             }
             ExprKind::FuncInit(..) => {
                 todo!();
@@ -873,12 +873,12 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
             }
             ExprKind::SizeOf(type_id) => {
                 let ty = self.type_loader.get_type(*type_id).unwrap();
-                let (size, _) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
+                let (size, _) = get_size_and_alignment(self.type_loader, self.type_arguments, &ty);
                 builder.i32_const(size as i32);
             }
             ExprKind::AlignOf(type_id) => {
                 let ty = self.type_loader.get_type(*type_id).unwrap();
-                let (_, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
+                let (_, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &ty);
                 builder.i32_const(align as i32);
             }
             ExprKind::DataEnd => {
@@ -916,7 +916,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
                 };
                 let element_ty = self.type_loader.get_type(pointer_ty.element_type).unwrap();
 
-                let (_, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
+                let (_, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &element_ty);
                 let load_kind = match element_ty.as_ref() {
                     Type::I64 | Type::U64 => walrus::ir::LoadKind::I64 { atomic: false },
                     Type::I32 | Type::U32 => walrus::ir::LoadKind::I32 { atomic: false },
@@ -982,7 +982,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
         };
         let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &element_ty);
 
         // TODO: check index range
 
@@ -1043,7 +1043,7 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
 
         let element_ty = self.type_loader.get_type(array_ptr_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &element_ty);
 
         // i * size
         builder.i32_const(size as i32);
@@ -1093,12 +1093,12 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
             }
             "size_of" => {
                 let ty = self.type_loader.get_type(type_arguments[0]).unwrap();
-                let (size, _) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
+                let (size, _) = get_size_and_alignment(self.type_loader, self.type_arguments, &ty);
                 builder.i32_const(size as i32);
             }
             "align_of" => {
                 let ty = self.type_loader.get_type(type_arguments[0]).unwrap();
-                let (_, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
+                let (_, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &ty);
                 builder.i32_const(align as i32);
             }
             builtin_name => panic!("unknown builtin function for {builtin_name}"),
