@@ -1,12 +1,13 @@
 use crate::errors::*;
-use crate::scope::{Object, Scope, ScopeKind, BOOL, F64, I16, I32, I64, I8, ISIZE, U16, U32, U64, U8, USIZE};
+use crate::scope::{Object, Scope, ScopeKind};
 use indexmap::IndexMap;
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolId, SymbolLoader};
 use magelang_package::PackageUtil;
 use magelang_semantic::{
     value_from_string_lit, ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncType, Global, GlobalId,
     IfStatement, NativeFunction, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type,
-    TypeId, TypeLoader, TypePrinter, UnOp, WhileStatement,
+    TypeId, TypeLoader, TypePrinter, UnOp, WhileStatement, BOOL, F64, I16, I32, I64, I8, ISIZE, U16, U32, U64, U8,
+    USIZE,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode,

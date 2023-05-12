@@ -1,6 +1,8 @@
 use indexmap::IndexMap;
 use magelang_common::{SymbolId, SymbolLoader};
-use magelang_semantic::{Type, TypeId, TypeLoader};
+use magelang_semantic::{
+    Type, TypeId, TypeLoader, BOOL, F32, F64, I16, I32, I64, I8, ISIZE, U16, U32, U64, U8, USIZE, VOID,
+};
 use std::rc::Rc;
 
 pub struct Scope {
@@ -13,7 +15,7 @@ pub struct Scope {
 pub enum Object {
     Package(SymbolId),
     Local(TypeId, usize),
-    Global{type_id: TypeId, assignable: bool},
+    Global { type_id: TypeId, assignable: bool },
     Type(TypeId),
 }
 
@@ -34,21 +36,6 @@ pub enum ScopeKind {
     Basic,
     Loop,
 }
-
-pub const ISIZE: &str = "isize";
-pub const I64: &str = "i64";
-pub const I32: &str = "i32";
-pub const I16: &str = "i16";
-pub const I8: &str = "i8";
-pub const USIZE: &str = "usize";
-pub const U64: &str = "u64";
-pub const U32: &str = "u32";
-pub const U16: &str = "u16";
-pub const U8: &str = "u8";
-pub const BOOL: &str = "bool";
-pub const F64: &str = "f64";
-pub const F32: &str = "f32";
-pub const VOID: &str = "void";
 
 impl Scope {
     pub fn global(type_loader: &TypeLoader, symbol_loader: &SymbolLoader) -> Rc<Self> {

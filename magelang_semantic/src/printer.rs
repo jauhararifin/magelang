@@ -1,3 +1,4 @@
+use crate::names::*;
 use crate::{Type, TypeId, TypeLoader};
 use magelang_common::SymbolLoader;
 
@@ -16,23 +17,34 @@ impl<'sym, 'typ> TypePrinter<'sym, 'typ> {
 
     pub fn display_type(&self, ty: &Type) -> String {
         match ty {
-            Type::Invalid => String::from("INVALID"),
-            Type::Void => String::from("void"),
-            Type::Isize => String::from("isize"),
-            Type::I64 => String::from("i64"),
-            Type::I32 => String::from("i32"),
-            Type::I16 => String::from("i16"),
-            Type::I8 => String::from("i8"),
-            Type::Usize => String::from("usize"),
-            Type::U64 => String::from("u64"),
-            Type::U32 => String::from("u32"),
-            Type::U16 => String::from("u16"),
-            Type::U8 => String::from("u8"),
-            Type::F32 => String::from("f32"),
-            Type::F64 => String::from("f64"),
-            Type::Bool => String::from("bool"),
+            Type::Invalid => String::from(INVALID),
+            Type::Void => String::from(VOID),
+            Type::Isize => String::from(ISIZE),
+            Type::I64 => String::from(I64),
+            Type::I32 => String::from(I32),
+            Type::I16 => String::from(I16),
+            Type::I8 => String::from(I8),
+            Type::Usize => String::from(USIZE),
+            Type::U64 => String::from(U64),
+            Type::U32 => String::from(U32),
+            Type::U16 => String::from(U16),
+            Type::U8 => String::from(U8),
+            Type::F32 => String::from(F32),
+            Type::F64 => String::from(F64),
+            Type::Bool => String::from(BOOL),
             Type::Func(func_type) => {
-                let mut s = String::from("func(");
+                let mut s = String::from(FUNC);
+                if !func_type.type_parameters.is_empty() {
+                    s.push('[');
+                    for (i, type_param_id) in func_type.type_parameters.iter().enumerate() {
+                        if i > 0 {
+                            s.push(',');
+                        }
+                        s.push_str(self.symbol_loader.get_symbol(*type_param_id).unwrap().as_ref());
+                    }
+                    s.push(']');
+                }
+                s.push('(');
                 for (i, param) in func_type.parameters.iter().enumerate() {
                     if i > 0 {
                         s.push(',');
