@@ -1,25 +1,25 @@
 use magelang_common::{Error, ErrorAccumulator, FileLoader, Pos};
-use magelang_semantic::{TypeDisplay, TypeId, TypeLoader};
+use magelang_semantic::{TypeId, TypePrinter};
 use magelang_syntax::Token;
 use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
 
-pub(crate) struct TypecheckErrorAccumulator<'err, 'file, 'typ> {
+pub(crate) struct TypecheckErrorAccumulator<'err, 'file, 'sym, 'typ> {
     err_accumulator: &'err ErrorAccumulator,
+    type_printer: &'typ TypePrinter<'sym, 'typ>,
     file_loader: &'file FileLoader<'err>,
-    type_loader: &'typ TypeLoader,
 }
 
-impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
+impl<'err, 'file, 'sym, 'typ> TypecheckErrorAccumulator<'err, 'file, 'sym, 'typ> {
     pub fn new(
         err_accumulator: &'err ErrorAccumulator,
+        type_printer: &'typ TypePrinter<'sym, 'typ>,
         file_loader: &'file FileLoader<'err>,
-        type_loader: &'typ TypeLoader,
     ) -> Self {
         Self {
             err_accumulator,
+            type_printer,
             file_loader,
-            type_loader,
         }
     }
 
@@ -103,15 +103,15 @@ impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
     }
 
     pub fn type_mismatch(&self, pos: Pos, expected: TypeId, got: TypeId) {
-        let expected = self.type_loader.get_type(expected).unwrap().display(self.type_loader);
-        let got = self.type_loader.get_type(got).unwrap().display(self.type_loader);
+        let expected = self.type_printer.display(expected);
+        let got = self.type_printer.display(got);
         self.err_accumulator
             .push(Error::new(pos, format!("Cannot use {got} for type {expected}")));
     }
 
     pub fn binop_type_mismatch(&self, pos: Pos, op: impl Display, a: TypeId, b: TypeId) {
-        let a = self.type_loader.get_type(a).unwrap().display(self.type_loader);
-        let b = self.type_loader.get_type(b).unwrap().display(self.type_loader);
+        let a = self.type_printer.display(a);
+        let b = self.type_printer.display(b);
         self.err_accumulator.push(Error::new(
             pos,
             format!("Cannot perform {op} operation for {a} and {b}"),
@@ -119,13 +119,13 @@ impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
     }
 
     pub fn binop_type_unsupported(&self, pos: Pos, op: impl Display, ty: TypeId) {
-        let ty = self.type_loader.get_type(ty).unwrap().display(self.type_loader);
+        let ty = self.type_printer.display(ty);
         self.err_accumulator
             .push(Error::new(pos, format!("Cannot perform {op} binary operation on {ty}")));
     }
 
     pub fn unop_type_unsupported(&self, pos: Pos, op: impl Display, ty: TypeId) {
-        let ty = self.type_loader.get_type(ty).unwrap().display(self.type_loader);
+        let ty = self.type_printer.display(ty);
         self.err_accumulator
             .push(Error::new(pos, format!("Cannot perform {op} unary operation on {ty}")));
     }
@@ -174,7 +174,7 @@ impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
     }
 
     pub fn cannot_use_type_for_local(&self, pos: Pos, ty: TypeId) {
-        let ty = self.type_loader.get_type(ty).unwrap().display(self.type_loader);
+        let ty = self.type_printer.display(ty);
         self.err_accumulator
             .push(Error::new(pos, format!("Cannot use {ty} type for a local variable")));
     }
@@ -187,8 +187,8 @@ impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
     }
 
     pub fn casting_unsupported(&self, pos: Pos, initial_ty: TypeId, target_ty: TypeId) {
-        let initial_ty = self.type_loader.get_type(initial_ty).unwrap().display(self.type_loader);
-        let target_ty = self.type_loader.get_type(target_ty).unwrap().display(self.type_loader);
+        let initial_ty = self.type_printer.display(initial_ty);
+        let target_ty = self.type_printer.display(target_ty);
         self.err_accumulator.push(Error::new(
             pos,
             format!("Cannot perform casting from {initial_ty} into {target_ty}"),
@@ -206,7 +206,7 @@ impl<'err, 'file, 'typ> TypecheckErrorAccumulator<'err, 'file, 'typ> {
         self.err_accumulator.push(Error::new(
             pos,
             String::from(
-                "Invalid signature for main function. Main function cannot have any parameters nor return value",
+                "Invalid signature for main function. Main function cannot have any type_parameters, parameters or return value",
             ),
         ));
     }

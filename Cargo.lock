@@ -304,12 +304,14 @@ dependencies = [
  "magelang_package",
  "magelang_semantic",
  "magelang_syntax",
+ "once_cell",
 ]
 
 [[package]]
 name = "magelang_wasm"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "magelang_common",
  "magelang_semantic",
  "walrus",

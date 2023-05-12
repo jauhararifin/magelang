@@ -2,11 +2,13 @@ mod expr;
 mod statement;
 mod types;
 mod value;
+mod printer;
 
 pub use expr::{BinOp, Expr, ExprKind, GlobalId, StringLitExpr, UnOp};
 pub use statement::{BlockStatement, IfStatement, ReturnStatement, Statement, WhileStatement};
-pub use types::{ArrayPtrType, FuncType, PointerType, SliceType, Type, TypeDisplay, TypeId, TypeLoader};
+pub use types::{ArrayPtrType, FuncType, PointerType, SliceType, Type, TypeId, TypeLoader};
 pub use value::value_from_string_lit;
+pub use printer::TypePrinter;
 
 use magelang_common::SymbolId;
 use std::rc::Rc;

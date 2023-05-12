@@ -1,6 +1,8 @@
+use indexmap::IndexMap;
 use magelang_common::{SymbolId, SymbolLoader};
 use magelang_semantic::{
-    BinOp, Expr, ExprKind, GlobalId, Package, Statement, Type, TypeDisplay, TypeId, TypeLoader, UnOp,
+    ArrayPtrType, BinOp, Expr, ExprKind, FuncType, GlobalId, Package, PointerType, SliceType, Statement, Type, TypeId,
+    TypeLoader, TypePrinter, UnOp,
 };
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -13,15 +15,21 @@ use walrus::{
 pub struct Compiler<'sym, 'typ> {
     symbol_loader: &'sym SymbolLoader,
     type_loader: &'typ TypeLoader,
+    type_printer: &'typ TypePrinter<'sym, 'typ>,
 }
 
 const START_FUNC_NAME: &str = "__start";
 
 impl<'sym, 'typ> Compiler<'sym, 'typ> {
-    pub fn new(symbol_loader: &'sym SymbolLoader, type_loader: &'typ TypeLoader) -> Self {
+    pub fn new(
+        symbol_loader: &'sym SymbolLoader,
+        type_loader: &'typ TypeLoader,
+        type_printer: &'typ TypePrinter<'sym, 'typ>,
+    ) -> Self {
         Self {
             symbol_loader,
             type_loader,
+            type_printer,
         }
     }
 
@@ -38,6 +46,7 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
         ProgramCompiler::new(
             self.symbol_loader,
             self.type_loader,
+            self.type_printer,
             &mut module,
             &packages,
             main_package,
@@ -52,14 +61,16 @@ impl<'sym, 'typ> Compiler<'sym, 'typ> {
 pub struct ProgramCompiler<'sym, 'typ, 'pkg> {
     symbol_loader: &'sym SymbolLoader,
     type_loader: &'typ TypeLoader,
+    type_printer: &'typ TypePrinter<'sym, 'typ>,
     module: &'pkg mut Module,
     data_end_ptr: Option<WasmGlobalId>,
     globals: HashMap<GlobalId, WasmGlobalId>,
     packages: &'pkg [Rc<Package>],
     main_package: SymbolId,
-    reachable_globals: HashSet<GlobalId>,
+    // the map of the reachable global item + their possible type parameters
+    reachable_globals: HashMap<GlobalId, HashSet<Vec<TypeId>>>,
     data_offset_table: HashMap<(SymbolId, usize), usize>,
-    function_ids: HashMap<GlobalId, FunctionId>,
+    function_ids: HashMap<(GlobalId, Vec<TypeId>), FunctionId>,
     builtin_functions: HashMap<GlobalId, Rc<str>>,
 }
 
@@ -67,6 +78,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     pub fn new(
         symbol_loader: &'sym SymbolLoader,
         type_loader: &'typ TypeLoader,
+        type_printer: &'typ TypePrinter<'sym, 'typ>,
         module: &'pkg mut Module,
         packages: &'pkg [Rc<Package>],
         main_package: SymbolId,
@@ -74,12 +86,13 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         Self {
             symbol_loader,
             type_loader,
+            type_printer,
             module,
             data_end_ptr: None,
             globals: HashMap::default(),
             packages,
             main_package,
-            reachable_globals: HashSet::default(),
+            reachable_globals: HashMap::default(),
             data_offset_table: HashMap::default(),
             function_ids: HashMap::default(),
             builtin_functions: HashMap::default(),
@@ -99,46 +112,59 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
             let func_global_id = GlobalId::new(func.package_name, func.function_name);
-            if !self.reachable_globals.contains(&func_global_id) {
+            let Some(variants) = self.reachable_globals.get(&func_global_id) else {
                 continue;
-            }
-
-            let func_id = self.function_ids.get(&func_global_id).unwrap();
-            let wasm_func = self.module.funcs.get_mut(*func_id);
-            let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
-                unreachable!();
             };
+            for type_params in variants {
+                let func_id = self
+                    .function_ids
+                    .get(&(func_global_id.clone(), type_params.clone()))
+                    .unwrap();
+                let wasm_func = self.module.funcs.get_mut(*func_id);
+                let FunctionKind::Local(ref mut wasm_func) = wasm_func.kind else {
+                    unreachable!();
+                };
 
-            let mut variables: Vec<_> = wasm_func.args.to_vec();
-            for local in func.locals.iter().skip(func.func_type.parameters.len()) {
-                let ty = self.type_loader.get_type(*local).unwrap();
-                let ty = to_wasm_type(&ty);
-                variables.push(self.module.locals.add(ty));
+                let mut type_args = IndexMap::<SymbolId, TypeId>::default();
+                for (name, type_id) in std::iter::zip(func.func_type.type_parameters.iter(), type_params.iter()) {
+                    type_args.insert(*name, *type_id);
+                }
+
+                let mut variables: Vec<_> = wasm_func.args.to_vec();
+                for local in func.locals.iter().skip(func.func_type.parameters.len()) {
+                    let ty = self.type_loader.get_type(*local).unwrap();
+                    let ty = to_wasm_type(self.type_loader, &type_args, &ty);
+                    variables.push(self.module.locals.add(ty));
+                }
+
+                let builder = wasm_func.builder_mut();
+
+                let mut body_builder = builder.func_body();
+                let mut func_compiler = FunctionCompiler::new(
+                    memory_id,
+                    &type_args,
+                    &variables,
+                    self.type_loader,
+                    self.type_printer,
+                    self.data_end_ptr.unwrap(),
+                    &self.data_offset_table,
+                    &self.globals,
+                    &self.function_ids,
+                    &self.builtin_functions,
+                );
+                func_compiler.process_statement(&mut body_builder, &func.body);
             }
-
-            let builder = wasm_func.builder_mut();
-
-            let mut body_builder = builder.func_body();
-            let mut func_compiler = FunctionCompiler::new(
-                memory_id,
-                &variables,
-                self.type_loader,
-                self.data_end_ptr.unwrap(),
-                &self.data_offset_table,
-                &self.globals,
-                &self.function_ids,
-                &self.builtin_functions,
-            );
-            func_compiler.process_statement(&mut body_builder, &func.body);
         }
     }
 
     fn calculate_reachable_globals(&mut self) {
         let mut func_to_body = HashMap::new();
+        let mut func_to_type = HashMap::new();
         for pkg in self.packages {
             for func in &pkg.functions {
                 let global_id = GlobalId::new(pkg.name, func.function_name);
-                func_to_body.insert(global_id, &func.body);
+                func_to_body.insert(global_id.clone(), &func.body);
+                func_to_type.insert(global_id, &func.func_type);
             }
         }
 
@@ -146,112 +172,148 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let mut in_stack = HashSet::new();
 
         let main_sym = self.symbol_loader.declare_symbol("main");
-        stack.push(GlobalId::new(self.main_package, main_sym));
-        in_stack.insert(GlobalId::new(self.main_package, main_sym));
+        stack.push((GlobalId::new(self.main_package, main_sym), vec![]));
+        in_stack.insert((GlobalId::new(self.main_package, main_sym), vec![]));
 
-        while let Some(func_id) = stack.pop() {
-            if self.reachable_globals.contains(&func_id) {
+        while let Some((func_id, type_arguments)) = stack.pop() {
+            let type_args_set = self.reachable_globals.entry(func_id.clone()).or_default();
+            if type_args_set.contains(&type_arguments) {
                 continue;
             }
-            self.reachable_globals.insert(func_id.clone());
+            type_args_set.insert(type_arguments.clone());
 
             let Some(body) = func_to_body.get(&func_id) else {
                 continue;
             };
 
-            let mut called_funcs = vec![];
-            Self::get_used_globals(body, &mut called_funcs);
-            for called_func_id in called_funcs {
-                if !in_stack.contains(&called_func_id) {
-                    stack.push(called_func_id.clone());
-                    in_stack.insert(called_func_id.clone());
+            let Some(func_type) = func_to_type.get(&func_id).cloned() else {
+                continue;
+            };
+            let mut type_args = IndexMap::<SymbolId, TypeId>::default();
+            for (name, type_id) in std::iter::zip(func_type.type_parameters.iter(), type_arguments.iter()) {
+                type_args.insert(*name, *type_id);
+            }
+
+            let mut used_globals = vec![];
+            self.get_used_globals(&type_args, body, &mut used_globals);
+            for used_global_id in used_globals {
+                if !in_stack.contains(&used_global_id) {
+                    stack.push(used_global_id.clone());
+                    in_stack.insert(used_global_id.clone());
                 }
             }
         }
     }
 
-    fn get_used_globals(stmt: &Statement, result: &mut Vec<GlobalId>) {
-        match stmt {
-            Statement::Invalid | Statement::Continue | Statement::Break => (),
-            Statement::SetLocal(_, expr) => Self::get_used_globals_in_expr(expr, result),
-            Statement::SetGlobal(_global_expr, _value) => (),
-            Statement::SetIndex { target, index, value } => {
-                Self::get_used_globals_in_expr(target, result);
-                Self::get_used_globals_in_expr(index, result);
-                Self::get_used_globals_in_expr(value, result);
-            }
-            Statement::SetAddr { addr, value } => {
-                Self::get_used_globals_in_expr(addr, result);
-                Self::get_used_globals_in_expr(value, result);
-            }
-            Statement::If(if_stmt) => {
-                Self::get_used_globals_in_expr(&if_stmt.condition, result);
-                Self::get_used_globals(&if_stmt.body, result);
-                if let Some(ref else_body) = if_stmt.else_body {
-                    Self::get_used_globals(else_body, result);
+    fn get_used_globals(
+        &self,
+        type_args: &IndexMap<SymbolId, TypeId>,
+        stmt: &Statement,
+        result: &mut Vec<(GlobalId, Vec<TypeId>)>,
+    ) {
+        let mut stmt_stack = vec![stmt];
+        while let Some(stmt) = stmt_stack.pop() {
+            match stmt {
+                Statement::Invalid | Statement::Continue | Statement::Break => (),
+                Statement::SetLocal(_, expr) => self.get_used_globals_in_expr(type_args, expr, result),
+                Statement::SetGlobal(global_id, value) => {
+                    result.push((global_id.clone(), vec![]));
+                    self.get_used_globals_in_expr(type_args, value, result); // somehow causing stackoverflow
                 }
-            }
-            Statement::While(while_stmt) => {
-                Self::get_used_globals_in_expr(&while_stmt.condition, result);
-                Self::get_used_globals(&while_stmt.body, result);
-            }
-            Statement::Block(block_stmt) => {
-                for stmt in &block_stmt.statements {
-                    Self::get_used_globals(stmt, result);
+                Statement::SetIndex { target, index, value } => {
+                    self.get_used_globals_in_expr(type_args, target, result);
+                    self.get_used_globals_in_expr(type_args, index, result);
+                    self.get_used_globals_in_expr(type_args, value, result);
                 }
-            }
-            Statement::Return(ret_stmt) => {
-                if let Some(ref expr) = ret_stmt.value {
-                    Self::get_used_globals_in_expr(expr, result);
+                Statement::SetAddr { addr, value } => {
+                    self.get_used_globals_in_expr(type_args, addr, result);
+                    self.get_used_globals_in_expr(type_args, value, result);
                 }
+                Statement::If(if_stmt) => {
+                    self.get_used_globals_in_expr(&type_args, &if_stmt.condition, result);
+                    stmt_stack.push(&if_stmt.body);
+                    if let Some(ref else_body) = if_stmt.else_body {
+                        stmt_stack.push(else_body);
+                    }
+                }
+                Statement::While(while_stmt) => {
+                    self.get_used_globals_in_expr(&type_args, &while_stmt.condition, result);
+                    stmt_stack.push(&while_stmt.body);
+                }
+                Statement::Block(block_stmt) => {
+                    for stmt in &block_stmt.statements {
+                        stmt_stack.push(&stmt);
+                    }
+                }
+                Statement::Return(ret_stmt) => {
+                    if let Some(ref expr) = ret_stmt.value {
+                        self.get_used_globals_in_expr(type_args, expr, result);
+                    }
+                }
+                Statement::Expr(expr) => self.get_used_globals_in_expr(type_args, expr, result),
             }
-            Statement::Expr(expr) => Self::get_used_globals_in_expr(expr, result),
         }
     }
 
-    fn get_used_globals_in_expr(expr: &Expr, result: &mut Vec<GlobalId>) {
-        match &expr.kind {
-            ExprKind::Invalid
-            | ExprKind::I64(..)
-            | ExprKind::I32(..)
-            | ExprKind::I16(..)
-            | ExprKind::I8(..)
-            | ExprKind::U64(..)
-            | ExprKind::U32(..)
-            | ExprKind::U16(..)
-            | ExprKind::U8(..)
-            | ExprKind::F64(..)
-            | ExprKind::F32(..)
-            | ExprKind::Bool(..)
-            | ExprKind::Isize(..)
-            | ExprKind::Usize(..)
-            | ExprKind::Local(..)
-            | ExprKind::ZeroOf(..)
-            | ExprKind::SizeOf(..)
-            | ExprKind::AlignOf(..)
-            | ExprKind::DataEnd
-            | ExprKind::StringLit(..)
-            | ExprKind::Deref(..) => (),
-            ExprKind::Global(global_id) => result.push(global_id.clone()),
-            ExprKind::Binary { a, op: _, b } => {
-                Self::get_used_globals_in_expr(a, result);
-                Self::get_used_globals_in_expr(b, result);
-            }
-            ExprKind::Unary { val, op: _ } => {
-                Self::get_used_globals_in_expr(val, result);
-            }
-            ExprKind::Call(func, args) => {
-                Self::get_used_globals_in_expr(func, result);
-                for arg in args {
-                    Self::get_used_globals_in_expr(arg, result);
+    fn get_used_globals_in_expr(
+        &self,
+        type_args: &IndexMap<SymbolId, TypeId>,
+        expr: &Expr,
+        result: &mut Vec<(GlobalId, Vec<TypeId>)>,
+    ) {
+        let mut expr_stack = vec![expr];
+        while let Some(expr) = expr_stack.pop() {
+            match &expr.kind {
+                ExprKind::Invalid
+                | ExprKind::I64(..)
+                | ExprKind::I32(..)
+                | ExprKind::I16(..)
+                | ExprKind::I8(..)
+                | ExprKind::U64(..)
+                | ExprKind::U32(..)
+                | ExprKind::U16(..)
+                | ExprKind::U8(..)
+                | ExprKind::F64(..)
+                | ExprKind::F32(..)
+                | ExprKind::Bool(..)
+                | ExprKind::Isize(..)
+                | ExprKind::Usize(..)
+                | ExprKind::Local(..)
+                | ExprKind::ZeroOf(..)
+                | ExprKind::SizeOf(..)
+                | ExprKind::AlignOf(..)
+                | ExprKind::DataEnd
+                | ExprKind::StringLit(..)
+                | ExprKind::Deref(..) => (),
+                ExprKind::Global(global_id) => result.push((global_id.clone(), vec![])),
+                ExprKind::FuncInit(global_id, type_parameters) => {
+                    let converted_types: Vec<TypeId> = type_parameters
+                        .iter()
+                        .map(|type_id| transform_opaque_type(self.type_loader, type_args, *type_id))
+                        .collect();
+
+                    result.push((global_id.clone(), converted_types));
                 }
-            }
-            ExprKind::Index(target, index) => {
-                Self::get_used_globals_in_expr(target, result);
-                Self::get_used_globals_in_expr(index, result);
-            }
-            ExprKind::Cast(value, _) => {
-                Self::get_used_globals_in_expr(value, result);
+                ExprKind::Binary { a, op: _, b } => {
+                    expr_stack.push(a);
+                    expr_stack.push(b);
+                }
+                ExprKind::Unary { val, op: _ } => {
+                    expr_stack.push(val);
+                }
+                ExprKind::Call(func, args) => {
+                    expr_stack.push(func);
+                    for arg in args {
+                        expr_stack.push(arg);
+                    }
+                }
+                ExprKind::Index(target, index) => {
+                    expr_stack.push(target);
+                    expr_stack.push(index);
+                }
+                ExprKind::Cast(value, _) => {
+                    expr_stack.push(value);
+                }
             }
         }
     }
@@ -260,7 +322,7 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let globals = self.packages.iter().flat_map(|pkg| pkg.globals.iter());
         for global in globals {
             let ty = self.type_loader.get_type(global.type_id).unwrap();
-            let wasm_ty = to_wasm_type(&ty);
+            let wasm_ty = to_wasm_type(self.type_loader, &IndexMap::default(), &ty);
 
             let val = match global.value.kind {
                 ExprKind::I64(val) => walrus::ir::Value::I64(val),
@@ -278,12 +340,12 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 ExprKind::Usize(val) => walrus::ir::Value::I32(val as i32),
                 ExprKind::SizeOf(type_id) => {
                     let ty = self.type_loader.get_type(type_id).unwrap();
-                    let (size, _) = get_size_and_alignment(&ty);
+                    let (size, _) = get_size_and_alignment(self.type_loader, &IndexMap::default(), &ty);
                     walrus::ir::Value::I32(size as i32)
                 }
                 ExprKind::AlignOf(type_id) => {
                     let ty = self.type_loader.get_type(type_id).unwrap();
-                    let (_, align) = get_size_and_alignment(&ty);
+                    let (_, align) = get_size_and_alignment(self.type_loader, &IndexMap::default(), &ty);
                     walrus::ir::Value::I32(align as i32)
                 }
                 ExprKind::DataEnd => walrus::ir::Value::I32(data_end as i32),
@@ -300,57 +362,65 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
         let native_functions = self.packages.iter().flat_map(|pkg| pkg.native_functions.iter());
         for func in native_functions {
             let func_global_id = GlobalId::new(func.package_name, func.function_name);
-            if !self.reachable_globals.contains(&func_global_id) {
+            let Some(variants) = self.reachable_globals.get(&func_global_id) else {
                 continue;
-            }
+            };
+            for type_params in variants {
+                let wasm_link_sym = self.symbol_loader.declare_symbol("wasm_link");
+                let mut is_external_func = false;
 
-            let wasm_link_sym = self.symbol_loader.declare_symbol("wasm_link");
-            let mut is_external_func = false;
-
-            if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
-                if wasm_link_tag.arguments.len() == 2 {
-                    let wasm_module = String::from_utf8(wasm_link_tag.arguments[0].to_vec())
-                        .expect("module name should be a valid utf-8 string");
-                    let wasm_name = String::from_utf8(wasm_link_tag.arguments[1].to_vec())
-                        .expect("imported name should be a valid utf-8 string");
-                    is_external_func = true;
-
-                    let mut return_type = vec![];
-                    if let Some(ret_type) = &func.func_type.return_type {
-                        let ret_type = self.type_loader.get_type(*ret_type).unwrap();
-                        let ret_type = to_wasm_type(&ret_type);
-                        return_type = vec![ret_type];
-                    }
-                    let mut param_types = vec![];
-                    for param_ty in &func.func_type.parameters {
-                        let param_ty = self.type_loader.get_type(*param_ty).unwrap();
-                        let param_ty = to_wasm_type(&param_ty);
-                        param_types.push(param_ty);
-                    }
-
-                    let type_id = self.module.types.add(&param_types, &return_type);
-                    let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
-                    self.function_ids.insert(func_global_id.clone(), func_id);
+                let mut type_args = IndexMap::<SymbolId, TypeId>::default();
+                for (name, type_id) in std::iter::zip(func.func_type.type_parameters.iter(), type_params.iter()) {
+                    type_args.insert(*name, *type_id);
                 }
-            }
 
-            let wasm_builtin_sym = self.symbol_loader.declare_symbol("wasm_builtin");
-            let mut is_builtin_func = false;
-            if let Some(wasm_builtin_tag) = func.tags.iter().find(|tag| tag.name == wasm_builtin_sym) {
-                if let Some(builtin_name) = wasm_builtin_tag.arguments.first() {
-                    let builtin_name = String::from_utf8(builtin_name.to_vec())
-                        .expect("the function builtin name has to be a valud utf-8 string");
-                    // TODO: check the builtin name, and the signature.
-                    self.builtin_functions.insert(func_global_id, builtin_name.into());
-                    is_builtin_func = true;
+                if let Some(wasm_link_tag) = func.tags.iter().find(|tag| tag.name == wasm_link_sym) {
+                    if wasm_link_tag.arguments.len() == 2 {
+                        let wasm_module = String::from_utf8(wasm_link_tag.arguments[0].to_vec())
+                            .expect("module name should be a valid utf-8 string");
+                        let wasm_name = String::from_utf8(wasm_link_tag.arguments[1].to_vec())
+                            .expect("imported name should be a valid utf-8 string");
+                        is_external_func = true;
+
+                        let mut return_type = vec![];
+                        if let Some(ret_type) = &func.func_type.return_type {
+                            let ret_type = self.type_loader.get_type(*ret_type).unwrap();
+                            let ret_type = to_wasm_type(self.type_loader, &type_args, &ret_type);
+                            return_type = vec![ret_type];
+                        }
+                        let mut param_types = vec![];
+                        for param_ty in &func.func_type.parameters {
+                            let param_ty = self.type_loader.get_type(*param_ty).unwrap();
+                            let param_ty = to_wasm_type(self.type_loader, &type_args, &param_ty);
+                            param_types.push(param_ty);
+                        }
+
+                        let type_id = self.module.types.add(&param_types, &return_type);
+                        let (func_id, _) = self.module.add_import_func(&wasm_module, &wasm_name, type_id);
+                        self.function_ids
+                            .insert((func_global_id.clone(), type_params.clone()), func_id);
+                    }
                 }
-            }
 
-            if !is_external_func && !is_builtin_func {
-                panic!("native function can't be compiled");
-            }
-            if is_external_func && is_builtin_func {
-                panic!("can't compile, ambiguous native function linking");
+                let builtin_sym = self.symbol_loader.declare_symbol("builtin");
+                let mut is_builtin_func = false;
+                if let Some(builtin_tag) = func.tags.iter().find(|tag| tag.name == builtin_sym) {
+                    if let Some(builtin_name) = builtin_tag.arguments.first() {
+                        let builtin_name = String::from_utf8(builtin_name.to_vec())
+                            .expect("the function builtin name has to be a valud utf-8 string");
+                        // TODO: check the builtin name, and the signature.
+                        self.builtin_functions
+                            .insert(func_global_id.clone(), builtin_name.into());
+                        is_builtin_func = true;
+                    }
+                }
+
+                if !is_external_func && !is_builtin_func {
+                    panic!("native function can't be compiled");
+                }
+                if is_external_func && is_builtin_func {
+                    panic!("can't compile, ambiguous native function linking");
+                }
             }
         }
     }
@@ -358,47 +428,54 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     fn declare_local_functions(&mut self) {
         let functions = self.packages.iter().flat_map(|pkg| pkg.functions.iter());
         for func in functions {
-            let global_id = GlobalId::new(func.package_name, func.function_name);
-            if !self.reachable_globals.contains(&global_id) {
+            let func_global_id = GlobalId::new(func.package_name, func.function_name);
+            let Some(variants) = self.reachable_globals.get(&func_global_id) else {
                 continue;
+            };
+            for type_params in variants {
+                let package_name = self.symbol_loader.get_symbol(func.package_name).unwrap();
+                let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
+
+                let mut type_args = IndexMap::<SymbolId, TypeId>::default();
+                for (name, type_id) in std::iter::zip(func.func_type.type_parameters.iter(), type_params.iter()) {
+                    type_args.insert(*name, *type_id);
+                }
+
+                let mut return_type = vec![];
+                if let Some(ret_type) = func.func_type.return_type {
+                    let ret_type = self.type_loader.get_type(ret_type).unwrap();
+                    let ret_type = to_wasm_type(self.type_loader, &type_args, &ret_type);
+                    return_type = vec![ret_type];
+                }
+
+                let mut param_types = vec![];
+                let mut variables = vec![];
+                for param_ty in &func.func_type.parameters {
+                    let param_ty = self.type_loader.get_type(*param_ty).unwrap();
+                    let param_ty = to_wasm_type(self.type_loader, &type_args, &param_ty);
+                    param_types.push(param_ty);
+                    variables.push(self.module.locals.add(param_ty));
+                }
+
+                let mut builder = FunctionBuilder::new(&mut self.module.types, &param_types, &return_type);
+                let mangled_name = mangle_func(&package_name, &func_name, &type_params);
+                builder.name(mangled_name);
+
+                let function_id = builder.finish(
+                    variables.iter().take(param_types.len()).cloned().collect(),
+                    &mut self.module.funcs,
+                );
+
+                self.function_ids
+                    .insert((func_global_id.clone(), type_params.clone()), function_id);
             }
-
-            let package_name = self.symbol_loader.get_symbol(func.package_name).unwrap();
-            let func_name = self.symbol_loader.get_symbol(func.function_name).unwrap();
-
-            let mut return_type = vec![];
-            if let Some(ret_type) = func.func_type.return_type {
-                let ret_type = self.type_loader.get_type(ret_type).unwrap();
-                let ret_type = to_wasm_type(&ret_type);
-                return_type = vec![ret_type];
-            }
-
-            let mut param_types = vec![];
-            let mut variables = vec![];
-            for param_ty in &func.func_type.parameters {
-                let param_ty = self.type_loader.get_type(*param_ty).unwrap();
-                let param_ty = to_wasm_type(&param_ty);
-                param_types.push(param_ty);
-                variables.push(self.module.locals.add(param_ty));
-            }
-
-            let mut builder = FunctionBuilder::new(&mut self.module.types, &param_types, &return_type);
-            let mangled_name = mangle_func(&package_name, &func_name);
-            builder.name(mangled_name);
-
-            let function_id = builder.finish(
-                variables.iter().take(param_types.len()).cloned().collect(),
-                &mut self.module.funcs,
-            );
-
-            self.function_ids.insert(global_id, function_id);
         }
     }
 
     fn build_main_func(&mut self) {
         let main_sym = self.symbol_loader.declare_symbol("main");
         let main_func_global_id = GlobalId::new(self.main_package, main_sym);
-        let main_func_id = self.function_ids.get(&main_func_global_id).unwrap();
+        let main_func_id = self.function_ids.get(&(main_func_global_id, vec![])).unwrap();
 
         let mut builder = FunctionBuilder::new(&mut self.module.types, &[], &[]);
         builder.name(String::from(START_FUNC_NAME));
@@ -470,34 +547,40 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     }
 }
 
-struct FunctionCompiler<'typ, 'pkg> {
+struct FunctionCompiler<'sym, 'typ, 'pkg> {
     type_loader: &'typ TypeLoader,
+    type_printer: &'typ TypePrinter<'sym, 'typ>,
     data_end_ptr: WasmGlobalId,
     variables: &'pkg [LocalId],
 
     memory_id: MemoryId,
+    type_arguments: &'pkg IndexMap<SymbolId, TypeId>,
     loop_blocks: Vec<(InstrSeqId, InstrSeqId)>,
     globals: &'pkg HashMap<GlobalId, WasmGlobalId>,
-    function_ids: &'pkg HashMap<GlobalId, FunctionId>,
+    function_ids: &'pkg HashMap<(GlobalId, Vec<TypeId>), FunctionId>,
     data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
     builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
 }
 
-impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
+impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
     pub fn new(
         memory_id: MemoryId,
+        type_arguments: &'pkg IndexMap<SymbolId, TypeId>,
         variables: &'pkg [LocalId],
         type_loader: &'typ TypeLoader,
+        type_printer: &'typ TypePrinter<'sym, 'typ>,
         data_end_ptr: WasmGlobalId,
         data_offsets: &'pkg HashMap<(SymbolId, usize), usize>,
         globals: &'pkg HashMap<GlobalId, WasmGlobalId>,
-        function_ids: &'pkg HashMap<GlobalId, FunctionId>,
+        function_ids: &'pkg HashMap<(GlobalId, Vec<TypeId>), FunctionId>,
         builtin_functions: &'pkg HashMap<GlobalId, Rc<str>>,
     ) -> Self {
         Self {
             type_loader,
+            type_printer,
             data_end_ptr,
             memory_id,
+            type_arguments,
             variables,
             loop_blocks: vec![],
             globals,
@@ -528,7 +611,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             Statement::SetAddr { addr, value } => {
                 let element_ty = self.type_loader.get_type(value.type_id).unwrap();
 
-                let (_, align) = get_size_and_alignment(&element_ty);
+                let (_, align) = get_size_and_alignment(self.type_loader, self.type_arguments, &element_ty);
                 let store_kind = match element_ty.as_ref() {
                     Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
                     Type::I32 | Type::U32 | Type::Usize | Type::Isize => walrus::ir::StoreKind::I32 { atomic: false },
@@ -624,7 +707,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
         let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(&element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
 
         // TODO: check index range
 
@@ -678,7 +761,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
         let element_ty = self.type_loader.get_type(array_ptr_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(&element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
 
         // i * size
         builder.i32_const(size as i32);
@@ -691,7 +774,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
         let store_kind = match element_ty.as_ref() {
             Type::I64 | Type::U64 => walrus::ir::StoreKind::I64 { atomic: false },
-            Type::I32 | Type::U32 => walrus::ir::StoreKind::I32 { atomic: false },
+            Type::I32 | Type::U32 | Type::Usize | Type::Isize => walrus::ir::StoreKind::I32 { atomic: false },
             Type::I16 => walrus::ir::StoreKind::I32_16 { atomic: false },
             Type::U16 => walrus::ir::StoreKind::I32_16 { atomic: false },
             Type::I8 => walrus::ir::StoreKind::I32_8 { atomic: false },
@@ -761,8 +844,12 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             ExprKind::Global(global_id) => {
                 builder.global_get(*self.globals.get(&global_id).unwrap());
             }
+            ExprKind::FuncInit(..) => {
+                todo!();
+            }
             ExprKind::ZeroOf(type_id) => {
-                let ty = self.type_loader.get_type(*type_id).unwrap();
+                let type_id = transform_opaque_type(self.type_loader, self.type_arguments, *type_id);
+                let ty = self.type_loader.get_type(type_id).unwrap();
                 match ty.as_ref() {
                     Type::Isize => builder.i32_const(0),
                     Type::I64 => builder.i64_const(0),
@@ -780,17 +867,18 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                     Type::Slice(..) => builder.i32_const(0),
                     Type::Pointer(..) => builder.i32_const(0),
                     Type::ArrayPtr(..) => builder.i32_const(0),
+                    Type::Opaque(..) => unreachable!("this should be converted above"),
                     Type::Void | Type::Func(..) | Type::Invalid => builder.i32_const(0),
                 };
             }
             ExprKind::SizeOf(type_id) => {
                 let ty = self.type_loader.get_type(*type_id).unwrap();
-                let (size, _) = get_size_and_alignment(&ty);
+                let (size, _) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
                 builder.i32_const(size as i32);
             }
             ExprKind::AlignOf(type_id) => {
                 let ty = self.type_loader.get_type(*type_id).unwrap();
-                let (_, align) = get_size_and_alignment(&ty);
+                let (_, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
                 builder.i32_const(align as i32);
             }
             ExprKind::DataEnd => {
@@ -828,7 +916,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 };
                 let element_ty = self.type_loader.get_type(pointer_ty.element_type).unwrap();
 
-                let (_, align) = get_size_and_alignment(&element_ty);
+                let (_, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
                 let load_kind = match element_ty.as_ref() {
                     Type::I64 | Type::U64 => walrus::ir::LoadKind::I64 { atomic: false },
                     Type::I32 | Type::U32 => walrus::ir::LoadKind::I32 { atomic: false },
@@ -866,14 +954,22 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
             self.process_expr(builder, arg);
         }
 
-        let ExprKind::Global(global_id) = &target.kind else {
-            unreachable!("the callee expression is not a function");
+        let key = match &target.kind {
+            ExprKind::Global(global_id) => (global_id.clone(), vec![]),
+            ExprKind::FuncInit(global_id, type_arguments) => (
+                global_id.clone(),
+                type_arguments
+                    .iter()
+                    .map(|type_id| transform_opaque_type(self.type_loader, self.type_arguments, *type_id))
+                    .collect(),
+            ),
+            _ => unreachable!("the callee expression is not a function"),
         };
 
-        if let Some(func_id) = self.function_ids.get(global_id) {
+        if let Some(func_id) = self.function_ids.get(&key) {
             builder.call(*func_id);
-        } else if let Some(builtin_name) = self.builtin_functions.get(global_id) {
-            self.process_builtin_call(builder, builtin_name);
+        } else if let Some(builtin_name) = self.builtin_functions.get(&key.0) {
+            self.process_builtin_call(builder, builtin_name, &key.1);
         } else {
             unreachable!("function definition is not found");
         }
@@ -886,7 +982,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         };
         let element_ty = self.type_loader.get_type(slice_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(&element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
 
         // TODO: check index range
 
@@ -947,7 +1043,7 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
 
         let element_ty = self.type_loader.get_type(array_ptr_ty.element_type).unwrap();
         let index_ty = self.type_loader.get_type(index.type_id).unwrap();
-        let (size, align) = get_size_and_alignment(&element_ty);
+        let (size, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &element_ty);
 
         // i * size
         builder.i32_const(size as i32);
@@ -987,13 +1083,23 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
         );
     }
 
-    fn process_builtin_call(&self, builder: &mut InstrSeqBuilder, builtin_name: &str) {
+    fn process_builtin_call(&self, builder: &mut InstrSeqBuilder, builtin_name: &str, type_arguments: &[TypeId]) {
         match builtin_name {
             "memory.grow" => {
                 builder.memory_grow(self.memory_id);
             }
             "memory.size" => {
                 builder.memory_size(self.memory_id);
+            }
+            "size_of" => {
+                let ty = self.type_loader.get_type(type_arguments[0]).unwrap();
+                let (size, _) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
+                builder.i32_const(size as i32);
+            }
+            "align_of" => {
+                let ty = self.type_loader.get_type(type_arguments[0]).unwrap();
+                let (_, align) = get_size_and_alignment(self.type_loader, &self.type_arguments, &ty);
+                builder.i32_const(align as i32);
             }
             builtin_name => panic!("unknown builtin function for {builtin_name}"),
         }
@@ -1052,10 +1158,14 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
                 builder.unop(UnaryOp::I64Extend32S);
             }
             (Type::Slice(..), _) => {}
+            (Type::ArrayPtr(..), Type::I64) => {
+                builder.unop(UnaryOp::I64Extend32S);
+            }
+            (Type::ArrayPtr(..), _) => {}
             (source, target) => todo!(
                 "casting from {} to {} is not supported yet",
-                source.display(self.type_loader),
-                target.display(self.type_loader)
+                self.type_printer.display_type(source),
+                self.type_printer.display_type(target),
             ),
         }
     }
@@ -1271,12 +1381,67 @@ impl<'typ, 'pkg> FunctionCompiler<'typ, 'pkg> {
     }
 }
 
-fn mangle_func(package_name: &str, function_name: &str) -> String {
-    format!("{package_name}.{function_name}")
+fn mangle_func(package_name: &str, function_name: &str, type_params: &[TypeId]) -> String {
+    let mut s = format!("{package_name}.{function_name}");
+    for type_param in type_params {
+        s.push('.');
+        s.push_str(&format!("{:?}", type_param));
+    }
+    s
 }
 
-fn to_wasm_type(ty: &Type) -> ValType {
-    match ty {
+fn transform_opaque_type(
+    type_loader: &TypeLoader,
+    name_to_type: &IndexMap<SymbolId, TypeId>,
+    type_id: TypeId,
+) -> TypeId {
+    let ty = type_loader.get_type(type_id).unwrap();
+    match ty.as_ref() {
+        Type::Invalid
+        | Type::Void
+        | Type::Isize
+        | Type::I64
+        | Type::I32
+        | Type::I16
+        | Type::I8
+        | Type::Usize
+        | Type::U64
+        | Type::U32
+        | Type::U16
+        | Type::U8
+        | Type::F32
+        | Type::F64
+        | Type::Bool => type_id,
+        Type::Func(func_type) => type_loader.declare_type(Type::Func(FuncType {
+            type_parameters: Vec::default(),
+            parameters: func_type
+                .parameters
+                .iter()
+                .map(|type_id| transform_opaque_type(type_loader, name_to_type, *type_id))
+                .collect(),
+            return_type: func_type
+                .return_type
+                .map(|type_id| transform_opaque_type(type_loader, name_to_type, type_id)),
+        })),
+        Type::Slice(slice_type) => type_loader.declare_type(Type::Slice(SliceType {
+            element_type: transform_opaque_type(type_loader, name_to_type, slice_type.element_type),
+        })),
+        Type::Pointer(pointer_type) => type_loader.declare_type(Type::Pointer(PointerType {
+            element_type: transform_opaque_type(type_loader, name_to_type, pointer_type.element_type),
+        })),
+        Type::ArrayPtr(array_ptr_type) => type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+            element_type: transform_opaque_type(type_loader, name_to_type, array_ptr_type.element_type),
+        })),
+        Type::Opaque(name) => *name_to_type.get(name).expect("todo: handle the error"),
+    }
+}
+
+fn to_wasm_type(type_loader: &TypeLoader, type_args: &IndexMap<SymbolId, TypeId>, ty: &Type) -> ValType {
+    let type_id = type_loader.declare_type(ty.clone());
+    let type_id = transform_opaque_type(type_loader, type_args, type_id);
+    let ty = type_loader.get_type(type_id).unwrap();
+
+    match ty.as_ref() {
         Type::I64 | Type::U64 => ValType::I64,
         Type::Isize
         | Type::Usize
@@ -1292,13 +1457,24 @@ fn to_wasm_type(ty: &Type) -> ValType {
         Type::Slice(_) => ValType::I32,
         Type::Pointer(_) => ValType::I32,
         Type::ArrayPtr(_) => ValType::I32,
-        Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+        Type::Func(..) => todo!("function pointer is not supported yet"),
+        Type::Void => unreachable!("void cannot be constructed"),
+        Type::Invalid => unreachable!("program with invalid type shouldn't be compiled"),
+        Type::Opaque(_) => unreachable!("opaque type should be converted above"),
     }
 }
 
 // can we guarantee: size is multiple of alignment?
-fn get_size_and_alignment(ty: &Type) -> (usize, usize) {
-    match ty {
+fn get_size_and_alignment(
+    type_loader: &TypeLoader,
+    type_args: &IndexMap<SymbolId, TypeId>,
+    ty: &Type,
+) -> (usize, usize) {
+    let type_id = type_loader.declare_type(ty.clone());
+    let type_id = transform_opaque_type(type_loader, type_args, type_id);
+    let ty = type_loader.get_type(type_id).unwrap();
+
+    match ty.as_ref() {
         Type::I64 | Type::U64 => (8, 4),
         Type::Isize | Type::Usize | Type::I32 | Type::U32 => (4, 4),
         Type::I16 | Type::U16 => (2, 2),
@@ -1309,6 +1485,9 @@ fn get_size_and_alignment(ty: &Type) -> (usize, usize) {
         Type::Slice(..) => (4, 4),
         Type::Pointer(..) => (4, 4),
         Type::ArrayPtr(..) => (4, 4),
-        Type::Invalid | Type::Void | Type::Func(..) => todo!(),
+        Type::Func(..) => todo!("function pointer is not supported yet"),
+        Type::Void => unreachable!("void cannot be constructed"),
+        Type::Invalid => unreachable!("program with invalid type shouldn't be compiled"),
+        Type::Opaque(_) => unreachable!("opaque type should be converted above"),
     }
 }

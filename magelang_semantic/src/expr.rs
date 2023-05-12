@@ -31,6 +31,7 @@ pub enum ExprKind {
     AlignOf(TypeId),
     DataEnd,
     Global(GlobalId),
+    FuncInit(GlobalId, Vec<TypeId>), // maybe need to change Vec<TypeId> into Rc<[TypeId]>
     StringLit(StringLitExpr),
     Binary { a: Box<Expr>, op: BinOp, b: Box<Expr> },
     Unary { op: UnOp, val: Box<Expr> },

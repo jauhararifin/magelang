@@ -2,12 +2,13 @@ import wasm "std/wasm";
 
 let last_offset: usize = @data_end();
 
-fn alloc(size: usize): usize {
+fn alloc[T](): *T {
   while last_offset % 8 != 0 {
     last_offset = last_offset + 1;
   }
+
   let ptr = last_offset;
-  last_offset = last_offset + size;
+  last_offset = last_offset + size_of[T]();
 
   let needed_page = (last_offset + 65535) / 65536;
   let need_additional = needed_page - wasm.memory_size();
@@ -15,20 +16,35 @@ fn alloc(size: usize): usize {
     wasm.memory_grow(need_additional);
   }
 
-  return ptr;
+  return ptr as *T;
 }
 
-fn free(ptr: usize) {}
+fn alloc_array[T](len: usize): [*]T {
+  while last_offset % 8 != 0 {
+    last_offset = last_offset + 1;
+  }
 
-fn make_slice(type_size: usize, len: usize): usize {
-  let need_to_alloc = len * type_size + 8;
-  let slice_ptr = alloc(need_to_alloc);
+  let ptr = last_offset;
+  last_offset = last_offset + size_of[T]() * len;
 
-  let ptr: *usize = slice_ptr as *usize;
-  *ptr = slice_ptr + 8;
+  let needed_page = (last_offset + 65535) / 65536;
+  let need_additional = needed_page - wasm.memory_size();
+  if need_additional > 0 {
+    wasm.memory_grow(need_additional);
+  }
 
-  let len_ptr: *usize = (slice_ptr + 4) as *usize;
-  *len_ptr = len;
+  return ptr as [*]T;
+}
 
-  return slice_ptr;
+#builtin("size_of")
+fn size_of[T](): usize;
+
+fn make_slice[T](len: usize): []T {
+  let array_ptr = alloc_array[T](len);
+
+  let the_slice = alloc_array[usize](2);
+  the_slice[0] = array_ptr as usize;
+  the_slice[1] = len;
+
+  return the_slice as []T;
 }

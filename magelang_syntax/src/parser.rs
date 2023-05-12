@@ -460,9 +460,9 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
     }
 
     fn parse_cast_expr(&mut self) -> Option<ExprNode> {
-        let value = self.parse_deref_expr()?;
+        let value = self.parse_unary_expr()?;
         if self.take_if(TokenKind::As).is_some() {
-            let target = self.parse_deref_expr()?;
+            let target = self.parse_unary_expr()?;
             Some(ExprNode::Cast(CastExprNode {
                 value: Box::new(value),
                 target: Box::new(target),
@@ -472,31 +472,37 @@ impl<'err, 'sym> FileParser<'err, 'sym> {
         }
     }
 
-    fn parse_deref_expr(&mut self) -> Option<ExprNode> {
-        if let Some(tok) = self.take_if(TokenKind::Mul) {
-            let value = self.parse_deref_expr()?;
-            Some(ExprNode::Deref(DerefExprNode {
-                pos: tok.pos,
-                value: Box::new(value),
-            }))
-        } else {
-            self.parse_unary_expr()
-        }
-    }
-
-    const UNARY_OP: &[TokenKind] = &[TokenKind::BitNot, TokenKind::Sub, TokenKind::Add, TokenKind::Not];
+    const UNARY_OP: &[TokenKind] = &[
+        TokenKind::Mul,
+        TokenKind::BitNot,
+        TokenKind::Sub,
+        TokenKind::Add,
+        TokenKind::Not,
+    ];
 
     fn parse_unary_expr(&mut self) -> Option<ExprNode> {
-        if Self::UNARY_OP.contains(&self.kind()) {
+        let mut ops = vec![];
+        while Self::UNARY_OP.contains(&self.kind()) {
             let op = self.tokens.pop_front().unwrap();
-            let value = self.parse_call_like_expr()?;
-            Some(ExprNode::Unary(UnaryExprNode {
-                op,
-                value: Box::new(value),
-            }))
-        } else {
-            self.parse_call_like_expr()
+            ops.push(op);
         }
+
+        let mut value = self.parse_call_like_expr()?;
+        while let Some(op) = ops.pop() {
+            if op.kind == TokenKind::Mul {
+                value = ExprNode::Deref(DerefExprNode {
+                    pos: op.pos,
+                    value: Box::new(value),
+                })
+            } else {
+                value = ExprNode::Unary(UnaryExprNode {
+                    op,
+                    value: Box::new(value),
+                })
+            }
+        }
+
+        Some(value)
     }
 
     fn parse_call_like_expr(&mut self) -> Option<ExprNode> {
@@ -753,5 +759,12 @@ mod tests {
         }
         "#,
     );
+    test_parse_code_errors!(
+        parse_unary_expr,
+        r#"
+        fn some_function() {
+            let a = *!*!~ident();
+        }
+        "#,
+    );
 }
-

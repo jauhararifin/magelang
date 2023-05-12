@@ -11,4 +11,4 @@ magelang_syntax = { path = "../magelang_syntax" }
 magelang_package = { path = "../magelang_package" }
 magelang_semantic = { path = "../magelang_semantic" }
 indexmap = "1.9.2"
-
+once_cell = "1.17.1"

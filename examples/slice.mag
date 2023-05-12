@@ -3,7 +3,7 @@ import mem "std/mem";
 import wasi "std/wasi";
 
 fn main() {
-  let a_slice = mem.make_slice(@size_of(i64), 10) as []i64;
+  let a_slice = mem.make_slice[i64](10);
   let i = 0;
   while i < 10 {
     a_slice[i] = i;

@@ -6,7 +6,7 @@ use magelang_package::PackageUtil;
 use magelang_semantic::{
     value_from_string_lit, ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncType, Global, GlobalId,
     IfStatement, NativeFunction, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type,
-    TypeId, TypeLoader, UnOp, WhileStatement,
+    TypeId, TypeLoader, TypePrinter, UnOp, WhileStatement,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode,
@@ -14,19 +14,20 @@ use magelang_syntax::{
     LetStatementNode, ReturnStatementNode, SelectionExprNode, SignatureNode, StatementNode, Token, TokenKind,
     UnaryExprNode, WhileStatementNode,
 };
-use std::cell::RefCell;
+use once_cell::unsync::OnceCell;
+use std::collections::HashMap;
 use std::iter::zip;
 use std::rc::Rc;
 
 pub struct TypeChecker<'err, 'sym, 'file, 'pkg, 'ast, 'typ> {
-    errors: TypecheckErrorAccumulator<'err, 'file, 'typ>,
+    errors: TypecheckErrorAccumulator<'err, 'file, 'sym, 'typ>,
     symbol_loader: &'sym SymbolLoader,
     file_loader: &'file FileLoader<'err>,
     ast_loader: &'ast AstLoader<'err, 'file, 'sym>,
     package_util: &'pkg PackageUtil<'err, 'file, 'sym, 'ast>,
     type_loader: &'typ TypeLoader,
 
-    global_scope: RefCell<Option<Rc<Scope>>>,
+    global_scope: OnceCell<Rc<Scope>>,
 }
 
 #[derive(Default)]
@@ -62,15 +63,16 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         ast_loader: &'ast AstLoader<'err, 'file, 'sym>,
         package_util: &'pkg PackageUtil<'err, 'file, 'sym, 'ast>,
         type_loader: &'typ TypeLoader,
+        type_printer: &'typ TypePrinter<'sym, 'typ>,
     ) -> Self {
         Self {
-            errors: TypecheckErrorAccumulator::new(err_channel, file_loader, type_loader),
+            errors: TypecheckErrorAccumulator::new(err_channel, type_printer, file_loader),
             symbol_loader,
             file_loader,
             ast_loader,
             package_util,
             type_loader,
-            global_scope: RefCell::new(None),
+            global_scope: OnceCell::new(),
         }
     }
 
@@ -99,13 +101,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         packages
     }
 
-    fn get_global_scope(&self) -> Rc<Scope> {
-        let mut global_scope = self.global_scope.borrow_mut();
-        if global_scope.is_none() {
-            let scope = Scope::global(self.type_loader, self.symbol_loader);
-            *global_scope = Some(scope);
-        }
-        global_scope.as_ref().unwrap().clone()
+    fn get_global_scope(&self) -> &Rc<Scope> {
+        self.global_scope
+            .get_or_init(|| Scope::global(self.type_loader, self.symbol_loader))
     }
 
     fn check_package(&self, package_name: SymbolId) -> Rc<Package> {
@@ -183,7 +181,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     }
                 }
                 ItemNode::Function(func_node) => {
-                    let func_ty = self.get_func_type(&global_scope, &func_node.signature);
+                    let scope = self.get_func_template_scope(&global_scope, &func_node.signature);
+                    let func_ty = self.get_func_type(&scope, &func_node.signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
                     Object::Global {
                         type_id,
@@ -191,7 +190,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     }
                 }
                 ItemNode::NativeFunction(signature) => {
-                    let func_ty = self.get_func_type(&global_scope, signature);
+                    let scope = self.get_func_template_scope(&global_scope, signature);
+                    let func_ty = self.get_func_type(&scope, signature);
                     let type_id = self.type_loader.declare_type(Type::Func(func_ty));
                     Object::Global {
                         type_id,
@@ -212,8 +212,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             return;
         };
 
-        let func_type = self.get_func_type(scope, &func_node.signature);
-        if !func_type.parameters.is_empty() || func_type.return_type.is_some() {
+        let scope = self.get_func_template_scope(&scope, &func_node.signature);
+        let func_type = self.get_func_type(&scope, &func_node.signature);
+        let has_type_parameters = !func_type.type_parameters.is_empty();
+        let has_parameters = !func_type.parameters.is_empty();
+        let has_return_type = func_type.return_type.is_some();
+        if has_type_parameters || has_parameters || has_return_type {
             self.errors.invalid_main_func(func_node.signature.pos);
         }
     }
@@ -279,7 +283,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 state.functions.push(func);
             }
             ItemNode::NativeFunction(signature) => {
-                let func_type = self.get_func_type(scope, signature);
+                let scope = self.get_func_template_scope(&scope, signature);
+                let func_type = self.get_func_type(&scope, signature);
 
                 let mut tags = vec![];
                 'outer: for tag in &signature.tags {
@@ -318,15 +323,24 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let mut symbols = IndexMap::<SymbolId, Object>::new();
         let mut func_state = FunctionCheckState::default();
 
-        let func_type = self.get_func_type(scope, &func_node.signature);
+        let scope = self.get_func_template_scope(&scope, &func_node.signature);
+        let func_type = self.get_func_type(&scope, &func_node.signature);
 
         let param_types = func_type.parameters.iter();
         let param_nodes = func_node.signature.parameters.iter();
+        let mut param_pos = HashMap::new();
         for (param_ty, param_node) in zip(param_types, param_nodes) {
-            symbols.insert(
-                self.symbol_loader.declare_symbol(&param_node.name.value),
-                Object::Local(*param_ty, func_state.use_local(*param_ty)),
-            );
+            let name = self.symbol_loader.declare_symbol(&param_node.name.value);
+            if let Some(pos) = param_pos.get(&name) {
+                self.errors
+                    .redeclared_symbol(&param_node.name.value, *pos, param_node.name.pos);
+            } else {
+                param_pos.insert(name, param_node.pos);
+                symbols.insert(
+                    self.symbol_loader.declare_symbol(&param_node.name.value),
+                    Object::Local(*param_ty, func_state.use_local(*param_ty)),
+                );
+            }
         }
 
         let func_scope = scope.new_child(ScopeKind::Function(func_type.return_type), symbols);
@@ -447,7 +461,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     | Type::Slice(..)
                     | Type::Pointer(..)
                     | Type::ArrayPtr(..)
-                    | Type::Func(..) => ExprKind::ZeroOf(target_ty_id),
+                    | Type::Func(..)
+                    | Type::Opaque(..) => ExprKind::ZeroOf(target_ty_id),
                     Type::Invalid => ExprKind::Invalid,
                     Type::Void => {
                         self.errors.cannot_use_type_for_local(ty.get_pos(), target_ty_id);
@@ -607,6 +622,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             | ExprKind::SizeOf(..)
             | ExprKind::AlignOf(..)
             | ExprKind::DataEnd
+            | ExprKind::FuncInit(..)
             | ExprKind::StringLit(..)
             | ExprKind::Binary { .. }
             | ExprKind::Unary { .. }
@@ -787,9 +803,32 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         }
     }
 
-    fn get_func_type(&self, scope: &Rc<Scope>, signature: &SignatureNode) -> FuncType {
-        let mut parameters = vec![];
+    fn get_func_template_scope(&self, scope: &Rc<Scope>, signature: &SignatureNode) -> Rc<Scope> {
+        let mut symbols = IndexMap::<SymbolId, Object>::default();
+        for type_param_node in &signature.type_parameters {
+            let name = self.symbol_loader.declare_symbol(&type_param_node.name.value);
+            let type_id = self.type_loader.declare_type(Type::Opaque(name));
+            symbols.insert(name, Object::Type(type_id));
+        }
 
+        scope.new_child(ScopeKind::Basic, symbols)
+    }
+
+    fn get_func_type(&self, scope: &Rc<Scope>, signature: &SignatureNode) -> FuncType {
+        let mut type_parameters = vec![];
+        let mut type_param_pos = HashMap::new();
+        for type_param_node in &signature.type_parameters {
+            let name = self.symbol_loader.declare_symbol(&type_param_node.name.value);
+            if let Some(pos) = type_param_pos.get(&name) {
+                self.errors
+                    .redeclared_symbol(&type_param_node.name.value, *pos, type_param_node.name.pos);
+            } else {
+                type_param_pos.insert(name, type_param_node.get_pos());
+                type_parameters.push(name);
+            }
+        }
+
+        let mut parameters = vec![];
         for param_node in &signature.parameters {
             let param_type = self.get_expr_type(scope, &param_node.type_expr);
             parameters.push(param_type);
@@ -801,6 +840,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             .map(|expr| self.get_expr_type(scope, expr));
 
         FuncType {
+            type_parameters,
             parameters,
             return_type,
         }
@@ -1466,6 +1506,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             Type::ArrayPtr(array_ptr_ty) => {
                 self.get_array_ptr_index_expr(scope, str_helper, target, array_ptr_ty.element_type, index_expr)
             }
+            Type::Func(func_type) => self.get_func_index_expr(scope, target, func_type, index_expr),
             _ => {
                 self.errors.not_indexable(index_expr.value.get_pos());
                 Expr {
@@ -1515,6 +1556,90 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             assignable: true,
             comp_const: false,
             kind: ExprKind::Index(Box::new(target), Box::new(index)),
+        }
+    }
+
+    fn get_func_index_expr(
+        &self,
+        scope: &Rc<Scope>,
+        target: Expr,
+        func_type: &FuncType,
+        index_expr: &IndexExprNode,
+    ) -> Expr {
+        if func_type.type_parameters.len() != index_expr.index.len() {
+            self.errors.unmatch_index_arguments(
+                index_expr.get_pos(),
+                func_type.type_parameters.len(),
+                index_expr.index.len(),
+            );
+            return Expr {
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: true,
+                comp_const: false,
+                kind: ExprKind::Invalid,
+            };
+        }
+
+        let ExprKind::Global(global_id) = target.kind else {
+            unreachable!("func type should have global expr");
+        };
+
+        let mut type_arguments = vec![];
+        let mut name_to_type = HashMap::<SymbolId, TypeId>::default();
+        for (opaque_name, index_node) in zip(func_type.type_parameters.iter(), &index_expr.index) {
+            let type_id = self.get_expr_type(scope, index_node);
+            type_arguments.push(type_id);
+            name_to_type.insert(*opaque_name, type_id);
+        }
+
+        let type_id = self.transform_opaque_type(&name_to_type, target.type_id);
+        Expr {
+            type_id,
+            assignable: true,
+            comp_const: false,
+            kind: ExprKind::FuncInit(global_id, type_arguments),
+        }
+    }
+
+    fn transform_opaque_type(&self, name_to_type: &HashMap<SymbolId, TypeId>, type_id: TypeId) -> TypeId {
+        let ty = self.type_loader.get_type(type_id).unwrap();
+        match ty.as_ref() {
+            Type::Invalid
+            | Type::Void
+            | Type::Isize
+            | Type::I64
+            | Type::I32
+            | Type::I16
+            | Type::I8
+            | Type::Usize
+            | Type::U64
+            | Type::U32
+            | Type::U16
+            | Type::U8
+            | Type::F32
+            | Type::F64
+            | Type::Bool => type_id,
+            Type::Func(func_type) => self.type_loader.declare_type(Type::Func(FuncType {
+                type_parameters: Vec::default(),
+                parameters: func_type
+                    .parameters
+                    .iter()
+                    .map(|type_id| self.transform_opaque_type(name_to_type, *type_id))
+                    .collect(),
+                return_type: func_type
+                    .return_type
+                    .map(|type_id| self.transform_opaque_type(name_to_type, type_id)),
+            })),
+            Type::Slice(slice_type) => self.type_loader.declare_type(Type::Slice(SliceType {
+                element_type: self.transform_opaque_type(name_to_type, slice_type.element_type),
+            })),
+            Type::Pointer(pointer_type) => self.type_loader.declare_type(Type::Pointer(PointerType {
+                element_type: self.transform_opaque_type(name_to_type, pointer_type.element_type),
+            })),
+            Type::ArrayPtr(array_ptr_type) => self.type_loader.declare_type(Type::ArrayPtr(ArrayPtrType {
+                element_type: self.transform_opaque_type(name_to_type, array_ptr_type.element_type),
+            })),
+            Type::Opaque(name) => *name_to_type.get(name).expect("todo: handle the error"),
         }
     }
 }

@@ -1,3 +1,4 @@
+use magelang_common::SymbolId;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -40,10 +41,6 @@ impl TypeLoader {
     }
 }
 
-pub trait TypeDisplay {
-    fn display(&self, type_loader: &TypeLoader) -> String;
-}
-
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum Type {
     Invalid,
@@ -65,6 +62,7 @@ pub enum Type {
     Slice(SliceType),
     Pointer(PointerType),
     ArrayPtr(ArrayPtrType),
+    Opaque(SymbolId),
 }
 
 impl Type {
@@ -118,54 +116,11 @@ impl Type {
     }
 }
 
-impl TypeDisplay for Type {
-    fn display(&self, type_loader: &TypeLoader) -> String {
-        match self {
-            Self::Invalid => String::from("INVALID"),
-            Self::Void => String::from("void"),
-            Self::Isize => String::from("isize"),
-            Self::I64 => String::from("i64"),
-            Self::I32 => String::from("i32"),
-            Self::I16 => String::from("i16"),
-            Self::I8 => String::from("i8"),
-            Self::Usize => String::from("usize"),
-            Self::U64 => String::from("u64"),
-            Self::U32 => String::from("u32"),
-            Self::U16 => String::from("u16"),
-            Self::U8 => String::from("u8"),
-            Self::F32 => String::from("f32"),
-            Self::F64 => String::from("f64"),
-            Self::Bool => String::from("boolean"),
-            Self::Func(func_type) => func_type.display(type_loader),
-            Self::Slice(slice_type) => slice_type.display(type_loader),
-            Self::Pointer(pointer_type) => pointer_type.display(type_loader),
-            Self::ArrayPtr(array_ptr_type) => array_ptr_type.display(type_loader),
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub struct FuncType {
+    pub type_parameters: Vec<SymbolId>,
     pub parameters: Vec<TypeId>,
     pub return_type: Option<TypeId>,
-}
-
-impl TypeDisplay for FuncType {
-    fn display(&self, type_loader: &TypeLoader) -> String {
-        let mut s = String::from("func(");
-        for (i, param) in self.parameters.iter().enumerate() {
-            if i > 0 {
-                s.push(',');
-            }
-            s.push_str(&type_loader.get_type(*param).unwrap().display(type_loader));
-        }
-        s.push(')');
-        if let Some(ref ret_type) = self.return_type {
-            s.push(':');
-            s.push_str(&type_loader.get_type(*ret_type).unwrap().display(type_loader));
-        }
-        s
-    }
 }
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -173,33 +128,12 @@ pub struct SliceType {
     pub element_type: TypeId,
 }
 
-impl TypeDisplay for SliceType {
-    fn display(&self, type_loader: &TypeLoader) -> String {
-        let element = type_loader.get_type(self.element_type).unwrap();
-        format!("[]{}", element.display(type_loader))
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub struct PointerType {
     pub element_type: TypeId,
 }
 
-impl TypeDisplay for PointerType {
-    fn display(&self, type_loader: &TypeLoader) -> String {
-        let element = type_loader.get_type(self.element_type).unwrap();
-        format!("*{}", element.display(type_loader))
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub struct ArrayPtrType {
     pub element_type: TypeId,
-}
-
-impl TypeDisplay for ArrayPtrType {
-    fn display(&self, type_loader: &TypeLoader) -> String {
-        let element = type_loader.get_type(self.element_type).unwrap();
-        format!("[*]{}", element.display(type_loader))
-    }
 }

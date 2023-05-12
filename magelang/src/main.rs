@@ -1,7 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 use magelang_common::{ErrorAccumulator, FileLoader, SymbolLoader};
 use magelang_package::PackageUtil;
-use magelang_semantic::TypeLoader;
+use magelang_semantic::{TypeLoader, TypePrinter};
 use magelang_syntax::AstLoader;
 use magelang_typecheck::TypeChecker;
 use magelang_wasm::Compiler;
@@ -39,6 +39,7 @@ fn main() {
     let symbol_loader = SymbolLoader::default();
     let file_loader = FileLoader::new(&err_accumulator);
     let type_loader = TypeLoader::default();
+    let type_printer = TypePrinter::new(&symbol_loader, &type_loader);
     let ast_loader = AstLoader::new(&err_accumulator, &file_loader, &symbol_loader);
     let package_util = PackageUtil::new(&file_loader, &ast_loader, &symbol_loader);
     let type_checker = TypeChecker::new(
@@ -48,6 +49,7 @@ fn main() {
         &ast_loader,
         &package_util,
         &type_loader,
+        &type_printer,
     );
 
     match args.command {
@@ -79,7 +81,7 @@ fn main() {
                 .as_deref()
                 .or_else(|| path.file_name().and_then(|v| v.to_str()))
                 .unwrap_or("main.wasm");
-            let compiler = Compiler::new(&symbol_loader, &type_loader);
+            let compiler = Compiler::new(&symbol_loader, &type_loader, &type_printer);
             compiler
                 .compile(packages, main_package, filename)
                 .expect("cannot compile package");
