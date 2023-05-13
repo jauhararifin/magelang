@@ -15,3 +15,5 @@ pub const F64: &str = "f64";
 pub const F32: &str = "f32";
 pub const VOID: &str = "void";
 pub const FUNC: &str = "fn";
+
+pub const MAIN_FUNC: &str = "main";

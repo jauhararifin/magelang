@@ -33,6 +33,8 @@ impl Default for ErrorAccumulator {
 }
 
 impl ErrorAccumulator {
+    // TODO: ignore the exactly same error
+    // TODO: if possible, also ignore the same error message in the same line;
     pub fn push(&self, err: Error) {
         self.errors.borrow_mut().push(err);
     }

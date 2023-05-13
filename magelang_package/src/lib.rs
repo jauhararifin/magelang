@@ -22,17 +22,7 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
         ast_loader: &'ast AstLoader<'err, 'file>,
         symbol_loader: &'sym SymbolLoader,
     ) -> Self {
-        let stdlib_path = std::env::var(STDLIB_PATH_KEY)
-            .ok()
-            .map(PathBuf::from)
-            .or_else(|| {
-                std::env::current_exe().ok().map(|mut v| {
-                    v.pop();
-                    v
-                })
-            })
-            .unwrap_or_else(|| home::home_dir().map(|path| path.join("magelang")).unwrap());
-
+        let stdlib_path = get_stdlib_path();
         Self {
             file_loader,
             ast_loader,
@@ -93,4 +83,43 @@ impl<'err, 'file, 'sym, 'ast> PackageUtil<'err, 'file, 'sym, 'ast> {
             None
         }
     }
+}
+
+fn get_stdlib_path() -> PathBuf {
+    get_stdlib_path_from_env()
+        .or_else(get_stdlib_path_from_current_exe)
+        .unwrap_or_else(get_stdlib_path_from_current_home)
+}
+
+fn get_stdlib_path_from_env() -> Option<PathBuf> {
+    let pathbuf = std::env::var(STDLIB_PATH_KEY).map(PathBuf::from).ok()?;
+    let pathbuf = pathbuf.join("lib/");
+    if !pathbuf.exists() {
+        return None;
+    }
+    if !pathbuf.is_dir() {
+        return None;
+    }
+    Some(pathbuf)
+}
+
+fn get_stdlib_path_from_current_exe() -> Option<PathBuf> {
+    let mut pathbuf = std::env::current_exe().ok()?;
+    pathbuf.pop();
+    let pathbuf = pathbuf.join("lib/");
+    if !pathbuf.exists() {
+        return None;
+    }
+    if !pathbuf.is_dir() {
+        return None;
+    }
+    Some(pathbuf)
+}
+
+fn get_stdlib_path_from_current_home() -> PathBuf {
+    let pathbuf = home::home_dir()
+        .map(|path| path.join("magelang"))
+        .expect("cannot get home directory");
+    let pathbuf = pathbuf.join("lib/");
+    pathbuf
 }

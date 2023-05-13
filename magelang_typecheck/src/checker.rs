@@ -6,8 +6,8 @@ use magelang_package::PackageUtil;
 use magelang_semantic::{
     value_from_string_lit, ArrayPtrType, BinOp, BlockStatement, Expr, ExprKind, Func, FuncType, Global, GlobalId,
     IfStatement, NativeFunction, Package, PointerType, ReturnStatement, SliceType, Statement, StringLitExpr, Tag, Type,
-    TypeId, TypeLoader, TypePrinter, UnOp, WhileStatement, BOOL, F64, I16, I32, I64, I8, ISIZE, U16, U32, U64, U8,
-    USIZE,
+    TypeId, TypeLoader, TypePrinter, UnOp, WhileStatement, BOOL, F64, I16, I32, I64, I8, ISIZE, MAIN_FUNC, U16, U32,
+    U64, U8, USIZE,
 };
 use magelang_syntax::{
     AssignStatementNode, AstLoader, AstNode, BinaryExprNode, BlockStatementNode, BuiltinCallExprNode, CallExprNode,
@@ -88,7 +88,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 let file_id = self.file_loader.declare_file(path);
                 let ast = self.ast_loader.get_ast(file_id);
                 let scope = self.get_package_scope(pkg_name);
-                if let Some(main) = ast.items.iter().filter(|item_node| item_node.name() == "main").next() {
+                if let Some(main) = ast
+                    .items
+                    .iter()
+                    .filter(|item_node| item_node.name() == MAIN_FUNC)
+                    .next()
+                {
                     self.check_main_func(&scope, main);
                 } else {
                     self.errors.missing_main();
@@ -1134,7 +1139,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
         let result_ty = match expr.op.kind {
             TokenKind::Add | TokenKind::Sub | TokenKind::Mul | TokenKind::Div => {
-                if a_ty.is_numeric() {
+                if a_ty.is_arithmetic() {
                     a_ty.as_ref().clone()
                 } else {
                     self.errors
@@ -1142,8 +1147,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     Type::Invalid
                 }
             }
-            TokenKind::Eq | TokenKind::NEq | TokenKind::Gt | TokenKind::GEq | TokenKind::Lt | TokenKind::LEq => {
-                if a_ty.is_numeric() {
+            TokenKind::Eq | TokenKind::NEq => Type::Bool,
+            TokenKind::Gt | TokenKind::GEq | TokenKind::Lt | TokenKind::LEq => {
+                if a_ty.is_arithmetic() {
                     Type::Bool
                 } else {
                     self.errors
@@ -1248,13 +1254,13 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         };
 
         let is_bool = val_ty.is_bool();
-        let is_number = val_ty.is_numeric();
+        let is_arithmetic = val_ty.is_arithmetic();
         let is_int = val_ty.is_int();
 
         let (op, is_valid) = match expr.op.kind {
             TokenKind::BitNot => (UnOp::BitNot, is_int),
-            TokenKind::Sub => (UnOp::Sub, is_number),
-            TokenKind::Add => (UnOp::Add, is_number),
+            TokenKind::Sub => (UnOp::Sub, is_arithmetic),
+            TokenKind::Add => (UnOp::Add, is_arithmetic),
             TokenKind::Not => (UnOp::Not, is_bool),
             op => unreachable!("token {op} is not a unary operator"),
         };
@@ -1343,6 +1349,8 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                     kind: ExprKind::DataEnd,
                 }
             }
+            "@code_line" => todo!(),
+            "@code_column" => todo!(),
             _ => {
                 self.errors
                     .no_such_builtin(builtin_call.target.pos, &builtin_call.target.value);
@@ -1365,7 +1373,9 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
         let func_expr = self.get_expr(scope, str_helper, &call_expr.target, None);
         let ty = self.type_loader.get_type(func_expr.type_id).unwrap();
         let Type::Func(func_type) = ty.as_ref() else {
-            self.errors.not_a_func(call_expr.target.get_pos());
+            if !ty.is_invalid() {
+                self.errors.not_a_func(call_expr.target.get_pos());
+            }
             return Expr {
                 type_id: self.type_loader.declare_type(Type::Invalid),
                 assignable: false,

@@ -8,6 +8,9 @@ This project is in WIP state.
 ## Compiling
 
 ```bash
+# Magelang uses MAGELANG_ROOT environment variable to find the standard library
+export MAGELANG_ROOT=`pwd`
+
 cargo run -- compile <the_main_package> -o <output_path>
 
 # Example:

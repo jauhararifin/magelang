@@ -67,7 +67,14 @@ pub enum Type {
 
 impl Type {
     pub fn is_assignable_with(&self, other: &Self) -> bool {
+        if self.is_invalid() || other.is_invalid() {
+            return true;
+        }
         self == other
+    }
+
+    pub fn is_invalid(&self) -> bool {
+        matches!(self, Self::Invalid)
     }
 
     pub fn is_bool(&self) -> bool {
@@ -91,6 +98,24 @@ impl Type {
                 | Self::U8
                 | Self::Usize
                 | Self::Isize
+        )
+    }
+
+    pub fn is_arithmetic(&self) -> bool {
+        matches!(
+            self,
+            Self::Isize
+                | Self::I64
+                | Self::I32
+                | Self::I16
+                | Self::I8
+                | Self::Usize
+                | Self::U64
+                | Self::U32
+                | Self::U16
+                | Self::U8
+                | Self::F64
+                | Self::F32
         )
     }
 
