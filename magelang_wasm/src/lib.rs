@@ -1162,6 +1162,10 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
                 builder.unop(UnaryOp::I64Extend32S);
             }
             (Type::ArrayPtr(..), _) => {}
+            (Type::Pointer(..), Type::I64) => {
+                builder.unop(UnaryOp::I64Extend32S);
+            }
+            (Type::Pointer(..), _) => {}
             (source, target) => todo!(
                 "casting from {} to {} is not supported yet",
                 self.type_printer.display_type(source),

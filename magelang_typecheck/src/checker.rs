@@ -1126,11 +1126,18 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             _ => unreachable!("found invalid token for binary operator"),
         };
 
+        let estimated_type = match expr.op.kind {
+            TokenKind::Eq | TokenKind::NEq | TokenKind::Gt | TokenKind::GEq | TokenKind::Lt | TokenKind::LEq => {
+                self.type_loader.declare_type(Type::Bool)
+            }
+            _ => a_expr.type_id,
+        };
+
         if a_expr.type_id != b_expr.type_id {
             self.errors
                 .binop_type_mismatch(expr.get_pos(), op_name, a_expr.type_id, b_expr.type_id);
             return Expr {
-                type_id: a_expr.type_id,
+                type_id: estimated_type,
                 assignable: false,
                 comp_const: false,
                 kind: ExprKind::Invalid,
