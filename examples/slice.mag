@@ -1,9 +1,10 @@
 import fmt "std/fmt";
 import mem "std/mem";
 import wasi "std/wasi";
+import slice "std/slice";
 
 fn main() {
-  let a_slice = mem.make_slice[i64](10);
+  let a_slice = slice.make_slice[i64](10);
   let i = 0;
   while i < 10 {
     a_slice[i] = i;

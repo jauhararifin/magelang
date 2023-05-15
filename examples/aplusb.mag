@@ -1,0 +1,8 @@
+import fmt "std/fmt";
+
+fn main() {
+  let a = fmt.read_i64();
+  let b = fmt.read_i64();
+  let c = a + b;
+  fmt.print_i64(c);
+}

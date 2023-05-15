@@ -38,13 +38,3 @@ fn alloc_array[T](len: usize): [*]T {
 
 #builtin("size_of")
 fn size_of[T](): usize;
-
-fn make_slice[T](len: usize): []T {
-  let array_ptr = alloc_array[T](len);
-
-  let the_slice = alloc_array[usize](2);
-  the_slice[0] = array_ptr as usize;
-  the_slice[1] = len;
-
-  return the_slice as []T;
-}
