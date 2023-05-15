@@ -246,11 +246,22 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
             ItemNode::Global(global_node) => {
                 let type_id = self.get_expr_type(scope, &global_node.ty);
                 let ty = self.type_loader.get_type(type_id).unwrap();
-                let value = self.get_expr(scope, str_helper, &global_node.value, Some(&ty));
+
+                let value = if let Some(ref value_expr) = global_node.value {
+                    self.get_expr(scope, str_helper, value_expr, Some(&ty))
+                } else {
+                    Expr {
+                        type_id,
+                        assignable: false,
+                        comp_const: true,
+                        kind: ExprKind::ZeroOf(type_id),
+                    }
+                };
                 let value_ty = self.type_loader.get_type(value.type_id).unwrap();
 
                 if !value.comp_const {
-                    self.errors.not_a_constant(global_node.value.get_pos());
+                    self.errors
+                        .not_a_constant(global_node.value.as_ref().unwrap().get_pos());
                     state.globals.push(Global {
                         package_name: scope.package_name().unwrap(),
                         variable_name: self.symbol_loader.declare_symbol(&global_node.name.value),
@@ -267,7 +278,7 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
 
                 if !ty.is_assignable_with(&value_ty) {
                     self.errors
-                        .type_mismatch(global_node.value.get_pos(), type_id, value.type_id);
+                        .type_mismatch(global_node.value.as_ref().unwrap().get_pos(), type_id, value.type_id);
                     state.globals.push(Global {
                         package_name: scope.package_name().unwrap(),
                         variable_name: self.symbol_loader.declare_symbol(&global_node.name.value),
@@ -1530,6 +1541,12 @@ impl<'err, 'sym, 'file, 'pkg, 'ast, 'typ> TypeChecker<'err, 'sym, 'file, 'pkg, '
                 self.get_array_ptr_index_expr(scope, str_helper, target, array_ptr_ty.element_type, index_expr)
             }
             Type::Func(func_type) => self.get_func_index_expr(scope, target, func_type, index_expr),
+            Type::Invalid => Expr {
+                type_id: self.type_loader.declare_type(Type::Invalid),
+                assignable: false,
+                comp_const: false,
+                kind: ExprKind::Invalid,
+            },
             _ => {
                 self.errors.not_indexable(index_expr.value.get_pos());
                 Expr {

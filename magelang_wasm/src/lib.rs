@@ -338,6 +338,30 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
                 ExprKind::Bool(val) => walrus::ir::Value::I32(if val { 1 } else { 0 }),
                 ExprKind::Isize(val) => walrus::ir::Value::I32(val as i32),
                 ExprKind::Usize(val) => walrus::ir::Value::I32(val as i32),
+                ExprKind::ZeroOf(type_id) => {
+                    let type_id = transform_opaque_type(self.type_loader, &IndexMap::default(), type_id);
+                    let ty = self.type_loader.get_type(type_id).unwrap();
+                    match ty.as_ref() {
+                        Type::Isize => walrus::ir::Value::I32(0),
+                        Type::I64 => walrus::ir::Value::I64(0),
+                        Type::I32 => walrus::ir::Value::I32(0),
+                        Type::I16 => walrus::ir::Value::I32(0),
+                        Type::I8 => walrus::ir::Value::I32(0),
+                        Type::Usize => walrus::ir::Value::I32(0),
+                        Type::U64 => walrus::ir::Value::I64(0),
+                        Type::U32 => walrus::ir::Value::I32(0),
+                        Type::U16 => walrus::ir::Value::I32(0),
+                        Type::U8 => walrus::ir::Value::I32(0),
+                        Type::F32 => walrus::ir::Value::I32(0),
+                        Type::F64 => walrus::ir::Value::I32(0),
+                        Type::Bool => walrus::ir::Value::I32(0),
+                        Type::Slice(..) => walrus::ir::Value::I32(0),
+                        Type::Pointer(..) => walrus::ir::Value::I32(0),
+                        Type::ArrayPtr(..) => walrus::ir::Value::I32(0),
+                        Type::Opaque(..) => unreachable!("this should be impossible"),
+                        Type::Void | Type::Func(..) | Type::Invalid => todo!(),
+                    }
+                }
                 ExprKind::SizeOf(type_id) => {
                     let ty = self.type_loader.get_type(type_id).unwrap();
                     let (size, _) = get_size_and_alignment(self.type_loader, &IndexMap::default(), &ty);
@@ -1293,40 +1317,46 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
             (BinOp::ShiftRight, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32ShrU),
 
             (BinOp::Eq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Eq),
-            (BinOp::Eq, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Eq),
+            (
+                BinOp::Eq,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => builder.binop(BinaryOp::I32Eq),
             (BinOp::Eq, Type::F64) => builder.binop(BinaryOp::F64Eq),
             (BinOp::Eq, Type::F32) => builder.binop(BinaryOp::F32Eq),
 
             (BinOp::NEq, Type::I64 | Type::U64) => builder.binop(BinaryOp::I64Ne),
-            (BinOp::NEq, Type::I32 | Type::U32 | Type::Isize | Type::Usize) => builder.binop(BinaryOp::I32Ne),
+            (
+                BinOp::NEq,
+                Type::I32 | Type::U32 | Type::Isize | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8,
+            ) => builder.binop(BinaryOp::I32Ne),
             (BinOp::NEq, Type::F64) => builder.binop(BinaryOp::F64Ne),
             (BinOp::NEq, Type::F32) => builder.binop(BinaryOp::F32Ne),
 
             (BinOp::Gt, Type::I64) => builder.binop(BinaryOp::I64GtS),
-            (BinOp::Gt, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32GtS),
+            (BinOp::Gt, Type::I32 | Type::Isize | Type::I16 | Type::I8) => builder.binop(BinaryOp::I32GtS),
             (BinOp::Gt, Type::U64) => builder.binop(BinaryOp::I64GtU),
-            (BinOp::Gt, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32GtU),
+            (BinOp::Gt, Type::U32 | Type::Usize | Type::U16 | Type::U8) => builder.binop(BinaryOp::I32GtU),
             (BinOp::Gt, Type::F32) => builder.binop(BinaryOp::F32Gt),
             (BinOp::Gt, Type::F64) => builder.binop(BinaryOp::F32Gt),
 
             (BinOp::GEq, Type::I64) => builder.binop(BinaryOp::I64GeS),
-            (BinOp::GEq, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32GeS),
+            (BinOp::GEq, Type::I32 | Type::Isize | Type::I16 | Type::I8) => builder.binop(BinaryOp::I32GeS),
             (BinOp::GEq, Type::U64) => builder.binop(BinaryOp::I64GeU),
-            (BinOp::GEq, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32GeU),
+            (BinOp::GEq, Type::U32 | Type::Usize | Type::U16 | Type::U8) => builder.binop(BinaryOp::I32GeU),
             (BinOp::GEq, Type::F32) => builder.binop(BinaryOp::F32Ge),
             (BinOp::GEq, Type::F64) => builder.binop(BinaryOp::F32Ge),
 
             (BinOp::Lt, Type::I64) => builder.binop(BinaryOp::I64LtS),
-            (BinOp::Lt, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32LtS),
+            (BinOp::Lt, Type::I32 | Type::Isize | Type::I16 | Type::I8) => builder.binop(BinaryOp::I32LtS),
             (BinOp::Lt, Type::U64) => builder.binop(BinaryOp::I64LtU),
-            (BinOp::Lt, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32LtU),
+            (BinOp::Lt, Type::U32 | Type::Usize | Type::U16 | Type::U8) => builder.binop(BinaryOp::I32LtU),
             (BinOp::Lt, Type::F32) => builder.binop(BinaryOp::F32Lt),
             (BinOp::Lt, Type::F64) => builder.binop(BinaryOp::F32Lt),
 
             (BinOp::LEq, Type::I64) => builder.binop(BinaryOp::I64LeS),
-            (BinOp::LEq, Type::I32 | Type::Isize) => builder.binop(BinaryOp::I32LeS),
+            (BinOp::LEq, Type::I32 | Type::Isize | Type::I16 | Type::I8) => builder.binop(BinaryOp::I32LeS),
             (BinOp::LEq, Type::U64) => builder.binop(BinaryOp::I64LeU),
-            (BinOp::LEq, Type::U32 | Type::Usize) => builder.binop(BinaryOp::I32LeU),
+            (BinOp::LEq, Type::U32 | Type::Usize | Type::U16 | Type::U8) => builder.binop(BinaryOp::I32LeU),
             (BinOp::LEq, Type::F32) => builder.binop(BinaryOp::F32Le),
             (BinOp::LEq, Type::F64) => builder.binop(BinaryOp::F32Le),
 

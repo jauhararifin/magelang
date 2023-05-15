@@ -80,7 +80,7 @@ pub struct GlobalNode {
     pub pos: Pos,
     pub name: Token,
     pub ty: ExprNode,
-    pub value: ExprNode,
+    pub value: Option<ExprNode>,
 }
 
 impl AstNode for GlobalNode {

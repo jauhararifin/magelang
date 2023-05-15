@@ -141,8 +141,11 @@ impl<'err> FileParser<'err> {
         let name = self.take(TokenKind::Ident)?;
         self.take(TokenKind::Colon)?;
         let ty = self.parse_expr()?;
-        self.take(TokenKind::Equal)?;
-        let value = self.parse_expr()?;
+        let value = if self.take_if(TokenKind::Equal).is_some() {
+            self.parse_expr()
+        } else {
+            None
+        };
         self.take(TokenKind::SemiColon)?;
 
         Some(ItemNode::Global(GlobalNode { pos, name, ty, value }))
