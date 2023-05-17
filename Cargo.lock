@@ -910,6 +910,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "magelang_test"
+version = "0.1.0"
+dependencies = [
+ "magelang_common",
+ "magelang_package",
+ "magelang_semantic",
+ "magelang_syntax",
+ "magelang_typecheck",
+ "magelang_wasm",
+ "wasi-common",
+ "wasmtime",
+ "wasmtime-wasi",
+]
+
+[[package]]
 name = "magelang_typecheck"
 version = "0.1.0"
 dependencies = [

@@ -7,5 +7,6 @@ members = [
   "magelang_typecheck",
   "magelang_wasm",
   "magelang_runner",
+  "magelang_test",
   "magelang",
 ]
