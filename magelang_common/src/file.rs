@@ -70,6 +70,33 @@ impl<'err> FileLoader<'err> {
         }
     }
 
+    pub fn declare_file_with_source(&self, path: Rc<Path>, text: String) -> FileId {
+        let file_id = self.declare_file(path.clone());
+
+        let mut cache = self.file_info_cache.borrow_mut();
+        if cache.contains_key(&file_id) {
+            panic!("Cannot declare file with source because the file is already declared beforehand");
+        }
+
+        let newlines: Vec<u32> = text
+            .chars()
+            .enumerate()
+            .filter_map(|(i, c)| if c == '\n' { Some(i as u32) } else { None })
+            .collect();
+
+        cache.insert(
+            file_id,
+            Rc::new(FileInfo {
+                id: file_id,
+                path,
+                newlines,
+                text,
+            }),
+        );
+
+        file_id
+    }
+
     pub fn get_file(&self, file_id: FileId) -> Option<Rc<FileInfo>> {
         let id_to_path = self.id_to_path.borrow_mut();
         let mut cache = self.file_info_cache.borrow_mut();
