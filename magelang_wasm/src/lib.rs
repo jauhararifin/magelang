@@ -494,7 +494,9 @@ impl<'sym, 'typ, 'pkg> ProgramCompiler<'sym, 'typ, 'pkg> {
     fn build_main_func(&mut self) {
         let main_sym = self.symbol_loader.declare_symbol("main");
         let main_func_global_id = GlobalId::new(self.main_package, main_sym);
-        let main_func_id = self.function_ids.get(&(main_func_global_id, vec![])).unwrap();
+        let Some(main_func_id) = self.function_ids.get(&(main_func_global_id, vec![])) else {
+            return;
+        };
 
         let mut builder = FunctionBuilder::new(&mut self.module.types, &[], &[]);
         builder.name(String::from(START_FUNC_NAME));
@@ -1149,30 +1151,13 @@ impl<'sym, 'typ, 'pkg> FunctionCompiler<'sym, 'typ, 'pkg> {
                 builder.unop(UnaryOp::I32WrapI64);
                 builder.unop(UnaryOp::I32Extend8S);
             }
-            (Type::I32 | Type::Isize, Type::I64) => {
-                builder.unop(UnaryOp::I64Extend32S);
+            (Type::I32 | Type::Isize | Type::I16 | Type::I8, Type::I64) => {
+                builder.unop(UnaryOp::I64ExtendSI32);
             }
-            (Type::I32 | Type::Isize, _) => {}
-            (Type::U32 | Type::Usize, Type::I64 | Type::U64) => {
+            (Type::U32 | Type::Usize | Type::U16 | Type::U8, Type::I64 | Type::U64) => {
                 builder.unop(UnaryOp::I64ExtendUI32);
             }
-            (Type::U32 | Type::Usize, _) => {}
-            (Type::I16, Type::I64) => {
-                builder.unop(UnaryOp::I64Extend16S);
-            }
-            (Type::I16, _) => {}
-            (Type::U16, Type::I64 | Type::U64) => {
-                builder.unop(UnaryOp::I64ExtendUI32);
-            }
-            (Type::U16, _) => {}
-            (Type::I8, Type::I64) => {
-                builder.unop(UnaryOp::I64Extend8S);
-            }
-            (Type::I8, _) => {}
-            (Type::U8, Type::I64 | Type::U64) => {
-                builder.unop(UnaryOp::I64ExtendUI32);
-            }
-            (Type::U8, _) => {}
+            (Type::I32 | Type::Isize | Type::U32 | Type::Usize | Type::I16 | Type::U16 | Type::I8 | Type::U8, _) => {}
             (Type::Slice(..), Type::I64) => {
                 builder.unop(UnaryOp::I64Extend32S);
             }
