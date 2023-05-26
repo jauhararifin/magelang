@@ -103,7 +103,7 @@ impl<'err> FileParser<'err> {
         };
 
         if item.is_none() {
-            let stopping_token = &[TokenKind::Fn, TokenKind::SemiColon, TokenKind::Import];
+            let stopping_token = &[TokenKind::Fn, TokenKind::SemiColon, TokenKind::Import, TokenKind::Let];
             let mut tokens = self.skip_until_before(stopping_token);
             if let Some(tok) = self.take_if(TokenKind::SemiColon) {
                 tokens.push(tok);
