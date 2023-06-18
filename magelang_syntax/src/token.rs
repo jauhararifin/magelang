@@ -1,5 +1,7 @@
-use magelang_common::Pos;
 use std::rc::Rc;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pos(usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
@@ -14,13 +16,13 @@ pub enum TokenKind {
     Eof,
     Comment,
     Import,
+    Struct,
     Fn,
     Let,
     If,
     Else,
     While,
     Ident,
-    Builtin,
     As,
     Add,
     Sub,
@@ -71,13 +73,13 @@ impl std::fmt::Display for TokenKind {
             Self::Eof => write!(f, "Eof"),
             Self::Comment => write!(f, "Comment"),
             Self::Import => write!(f, "Import"),
+            Self::Struct => write!(f, "Struct"),
             Self::Fn => write!(f, "Fn"),
             Self::Let => write!(f, "Let"),
             Self::If => write!(f, "If"),
             Self::Else => write!(f, "Else"),
             Self::While => write!(f, "While"),
             Self::Ident => write!(f, "Ident"),
-            Self::Builtin => write!(f, "Builtin"),
             Self::As => write!(f, "As"),
             Self::Add => write!(f, "Add"),
             Self::Sub => write!(f, "Sub"),
@@ -122,3 +124,4 @@ impl std::fmt::Display for TokenKind {
         }
     }
 }
+

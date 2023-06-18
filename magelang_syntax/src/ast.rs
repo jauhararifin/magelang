@@ -1,5 +1,5 @@
-use crate::tokens::Token;
-use magelang_common::Pos;
+use crate::token::{Pos, Token};
+use std::rc::Rc;
 
 pub trait AstNode {
     fn get_pos(&self) -> Pos;
@@ -7,26 +7,20 @@ pub trait AstNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PackageNode {
-    pub pos: Pos,
-    pub items: Vec<ItemNode>,
+    pub items: Vec<Rc<ItemNode>>,
     pub comments: Vec<Token>,
-}
-
-impl AstNode for PackageNode {
-    fn get_pos(&self) -> Pos {
-        self.pos
-    }
 }
 
 impl PackageNode {
     pub fn imports(&self) -> impl Iterator<Item = &ImportNode> {
-        self.items.iter().filter_map(ItemNode::as_import)
+        self.items.iter().map(Rc::as_ref).filter_map(ItemNode::as_import)
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ItemNode {
     Import(ImportNode),
+    Struct(StructNode),
     Global(GlobalNode),
     Function(FunctionNode),
     NativeFunction(SignatureNode),
@@ -36,6 +30,7 @@ impl ItemNode {
     pub fn name(&self) -> &str {
         match self {
             Self::Import(node) => &node.name.value,
+            Self::Struct(node) => &node.name.value,
             Self::Global(node) => &node.name.value,
             Self::Function(node) => &node.signature.name.value,
             Self::NativeFunction(node) => &node.name.value,
@@ -49,12 +44,45 @@ impl ItemNode {
             None
         }
     }
+
+    pub fn as_global(&self) -> Option<&GlobalNode> {
+        if let Self::Global(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_function(&self) -> Option<&FunctionNode> {
+        if let Self::Function(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_native_function(&self) -> Option<&SignatureNode> {
+        if let Self::NativeFunction(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_struct(&self) -> Option<&StructNode> {
+        if let Self::Struct(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
 }
 
 impl AstNode for ItemNode {
     fn get_pos(&self) -> Pos {
         match self {
             Self::Import(node) => node.get_pos(),
+            Self::Struct(node) => node.get_pos(),
             Self::Global(node) => node.get_pos(),
             Self::Function(node) => node.get_pos(),
             Self::NativeFunction(node) => node.get_pos(),
@@ -71,7 +99,28 @@ pub struct ImportNode {
 
 impl AstNode for ImportNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StructNode {
+    pub pos: Pos,
+    pub name: Token,
+    pub type_params: Vec<TypeParameterNode>,
+    pub fields: Vec<StructFieldNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StructFieldNode {
+    pub pos: Pos,
+    pub name: Token,
+    pub type_expr: ExprNode,
+}
+
+impl AstNode for StructNode {
+    fn get_pos(&self) -> Pos {
+        self.pos.clone()
     }
 }
 
@@ -85,7 +134,7 @@ pub struct GlobalNode {
 
 impl AstNode for GlobalNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -98,7 +147,7 @@ pub struct FunctionNode {
 
 impl AstNode for FunctionNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -107,14 +156,14 @@ pub struct SignatureNode {
     pub pos: Pos,
     pub tags: Vec<TagNode>,
     pub name: Token,
-    pub type_parameters: Vec<TypeParameterNode>,
+    pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<ExprNode>,
 }
 
 impl AstNode for SignatureNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -127,7 +176,7 @@ pub struct TagNode {
 
 impl AstNode for TagNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -138,7 +187,7 @@ pub struct TypeParameterNode {
 
 impl AstNode for TypeParameterNode {
     fn get_pos(&self) -> Pos {
-        self.name.pos
+        self.name.pos.clone()
     }
 }
 
@@ -151,7 +200,7 @@ pub struct ParameterNode {
 
 impl AstNode for ParameterNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -176,8 +225,8 @@ impl AstNode for StatementNode {
             Self::Block(node) => node.get_pos(),
             Self::If(node) => node.get_pos(),
             Self::While(node) => node.get_pos(),
-            Self::Continue(token) => token.pos,
-            Self::Break(token) => token.pos,
+            Self::Continue(token) => token.pos.clone(),
+            Self::Break(token) => token.pos.clone(),
             Self::Return(node) => node.get_pos(),
             Self::Expr(node) => node.get_pos(),
         }
@@ -200,7 +249,7 @@ pub enum LetKind {
 
 impl AstNode for LetStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -213,7 +262,7 @@ pub struct AssignStatementNode {
 
 impl AstNode for AssignStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -225,7 +274,7 @@ pub struct BlockStatementNode {
 
 impl AstNode for BlockStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -234,13 +283,19 @@ pub struct IfStatementNode {
     pub pos: Pos,
     pub condition: ExprNode,
     pub body: BlockStatementNode,
-    pub else_ifs: Vec<ElseIfStatementNode>,
-    pub else_body: Option<BlockStatementNode>,
+    pub else_node: ElseNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ElseNode {
+    None,
+    ElseIf(Box<IfStatementNode>),
+    Else(BlockStatementNode),
 }
 
 impl AstNode for IfStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -253,7 +308,7 @@ pub struct ElseIfStatementNode {
 
 impl AstNode for ElseIfStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -266,7 +321,7 @@ pub struct WhileStatementNode {
 
 impl AstNode for WhileStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -278,7 +333,7 @@ pub struct ReturnStatementNode {
 
 impl AstNode for ReturnStatementNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -292,11 +347,10 @@ pub enum ExprNode {
     Binary(BinaryExprNode),
     Deref(DerefExprNode),
     Unary(UnaryExprNode),
-    BuiltinCall(BuiltinCallExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
     ArrayPtr(ArrayPtrExprNode),
-    Slice(SliceExprNode),
+    StructLit(StructLitNode),
     Selection(SelectionExprNode),
     Index(IndexExprNode),
     Grouped(GroupedExprNode),
@@ -305,19 +359,18 @@ pub enum ExprNode {
 impl AstNode for ExprNode {
     fn get_pos(&self) -> Pos {
         match self {
-            Self::Ident(val) => val.pos,
-            Self::IntegerLiteral(val) => val.pos,
-            Self::RealLiteral(val) => val.pos,
-            Self::BooleanLit(val) => val.pos,
-            Self::StringLit(val) => val.pos,
+            Self::Ident(val) => val.pos.clone(),
+            Self::IntegerLiteral(val) => val.pos.clone(),
+            Self::RealLiteral(val) => val.pos.clone(),
+            Self::BooleanLit(val) => val.pos.clone(),
+            Self::StringLit(val) => val.pos.clone(),
             Self::Binary(val) => val.get_pos(),
             Self::Deref(val) => val.get_pos(),
             Self::Unary(val) => val.get_pos(),
-            Self::BuiltinCall(expr) => expr.get_pos(),
-            Self::Call(expr) => expr.pos,
+            Self::Call(expr) => expr.pos.clone(),
             Self::Cast(val) => val.get_pos(),
             Self::ArrayPtr(val) => val.get_pos(),
-            Self::Slice(val) => val.get_pos(),
+            Self::StructLit(val) => val.get_pos(),
             Self::Selection(val) => val.get_pos(),
             Self::Index(val) => val.get_pos(),
             Self::Grouped(val) => val.get_pos(),
@@ -346,7 +399,7 @@ pub struct DerefExprNode {
 
 impl AstNode for DerefExprNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -358,7 +411,7 @@ pub struct UnaryExprNode {
 
 impl AstNode for UnaryExprNode {
     fn get_pos(&self) -> Pos {
-        self.op.pos
+        self.op.pos.clone()
     }
 }
 
@@ -370,7 +423,7 @@ pub struct BuiltinCallExprNode {
 
 impl AstNode for BuiltinCallExprNode {
     fn get_pos(&self) -> Pos {
-        self.target.pos
+        self.target.pos.clone()
     }
 }
 
@@ -383,7 +436,7 @@ pub struct CallExprNode {
 
 impl AstNode for CallExprNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
@@ -407,19 +460,27 @@ pub struct ArrayPtrExprNode {
 
 impl AstNode for ArrayPtrExprNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct SliceExprNode {
+pub struct StructLitNode {
     pub pos: Pos,
-    pub element: Box<ExprNode>,
+    pub target: Box<ExprNode>,
+    pub elements: Vec<KeyValue>,
 }
 
-impl AstNode for SliceExprNode {
+#[derive(Debug, PartialEq, Eq)]
+pub struct KeyValue {
+    pub pos: Pos,
+    pub key: Token,
+    pub value: Box<ExprNode>,
+}
+
+impl AstNode for StructLitNode {
     fn get_pos(&self) -> Pos {
-        self.pos
+        self.pos.clone()
     }
 }
 

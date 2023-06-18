@@ -1,12 +1,4 @@
 [workspace]
 members = [
-  "magelang_common",
   "magelang_syntax",
-  "magelang_package",
-  "magelang_semantic",
-  "magelang_typecheck",
-  "magelang_wasm",
-  "magelang_runner",
-  "magelang_test",
-  "magelang",
 ]
