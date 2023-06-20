@@ -9,6 +9,12 @@ impl Pos {
     }
 }
 
+impl From<Pos> for usize {
+    fn from(value: Pos) -> Self {
+        value.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
