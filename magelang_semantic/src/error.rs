@@ -38,4 +38,11 @@ pub trait ErrorAccumulator {
             format!("Symbol {name} is redeclared. First declared at {declared_at}"),
         )
     }
+
+    fn invalid_utf8_package(&self, loc: Loc) {
+        self.report_error(
+            loc,
+            String::from("The package path is not a valid utf-8 string literal"),
+        );
+    }
 }

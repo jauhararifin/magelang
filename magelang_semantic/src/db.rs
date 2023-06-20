@@ -1,6 +1,8 @@
+use crate::builtin::get_builtin_scope;
 use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GenStructId, GlobalId};
 use crate::error::{ErrorAccumulator, Loc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
+use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId};
 use indexmap::IndexMap;
@@ -27,6 +29,9 @@ pub struct Db {
 
     type_interner: Interner<Rc<Type>>,
     typeargs_interner: Interner<Rc<[TypeId]>>,
+
+    builtin_scope: OnceCell<Rc<Scope>>,
+    package_scope_cache: Cache<PackageId, Rc<Scope>>,
 }
 
 impl ErrorAccumulator for Db {
@@ -115,6 +120,17 @@ impl TypeDb for Db {
 
     fn get_generic_func_inst_type_id(&self, func_gen_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId {
         todo!()
+    }
+}
+
+impl ScopeDb for Db {
+    fn get_builtin_scope(&self) -> Rc<Scope> {
+        self.builtin_scope.get_or_init(|| get_builtin_scope(self)).clone()
+    }
+
+    fn get_package_scope(&self, package_id: PackageId) -> Rc<Scope> {
+        self.package_scope_cache
+            .get_or_init(package_id, || get_package_scope(self, package_id))
     }
 }
 

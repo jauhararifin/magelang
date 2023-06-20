@@ -11,6 +11,12 @@ pub struct DefId {
     pub name: SymbolId,
 }
 
+impl DefId {
+    pub fn new(package: PackageId, name: SymbolId) -> Self {
+        Self { package, name }
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct GlobalId(DefId);
 
@@ -20,14 +26,47 @@ impl From<GlobalId> for DefId {
     }
 }
 
+impl From<DefId> for GlobalId {
+    fn from(value: DefId) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
+pub struct StructId(DefId);
+
+impl From<DefId> for StructId {
+    fn from(value: DefId) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct FuncId(DefId);
+
+impl From<DefId> for FuncId {
+    fn from(value: DefId) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct GenStructId(DefId);
 
+impl From<DefId> for GenStructId {
+    fn from(value: DefId) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct GenFuncId(DefId);
+
+impl From<DefId> for GenFuncId {
+    fn from(value: DefId) -> Self {
+        Self(value)
+    }
+}
 
 pub trait DefDb: PackageDb + ErrorAccumulator + SymbolDb {
     fn get_ast_by_def_id(&self, def_id: DefId) -> Option<Rc<ItemNode>> {

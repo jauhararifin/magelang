@@ -11,6 +11,12 @@ const CODE_EXTENSION: &str = "mg";
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct PackageId(SymbolId);
 
+impl From<SymbolId> for PackageId {
+    fn from(value: SymbolId) -> Self {
+        Self(value)
+    }
+}
+
 impl From<PackageId> for SymbolId {
     fn from(value: PackageId) -> Self {
         value.0

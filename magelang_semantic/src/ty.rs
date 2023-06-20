@@ -1,4 +1,4 @@
-use crate::def::{DefDb, DefId, FuncId, GenFuncId, GenStructId, GlobalId};
+use crate::def::{DefDb, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
 use crate::symbol::SymbolId;
 use indexmap::IndexMap;
 use std::rc::Rc;
@@ -23,6 +23,12 @@ pub struct FuncTypeId(TypeId);
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct StructTypeId(TypeId);
+
+impl From<StructTypeId> for TypeId {
+    fn from(value: StructTypeId) -> Self {
+        value.0
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct TypeArgsId(usize);
@@ -49,7 +55,7 @@ pub enum Type {
     ArrayPtr(TypeId),
     Func(FuncType),
     Struct(StructId),
-    Opaque(usize),
+    Opaque(SymbolId),
 }
 
 impl Type {
@@ -74,6 +80,52 @@ pub struct IntType {
     size: BitSize,
 }
 
+impl IntType {
+    pub fn new(sign: bool, size: BitSize) -> Self {
+        Self { sign, size }
+    }
+
+    pub fn isize() -> Self {
+        Self::new(true, BitSize::ISize)
+    }
+
+    pub fn i8() -> Self {
+        Self::new(true, BitSize::I8)
+    }
+
+    pub fn i16() -> Self {
+        Self::new(true, BitSize::I16)
+    }
+
+    pub fn i32() -> Self {
+        Self::new(true, BitSize::I32)
+    }
+
+    pub fn i64() -> Self {
+        Self::new(true, BitSize::I64)
+    }
+
+    pub fn usize() -> Self {
+        Self::new(false, BitSize::ISize)
+    }
+
+    pub fn u8() -> Self {
+        Self::new(false, BitSize::I8)
+    }
+
+    pub fn u16() -> Self {
+        Self::new(false, BitSize::I16)
+    }
+
+    pub fn u32() -> Self {
+        Self::new(false, BitSize::I32)
+    }
+
+    pub fn u64() -> Self {
+        Self::new(false, BitSize::I64)
+    }
+}
+
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum BitSize {
     I8,
@@ -86,6 +138,16 @@ pub enum BitSize {
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct FloatType {
     size: FloatSize,
+}
+
+impl FloatType {
+    pub fn f32() -> Self {
+        Self { size: FloatSize::F32 }
+    }
+
+    pub fn f64() -> Self {
+        Self { size: FloatSize::F64 }
+    }
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -105,9 +167,6 @@ impl From<FuncType> for Type {
         Self::Func(value)
     }
 }
-
-#[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
-pub struct StructId(DefId);
 
 impl From<StructId> for Type {
     fn from(value: StructId) -> Self {
@@ -152,4 +211,3 @@ pub trait TypeDb: DefDb {
     fn get_generic_struct_inst_type_id(&self, struct_gen_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId;
     fn get_generic_func_inst_type_id(&self, func_gen_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId;
 }
-
