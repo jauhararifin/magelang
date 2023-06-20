@@ -4,7 +4,7 @@ use crate::error::{ErrorAccumulator, Loc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
-use crate::ty::{FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId};
+use crate::ty::{get_global_type, FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId};
 use indexmap::IndexMap;
 use magelang_syntax::ItemNode;
 use std::cell::OnceCell;
@@ -29,6 +29,7 @@ pub struct Db {
 
     type_interner: Interner<Rc<Type>>,
     typeargs_interner: Interner<Rc<[TypeId]>>,
+    global_type_cache: Cache<GlobalId, TypeId>,
 
     builtin_scope: OnceCell<Rc<Scope>>,
     package_scope_cache: Cache<PackageId, Rc<Scope>>,
@@ -99,7 +100,8 @@ impl TypeDb for Db {
     }
 
     fn get_global_type_id(&self, global_id: GlobalId) -> TypeId {
-        todo!()
+        self.global_type_cache
+            .get_or_init(global_id, || get_global_type(self, global_id))
     }
 
     fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId {

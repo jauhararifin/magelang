@@ -5,7 +5,7 @@ use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{TypeDb, TypeId};
 use crate::value::value_from_string_lit;
 use indexmap::IndexMap;
-use magelang_syntax::{ExprNode, ImportNode, ItemNode};
+use magelang_syntax::{ExprNode, FunctionNode, ImportNode, ItemNode, SignatureNode, StructNode};
 use std::rc::Rc;
 
 pub struct Scope {
@@ -88,11 +88,11 @@ pub enum Object {
     Type(TypeId),
     GenericStruct {
         typeparams: Rc<[SymbolId]>,
-        id: GenStructId,
+        struct_id: GenStructId,
     },
     GenericFunc {
         typeparams: Rc<[SymbolId]>,
-        id: GenFuncId,
+        func_id: GenFuncId,
         is_native: bool,
     },
 }
@@ -140,62 +140,10 @@ pub fn get_package_scope(db: &impl ScopeDb, package_id: PackageId) -> Rc<Scope> 
             ItemNode::Import(node) => get_imported_package(db, ast_info.path, node)
                 .map(Object::Import)
                 .unwrap_or_default(),
-            ItemNode::Struct(node) => {
-                if node.type_params.is_empty() {
-                    let type_id = db.define_struct_type(def_id.into()).into();
-                    Object::Type(type_id)
-                } else {
-                    let typeparams = node
-                        .type_params
-                        .iter()
-                        .map(|node| db.define_symbol(node.name.value.clone()))
-                        .collect();
-                    Object::GenericStruct {
-                        typeparams,
-                        id: def_id.into(),
-                    }
-                }
-            }
+            ItemNode::Struct(node) => object_from_struct_node(db, def_id, node),
             ItemNode::Global(..) => Object::Global(def_id.into()),
-            ItemNode::Function(node) => {
-                if node.signature.type_params.is_empty() {
-                    Object::Func {
-                        func_id: def_id.into(),
-                        is_native: false,
-                    }
-                } else {
-                    let typeparams = node
-                        .signature
-                        .type_params
-                        .iter()
-                        .map(|node| db.define_symbol(node.name.value.clone()))
-                        .collect();
-                    Object::GenericFunc {
-                        typeparams,
-                        id: def_id.into(),
-                        is_native: false,
-                    }
-                }
-            }
-            ItemNode::NativeFunction(node) => {
-                if node.type_params.is_empty() {
-                    Object::Func {
-                        func_id: def_id.into(),
-                        is_native: true,
-                    }
-                } else {
-                    let typeparams = node
-                        .type_params
-                        .iter()
-                        .map(|node| db.define_symbol(node.name.value.clone()))
-                        .collect();
-                    Object::GenericFunc {
-                        typeparams,
-                        id: def_id.into(),
-                        is_native: true,
-                    }
-                }
-            }
+            ItemNode::Function(node) => object_from_func_node(db, def_id, node),
+            ItemNode::NativeFunction(node) => object_from_signature_node(db, def_id, node),
         };
 
         symbol_table.insert(name, object);
@@ -203,6 +151,64 @@ pub fn get_package_scope(db: &impl ScopeDb, package_id: PackageId) -> Rc<Scope> 
 
     let builtin_scope = db.get_builtin_scope();
     builtin_scope.new_child(ScopeKind::Basic, symbol_table)
+}
+
+fn object_from_struct_node(db: &impl ScopeDb, def_id: DefId, node: &StructNode) -> Object {
+    if node.type_params.is_empty() {
+        let type_id = db.define_struct_type(def_id.into()).into();
+        Object::Type(type_id)
+    } else {
+        let typeparams = node
+            .type_params
+            .iter()
+            .map(|node| db.define_symbol(node.name.value.clone()))
+            .collect();
+        Object::GenericStruct {
+            typeparams,
+            struct_id: def_id.into(),
+        }
+    }
+}
+
+fn object_from_func_node(db: &impl ScopeDb, def_id: DefId, node: &FunctionNode) -> Object {
+    if node.signature.type_params.is_empty() {
+        Object::Func {
+            func_id: def_id.into(),
+            is_native: false,
+        }
+    } else {
+        let typeparams = node
+            .signature
+            .type_params
+            .iter()
+            .map(|node| db.define_symbol(node.name.value.clone()))
+            .collect();
+        Object::GenericFunc {
+            typeparams,
+            func_id: def_id.into(),
+            is_native: false,
+        }
+    }
+}
+
+fn object_from_signature_node(db: &impl ScopeDb, def_id: DefId, node: &SignatureNode) -> Object {
+    if node.type_params.is_empty() {
+        Object::Func {
+            func_id: def_id.into(),
+            is_native: true,
+        }
+    } else {
+        let typeparams = node
+            .type_params
+            .iter()
+            .map(|node| db.define_symbol(node.name.value.clone()))
+            .collect();
+        Object::GenericFunc {
+            typeparams,
+            func_id: def_id.into(),
+            is_native: true,
+        }
+    }
 }
 
 fn get_imported_package(db: &impl ScopeDb, path_id: PathId, import_node: &ImportNode) -> Option<PackageId> {

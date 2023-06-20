@@ -1,5 +1,5 @@
 use crate::package::PathId;
-use magelang_syntax::Pos;
+use magelang_syntax::{Pos, Token};
 use std::fmt::Display;
 use std::path::Path;
 use std::rc::Rc;
@@ -44,5 +44,21 @@ pub trait ErrorAccumulator {
             loc,
             String::from("The package path is not a valid utf-8 string literal"),
         );
+    }
+
+    fn not_a_type(&self, loc: Loc) {
+        self.report_error(loc, String::from("Expression is not a type"));
+    }
+
+    fn not_a_generic_type(&self, loc: Loc) {
+        self.report_error(loc, String::from("Expression is not a generic type"));
+    }
+
+    fn undeclared_symbol(&self, token: &Token) {
+        self.report_error(todo!(), format!("Symbol {} is not declared yet", token.value.as_ref()));
+    }
+
+    fn wrong_number_of_type_arguments(&self, loc: Loc, expected: usize, found: usize) {
+        self.report_error(loc, format!("Expected {expected} type argument(s), but found {found}"));
     }
 }
