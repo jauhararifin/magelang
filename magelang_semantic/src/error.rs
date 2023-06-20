@@ -54,8 +54,8 @@ pub trait ErrorAccumulator {
         self.report_error(loc, String::from("Expression is not a generic type"));
     }
 
-    fn undeclared_symbol(&self, token: &Token) {
-        self.report_error(todo!(), format!("Symbol {} is not declared yet", token.value.as_ref()));
+    fn undeclared_symbol(&self, loc: Loc, name: &str) {
+        self.report_error(loc, format!("Symbol {name} is not declared yet"));
     }
 
     fn wrong_number_of_type_arguments(&self, loc: Loc, expected: usize, found: usize) {

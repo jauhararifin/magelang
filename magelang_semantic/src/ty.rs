@@ -5,7 +5,8 @@ use crate::scope::{get_object_from_expr, Object, Scope, ScopeDb};
 use crate::symbol::SymbolId;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    ArrayPtrExprNode, DerefExprNode, ExprNode, IndexExprNode, ItemNode, SelectionExprNode, SignatureNode, Token,
+    ArrayPtrExprNode, AstNode, DerefExprNode, ExprNode, IndexExprNode, ItemNode, SelectionExprNode, SignatureNode,
+    Token,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -253,10 +254,11 @@ pub trait TypeDb: DefDb {
 }
 
 pub fn get_global_type(db: &(impl TypeDb + ScopeDb), global_id: GlobalId) -> TypeId {
+    let ast_info = db.get_package_ast(global_id.package());
     let node = db.get_ast_by_def_id(global_id.into()).expect("global id is not found");
     let global_node = node.as_global().expect("not a global node");
     let scope = db.get_package_scope(global_id.package());
-    get_type_from_ast(db, &scope, &global_node.ty)
+    get_type_from_ast(db, &ast_info, &scope, &global_node.ty)
 }
 
 pub fn get_func_type(db: &(impl TypeDb + ScopeDb), func_id: FuncId) -> FuncTypeId {
@@ -288,12 +290,12 @@ fn func_type_by_ast(
         } else {
             declared_at.insert(name, db.get_location(ast_info, param.name.pos));
         }
-        let type_id = get_type_from_ast(db, scope, &param.type_expr);
+        let type_id = get_type_from_ast(db, ast_info, scope, &param.type_expr);
         params.push(type_id);
     }
 
     let return_type = if let Some(return_type_expr) = &node.return_type {
-        get_type_from_ast(db, scope, return_type_expr)
+        get_type_from_ast(db, ast_info, scope, return_type_expr)
     } else {
         db.define_void_type()
     };
@@ -301,14 +303,19 @@ fn func_type_by_ast(
     db.define_func_type(&params, return_type)
 }
 
-pub fn get_type_from_ast(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &ExprNode) -> TypeId {
+pub fn get_type_from_ast(
+    db: &(impl TypeDb + ScopeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    node: &ExprNode,
+) -> TypeId {
     match node {
-        ExprNode::Ident(token) => get_type_from_ident(db, scope, token),
-        ExprNode::Deref(node) => get_type_from_deref(db, scope, node),
-        ExprNode::ArrayPtr(node) => get_type_from_array_ptr(db, scope, node),
-        ExprNode::Selection(node) => get_type_from_selection(db, scope, node),
-        ExprNode::Index(node) => get_type_from_index(db, scope, node),
-        ExprNode::Grouped(node) => get_type_from_ast(db, scope, &node.value),
+        ExprNode::Ident(token) => get_type_from_ident(db, ast_info, scope, token),
+        ExprNode::Deref(node) => get_type_from_deref(db, ast_info, scope, node),
+        ExprNode::ArrayPtr(node) => get_type_from_array_ptr(db, ast_info, scope, node),
+        ExprNode::Selection(node) => get_type_from_selection(db, ast_info, scope, node),
+        ExprNode::Index(node) => get_type_from_index(db, ast_info, scope, node),
+        ExprNode::Grouped(node) => get_type_from_ast(db, ast_info, scope, &node.value),
         ExprNode::IntegerLiteral(..)
         | ExprNode::RealLiteral(..)
         | ExprNode::BooleanLit(..)
@@ -318,77 +325,101 @@ pub fn get_type_from_ast(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: 
         | ExprNode::Call(..)
         | ExprNode::Cast(..)
         | ExprNode::StructLit(..) => {
-            db.not_a_type(todo!());
+            db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
             db.define_invalid_type()
         }
     }
 }
 
-fn get_type_from_ident(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, token: &Token) -> TypeId {
+fn get_type_from_ident(db: &(impl TypeDb + ScopeDb), ast_info: &AstInfo, scope: &Rc<Scope>, token: &Token) -> TypeId {
     let name = db.define_symbol(token.value.clone());
     let Some(object) = scope.get(name) else {
-        db.undeclared_symbol(token);
+        db.undeclared_symbol(Loc::new(ast_info.path, token.pos), &token.value);
         return db.define_invalid_type();
     };
     let Some(type_id) = object.as_type() else {
-        db.not_a_type(todo!());
+        db.not_a_type(Loc::new(ast_info.path, token.pos));
         return db.define_invalid_type();
     };
     type_id
 }
 
-fn get_type_from_deref(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &DerefExprNode) -> TypeId {
-    let element_type_id = get_type_from_ast(db, scope, &node.value);
+fn get_type_from_deref(
+    db: &(impl TypeDb + ScopeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    node: &DerefExprNode,
+) -> TypeId {
+    let element_type_id = get_type_from_ast(db, ast_info, scope, &node.value);
     db.define_ptr_type(element_type_id)
 }
 
-fn get_type_from_array_ptr(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &ArrayPtrExprNode) -> TypeId {
-    let element_type_id = get_type_from_ast(db, scope, &node.element);
+fn get_type_from_array_ptr(
+    db: &(impl TypeDb + ScopeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    node: &ArrayPtrExprNode,
+) -> TypeId {
+    let element_type_id = get_type_from_ast(db, ast_info, scope, &node.element);
     db.define_array_ptr_type(element_type_id)
 }
 
-fn get_type_from_selection(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &SelectionExprNode) -> TypeId {
+fn get_type_from_selection(
+    db: &(impl TypeDb + ScopeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    node: &SelectionExprNode,
+) -> TypeId {
     let ExprNode::Ident(package_tok) = node.value.as_ref() else {
-        db.not_a_type(todo!());
+        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
         return db.define_invalid_type();
     };
     let package_name_tok = db.define_symbol(package_tok.value.clone());
     let Some(import) = scope.get(package_name_tok) else {
-        db.not_a_type(todo!());
+        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
         return db.define_invalid_type();
     };
     let Some(package_name) = import.as_import() else {
-        db.not_a_type(todo!());
+        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
         return db.define_invalid_type();
     };
     let package_scope = db.get_package_scope(package_name);
     let selection = db.define_symbol(node.selection.value.clone());
     let Some(object) = package_scope.get(selection) else {
-        db.undeclared_symbol(&node.selection);
+        db.undeclared_symbol(Loc::new(ast_info.path, node.get_pos()), &node.selection.value);
         return db.define_invalid_type();
     };
     let Some(type_id) = object.as_type() else {
-        db.not_a_type(todo!());
+        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
         return db.define_invalid_type();
     };
     type_id
 }
 
-fn get_type_from_index(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &IndexExprNode) -> TypeId {
+fn get_type_from_index(
+    db: &(impl TypeDb + ScopeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    node: &IndexExprNode,
+) -> TypeId {
     let object = get_object_from_expr(db, scope, &node.value);
     let Object::GenericStruct { typeparams, struct_id } = object else {
-        db.not_a_generic_type(todo!());
+        db.not_a_generic_type(Loc::new(ast_info.path, node.get_pos()));
         return db.define_invalid_type();
     };
 
     if typeparams.len() != node.index.len() {
-        db.wrong_number_of_type_arguments(todo!(), typeparams.len(), node.index.len());
+        db.wrong_number_of_type_arguments(
+            Loc::new(ast_info.path, node.get_pos()),
+            typeparams.len(),
+            node.index.len(),
+        );
     }
 
     let typeargs: Rc<[TypeId]> = node
         .index
         .iter()
-        .map(|node| get_type_from_ast(db, scope, node))
+        .map(|node| get_type_from_ast(db, ast_info, scope, node))
         .collect();
     let typeargs_id = db.define_typeargs(typeargs);
 
