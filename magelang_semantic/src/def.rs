@@ -54,6 +54,22 @@ impl From<DefId> for StructId {
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct FuncId(DefId);
 
+impl FuncId {
+    pub fn package(&self) -> PackageId {
+        self.0.package
+    }
+
+    pub fn name(&self) -> SymbolId {
+        self.0.name
+    }
+}
+
+impl From<FuncId> for DefId {
+    fn from(value: FuncId) -> Self {
+        value.0
+    }
+}
+
 impl From<DefId> for FuncId {
     fn from(value: DefId) -> Self {
         Self(value)

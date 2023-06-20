@@ -1,8 +1,13 @@
 use crate::def::{DefDb, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
+use crate::error::{Loc, Location};
+use crate::package::AstInfo;
 use crate::scope::{get_object_from_expr, Object, Scope, ScopeDb};
 use crate::symbol::SymbolId;
 use indexmap::IndexMap;
-use magelang_syntax::{ArrayPtrExprNode, DerefExprNode, ExprNode, IndexExprNode, SelectionExprNode, Token};
+use magelang_syntax::{
+    ArrayPtrExprNode, DerefExprNode, ExprNode, IndexExprNode, ItemNode, SelectionExprNode, SignatureNode, Token,
+};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
@@ -22,6 +27,12 @@ impl From<TypeId> for usize {
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct FuncTypeId(TypeId);
+
+impl From<FuncTypeId> for TypeId {
+    fn from(value: FuncTypeId) -> Self {
+        value.0
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct StructTypeId(TypeId);
@@ -196,6 +207,10 @@ pub trait TypeDb: DefDb {
         self.define_type(Rc::default())
     }
 
+    fn define_void_type(&self) -> TypeId {
+        self.define_type(Rc::new(Type::Void))
+    }
+
     fn define_ptr_type(&self, element_type_id: TypeId) -> TypeId {
         self.define_type(Rc::new(Type::Pointer(element_type_id)))
     }
@@ -204,7 +219,11 @@ pub trait TypeDb: DefDb {
         self.define_type(Rc::new(Type::ArrayPtr(element_type_id)))
     }
 
-    fn define_func_type(&self, func_type: FuncType) -> FuncTypeId {
+    fn define_func_type(&self, params: &[TypeId], return_type: TypeId) -> FuncTypeId {
+        let func_type = FuncType {
+            params: params.into(),
+            return_type,
+        };
         let type_id = self.define_type(Rc::new(func_type.into()));
         FuncTypeId(type_id)
     }
@@ -238,6 +257,48 @@ pub fn get_global_type(db: &(impl TypeDb + ScopeDb), global_id: GlobalId) -> Typ
     let global_node = node.as_global().expect("not a global node");
     let scope = db.get_package_scope(global_id.package());
     get_type_from_ast(db, &scope, &global_node.ty)
+}
+
+pub fn get_func_type(db: &(impl TypeDb + ScopeDb), func_id: FuncId) -> FuncTypeId {
+    let ast_info = db.get_package_ast(func_id.package());
+    let node = db.get_ast_by_def_id(func_id.into()).expect("func id not found");
+    let scope = db.get_package_scope(func_id.package());
+    let signature = match node.as_ref() {
+        ItemNode::Function(func_node) => &func_node.signature,
+        ItemNode::NativeFunction(signature) => signature,
+        _ => unreachable!("not a function"),
+    };
+    func_type_by_ast(db, &ast_info, &scope, signature)
+}
+
+/// func_type_by_ast returns the interned function type. This function works for both
+/// generic function and normal function.
+fn func_type_by_ast(
+    db: &(impl TypeDb + ScopeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    node: &SignatureNode,
+) -> FuncTypeId {
+    let mut declared_at = HashMap::<SymbolId, Location>::default();
+    let mut params = Vec::default();
+    for param in &node.parameters {
+        let name = db.define_symbol(param.name.value.clone());
+        if let Some(pos) = declared_at.get(&name) {
+            db.redeclared_symbol(&param.name.value, pos, Loc::new(ast_info.path, param.name.pos));
+        } else {
+            declared_at.insert(name, db.get_location(ast_info, param.name.pos));
+        }
+        let type_id = get_type_from_ast(db, scope, &param.type_expr);
+        params.push(type_id);
+    }
+
+    let return_type = if let Some(return_type_expr) = &node.return_type {
+        get_type_from_ast(db, scope, return_type_expr)
+    } else {
+        db.define_void_type()
+    };
+
+    db.define_func_type(&params, return_type)
 }
 
 pub fn get_type_from_ast(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &ExprNode) -> TypeId {
