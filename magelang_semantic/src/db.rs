@@ -1,7 +1,8 @@
-use crate::def::{get_items_by_package, DefDb};
+use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GenStructId, GlobalId};
 use crate::error::{ErrorAccumulator, Loc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::symbol::{SymbolDb, SymbolId};
+use crate::ty::{FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId};
 use indexmap::IndexMap;
 use magelang_syntax::ItemNode;
 use std::cell::OnceCell;
@@ -23,6 +24,9 @@ pub struct Db {
     ast_cache: Cache<PackageId, Rc<AstInfo>>,
 
     package_items: Cache<PackageId, Rc<IndexMap<SymbolId, Rc<ItemNode>>>>,
+
+    type_interner: Interner<Rc<Type>>,
+    typeargs_interner: Interner<Rc<[TypeId]>>,
 }
 
 impl ErrorAccumulator for Db {
@@ -69,6 +73,48 @@ impl DefDb for Db {
     fn get_items_by_package(&self, package_id: PackageId) -> Rc<IndexMap<SymbolId, Rc<ItemNode>>> {
         self.package_items
             .get_or_init(package_id, || get_items_by_package(self, package_id))
+    }
+}
+
+impl TypeDb for Db {
+    fn define_type(&self, value: Rc<Type>) -> TypeId {
+        self.type_interner.define(value).into()
+    }
+
+    fn get_type(&self, type_id: TypeId) -> Rc<Type> {
+        self.type_interner.get(type_id.into())
+    }
+
+    fn define_typeargs(&self, value: Rc<[TypeId]>) -> TypeArgsId {
+        self.typeargs_interner.define(value).into()
+    }
+
+    fn get_typeargs(&self, typeargs_id: TypeArgsId) -> Rc<[TypeId]> {
+        self.typeargs_interner.get(typeargs_id.into())
+    }
+
+    fn get_global_type_id(&self, global_id: GlobalId) -> TypeId {
+        todo!()
+    }
+
+    fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId {
+        todo!()
+    }
+
+    fn get_generic_struct_type_id(&self, struct_gen_id: GenStructId) -> StructTypeId {
+        todo!()
+    }
+
+    fn get_generic_func_type_id(&self, func_gen_id: GenFuncId) -> FuncTypeId {
+        todo!()
+    }
+
+    fn get_generic_struct_inst_type_id(&self, struct_gen_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId {
+        todo!()
+    }
+
+    fn get_generic_func_inst_type_id(&self, func_gen_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId {
+        todo!()
     }
 }
 

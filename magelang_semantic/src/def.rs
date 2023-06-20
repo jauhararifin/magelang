@@ -14,6 +14,12 @@ pub struct DefId {
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct GlobalId(DefId);
 
+impl From<GlobalId> for DefId {
+    fn from(value: GlobalId) -> Self {
+        value.0
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct FuncId(DefId);
 
