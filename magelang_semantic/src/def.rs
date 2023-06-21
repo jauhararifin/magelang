@@ -88,9 +88,21 @@ impl From<DefId> for GenStructId {
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct GenFuncId(DefId);
 
+impl GenFuncId {
+    pub fn package(&self) -> PackageId {
+        self.0.package
+    }
+}
+
 impl From<DefId> for GenFuncId {
     fn from(value: DefId) -> Self {
         Self(value)
+    }
+}
+
+impl From<GenFuncId> for DefId {
+    fn from(value: GenFuncId) -> Self {
+        value.0
     }
 }
 

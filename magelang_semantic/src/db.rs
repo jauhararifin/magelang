@@ -4,7 +4,9 @@ use crate::error::{ErrorAccumulator, Loc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
-use crate::ty::{get_func_type, get_global_type, FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId};
+use crate::ty::{
+    get_func_type, get_generic_func_type, get_global_type, FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId,
+};
 use indexmap::IndexMap;
 use magelang_syntax::ItemNode;
 use std::cell::OnceCell;
@@ -31,6 +33,7 @@ pub struct Db {
     typeargs_interner: Interner<Rc<[TypeId]>>,
     global_type_cache: Cache<GlobalId, TypeId>,
     func_type_cache: Cache<FuncId, FuncTypeId>,
+    generic_func_type_cache: Cache<GenFuncId, FuncTypeId>,
 
     builtin_scope: OnceCell<Rc<Scope>>,
     package_scope_cache: Cache<PackageId, Rc<Scope>>,
@@ -110,19 +113,20 @@ impl TypeDb for Db {
             .get_or_init(func_id, || get_func_type(self, func_id))
     }
 
-    fn get_generic_struct_type_id(&self, struct_gen_id: GenStructId) -> StructTypeId {
+    fn get_generic_struct_type_id(&self, gen_struct_id: GenStructId) -> StructTypeId {
         todo!()
     }
 
-    fn get_generic_func_type_id(&self, func_gen_id: GenFuncId) -> FuncTypeId {
+    fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId {
+        self.generic_func_type_cache
+            .get_or_init(gen_func_id, || get_generic_func_type(self, gen_func_id))
+    }
+
+    fn get_generic_struct_inst_type_id(&self, gen_struct_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId {
         todo!()
     }
 
-    fn get_generic_struct_inst_type_id(&self, struct_gen_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId {
-        todo!()
-    }
-
-    fn get_generic_func_inst_type_id(&self, func_gen_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId {
+    fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId {
         todo!()
     }
 }

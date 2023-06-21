@@ -1,11 +1,14 @@
-use crate::def::{DefId, FuncId, GenFuncId, GenStructId, GlobalId};
-use crate::error::{ErrorAccumulator, Loc};
-use crate::package::{PackageDb, PackageId, PathId};
+use crate::def::{DefId, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
+use crate::error::{ErrorAccumulator, Loc, Location};
+use crate::package::{AstInfo, PackageDb, PackageId, PathId};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{TypeDb, TypeId};
 use crate::value::value_from_string_lit;
 use indexmap::IndexMap;
-use magelang_syntax::{ExprNode, FunctionNode, ImportNode, ItemNode, SignatureNode, StructNode};
+use magelang_syntax::{
+    AstNode, ExprNode, FunctionNode, ImportNode, ItemNode, SignatureNode, StructNode, TypeParameterNode,
+};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct Scope {
@@ -155,7 +158,8 @@ pub fn get_package_scope(db: &impl ScopeDb, package_id: PackageId) -> Rc<Scope> 
 
 fn object_from_struct_node(db: &impl ScopeDb, def_id: DefId, node: &StructNode) -> Object {
     if node.type_params.is_empty() {
-        let type_id = db.define_struct_type(def_id.into()).into();
+        let struct_id: StructId = def_id.into();
+        let type_id = db.define_struct_type(struct_id.into()).into();
         Object::Type(type_id)
     } else {
         let typeparams = node
@@ -238,4 +242,28 @@ pub fn get_object_from_expr(db: &impl ScopeDb, scope: &Rc<Scope>, node: &ExprNod
         }
         _ => Object::Invalid,
     }
+}
+
+pub fn get_typeparams_scope(
+    db: &(impl ScopeDb + TypeDb),
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    type_params: &[TypeParameterNode],
+) -> Rc<Scope> {
+    let mut declared_at = HashMap::<SymbolId, Location>::default();
+    let mut symbol_table = IndexMap::<SymbolId, Object>::default();
+    for type_param in type_params {
+        let name = db.define_symbol(type_param.name.value.clone());
+        if let Some(location) = declared_at.get(&name) {
+            let loc = Loc::new(ast_info.path, type_param.get_pos());
+            db.redeclared_symbol(&type_param.name.value, location, loc);
+        } else {
+            let location = db.get_location(ast_info, type_param.get_pos());
+            declared_at.insert(name, location);
+            let type_id = db.define_generic_arg_type(name);
+            symbol_table.insert(name, Object::Type(type_id));
+        }
+    }
+
+    scope.new_child(ScopeKind::Basic, symbol_table)
 }

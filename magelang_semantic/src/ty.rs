@@ -1,7 +1,7 @@
 use crate::def::{DefDb, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
 use crate::error::{Loc, Location};
 use crate::package::AstInfo;
-use crate::scope::{get_object_from_expr, Object, Scope, ScopeDb};
+use crate::scope::{get_object_from_expr, get_typeparams_scope, Object, Scope, ScopeDb};
 use crate::symbol::SymbolId;
 use indexmap::IndexMap;
 use magelang_syntax::{
@@ -61,7 +61,7 @@ impl From<TypeArgsId> for usize {
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum Type {
-    Invalid,
+    Unknown,
     Void,
     Int(IntType),
     Float(FloatType),
@@ -69,27 +69,27 @@ pub enum Type {
     Pointer(TypeId),
     ArrayPtr(TypeId),
     Func(FuncType),
-    Struct(StructId),
-    Opaque(SymbolId),
+    Struct(StructType),
+    GenericArg(SymbolId),
 }
 
 impl Default for Type {
     fn default() -> Self {
-        Self::Invalid
+        Self::Unknown
     }
 }
 
 impl Type {
-    pub fn as_func(&self) -> Option<FuncType> {
+    pub fn as_func(&self) -> Option<&FuncType> {
         match self {
-            Self::Func(func_type) => Some(func_type.clone()),
+            Self::Func(func_type) => Some(func_type),
             _ => None,
         }
     }
 
-    pub fn as_struct(&self) -> Option<StructId> {
+    pub fn as_struct(&self) -> Option<&StructType> {
         match self {
-            Self::Struct(struct_id) => Some(*struct_id),
+            Self::Struct(struct_type) => Some(struct_type),
             _ => None,
         }
     }
@@ -189,13 +189,24 @@ impl From<FuncType> for Type {
     }
 }
 
-impl From<StructId> for Type {
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub enum StructType {
+    Concrete(StructId),
+    GenericInst(GenStructId, TypeArgsId),
+}
+
+impl From<StructId> for StructType {
     fn from(value: StructId) -> Self {
+        StructType::Concrete(value)
+    }
+}
+
+impl From<StructType> for Type {
+    fn from(value: StructType) -> Self {
         Self::Struct(value)
     }
 }
 
-#[derive(Clone)]
 pub struct StructField {
     fields: IndexMap<SymbolId, TypeId>,
 }
@@ -220,6 +231,10 @@ pub trait TypeDb: DefDb {
         self.define_type(Rc::new(Type::ArrayPtr(element_type_id)))
     }
 
+    fn define_generic_arg_type(&self, name: SymbolId) -> TypeId {
+        self.define_type(Rc::new(Type::GenericArg(name)))
+    }
+
     fn define_func_type(&self, params: &[TypeId], return_type: TypeId) -> FuncTypeId {
         let func_type = FuncType {
             params: params.into(),
@@ -230,16 +245,16 @@ pub trait TypeDb: DefDb {
     }
 
     fn get_func_type(&self, func_type_id: FuncTypeId) -> FuncType {
-        self.get_type(func_type_id.0).as_func().unwrap()
+        self.get_type(func_type_id.0).as_func().unwrap().clone()
     }
 
-    fn define_struct_type(&self, struct_type: StructId) -> StructTypeId {
+    fn define_struct_type(&self, struct_type: StructType) -> StructTypeId {
         let type_id = self.define_type(Rc::new(struct_type.into()));
         StructTypeId(type_id)
     }
 
-    fn get_struct_type(&self, struct_type_id: StructTypeId) -> StructId {
-        self.get_type(struct_type_id.0).as_struct().unwrap()
+    fn get_struct_type(&self, struct_type_id: StructTypeId) -> StructType {
+        self.get_type(struct_type_id.0).as_struct().unwrap().clone()
     }
 
     fn define_typeargs(&self, value: Rc<[TypeId]>) -> TypeArgsId;
@@ -258,7 +273,7 @@ pub fn get_global_type(db: &(impl TypeDb + ScopeDb), global_id: GlobalId) -> Typ
     let node = db.get_ast_by_def_id(global_id.into()).expect("global id is not found");
     let global_node = node.as_global().expect("not a global node");
     let scope = db.get_package_scope(global_id.package());
-    get_type_from_ast(db, &ast_info, &scope, &global_node.ty)
+    get_type_from_expr(db, &ast_info, &scope, &global_node.ty)
 }
 
 pub fn get_func_type(db: &(impl TypeDb + ScopeDb), func_id: FuncId) -> FuncTypeId {
@@ -270,6 +285,22 @@ pub fn get_func_type(db: &(impl TypeDb + ScopeDb), func_id: FuncId) -> FuncTypeI
         ItemNode::NativeFunction(signature) => signature,
         _ => unreachable!("not a function"),
     };
+    func_type_by_ast(db, &ast_info, &scope, signature)
+}
+
+pub fn get_generic_func_type(db: &(impl TypeDb + ScopeDb), gen_func_id: GenFuncId) -> FuncTypeId {
+    let ast_info = db.get_package_ast(gen_func_id.package());
+    let node = db
+        .get_ast_by_def_id(gen_func_id.into())
+        .expect("generic func id not found");
+
+    let scope = db.get_package_scope(gen_func_id.package());
+    let signature = match node.as_ref() {
+        ItemNode::Function(func_node) => &func_node.signature,
+        ItemNode::NativeFunction(signature) => signature,
+        _ => unreachable!("not a generic func"),
+    };
+    let scope = get_typeparams_scope(db, &ast_info, &scope, &signature.type_params);
     func_type_by_ast(db, &ast_info, &scope, signature)
 }
 
@@ -290,12 +321,12 @@ fn func_type_by_ast(
         } else {
             declared_at.insert(name, db.get_location(ast_info, param.name.pos));
         }
-        let type_id = get_type_from_ast(db, ast_info, scope, &param.type_expr);
+        let type_id = get_type_from_expr(db, ast_info, scope, &param.type_expr);
         params.push(type_id);
     }
 
     let return_type = if let Some(return_type_expr) = &node.return_type {
-        get_type_from_ast(db, ast_info, scope, return_type_expr)
+        get_type_from_expr(db, ast_info, scope, return_type_expr)
     } else {
         db.define_void_type()
     };
@@ -303,7 +334,7 @@ fn func_type_by_ast(
     db.define_func_type(&params, return_type)
 }
 
-pub fn get_type_from_ast(
+pub fn get_type_from_expr(
     db: &(impl TypeDb + ScopeDb),
     ast_info: &AstInfo,
     scope: &Rc<Scope>,
@@ -315,7 +346,7 @@ pub fn get_type_from_ast(
         ExprNode::ArrayPtr(node) => get_type_from_array_ptr(db, ast_info, scope, node),
         ExprNode::Selection(node) => get_type_from_selection(db, ast_info, scope, node),
         ExprNode::Index(node) => get_type_from_index(db, ast_info, scope, node),
-        ExprNode::Grouped(node) => get_type_from_ast(db, ast_info, scope, &node.value),
+        ExprNode::Grouped(node) => get_type_from_expr(db, ast_info, scope, &node.value),
         ExprNode::IntegerLiteral(..)
         | ExprNode::RealLiteral(..)
         | ExprNode::BooleanLit(..)
@@ -350,7 +381,7 @@ fn get_type_from_deref(
     scope: &Rc<Scope>,
     node: &DerefExprNode,
 ) -> TypeId {
-    let element_type_id = get_type_from_ast(db, ast_info, scope, &node.value);
+    let element_type_id = get_type_from_expr(db, ast_info, scope, &node.value);
     db.define_ptr_type(element_type_id)
 }
 
@@ -360,7 +391,7 @@ fn get_type_from_array_ptr(
     scope: &Rc<Scope>,
     node: &ArrayPtrExprNode,
 ) -> TypeId {
-    let element_type_id = get_type_from_ast(db, ast_info, scope, &node.element);
+    let element_type_id = get_type_from_expr(db, ast_info, scope, &node.element);
     db.define_array_ptr_type(element_type_id)
 }
 
@@ -419,7 +450,7 @@ fn get_type_from_index(
     let typeargs: Rc<[TypeId]> = node
         .index
         .iter()
-        .map(|node| get_type_from_ast(db, ast_info, scope, node))
+        .map(|node| get_type_from_expr(db, ast_info, scope, node))
         .collect();
     let typeargs_id = db.define_typeargs(typeargs);
 
