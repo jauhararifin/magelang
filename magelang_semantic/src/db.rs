@@ -1,12 +1,12 @@
 use crate::builtin::get_builtin_scope;
-use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GenStructId, GlobalId};
+use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId};
 use crate::error::{ErrorAccumulator, Loc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{
-    get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_global_type, FuncTypeId, StructTypeId,
-    Type, TypeArgsId, TypeDb, TypeId,
+    get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_global_type, get_struct_field, FuncTypeId,
+    StructField, StructTypeId, Type, TypeArgsId, TypeDb, TypeId,
 };
 use indexmap::IndexMap;
 use magelang_syntax::ItemNode;
@@ -34,6 +34,7 @@ pub struct Db {
     typeargs_interner: Interner<Rc<[TypeId]>>,
     global_type_cache: Cache<GlobalId, TypeId>,
     func_type_cache: Cache<FuncId, FuncTypeId>,
+    struct_field_cache: Cache<StructTypeId, Rc<StructField>>,
     generic_func_type_cache: Cache<GenFuncId, FuncTypeId>,
     generic_func_inst_cache: Cache<(GenFuncId, TypeArgsId), FuncTypeId>,
 
@@ -113,6 +114,11 @@ impl TypeDb for Db {
     fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId {
         self.func_type_cache
             .get_or_init(func_id, || get_func_type(self, func_id))
+    }
+
+    fn get_struct_field(&self, struct_type_id: StructTypeId) -> Rc<StructField> {
+        self.struct_field_cache
+            .get_or_init(struct_type_id, || get_struct_field(self, struct_type_id))
     }
 
     fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId {

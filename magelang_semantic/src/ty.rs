@@ -1,4 +1,4 @@
-use crate::def::{DefDb, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
+use crate::def::{DefDb, DefId, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
 use crate::error::{Loc, Location};
 use crate::package::AstInfo;
 use crate::scope::{get_object_from_expr, get_typeparams_scope, Object, Scope, ScopeDb, ScopeKind};
@@ -209,7 +209,7 @@ impl From<StructType> for Type {
 }
 
 pub struct StructField {
-    fields: IndexMap<SymbolId, TypeId>,
+    pub fields: IndexMap<SymbolId, TypeId>,
 }
 
 pub trait TypeDb: DefDb {
@@ -263,6 +263,7 @@ pub trait TypeDb: DefDb {
 
     fn get_global_type_id(&self, global_id: GlobalId) -> TypeId;
     fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId;
+    fn get_struct_field(&self, struct_type_id: StructTypeId) -> Rc<StructField>;
     fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId;
     fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId;
 }
@@ -331,6 +332,40 @@ fn func_type_by_ast(
     };
 
     db.define_func_type(&params, return_type)
+}
+
+pub fn get_struct_field(db: &(impl TypeDb + ScopeDb), struct_type_id: StructTypeId) -> Rc<StructField> {
+    let struct_type = db.get_struct_type(struct_type_id);
+    let def_id: DefId = match struct_type {
+        StructType::Concrete(struct_id) => struct_id.into(),
+        StructType::GenericInst(gen_struct_id, _) => gen_struct_id.into(),
+    };
+
+    let ast_info = db.get_package_ast(def_id.package);
+    let struct_node = db.get_ast_by_def_id(def_id).expect("struct node is not found");
+    let struct_node = struct_node.as_struct().expect("not a struct node");
+
+    let mut scope = db.get_package_scope(def_id.package);
+    if !struct_node.type_params.is_empty() {
+        scope = get_typeparams_scope(db, &ast_info, &scope, &struct_node.type_params);
+    }
+
+    let mut declared_at = HashMap::<SymbolId, Location>::default();
+    let mut fields = IndexMap::<SymbolId, TypeId>::default();
+    for field in &struct_node.fields {
+        let name = db.define_symbol(field.name.value.clone());
+        let loc = Loc::new(ast_info.path, field.pos);
+        if let Some(location) = declared_at.get(&name) {
+            db.redeclared_symbol(&field.name.value, location.clone(), loc);
+        } else {
+            let location = db.get_location(&ast_info, field.pos);
+            declared_at.insert(name, location);
+            let type_id = get_type_from_expr(db, &ast_info, &scope, &field.type_expr);
+            fields.insert(name, type_id);
+        }
+    }
+
+    Rc::new(StructField { fields })
 }
 
 pub fn get_type_from_expr(

@@ -1,5 +1,5 @@
 use crate::package::PathId;
-use magelang_syntax::{Pos, Token};
+use magelang_syntax::Pos;
 use std::fmt::Display;
 use std::path::Path;
 use std::rc::Rc;

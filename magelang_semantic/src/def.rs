@@ -24,10 +24,6 @@ impl GlobalId {
     pub fn package(&self) -> PackageId {
         self.0.package
     }
-
-    pub fn name(&self) -> SymbolId {
-        self.0.name
-    }
 }
 
 impl From<GlobalId> for DefId {
@@ -51,16 +47,18 @@ impl From<DefId> for StructId {
     }
 }
 
+impl From<StructId> for DefId {
+    fn from(value: StructId) -> Self {
+        value.0
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct FuncId(DefId);
 
 impl FuncId {
     pub fn package(&self) -> PackageId {
         self.0.package
-    }
-
-    pub fn name(&self) -> SymbolId {
-        self.0.name
     }
 }
 
@@ -82,6 +80,12 @@ pub struct GenStructId(DefId);
 impl From<DefId> for GenStructId {
     fn from(value: DefId) -> Self {
         Self(value)
+    }
+}
+
+impl From<GenStructId> for DefId {
+    fn from(value: GenStructId) -> Self {
+        value.0
     }
 }
 
