@@ -91,7 +91,7 @@ pub enum Object {
     Type(TypeId),
     GenericStruct {
         typeparams: Rc<[SymbolId]>,
-        struct_id: GenStructId,
+        gen_struct_id: GenStructId,
     },
     GenericFunc {
         typeparams: Rc<[SymbolId]>,
@@ -169,7 +169,7 @@ fn object_from_struct_node(db: &impl ScopeDb, def_id: DefId, node: &StructNode) 
             .collect();
         Object::GenericStruct {
             typeparams,
-            struct_id: def_id.into(),
+            gen_struct_id: def_id.into(),
         }
     }
 }

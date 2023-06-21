@@ -263,9 +263,7 @@ pub trait TypeDb: DefDb {
 
     fn get_global_type_id(&self, global_id: GlobalId) -> TypeId;
     fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId;
-    fn get_generic_struct_type_id(&self, struct_gen_id: GenStructId) -> StructTypeId;
     fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId;
-    fn get_generic_struct_inst_type_id(&self, struct_gen_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId;
     fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId;
 }
 
@@ -435,7 +433,7 @@ fn get_type_from_index(
     node: &IndexExprNode,
 ) -> TypeId {
     let object = get_object_from_expr(db, scope, &node.value);
-    let Object::GenericStruct { typeparams, struct_id } = object else {
+    let Object::GenericStruct { typeparams, gen_struct_id } = object else {
         db.not_a_generic_type(Loc::new(ast_info.path, node.get_pos()));
         return db.define_invalid_type();
     };
@@ -455,7 +453,8 @@ fn get_type_from_index(
         .collect();
     let typeargs_id = db.define_typeargs(typeargs);
 
-    db.get_generic_struct_inst_type_id(struct_id, typeargs_id).into()
+    db.define_struct_type(StructType::GenericInst(gen_struct_id, typeargs_id))
+        .into()
 }
 
 pub fn get_generic_func_inst_type_id(

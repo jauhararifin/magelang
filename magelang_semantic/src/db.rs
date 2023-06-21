@@ -115,17 +115,9 @@ impl TypeDb for Db {
             .get_or_init(func_id, || get_func_type(self, func_id))
     }
 
-    fn get_generic_struct_type_id(&self, gen_struct_id: GenStructId) -> StructTypeId {
-        todo!()
-    }
-
     fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId {
         self.generic_func_type_cache
             .get_or_init(gen_func_id, || get_generic_func_type(self, gen_func_id))
-    }
-
-    fn get_generic_struct_inst_type_id(&self, gen_struct_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId {
-        todo!()
     }
 
     fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId {
