@@ -346,8 +346,15 @@ pub fn get_struct_field(db: &(impl TypeDb + ScopeDb), struct_type_id: StructType
     let struct_node = struct_node.as_struct().expect("not a struct node");
 
     let mut scope = db.get_package_scope(def_id.package);
-    if !struct_node.type_params.is_empty() {
-        scope = get_typeparams_scope(db, &ast_info, &scope, &struct_node.type_params);
+    if let StructType::GenericInst(_, typeargs_id) = struct_type {
+        let typeargs = db.get_typeargs(typeargs_id);
+        let typeparams = &struct_node.type_params;
+        let mut type_table = IndexMap::<SymbolId, Object>::default();
+        for (typeparam, typearg) in zip(typeparams.iter(), typeargs.iter()) {
+            let name = db.define_symbol(typeparam.name.value.clone());
+            type_table.entry(name).or_insert(Object::Type(*typearg));
+        }
+        scope = scope.new_child(ScopeKind::Basic, type_table);
     }
 
     let mut declared_at = HashMap::<SymbolId, Location>::default();
