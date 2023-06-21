@@ -5,7 +5,8 @@ use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstI
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{
-    get_func_type, get_generic_func_type, get_global_type, FuncTypeId, StructTypeId, Type, TypeArgsId, TypeDb, TypeId,
+    get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_global_type, FuncTypeId, StructTypeId,
+    Type, TypeArgsId, TypeDb, TypeId,
 };
 use indexmap::IndexMap;
 use magelang_syntax::ItemNode;
@@ -34,6 +35,7 @@ pub struct Db {
     global_type_cache: Cache<GlobalId, TypeId>,
     func_type_cache: Cache<FuncId, FuncTypeId>,
     generic_func_type_cache: Cache<GenFuncId, FuncTypeId>,
+    generic_func_inst_cache: Cache<(GenFuncId, TypeArgsId), FuncTypeId>,
 
     builtin_scope: OnceCell<Rc<Scope>>,
     package_scope_cache: Cache<PackageId, Rc<Scope>>,
@@ -127,7 +129,10 @@ impl TypeDb for Db {
     }
 
     fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId {
-        todo!()
+        self.generic_func_inst_cache
+            .get_or_init((gen_func_id, typeargs_id), || {
+                get_generic_func_inst_type_id(self, gen_func_id, typeargs_id)
+            })
     }
 }
 

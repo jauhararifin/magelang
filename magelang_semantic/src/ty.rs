@@ -1,7 +1,7 @@
 use crate::def::{DefDb, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
 use crate::error::{Loc, Location};
 use crate::package::AstInfo;
-use crate::scope::{get_object_from_expr, get_typeparams_scope, Object, Scope, ScopeDb};
+use crate::scope::{get_object_from_expr, get_typeparams_scope, Object, Scope, ScopeDb, ScopeKind};
 use crate::symbol::SymbolId;
 use indexmap::IndexMap;
 use magelang_syntax::{
@@ -9,6 +9,7 @@ use magelang_syntax::{
     Token,
 };
 use std::collections::HashMap;
+use std::iter::zip;
 use std::rc::Rc;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
@@ -263,9 +264,9 @@ pub trait TypeDb: DefDb {
     fn get_global_type_id(&self, global_id: GlobalId) -> TypeId;
     fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId;
     fn get_generic_struct_type_id(&self, struct_gen_id: GenStructId) -> StructTypeId;
-    fn get_generic_func_type_id(&self, func_gen_id: GenFuncId) -> FuncTypeId;
+    fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId;
     fn get_generic_struct_inst_type_id(&self, struct_gen_id: GenStructId, typeargs_id: TypeArgsId) -> StructTypeId;
-    fn get_generic_func_inst_type_id(&self, func_gen_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId;
+    fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId;
 }
 
 pub fn get_global_type(db: &(impl TypeDb + ScopeDb), global_id: GlobalId) -> TypeId {
@@ -455,4 +456,86 @@ fn get_type_from_index(
     let typeargs_id = db.define_typeargs(typeargs);
 
     db.get_generic_struct_inst_type_id(struct_id, typeargs_id).into()
+}
+
+pub fn get_generic_func_inst_type_id(
+    db: &(impl TypeDb + ScopeDb),
+    gen_func_id: GenFuncId,
+    typeargs_id: TypeArgsId,
+) -> FuncTypeId {
+    let node = db
+        .get_ast_by_def_id(gen_func_id.into())
+        .expect("not a generic function");
+    let signature = match node.as_ref() {
+        ItemNode::Function(node) => &node.signature,
+        ItemNode::NativeFunction(node) => node,
+        _ => unreachable!("not a generic function"),
+    };
+
+    let type_params = &signature.type_params;
+    assert!(!type_params.is_empty(), "not a generic function but a normal function");
+
+    let scope = db.get_package_scope(gen_func_id.package());
+    let typeargs = db.get_typeargs(typeargs_id);
+    let mut type_table = IndexMap::<SymbolId, Object>::default();
+    for (typeparam, typearg) in zip(type_params.iter(), typeargs.iter()) {
+        let name = db.define_symbol(typeparam.name.value.clone());
+        type_table.entry(name).or_insert(Object::Type(*typearg));
+    }
+    let scope = scope.new_child(ScopeKind::Basic, type_table);
+
+    let func_type_id = db.get_generic_func_type_id(gen_func_id);
+    let func_type = db.get_func_type(func_type_id);
+    substitute_func_type_with_typeargs(db, &scope, &func_type)
+}
+
+fn substitute_type_with_typeargs(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, type_id: TypeId) -> TypeId {
+    let ty = db.get_type(type_id);
+    match ty.as_ref() {
+        Type::Unknown | Type::Void | Type::Int(..) | Type::Float(..) | Type::Bool => type_id,
+        Type::Struct(struct_type) => match struct_type {
+            StructType::GenericInst(gen_struct_id, typeargs_id) => {
+                let typeargs = db.get_typeargs(*typeargs_id);
+                let substituted_typeargs = typeargs
+                    .iter()
+                    .map(|type_id| substitute_type_with_typeargs(db, scope, *type_id))
+                    .collect::<Vec<_>>();
+                let substituted_typeargs_id = db.define_typeargs(substituted_typeargs.into());
+                db.define_struct_type(StructType::GenericInst(*gen_struct_id, substituted_typeargs_id))
+                    .into()
+            }
+            StructType::Concrete(..) => type_id,
+        },
+        Type::Func(func_type) => substitute_func_type_with_typeargs(db, scope, func_type).into(),
+        Type::Pointer(element_type_id) => {
+            db.define_ptr_type(substitute_type_with_typeargs(db, scope, *element_type_id))
+        }
+        Type::ArrayPtr(element_type_id) => {
+            db.define_array_ptr_type(substitute_type_with_typeargs(db, scope, *element_type_id))
+        }
+        Type::GenericArg(name) => {
+            let Some(object) = scope.get(*name) else {
+                unreachable!("the generic arg is not in the scope");
+            };
+            if let Object::Type(substitution) = object {
+                substitution
+            } else {
+                type_id
+            }
+        }
+    }
+}
+
+fn substitute_func_type_with_typeargs(
+    db: &(impl TypeDb + ScopeDb),
+    scope: &Rc<Scope>,
+    func_type: &FuncType,
+) -> FuncTypeId {
+    let substituted_params = func_type
+        .params
+        .iter()
+        .map(|type_id| substitute_type_with_typeargs(db, scope, *type_id))
+        .collect::<Vec<_>>();
+    let substitued_return = substitute_type_with_typeargs(db, scope, func_type.return_type);
+    db.define_func_type(&substituted_params, substitued_return)
 }

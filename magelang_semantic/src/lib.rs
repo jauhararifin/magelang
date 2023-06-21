@@ -7,3 +7,5 @@ mod scope;
 mod symbol;
 mod ty;
 mod value;
+
+pub use db::Db;
