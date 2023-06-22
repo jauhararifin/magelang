@@ -45,6 +45,12 @@ impl From<StructTypeId> for TypeId {
     }
 }
 
+impl From<TypeId> for StructTypeId {
+    fn from(value: TypeId) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
 pub struct TypeArgsId(usize);
 
@@ -94,12 +100,53 @@ impl Type {
             _ => None,
         }
     }
+
+    pub fn as_int(&self) -> Option<&IntType> {
+        match self {
+            Self::Int(int_type) => Some(int_type),
+            _ => None,
+        }
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    pub fn is_int(&self) -> bool {
+        self.as_int().is_some()
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub fn is_arithmetic(&self) -> bool {
+        matches!(
+            self,
+            Self::Int(..) | Self::Float(..) | Self::Pointer(..) | Self::ArrayPtr(..)
+        )
+    }
+
+    pub fn display(&self, db: &impl TypeDb) -> String {
+        match self {
+            Self::Unknown => String::from("{unknown}"),
+            Self::Void => String::from("void"),
+            Self::Int(int_type) => int_type.display(),
+            Self::Float(float_type) => float_type.display(),
+            Self::Bool => String::from("bool"),
+            Self::Struct(..) => String::from("struct"),
+            Self::Func(..) => String::from("fn"),
+            Self::Pointer(element_id) => format!("*{}", db.get_type(*element_id).display(db)),
+            Self::ArrayPtr(element_id) => format!("[*]{}", db.get_type(*element_id).display(db)),
+            Self::GenericArg(symbol_id) => db.get_symbol(*symbol_id).as_ref().into(),
+        }
+    }
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct IntType {
-    sign: bool,
-    size: BitSize,
+    pub sign: bool,
+    pub size: BitSize,
 }
 
 impl IntType {
@@ -146,9 +193,21 @@ impl IntType {
     pub fn u64() -> Self {
         Self::new(false, BitSize::I64)
     }
+
+    pub fn display(&self) -> String {
+        let sign = if self.sign { "i" } else { "u" };
+        let bitsize = match self.size {
+            BitSize::I8 => "8",
+            BitSize::I16 => "8",
+            BitSize::I32 => "8",
+            BitSize::I64 => "8",
+            BitSize::ISize => "size",
+        };
+        format!("{}{}", sign, bitsize)
+    }
 }
 
-#[derive(Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
 pub enum BitSize {
     I8,
     I16,
@@ -159,7 +218,7 @@ pub enum BitSize {
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct FloatType {
-    size: FloatSize,
+    pub size: FloatSize,
 }
 
 impl FloatType {
@@ -169,6 +228,14 @@ impl FloatType {
 
     pub fn f64() -> Self {
         Self { size: FloatSize::F64 }
+    }
+
+    pub fn display(&self) -> String {
+        match self.size {
+            FloatSize::F32 => "f32",
+            FloatSize::F64 => "f64",
+        }
+        .into()
     }
 }
 
@@ -216,7 +283,7 @@ pub trait TypeDb: DefDb {
     fn define_type(&self, value: Rc<Type>) -> TypeId;
     fn get_type(&self, type_id: TypeId) -> Rc<Type>;
 
-    fn define_invalid_type(&self) -> TypeId {
+    fn define_unknown_type(&self) -> TypeId {
         self.define_type(Rc::default())
     }
 
@@ -398,7 +465,7 @@ pub fn get_type_from_expr(
         | ExprNode::Cast(..)
         | ExprNode::StructLit(..) => {
             db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
-            db.define_invalid_type()
+            db.define_unknown_type()
         }
     }
 }
@@ -407,11 +474,11 @@ fn get_type_from_ident(db: &(impl TypeDb + ScopeDb), ast_info: &AstInfo, scope: 
     let name = db.define_symbol(token.value.clone());
     let Some(object) = scope.get(name) else {
         db.undeclared_symbol(Loc::new(ast_info.path, token.pos), &token.value);
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     let Some(type_id) = object.as_type() else {
         db.not_a_type(Loc::new(ast_info.path, token.pos));
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     type_id
 }
@@ -444,26 +511,26 @@ fn get_type_from_selection(
 ) -> TypeId {
     let ExprNode::Ident(package_tok) = node.value.as_ref() else {
         db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     let package_name_tok = db.define_symbol(package_tok.value.clone());
     let Some(import) = scope.get(package_name_tok) else {
         db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     let Some(package_name) = import.as_import() else {
         db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     let package_scope = db.get_package_scope(package_name);
     let selection = db.define_symbol(node.selection.value.clone());
     let Some(object) = package_scope.get(selection) else {
         db.undeclared_symbol(Loc::new(ast_info.path, node.get_pos()), &node.selection.value);
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     let Some(type_id) = object.as_type() else {
         db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
     type_id
 }
@@ -477,7 +544,7 @@ fn get_type_from_index(
     let object = get_object_from_expr(db, scope, &node.value);
     let Object::GenericStruct { typeparams, gen_struct_id } = object else {
         db.not_a_generic_type(Loc::new(ast_info.path, node.get_pos()));
-        return db.define_invalid_type();
+        return db.define_unknown_type();
     };
 
     if typeparams.len() != node.index.len() {
@@ -579,4 +646,13 @@ fn substitute_func_type_with_typeargs(
         .collect::<Vec<_>>();
     let substitued_return = substitute_type_with_typeargs(db, scope, func_type.return_type);
     db.define_func_type(&substituted_params, substitued_return)
+}
+
+pub fn is_assignable(db: &impl TypeDb, source: TypeId, target: TypeId) -> bool {
+    let source = db.get_type(source);
+    let target = db.get_type(target);
+    if source.is_unknown() || target.is_unknown() {
+        return true;
+    }
+    source == target
 }

@@ -95,7 +95,7 @@ pub enum Object {
     },
     GenericFunc {
         typeparams: Rc<[SymbolId]>,
-        func_id: GenFuncId,
+        gen_func_id: GenFuncId,
         is_native: bool,
     },
 }
@@ -189,7 +189,7 @@ fn object_from_func_node(db: &impl ScopeDb, def_id: DefId, node: &FunctionNode) 
             .collect();
         Object::GenericFunc {
             typeparams,
-            func_id: def_id.into(),
+            gen_func_id: def_id.into(),
             is_native: false,
         }
     }
@@ -209,7 +209,7 @@ fn object_from_signature_node(db: &impl ScopeDb, def_id: DefId, node: &Signature
             .collect();
         Object::GenericFunc {
             typeparams,
-            func_id: def_id.into(),
+            gen_func_id: def_id.into(),
             is_native: true,
         }
     }

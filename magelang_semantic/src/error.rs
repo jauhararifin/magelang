@@ -1,6 +1,7 @@
 use crate::package::PathId;
 use magelang_syntax::Pos;
 use std::fmt::Display;
+use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -50,6 +51,14 @@ pub trait ErrorAccumulator {
         self.report_error(loc, String::from("Expression is not a type"));
     }
 
+    fn not_a_value(&self, loc: Loc) {
+        self.report_error(loc, String::from("Expression is not a value"));
+    }
+
+    fn not_a_struct(&self, loc: Loc, got: impl Display) {
+        self.report_error(loc, format!("Not a struct, but a {got}"));
+    }
+
     fn not_a_generic_type(&self, loc: Loc) {
         self.report_error(loc, String::from("Expression is not a generic type"));
     }
@@ -60,5 +69,64 @@ pub trait ErrorAccumulator {
 
     fn wrong_number_of_type_arguments(&self, loc: Loc, expected: usize, found: usize) {
         self.report_error(loc, format!("Expected {expected} type argument(s), but found {found}"));
+    }
+
+    fn wrong_number_of_arguments(&self, loc: Loc, expected: usize, found: usize) {
+        self.report_error(loc, format!("Expected {expected} argument(s), but found {found}"));
+    }
+
+    fn invalid_int_literal(&self, loc: Loc, err: ParseIntError) {
+        self.report_error(loc, format!("Expression is not a valid integer literal: {err}"));
+    }
+
+    fn invalid_float_literal(&self, loc: Loc, err: ParseFloatError) {
+        self.report_error(loc, format!("Expression is not a valid float literal: {err}"));
+    }
+
+    fn cannot_deref_non_pointer(&self, loc: Loc) {
+        self.report_error(loc, String::from("Cannot dereference non pointer value"));
+    }
+
+    fn unop_type_unsupported(&self, loc: Loc, op: impl Display, ty: impl Display) {
+        self.report_error(loc, format!("Cannot perform {op} operation on {ty}"));
+    }
+
+    fn binop_type_mismatch(&self, loc: Loc, op: impl Display, a: impl Display, b: impl Display) {
+        self.report_error(loc, format!("Cannot perform {op} operation for {a} and {b}"));
+    }
+
+    fn binop_type_unsupported(&self, loc: Loc, op: impl Display, ty: impl Display) {
+        self.report_error(loc, format!("Cannot perform {op} binary operation on {ty}"));
+    }
+
+    fn not_callable(&self, loc: Loc) {
+        self.report_error(loc, String::from("Expression is not a callable"));
+    }
+
+    fn type_mismatch(&self, loc: Loc, expected: impl Display, got: impl Display) {
+        self.report_error(loc, format!("Cannot use {got} for type {expected}"));
+    }
+
+    fn unsupported_casting(&self, loc: Loc, from: impl Display, into: impl Display) {
+        self.report_error(loc, format!("Cannot perform casting operation from {from} and {into}"));
+    }
+
+    fn unexpected_index_num(&self, loc: Loc, expected: usize, found: usize) {
+        self.report_error(
+            loc,
+            format!("Unexpected number of index expression, expected {expected}, found {found}"),
+        );
+    }
+
+    fn non_int_index(&self, loc: Loc) {
+        self.report_error(loc, String::from("Cannot use non-int expression as index"));
+    }
+
+    fn not_indexable(&self, loc: Loc) {
+        self.report_error(loc, String::from("Expression is not indexable"));
+    }
+
+    fn no_such_field(&self, loc: Loc, name: &str) {
+        self.report_error(loc, format!("There is no field called {name}"))
     }
 }
