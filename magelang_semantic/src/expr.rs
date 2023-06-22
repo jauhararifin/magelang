@@ -171,6 +171,7 @@ fn get_expr_from_int_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, exp
     let kind = match expected_type.as_ref() {
         Type::Int(int_type) => match (int_type.sign, int_type.size) {
             (true, BitSize::ISize) => tok.value.parse::<i64>().map(|v| ExprKind::Isize(v as u64)),
+            (true, BitSize::I64) => tok.value.parse::<i64>().map(|v| ExprKind::I64(v as u64)),
             (true, BitSize::I32) => tok.value.parse::<i32>().map(|v| ExprKind::I32(v as u32)),
             (true, BitSize::I16) => tok.value.parse::<i16>().map(|v| ExprKind::I16(v as u16)),
             (true, BitSize::I8) => tok.value.parse::<i8>().map(|v| ExprKind::I8(v as u8)),
@@ -179,10 +180,6 @@ fn get_expr_from_int_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, exp
             (false, BitSize::I32) => tok.value.parse::<i32>().map(|v| ExprKind::I32(v as u32)),
             (false, BitSize::I16) => tok.value.parse::<i16>().map(|v| ExprKind::I16(v as u16)),
             (false, BitSize::I8) => tok.value.parse::<i8>().map(|v| ExprKind::I8(v as u8)),
-            _ => {
-                expected_type = Rc::new(Type::Int(IntType::i64()));
-                tok.value.parse::<i64>().map(|v| ExprKind::I64(v as u64))
-            }
         },
         Type::Pointer(..) => tok.value.parse::<u64>().map(ExprKind::Isize),
         _ => {
@@ -210,7 +207,7 @@ fn get_expr_from_float_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, e
     let kind = match expected_type.as_ref() {
         Type::Float(float_type) => match float_type.size {
             FloatSize::F32 => tok.value.parse::<f32>().map(ExprKind::F32),
-            _ => tok.value.parse::<f64>().map(ExprKind::F64),
+            FloatSize::F64 => tok.value.parse::<f64>().map(ExprKind::F64),
         },
         _ => tok.value.parse::<f64>().map(ExprKind::F64),
     };
