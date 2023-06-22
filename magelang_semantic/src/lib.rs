@@ -8,6 +8,7 @@ mod scope;
 mod symbol;
 mod ty;
 mod value;
+mod assignable;
 
 pub use db::Db;
 pub use expr::{Expr, ExprKind};
