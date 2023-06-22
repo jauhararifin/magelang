@@ -79,7 +79,7 @@ pub trait ExprDb: SymbolDb + DefDb + ScopeDb {
     fn get_global_expr(&self, global_id: GlobalId) -> Rc<Expr>;
 }
 
-fn get_global_expr(db: &impl ExprDb, global_id: GlobalId) -> Rc<Expr> {
+pub fn get_global_expr(db: &impl ExprDb, global_id: GlobalId) -> Rc<Expr> {
     let node = db.get_ast_by_def_id(global_id.into()).expect("item is not a global");
     let node = node.as_global().expect("item is not a global");
     let ast_info = db.get_package_ast(global_id.package());
@@ -570,7 +570,7 @@ fn get_func_instance_from_expr(
     node: &IndexExprNode,
 ) -> Option<Expr> {
     let object = get_object_from_expr(db, scope, &node.value);
-    let Object::GenericFunc{typeparams, gen_func_id, is_native} = object else {
+    let Object::GenericFunc{typeparams, gen_func_id, is_native: _} = object else {
         return None;
     };
 
@@ -604,8 +604,7 @@ fn get_expr_from_struct_lit_node(
     let type_id = get_type_from_expr(db, ast_info, scope, &node.target);
     let ty = db.get_type(type_id);
 
-    // TODO: handle generic struct here.
-    let Some(struct_type) = ty.as_struct() else {
+    if !ty.is_struct() {
         db.not_a_struct(Loc::new(ast_info.path, node.target.get_pos()), ty.display(db));
         return Expr {
             type_id: db.define_unknown_type(),
@@ -678,8 +677,7 @@ fn get_expr_from_selection_node(
     }
 
     let value_type = db.get_type(value_expr.type_id);
-    // TODO: handle generic struct here.
-    let Some(struct_type) = value_type.as_struct() else {
+    if !value_type.is_struct() {
         db.not_a_struct(Loc::new(ast_info.path, node.get_pos()), value_type.display(db));
         return Expr {
             type_id: db.define_unknown_type(),

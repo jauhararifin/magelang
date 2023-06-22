@@ -108,6 +108,10 @@ impl Type {
         }
     }
 
+    pub fn is_struct(&self) -> bool {
+        self.as_struct().is_some()
+    }
+
     pub fn is_unknown(&self) -> bool {
         matches!(self, Self::Unknown)
     }

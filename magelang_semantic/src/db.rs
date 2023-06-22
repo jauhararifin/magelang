@@ -1,6 +1,7 @@
 use crate::builtin::get_builtin_scope;
 use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId};
 use crate::error::{ErrorAccumulator, Loc};
+use crate::expr::{get_global_expr, Expr, ExprDb};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
@@ -40,6 +41,8 @@ pub struct Db {
 
     builtin_scope: OnceCell<Rc<Scope>>,
     package_scope_cache: Cache<PackageId, Rc<Scope>>,
+
+    global_expr_cache: Cache<GlobalId, Rc<Expr>>,
 }
 
 impl ErrorAccumulator for Db {
@@ -142,6 +145,13 @@ impl ScopeDb for Db {
     fn get_package_scope(&self, package_id: PackageId) -> Rc<Scope> {
         self.package_scope_cache
             .get_or_init(package_id, || get_package_scope(self, package_id))
+    }
+}
+
+impl ExprDb for Db {
+    fn get_global_expr(&self, global_id: GlobalId) -> Rc<Expr> {
+        self.global_expr_cache
+            .get_or_init(global_id, || get_global_expr(self, global_id))
     }
 }
 
