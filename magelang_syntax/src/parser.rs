@@ -1,7 +1,7 @@
-use super::ast::*;
-use super::error::{SyntaxError, SyntaxErrorKind};
-use super::scanner::scan;
-use super::token::{Pos, Token, TokenKind};
+use crate::ast::*;
+use crate::error::{SyntaxError, SyntaxErrorKind};
+use crate::scanner::scan;
+use crate::token::{Pos, Token, TokenKind};
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::rc::Rc;

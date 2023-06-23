@@ -5,6 +5,7 @@ mod db;
 mod def;
 mod error;
 mod expr;
+mod native;
 mod package;
 mod scope;
 mod stmt;

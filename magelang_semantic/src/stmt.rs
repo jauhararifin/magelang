@@ -1,11 +1,11 @@
-use super::assignable::{get_assignable_from_ast, Assignable};
-use super::def::{FuncId, GenFuncId};
-use super::error::Loc;
-use super::expr::{get_expr_from_ast, Expr, ExprDb, ExprKind};
-use super::package::AstInfo;
-use super::scope::{get_typeparams_scope, Object, Scope, ScopeKind};
-use super::symbol::SymbolId;
-use super::ty::{get_type_from_expr, is_assignable, Type, TypeArgsId};
+use crate::assignable::{get_assignable_from_ast, Assignable};
+use crate::def::{FuncId, GenFuncId};
+use crate::error::Loc;
+use crate::expr::{get_expr_from_ast, Expr, ExprDb, ExprKind};
+use crate::package::AstInfo;
+use crate::scope::{get_typeparams_scope, Object, Scope, ScopeKind};
+use crate::symbol::SymbolId;
+use crate::ty::{get_type_from_expr, is_assignable, Type, TypeArgsId};
 use indexmap::IndexMap;
 use magelang_syntax::{
     AssignStatementNode, AstNode, BlockStatementNode, ElseNode, IfStatementNode, LetKind, LetStatementNode,

@@ -145,4 +145,25 @@ pub trait ErrorAccumulator {
     fn not_in_a_loop(&self, loc: Loc, action: impl Display) {
         self.report_error(loc, format!("{action} can only used inside a loop"));
     }
+
+    fn wrong_number_of_tag_arguments(&self, loc: Loc, name: impl Display, expected: usize, found: usize) {
+        self.report_error(
+            loc,
+            format!("Expected {expected} argument(s) for {name} tag, but found {found}"),
+        );
+    }
+
+    fn invalid_native_func(&self, loc: Loc) {
+        self.report_error(
+            loc,
+            String::from("The compiler doesn't know how to compile this native function"),
+        );
+    }
+
+    fn invalid_signature_return_type(&self, loc: Loc, expected: impl Display, got: impl Display) {
+        self.report_error(
+            loc,
+            format!("Invalid native function return type, expected {expected}, got {got}"),
+        );
+    }
 }

@@ -2,6 +2,7 @@ use crate::builtin::get_builtin_scope;
 use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId};
 use crate::error::{ErrorAccumulator, Loc};
 use crate::expr::{get_global_expr, Expr, ExprDb};
+use crate::native::{get_generic_native_func, get_native_func, NativeDb, NativeFunc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, Statement, StatementDb};
@@ -48,6 +49,9 @@ pub struct Db {
     func_body_cache: Cache<FuncId, Rc<Statement>>,
     generic_func_body_cache: Cache<GenFuncId, Rc<Statement>>,
     generic_func_inst_body_cache: Cache<(GenFuncId, TypeArgsId), Rc<Statement>>,
+
+    native_func_cache: Cache<FuncId, NativeFunc>,
+    generic_native_func_cache: Cache<GenFuncId, NativeFunc>,
 }
 
 impl ErrorAccumulator for Db {
@@ -176,6 +180,18 @@ impl StatementDb for Db {
             .get_or_init((gen_func_id, typeargs_id), || {
                 get_generic_func_inst_body(self, gen_func_id, typeargs_id)
             })
+    }
+}
+
+impl NativeDb for Db {
+    fn get_native_func(&self, func_id: FuncId) -> NativeFunc {
+        self.native_func_cache
+            .get_or_init(func_id, || get_native_func(self, func_id))
+    }
+
+    fn get_generic_native_func(&self, gen_func_id: GenFuncId) -> NativeFunc {
+        self.generic_native_func_cache
+            .get_or_init(gen_func_id, || get_generic_native_func(self, gen_func_id))
     }
 }
 
