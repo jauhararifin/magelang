@@ -133,4 +133,16 @@ pub trait ErrorAccumulator {
     fn not_assignable(&self, loc: Loc) {
         self.report_error(loc, String::from("Expression is not assignable"));
     }
+
+    fn missing_return_statement(&self, loc: Loc) {
+        self.report_error(loc, String::from("Missing return statement in the function"));
+    }
+
+    fn unreachable_stmt(&self, loc: Loc) {
+        self.report_error(loc, String::from("This statement is unreachable"));
+    }
+
+    fn not_in_a_loop(&self, loc: Loc, action: impl Display) {
+        self.report_error(loc, format!("{action} can only used inside a loop"));
+    }
 }

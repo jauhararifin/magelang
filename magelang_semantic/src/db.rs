@@ -4,6 +4,7 @@ use crate::error::{ErrorAccumulator, Loc};
 use crate::expr::{get_global_expr, Expr, ExprDb};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
+use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, Statement, StatementDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{
     get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_global_type, get_struct_field, FuncTypeId,
@@ -43,6 +44,10 @@ pub struct Db {
     package_scope_cache: Cache<PackageId, Rc<Scope>>,
 
     global_expr_cache: Cache<GlobalId, Rc<Expr>>,
+
+    func_body_cache: Cache<FuncId, Rc<Statement>>,
+    generic_func_body_cache: Cache<GenFuncId, Rc<Statement>>,
+    generic_func_inst_body_cache: Cache<(GenFuncId, TypeArgsId), Rc<Statement>>,
 }
 
 impl ErrorAccumulator for Db {
@@ -152,6 +157,25 @@ impl ExprDb for Db {
     fn get_global_expr(&self, global_id: GlobalId) -> Rc<Expr> {
         self.global_expr_cache
             .get_or_init(global_id, || get_global_expr(self, global_id))
+    }
+}
+
+impl StatementDb for Db {
+    fn get_func_body(&self, func_id: FuncId) -> Rc<Statement> {
+        self.func_body_cache
+            .get_or_init(func_id, || get_func_body(self, func_id))
+    }
+
+    fn get_generic_func_body(&self, gen_func_id: GenFuncId) -> Rc<Statement> {
+        self.generic_func_body_cache
+            .get_or_init(gen_func_id, || get_generic_func_body(self, gen_func_id))
+    }
+
+    fn get_generic_func_inst_body(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<Statement> {
+        self.generic_func_inst_body_cache
+            .get_or_init((gen_func_id, typeargs_id), || {
+                get_generic_func_inst_body(self, gen_func_id, typeargs_id)
+            })
     }
 }
 
