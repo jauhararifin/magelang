@@ -2,10 +2,10 @@ use crate::builtin::get_builtin_scope;
 use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId};
 use crate::error::{ErrorAccumulator, Loc};
 use crate::expr::{get_global_expr, Expr, ExprDb};
-use crate::native::{get_generic_native_func, get_native_func, NativeDb, NativeFunc};
+use crate::native::{get_generic_native_func, get_generic_native_func_inst, get_native_func, NativeDb, NativeFunc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
-use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, Statement, StatementDb};
+use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, FuncBody, StatementDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{
     get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_global_type, get_struct_field, FuncTypeId,
@@ -46,12 +46,13 @@ pub struct Db {
 
     global_expr_cache: Cache<GlobalId, Rc<Expr>>,
 
-    func_body_cache: Cache<FuncId, Rc<Statement>>,
-    generic_func_body_cache: Cache<GenFuncId, Rc<Statement>>,
-    generic_func_inst_body_cache: Cache<(GenFuncId, TypeArgsId), Rc<Statement>>,
+    func_body_cache: Cache<FuncId, Rc<FuncBody>>,
+    generic_func_body_cache: Cache<GenFuncId, Rc<FuncBody>>,
+    generic_func_inst_body_cache: Cache<(GenFuncId, TypeArgsId), Rc<FuncBody>>,
 
     native_func_cache: Cache<FuncId, NativeFunc>,
     generic_native_func_cache: Cache<GenFuncId, NativeFunc>,
+    generic_native_func_inst_cache: Cache<(GenFuncId, TypeArgsId), NativeFunc>,
 }
 
 impl ErrorAccumulator for Db {
@@ -165,17 +166,17 @@ impl ExprDb for Db {
 }
 
 impl StatementDb for Db {
-    fn get_func_body(&self, func_id: FuncId) -> Rc<Statement> {
+    fn get_func_body(&self, func_id: FuncId) -> Rc<FuncBody> {
         self.func_body_cache
             .get_or_init(func_id, || get_func_body(self, func_id))
     }
 
-    fn get_generic_func_body(&self, gen_func_id: GenFuncId) -> Rc<Statement> {
+    fn get_generic_func_body(&self, gen_func_id: GenFuncId) -> Rc<FuncBody> {
         self.generic_func_body_cache
             .get_or_init(gen_func_id, || get_generic_func_body(self, gen_func_id))
     }
 
-    fn get_generic_func_inst_body(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<Statement> {
+    fn get_generic_func_inst_body(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<FuncBody> {
         self.generic_func_inst_body_cache
             .get_or_init((gen_func_id, typeargs_id), || {
                 get_generic_func_inst_body(self, gen_func_id, typeargs_id)
@@ -192,6 +193,13 @@ impl NativeDb for Db {
     fn get_generic_native_func(&self, gen_func_id: GenFuncId) -> NativeFunc {
         self.generic_native_func_cache
             .get_or_init(gen_func_id, || get_generic_native_func(self, gen_func_id))
+    }
+
+    fn get_generic_native_func_inst(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> NativeFunc {
+        self.generic_native_func_inst_cache
+            .get_or_init((gen_func_id, typeargs_id), || {
+                get_generic_native_func_inst(self, gen_func_id, typeargs_id)
+            })
     }
 }
 

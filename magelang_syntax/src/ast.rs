@@ -69,6 +69,10 @@ impl ItemNode {
         }
     }
 
+    pub fn is_native_function(&self) -> bool {
+        self.as_native_function().is_some()
+    }
+
     pub fn as_struct(&self) -> Option<&StructNode> {
         if let Self::Struct(node) = self {
             Some(node)

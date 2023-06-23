@@ -2,24 +2,28 @@ use crate::def::{FuncId, GenFuncId};
 use crate::error::Loc;
 use crate::expr::ExprDb;
 use crate::package::AstInfo;
-use crate::scope::Scope;
-use crate::ty::{get_type_from_expr, IntType, Type};
+use crate::scope::{Object, Scope, ScopeKind};
+use crate::symbol::SymbolId;
+use crate::ty::{get_type_from_expr, substitute_type_with_typeargs, IntType, Type, TypeArgsId, TypeId};
 use crate::value::value_from_string_lit;
+use indexmap::IndexMap;
 use magelang_syntax::{AstNode, SignatureNode, TagNode, TokenKind};
 use std::collections::HashMap;
+use std::iter::zip;
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum NativeFunc {
     Invalid,
-    SizeOf,
-    AlignOf,
+    SizeOf(TypeId),
+    AlignOf(TypeId),
     Link(Rc<[u8]>),
 }
 
 pub trait NativeDb: ExprDb {
     fn get_native_func(&self, func_id: FuncId) -> NativeFunc;
     fn get_generic_native_func(&self, gen_func_id: GenFuncId) -> NativeFunc;
+    fn get_generic_native_func_inst(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> NativeFunc;
 }
 
 pub fn get_native_func(db: &impl NativeDb, func_id: FuncId) -> NativeFunc {
@@ -89,22 +93,32 @@ pub fn get_generic_native_func(db: &impl NativeDb, gen_func_id: GenFuncId) -> Na
 
     let scope = db.get_package_scope(gen_func_id.package());
     if tag_map.contains_key("builtin_size_of") {
-        check_builtin_sizeof(db, &ast_info, &scope, signature);
-        NativeFunc::SizeOf
+        let type_id = check_builtin_sizeof(db, &ast_info, &scope, signature);
+        NativeFunc::SizeOf(type_id)
     } else if tag_map.contains_key("builtin_align_of") {
-        check_builtin_alignof(db, &ast_info, &scope, signature);
-        NativeFunc::AlignOf
+        let type_id = check_builtin_alignof(db, &ast_info, &scope, signature);
+        NativeFunc::AlignOf(type_id)
     } else {
         db.invalid_native_func(Loc::new(ast_info.path, signature.get_pos()));
         NativeFunc::Invalid
     }
 }
 
-fn check_builtin_sizeof(db: &impl NativeDb, ast_info: &AstInfo, scope: &Rc<Scope>, signature: &SignatureNode) {
-    check_builtin_alignof(db, ast_info, scope, signature);
+fn check_builtin_sizeof(
+    db: &impl NativeDb,
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    signature: &SignatureNode,
+) -> TypeId {
+    check_builtin_alignof(db, ast_info, scope, signature)
 }
 
-fn check_builtin_alignof(db: &impl NativeDb, ast_info: &AstInfo, scope: &Rc<Scope>, signature: &SignatureNode) {
+fn check_builtin_alignof(
+    db: &impl NativeDb,
+    ast_info: &AstInfo,
+    scope: &Rc<Scope>,
+    signature: &SignatureNode,
+) -> TypeId {
     if !signature.parameters.is_empty() {
         db.wrong_number_of_arguments(
             Loc::new(ast_info.path, signature.get_pos()),
@@ -126,5 +140,46 @@ fn check_builtin_alignof(db: &impl NativeDb, ast_info: &AstInfo, scope: &Rc<Scop
             db.get_type(expected_return_type_id).display(db),
             db.get_type(return_type).display(db),
         );
+    }
+
+    if signature.type_params.len() != 1 {
+        db.wrong_number_of_type_arguments(
+            Loc::new(ast_info.path, signature.get_pos()),
+            1,
+            signature.type_params.len(),
+        );
+        return db.define_unknown_type();
+    }
+
+    let symbol_id = db.define_symbol(signature.type_params[0].name.value.clone());
+    db.define_generic_arg_type(symbol_id)
+}
+
+pub fn get_generic_native_func_inst(db: &impl NativeDb, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> NativeFunc {
+    let func_node = db.get_ast_by_def_id(gen_func_id.into()).expect("ast not found");
+    let signature = func_node
+        .as_native_function()
+        .expect("ast is not a native generic function node");
+    assert!(
+        !signature.type_params.is_empty(),
+        "ast is not a generic function, but a normal function"
+    );
+
+    let type_params = &signature.type_params;
+    let scope = db.get_package_scope(gen_func_id.package());
+    let typeargs = db.get_typeargs(typeargs_id);
+    let mut type_table = IndexMap::<SymbolId, Object>::default();
+    for (typeparam, typearg) in zip(type_params.iter(), typeargs.iter()) {
+        let name = db.define_symbol(typeparam.name.value.clone());
+        type_table.entry(name).or_insert(Object::Type(*typearg));
+    }
+    let scope = scope.new_child(ScopeKind::Basic, type_table);
+
+    let native_func = get_generic_native_func(db, gen_func_id);
+    match native_func {
+        NativeFunc::Invalid => NativeFunc::Invalid,
+        NativeFunc::SizeOf(type_id) => NativeFunc::SizeOf(substitute_type_with_typeargs(db, &scope, type_id)),
+        NativeFunc::AlignOf(type_id) => NativeFunc::AlignOf(substitute_type_with_typeargs(db, &scope, type_id)),
+        NativeFunc::Link(name) => NativeFunc::Link(name),
     }
 }

@@ -2,6 +2,7 @@ use crate::assignable::{get_assignable_from_ast, Assignable};
 use crate::def::{FuncId, GenFuncId};
 use crate::error::Loc;
 use crate::expr::{get_expr_from_ast, Expr, ExprDb, ExprKind};
+use crate::native::{NativeDb, NativeFunc};
 use crate::package::AstInfo;
 use crate::scope::{get_typeparams_scope, Object, Scope, ScopeKind};
 use crate::symbol::SymbolId;
@@ -41,15 +42,26 @@ pub struct IfStatement {
     pub else_stmt: Option<Box<Statement>>,
 }
 
-pub trait StatementDb: ExprDb {
-    fn get_func_body(&self, func_id: FuncId) -> Rc<Statement>;
-    fn get_generic_func_body(&self, gen_func_id: GenFuncId) -> Rc<Statement>;
-    fn get_generic_func_inst_body(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<Statement>;
+#[derive(Debug)]
+pub enum FuncBody {
+    User(Statement),
+    Native(NativeFunc),
 }
 
-pub fn get_func_body(db: &impl StatementDb, func_id: FuncId) -> Rc<Statement> {
+pub trait StatementDb: ExprDb {
+    fn get_func_body(&self, func_id: FuncId) -> Rc<FuncBody>;
+    fn get_generic_func_body(&self, gen_func_id: GenFuncId) -> Rc<FuncBody>;
+    fn get_generic_func_inst_body(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<FuncBody>;
+}
+
+pub fn get_func_body(db: &(impl StatementDb + NativeDb), func_id: FuncId) -> Rc<FuncBody> {
     let ast_info = db.get_package_ast(func_id.package());
     let func_node = db.get_ast_by_def_id(func_id.into()).expect("ast not found");
+
+    if func_node.is_native_function() {
+        return Rc::new(FuncBody::Native(db.get_native_func(func_id)));
+    }
+
     let func_node = func_node.as_function().expect("ast if not a function node");
 
     assert!(
@@ -75,7 +87,7 @@ pub fn get_func_body(db: &impl StatementDb, func_id: FuncId) -> Rc<Statement> {
         db.missing_return_statement(Loc::new(ast_info.path, func_node.body.get_pos()));
     }
 
-    Rc::new(result.statement)
+    Rc::new(FuncBody::User(result.statement))
 }
 
 fn get_func_scope(
@@ -111,9 +123,14 @@ fn get_func_scope(
     (scope, last_unused_local)
 }
 
-pub fn get_generic_func_body(db: &impl StatementDb, gen_func_id: GenFuncId) -> Rc<Statement> {
+pub fn get_generic_func_body(db: &(impl StatementDb + NativeDb), gen_func_id: GenFuncId) -> Rc<FuncBody> {
     let ast_info = db.get_package_ast(gen_func_id.package());
     let func_node = db.get_ast_by_def_id(gen_func_id.into()).expect("ast not found");
+
+    if func_node.is_native_function() {
+        return Rc::new(FuncBody::Native(db.get_generic_native_func(gen_func_id)));
+    }
+
     let func_node = func_node.as_function().expect("ast is not generic function node");
     assert!(
         !func_node.signature.type_params.is_empty(),
@@ -139,12 +156,23 @@ pub fn get_generic_func_body(db: &impl StatementDb, gen_func_id: GenFuncId) -> R
         db.missing_return_statement(Loc::new(ast_info.path, func_node.body.get_pos()));
     }
 
-    Rc::new(result.statement)
+    Rc::new(FuncBody::User(result.statement))
 }
 
-pub fn get_generic_func_inst_body(db: &impl StatementDb, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<Statement> {
+pub fn get_generic_func_inst_body(
+    db: &(impl StatementDb + NativeDb),
+    gen_func_id: GenFuncId,
+    typeargs_id: TypeArgsId,
+) -> Rc<FuncBody> {
     let ast_info = db.get_package_ast(gen_func_id.package());
     let func_node = db.get_ast_by_def_id(gen_func_id.into()).expect("ast not found");
+
+    if func_node.is_native_function() {
+        return Rc::new(FuncBody::Native(
+            db.get_generic_native_func_inst(gen_func_id, typeargs_id),
+        ));
+    }
+
     let func_node = func_node.as_function().expect("ast is not generic function node");
     assert!(
         !func_node.signature.type_params.is_empty(),
@@ -178,7 +206,7 @@ pub fn get_generic_func_inst_body(db: &impl StatementDb, gen_func_id: GenFuncId,
         db.missing_return_statement(Loc::new(ast_info.path, func_node.body.get_pos()));
     }
 
-    Rc::new(result.statement)
+    Rc::new(FuncBody::User(result.statement))
 }
 
 struct StatementResult {

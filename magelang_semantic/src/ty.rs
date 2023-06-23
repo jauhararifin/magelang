@@ -605,7 +605,7 @@ pub fn get_generic_func_inst_type_id(
     substitute_func_type_with_typeargs(db, &scope, &func_type)
 }
 
-fn substitute_type_with_typeargs(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, type_id: TypeId) -> TypeId {
+pub fn substitute_type_with_typeargs(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, type_id: TypeId) -> TypeId {
     let ty = db.get_type(type_id);
     match ty.as_ref() {
         Type::Unknown | Type::Void | Type::Int(..) | Type::Float(..) | Type::Bool => type_id,
