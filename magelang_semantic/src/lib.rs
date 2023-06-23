@@ -1,4 +1,5 @@
 mod assignable;
+mod ast;
 mod builtin;
 mod db;
 mod def;

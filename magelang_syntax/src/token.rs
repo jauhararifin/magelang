@@ -1,3 +1,4 @@
+use crate::ast::AstNode;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +21,12 @@ pub struct Token {
     pub kind: TokenKind,
     pub value: Rc<str>,
     pub pos: Pos,
+}
+
+impl AstNode for Token {
+    fn get_pos(&self) -> Pos {
+        self.pos
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
