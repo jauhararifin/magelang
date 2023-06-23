@@ -1,3 +1,4 @@
+mod assignable;
 mod builtin;
 mod db;
 mod def;
@@ -8,8 +9,8 @@ mod scope;
 mod symbol;
 mod ty;
 mod value;
-mod assignable;
 
+pub use assignable::{get_assignable_from_ast, Assignable, AssignableKind};
 pub use db::Db;
 pub use expr::{Expr, ExprKind};
 pub use scope::Object;

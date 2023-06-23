@@ -129,4 +129,8 @@ pub trait ErrorAccumulator {
     fn no_such_field(&self, loc: Loc, name: &str) {
         self.report_error(loc, format!("There is no field called {name}"))
     }
+
+    fn not_assignable(&self, loc: Loc) {
+        self.report_error(loc, String::from("Expression is not assignable"));
+    }
 }
