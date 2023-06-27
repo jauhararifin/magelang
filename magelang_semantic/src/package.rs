@@ -1,6 +1,6 @@
-use crate::error::{ErrorAccumulator, Location};
+use crate::ast::{AstDb, AstInfo};
+use crate::error::ErrorAccumulator;
 use crate::symbol::{SymbolDb, SymbolId};
-use magelang_syntax::{parse, PackageNode, Pos};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -23,49 +23,10 @@ impl From<PackageId> for SymbolId {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
-pub struct PathId(usize);
-
-impl From<usize> for PathId {
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
-
-impl From<PathId> for usize {
-    fn from(value: PathId) -> Self {
-        value.0
-    }
-}
-
-pub struct AstInfo {
-    pub root: PackageNode,
-    pub path: PathId,
-    pub lines: Rc<[usize]>,
-}
-
-pub trait PackageDb: SymbolDb + ErrorAccumulator {
-    fn define_path(&self, path: Rc<Path>) -> PathId;
-    fn get_path(&self, path_id: PathId) -> Rc<Path>;
-
+pub trait PackageDb: AstDb + SymbolDb + ErrorAccumulator {
     fn get_stdlib_path(&self) -> Rc<Path>;
     fn get_package_path(&self, package_id: PackageId) -> Rc<Path>;
     fn get_package_ast(&self, package_id: PackageId) -> Rc<AstInfo>;
-
-    fn get_location(&self, ast_info: &AstInfo, pos: Pos) -> Location {
-        let path = self.get_path(ast_info.path);
-        let offset: usize = pos.into();
-        let partition = ast_info.lines.partition_point(|line| *line < offset);
-        let line = partition + 1;
-        let line_offset = ast_info
-            .lines
-            .get(partition)
-            .or(ast_info.lines.last())
-            .cloned()
-            .unwrap_or_default();
-        let col = offset - line_offset;
-        Location { path, line, col }
-    }
 }
 
 pub fn get_package_path(db: &impl PackageDb, package_name: PackageId) -> Rc<Path> {
@@ -149,27 +110,5 @@ fn get_stdlib_path_from_current_home() -> PathBuf {
 pub fn get_ast_by_package(db: &impl PackageDb, package_id: PackageId) -> Rc<AstInfo> {
     let path = db.get_package_path(package_id);
     let path_id = db.define_path(path.clone());
-
-    let text: Rc<[u8]> = match std::fs::read(&path) {
-        Ok(content) => content.into(),
-        Err(io_err) => {
-            db.cannot_open_file(path_id, &io_err);
-            Rc::new([])
-        }
-    };
-
-    let mut lines = Vec::default();
-    for (i, c) in text.iter().enumerate() {
-        if *c == '\n' as u8 {
-            lines.push(i);
-        }
-    }
-
-    let parse_result = parse(&text);
-
-    Rc::new(AstInfo {
-        root: parse_result.root,
-        path: path_id,
-        lines: lines.into(),
-    })
+    db.get_ast_by_path(path_id)
 }

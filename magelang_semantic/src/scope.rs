@@ -1,13 +1,13 @@
+use crate::ast::{
+    ExprNode, FunctionNode, ImportNode, ItemNode, Location, SignatureNode, StructNode, TypeParameterNode,
+};
 use crate::def::{DefId, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
-use crate::error::{ErrorAccumulator, Loc, Location};
-use crate::package::{AstInfo, PackageDb, PackageId, PathId};
+use crate::error::ErrorAccumulator;
+use crate::package::{PackageDb, PackageId};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{TypeDb, TypeId};
 use crate::value::value_from_string_lit;
 use indexmap::IndexMap;
-use magelang_syntax::{
-    AstNode, ExprNode, FunctionNode, ImportNode, ItemNode, SignatureNode, StructNode, TypeParameterNode,
-};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -140,9 +140,7 @@ pub fn get_package_scope(db: &impl ScopeDb, package_id: PackageId) -> Rc<Scope> 
         }
 
         let object = match item.as_ref() {
-            ItemNode::Import(node) => get_imported_package(db, ast_info.path, node)
-                .map(Object::Import)
-                .unwrap_or_default(),
+            ItemNode::Import(node) => get_imported_package(db, node).map(Object::Import).unwrap_or_default(),
             ItemNode::Struct(node) => object_from_struct_node(db, def_id, node),
             ItemNode::Global(..) => Object::Global(def_id.into()),
             ItemNode::Function(node) => object_from_func_node(db, def_id, node),
@@ -215,10 +213,10 @@ fn object_from_signature_node(db: &impl ScopeDb, def_id: DefId, node: &Signature
     }
 }
 
-fn get_imported_package(db: &impl ScopeDb, path_id: PathId, import_node: &ImportNode) -> Option<PackageId> {
+fn get_imported_package(db: &impl ScopeDb, import_node: &ImportNode) -> Option<PackageId> {
     let package_name = value_from_string_lit(&import_node.path.value)?;
     let Ok(package_name) = String::from_utf8(package_name.as_ref().into()) else {
-        db.invalid_utf8_package(Loc::new(path_id, import_node.path.pos));
+        db.invalid_utf8_package(import_node.path.loc);
         return None;
     };
     let package_name = db.define_symbol(package_name.into());
@@ -246,7 +244,6 @@ pub fn get_object_from_expr(db: &impl ScopeDb, scope: &Rc<Scope>, node: &ExprNod
 
 pub fn get_typeparams_scope(
     db: &(impl ScopeDb + TypeDb),
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     type_params: &[TypeParameterNode],
 ) -> Rc<Scope> {
@@ -255,10 +252,10 @@ pub fn get_typeparams_scope(
     for type_param in type_params {
         let name = db.define_symbol(type_param.name.value.clone());
         if let Some(location) = declared_at.get(&name) {
-            let loc = Loc::new(ast_info.path, type_param.get_pos());
+            let loc = type_param.name.loc;
             db.redeclared_symbol(&type_param.name.value, location, loc);
         } else {
-            let location = db.get_location(ast_info, type_param.get_pos());
+            let location = db.get_location(type_param.name.loc);
             declared_at.insert(name, location);
             let type_id = db.define_generic_arg_type(name);
             symbol_table.insert(name, Object::Type(type_id));
@@ -267,3 +264,4 @@ pub fn get_typeparams_scope(
 
     scope.new_child(ScopeKind::Basic, symbol_table)
 }
+

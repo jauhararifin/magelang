@@ -1,13 +1,12 @@
+use crate::ast::{SignatureNode, TagNode};
 use crate::def::{FuncId, GenFuncId};
-use crate::error::Loc;
 use crate::expr::ExprDb;
-use crate::package::AstInfo;
 use crate::scope::{Object, Scope, ScopeKind};
 use crate::symbol::SymbolId;
 use crate::ty::{get_type_from_expr, substitute_type_with_typeargs, IntType, Type, TypeArgsId, TypeId};
 use crate::value::value_from_string_lit;
 use indexmap::IndexMap;
-use magelang_syntax::{AstNode, SignatureNode, TagNode, TokenKind};
+use magelang_syntax::TokenKind;
 use std::collections::HashMap;
 use std::iter::zip;
 use std::rc::Rc;
@@ -27,7 +26,6 @@ pub trait NativeDb: ExprDb {
 }
 
 pub fn get_native_func(db: &impl NativeDb, func_id: FuncId) -> NativeFunc {
-    let ast_info = db.get_package_ast(func_id.package());
     let func_node = db.get_ast_by_def_id(func_id.into()).expect("ast not found");
     let signature = func_node
         .as_native_function()
@@ -46,19 +44,14 @@ pub fn get_native_func(db: &impl NativeDb, func_id: FuncId) -> NativeFunc {
         let linkname = tag_map.get("linkname").unwrap();
 
         if linkname.arguments.len() != 1 {
-            db.wrong_number_of_tag_arguments(
-                Loc::new(ast_info.path, linkname.get_pos()),
-                "linkname",
-                1,
-                linkname.arguments.len(),
-            );
+            db.wrong_number_of_tag_arguments(linkname.loc, "linkname", 1, linkname.arguments.len());
             return NativeFunc::Invalid;
         }
 
         let value_tok = linkname.arguments.first().unwrap();
         if value_tok.kind != TokenKind::StringLit {
             db.report_error(
-                Loc::new(ast_info.path, linkname.get_pos()),
+                linkname.loc,
                 format!("Expected string literal as linkname, but found {}", value_tok.kind),
             );
             return NativeFunc::Invalid;
@@ -70,13 +63,12 @@ pub fn get_native_func(db: &impl NativeDb, func_id: FuncId) -> NativeFunc {
 
         NativeFunc::Link(linkname)
     } else {
-        db.invalid_native_func(Loc::new(ast_info.path, signature.get_pos()));
+        db.invalid_native_func(signature.loc);
         NativeFunc::Invalid
     }
 }
 
 pub fn get_generic_native_func(db: &impl NativeDb, gen_func_id: GenFuncId) -> NativeFunc {
-    let ast_info = db.get_package_ast(gen_func_id.package());
     let func_node = db.get_ast_by_def_id(gen_func_id.into()).expect("ast not found");
     let signature = func_node
         .as_native_function()
@@ -93,61 +85,43 @@ pub fn get_generic_native_func(db: &impl NativeDb, gen_func_id: GenFuncId) -> Na
 
     let scope = db.get_package_scope(gen_func_id.package());
     if tag_map.contains_key("builtin_size_of") {
-        let type_id = check_builtin_sizeof(db, &ast_info, &scope, signature);
+        let type_id = check_builtin_sizeof(db, &scope, signature);
         NativeFunc::SizeOf(type_id)
     } else if tag_map.contains_key("builtin_align_of") {
-        let type_id = check_builtin_alignof(db, &ast_info, &scope, signature);
+        let type_id = check_builtin_alignof(db, &scope, signature);
         NativeFunc::AlignOf(type_id)
     } else {
-        db.invalid_native_func(Loc::new(ast_info.path, signature.get_pos()));
+        db.invalid_native_func(signature.loc);
         NativeFunc::Invalid
     }
 }
 
-fn check_builtin_sizeof(
-    db: &impl NativeDb,
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    signature: &SignatureNode,
-) -> TypeId {
-    check_builtin_alignof(db, ast_info, scope, signature)
+fn check_builtin_sizeof(db: &impl NativeDb, scope: &Rc<Scope>, signature: &SignatureNode) -> TypeId {
+    check_builtin_alignof(db, scope, signature)
 }
 
-fn check_builtin_alignof(
-    db: &impl NativeDb,
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    signature: &SignatureNode,
-) -> TypeId {
+fn check_builtin_alignof(db: &impl NativeDb, scope: &Rc<Scope>, signature: &SignatureNode) -> TypeId {
     if !signature.parameters.is_empty() {
-        db.wrong_number_of_arguments(
-            Loc::new(ast_info.path, signature.get_pos()),
-            0,
-            signature.parameters.len(),
-        );
+        db.wrong_number_of_arguments(signature.loc, 0, signature.parameters.len());
     }
     let return_type = signature
         .return_type
         .as_ref()
-        .map(|type_expr| get_type_from_expr(db, ast_info, scope, type_expr))
+        .map(|type_expr| get_type_from_expr(db, scope, type_expr))
         .unwrap_or(db.define_void_type());
 
     let expected_return_type = Type::Int(IntType::usize());
     let expected_return_type_id = db.define_type(Rc::new(expected_return_type));
     if return_type != expected_return_type_id {
         db.invalid_signature_return_type(
-            Loc::new(ast_info.path, signature.get_pos()),
+            signature.loc,
             db.get_type(expected_return_type_id).display(db),
             db.get_type(return_type).display(db),
         );
     }
 
     if signature.type_params.len() != 1 {
-        db.wrong_number_of_type_arguments(
-            Loc::new(ast_info.path, signature.get_pos()),
-            1,
-            signature.type_params.len(),
-        );
+        db.wrong_number_of_type_arguments(signature.loc, 1, signature.type_params.len());
         return db.define_unknown_type();
     }
 

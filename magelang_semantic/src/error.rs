@@ -1,30 +1,7 @@
-use crate::package::PathId;
+use crate::ast::{Loc, Location, PathId};
 use magelang_syntax::Pos;
 use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
-use std::path::Path;
-use std::rc::Rc;
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct Loc(PathId, Pos);
-
-impl Loc {
-    pub fn new(path: PathId, pos: Pos) -> Self {
-        Self(path, pos)
-    }
-}
-
-pub struct Location {
-    pub path: Rc<Path>,
-    pub line: usize,
-    pub col: usize,
-}
-
-impl Display for Location {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}:{}:{}", self.path.as_os_str(), self.line, self.col)
-    }
-}
 
 pub trait ErrorAccumulator {
     fn report_error(&self, pos: Loc, error: String);

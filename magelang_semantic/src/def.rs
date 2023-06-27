@@ -1,8 +1,8 @@
-use crate::error::{ErrorAccumulator, Loc, Location};
+use crate::ast::{ItemNode, Location};
+use crate::error::ErrorAccumulator;
 use crate::package::{PackageDb, PackageId};
 use crate::symbol::{SymbolDb, SymbolId};
 use indexmap::IndexMap;
-use magelang_syntax::{AstNode, ItemNode};
 use std::rc::Rc;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Copy)]
@@ -126,12 +126,12 @@ pub fn get_items_by_package(db: &impl DefDb, package_id: PackageId) -> Rc<IndexM
     let mut name_to_ast: IndexMap<SymbolId, Rc<ItemNode>> = IndexMap::default();
     for item in &ast_info.root.items {
         let name = db.define_symbol(item.name().into());
-        let loc = Loc::new(ast_info.path, item.get_pos());
+        let loc = item.get_loc();
         if let Some(declared_at) = name_to_pos.get(&name) {
             db.redeclared_symbol(item.name(), declared_at, loc);
         } else {
             name_to_ast.insert(name, item.clone());
-            let location = db.get_location(&ast_info, item.get_pos());
+            let location = db.get_location(loc);
             name_to_pos.insert(name, location);
         }
     }

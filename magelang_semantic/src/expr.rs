@@ -1,14 +1,13 @@
+use crate::ast::{
+    BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ExprNode, IndexExprNode, SelectionExprNode,
+    StructLitNode, Token, UnaryExprNode,
+};
 use crate::def::{DefDb, FuncId, GenFuncId, GlobalId};
-use crate::error::Loc;
-use crate::package::AstInfo;
 use crate::scope::{get_object_from_expr, Object, Scope, ScopeDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{get_type_from_expr, is_assignable, BitSize, FloatSize, FloatType, IntType, Type, TypeArgsId, TypeId};
 use crate::value::value_from_string_lit;
-use magelang_syntax::{
-    AstNode, BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ExprNode, IndexExprNode, SelectionExprNode,
-    StructLitNode, Token, TokenKind, UnaryExprNode,
-};
+use magelang_syntax::TokenKind;
 use std::collections::HashMap;
 use std::iter::zip;
 use std::rc::Rc;
@@ -82,11 +81,10 @@ pub trait ExprDb: SymbolDb + DefDb + ScopeDb {
 pub fn get_global_expr(db: &impl ExprDb, global_id: GlobalId) -> Rc<Expr> {
     let node = db.get_ast_by_def_id(global_id.into()).expect("item is not a global");
     let node = node.as_global().expect("item is not a global");
-    let ast_info = db.get_package_ast(global_id.package());
     let scope = db.get_package_scope(global_id.package());
     let type_id = db.get_global_type_id(global_id);
     if let Some(ref value) = node.value {
-        Rc::new(get_expr_from_ast(db, &ast_info, &scope, value, Some(type_id)))
+        Rc::new(get_expr_from_ast(db, &scope, value, Some(type_id)))
     } else {
         Rc::new(Expr {
             type_id,
@@ -97,28 +95,27 @@ pub fn get_global_expr(db: &impl ExprDb, global_id: GlobalId) -> Rc<Expr> {
 
 pub fn get_expr_from_ast(
     db: &impl ExprDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     expr_node: &ExprNode,
     expected_type: Option<TypeId>,
 ) -> Expr {
     match expr_node {
-        ExprNode::Ident(token) => get_expr_from_ident_node(db, ast_info, scope, token),
-        ExprNode::IntegerLiteral(integer_lit) => get_expr_from_int_node(db, ast_info, integer_lit, expected_type),
-        ExprNode::RealLiteral(token) => get_expr_from_float_node(db, ast_info, token, expected_type),
+        ExprNode::Ident(token) => get_expr_from_ident_node(db, scope, token),
+        ExprNode::IntegerLiteral(integer_lit) => get_expr_from_int_node(db, integer_lit, expected_type),
+        ExprNode::RealLiteral(token) => get_expr_from_float_node(db, token, expected_type),
         ExprNode::BooleanLit(token) => get_expr_from_bool_node(db, token),
         ExprNode::StringLit(token) => get_expr_from_string_lit_node(db, token),
-        ExprNode::Binary(node) => get_expr_from_binary_node(db, ast_info, scope, node, expected_type),
-        ExprNode::Deref(node) => get_expr_from_deref_node(db, ast_info, scope, node),
-        ExprNode::Unary(node) => get_expr_from_unary_node(db, ast_info, scope, node, expected_type),
-        ExprNode::Call(node) => get_expr_from_call_node(db, ast_info, scope, node),
-        ExprNode::Cast(node) => get_expr_from_cast_node(db, ast_info, scope, node),
-        ExprNode::StructLit(node) => get_expr_from_struct_lit_node(db, ast_info, scope, node),
-        ExprNode::Selection(node) => get_expr_from_selection_node(db, ast_info, scope, node),
-        ExprNode::Index(node) => get_expr_from_index_node(db, ast_info, scope, node),
-        ExprNode::Grouped(node) => get_expr_from_ast(db, ast_info, scope, &node.value, expected_type),
+        ExprNode::Binary(node) => get_expr_from_binary_node(db, scope, node, expected_type),
+        ExprNode::Deref(node) => get_expr_from_deref_node(db, scope, node),
+        ExprNode::Unary(node) => get_expr_from_unary_node(db, scope, node, expected_type),
+        ExprNode::Call(node) => get_expr_from_call_node(db, scope, node),
+        ExprNode::Cast(node) => get_expr_from_cast_node(db, scope, node),
+        ExprNode::StructLit(node) => get_expr_from_struct_lit_node(db, scope, node),
+        ExprNode::Selection(node) => get_expr_from_selection_node(db, scope, node),
+        ExprNode::Index(node) => get_expr_from_index_node(db, scope, node),
+        ExprNode::Grouped(node) => get_expr_from_ast(db, scope, &node.value, expected_type),
         ExprNode::ArrayPtr(node) => {
-            db.not_a_value(Loc::new(ast_info.path, node.get_pos()));
+            db.not_a_value(node.loc);
             Expr {
                 type_id: db.define_unknown_type(),
                 kind: ExprKind::Invalid,
@@ -127,10 +124,10 @@ pub fn get_expr_from_ast(
     }
 }
 
-fn get_expr_from_ident_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Scope, token: &Token) -> Expr {
+fn get_expr_from_ident_node(db: &impl ExprDb, scope: &Scope, token: &Token) -> Expr {
     let name = db.define_symbol(token.value.clone());
     let Some(object) = scope.get(name) else {
-        db.undeclared_symbol(Loc::new(ast_info.path, token.pos), &token.value);
+        db.undeclared_symbol(token.loc, &token.value);
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -143,7 +140,7 @@ fn get_expr_from_ident_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Scope,
         | Object::GenericStruct { .. }
         | Object::GenericFunc { .. }
         | Object::Type(..) => {
-            db.not_a_value(Loc::new(ast_info.path, token.pos));
+            db.not_a_value(token.loc);
             Expr {
                 type_id: db.define_unknown_type(),
                 kind: ExprKind::Invalid,
@@ -164,7 +161,7 @@ fn get_expr_from_ident_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Scope,
     }
 }
 
-fn get_expr_from_int_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, expected_type: Option<TypeId>) -> Expr {
+fn get_expr_from_int_node(db: &impl ExprDb, tok: &Token, expected_type: Option<TypeId>) -> Expr {
     let expected_type = expected_type.map(|type_id| db.get_type(type_id));
     let mut expected_type = expected_type.unwrap_or(Rc::new(Type::Int(IntType::i64())));
 
@@ -191,7 +188,7 @@ fn get_expr_from_int_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, exp
     let kind = match kind {
         Ok(v) => v,
         Err(err) => {
-            db.invalid_int_literal(Loc::new(ast_info.path, tok.pos), err);
+            db.invalid_int_literal(tok.loc, err);
             ExprKind::Invalid
         }
     };
@@ -200,7 +197,7 @@ fn get_expr_from_int_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, exp
     Expr { type_id, kind }
 }
 
-fn get_expr_from_float_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, expected_type: Option<TypeId>) -> Expr {
+fn get_expr_from_float_node(db: &impl ExprDb, tok: &Token, expected_type: Option<TypeId>) -> Expr {
     let expected_type = expected_type.map(|type_id| db.get_type(type_id));
     let expected_type = expected_type.unwrap_or(Rc::new(Type::Float(FloatType::f64())));
 
@@ -215,7 +212,7 @@ fn get_expr_from_float_node(db: &impl ExprDb, ast_info: &AstInfo, tok: &Token, e
     let kind = match kind {
         Ok(v) => v,
         Err(err) => {
-            db.invalid_float_literal(Loc::new(ast_info.path, tok.pos), err);
+            db.invalid_float_literal(tok.loc, err);
             ExprKind::Invalid
         }
     };
@@ -255,13 +252,12 @@ fn get_expr_from_string_lit_node(db: &impl ExprDb, token: &Token) -> Expr {
 
 fn get_expr_from_binary_node(
     db: &impl ExprDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     node: &BinaryExprNode,
     expected_type: Option<TypeId>,
 ) -> Expr {
-    let a = get_expr_from_ast(db, ast_info, scope, &node.a, expected_type);
-    let b = get_expr_from_ast(db, ast_info, scope, &node.b, Some(a.type_id));
+    let a = get_expr_from_ast(db, scope, &node.a, expected_type);
+    let b = get_expr_from_ast(db, scope, &node.b, Some(a.type_id));
 
     let op_name = match node.op.kind {
         TokenKind::Add => "add",
@@ -296,12 +292,7 @@ fn get_expr_from_binary_node(
     let b_ty = db.get_type(b.type_id);
 
     if a_ty != b_ty {
-        db.binop_type_mismatch(
-            Loc::new(ast_info.path, node.get_pos()),
-            op_name,
-            a_ty.display(db),
-            b_ty.display(db),
-        );
+        db.binop_type_mismatch(node.a.get_loc(), op_name, a_ty.display(db), b_ty.display(db));
         return Expr {
             type_id: estimated_type,
             kind: ExprKind::Invalid,
@@ -313,7 +304,7 @@ fn get_expr_from_binary_node(
             if a_ty.is_arithmetic() {
                 a_ty.as_ref().clone()
             } else {
-                db.binop_type_unsupported(Loc::new(ast_info.path, node.get_pos()), op_name, a_ty.display(db));
+                db.binop_type_unsupported(node.a.get_loc(), op_name, a_ty.display(db));
                 Type::Unknown
             }
         }
@@ -322,7 +313,7 @@ fn get_expr_from_binary_node(
             if a_ty.is_arithmetic() {
                 Type::Bool
             } else {
-                db.binop_type_unsupported(Loc::new(ast_info.path, node.get_pos()), op_name, a_ty.display(db));
+                db.binop_type_unsupported(node.a.get_loc(), op_name, a_ty.display(db));
                 Type::Unknown
             }
         }
@@ -335,7 +326,7 @@ fn get_expr_from_binary_node(
             if a_ty.is_int() {
                 a_ty.as_ref().clone()
             } else {
-                db.binop_type_unsupported(Loc::new(ast_info.path, node.get_pos()), op_name, a_ty.display(db));
+                db.binop_type_unsupported(node.a.get_loc(), op_name, a_ty.display(db));
                 Type::Unknown
             }
         }
@@ -343,7 +334,7 @@ fn get_expr_from_binary_node(
             if a_ty.is_bool() {
                 Type::Bool
             } else {
-                db.binop_type_unsupported(Loc::new(ast_info.path, node.get_pos()), op_name, a_ty.display(db));
+                db.binop_type_unsupported(node.a.get_loc(), op_name, a_ty.display(db));
                 Type::Unknown
             }
         }
@@ -381,11 +372,11 @@ fn get_expr_from_binary_node(
     }
 }
 
-fn get_expr_from_deref_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scope>, node: &DerefExprNode) -> Expr {
-    let value_ref = get_expr_from_ast(db, ast_info, scope, &node.value, None);
+fn get_expr_from_deref_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &DerefExprNode) -> Expr {
+    let value_ref = get_expr_from_ast(db, scope, &node.value, None);
     let value_ref_ty = db.get_type(value_ref.type_id);
     let Type::Pointer(element_type_id) = value_ref_ty.as_ref() else {
-        db.cannot_deref_non_pointer(Loc::new(ast_info.path, node.value.get_pos()));
+        db.cannot_deref_non_pointer(node.loc);
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -399,12 +390,11 @@ fn get_expr_from_deref_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Sco
 
 fn get_expr_from_unary_node(
     db: &impl ExprDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     node: &UnaryExprNode,
     expected_type: Option<TypeId>,
 ) -> Expr {
-    let value = get_expr_from_ast(db, ast_info, scope, &node.value, expected_type);
+    let value = get_expr_from_ast(db, scope, &node.value, expected_type);
     let ty = db.get_type(value.type_id);
 
     let op_name = match node.op.kind {
@@ -430,7 +420,7 @@ fn get_expr_from_unary_node(
     };
 
     if !is_valid {
-        db.unop_type_unsupported(Loc::new(ast_info.path, node.get_pos()), op_name, ty.display(db));
+        db.unop_type_unsupported(node.op.loc, op_name, ty.display(db));
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -440,11 +430,11 @@ fn get_expr_from_unary_node(
     Expr { type_id, kind }
 }
 
-fn get_expr_from_call_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scope>, node: &CallExprNode) -> Expr {
-    let func_expr = get_expr_from_ast(db, ast_info, scope, &node.target, None);
+fn get_expr_from_call_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &CallExprNode) -> Expr {
+    let func_expr = get_expr_from_ast(db, scope, &node.target, None);
     let func_type = db.get_type(func_expr.type_id);
     let Some(func_type) = func_type.as_func() else {
-        db.not_callable(Loc::new(ast_info.path, node.target.get_pos()));
+        db.not_callable(node.loc);
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -452,11 +442,7 @@ fn get_expr_from_call_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scop
     };
 
     if node.arguments.len() != func_type.params.len() {
-        db.wrong_number_of_arguments(
-            Loc::new(ast_info.path, node.pos.clone()),
-            func_type.params.len(),
-            node.arguments.len(),
-        );
+        db.wrong_number_of_arguments(node.loc, func_type.params.len(), node.arguments.len());
         return Expr {
             type_id: func_type.return_type,
             kind: ExprKind::Invalid,
@@ -467,10 +453,10 @@ fn get_expr_from_call_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scop
     for (param, arg) in zip(func_type.params.iter(), node.arguments.iter()) {
         let param_ty = db.get_type(*param);
 
-        let arg_expr = get_expr_from_ast(db, ast_info, scope, arg, Some(*param));
+        let arg_expr = get_expr_from_ast(db, scope, arg, Some(*param));
         if !is_assignable(db, *param, arg_expr.type_id) {
             db.type_mismatch(
-                Loc::new(ast_info.path, arg.get_pos()),
+                arg.get_loc(),
                 param_ty.display(db),
                 db.get_type(arg_expr.type_id).display(db),
             );
@@ -489,21 +475,17 @@ fn get_expr_from_call_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scop
     }
 }
 
-fn get_expr_from_cast_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scope>, node: &CastExprNode) -> Expr {
-    let target_type_id = get_type_from_expr(db, ast_info, scope, &node.target);
+fn get_expr_from_cast_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &CastExprNode) -> Expr {
+    let target_type_id = get_type_from_expr(db, scope, &node.target);
     let target_type = db.get_type(target_type_id);
 
-    let value = get_expr_from_ast(db, ast_info, scope, &node.value, None);
+    let value = get_expr_from_ast(db, scope, &node.value, None);
     let value_type = db.get_type(value.type_id);
 
     let kind = if value_type.is_arithmetic() && target_type.is_arithmetic() {
         ExprKind::Cast(Box::new(value), target_type_id)
     } else {
-        db.unsupported_casting(
-            Loc::new(ast_info.path, node.get_pos()),
-            value_type.display(db),
-            target_type.display(db),
-        );
+        db.unsupported_casting(node.value.get_loc(), value_type.display(db), target_type.display(db));
         ExprKind::Invalid
     };
 
@@ -513,31 +495,31 @@ fn get_expr_from_cast_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scop
     }
 }
 
-fn get_expr_from_index_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Scope>, node: &IndexExprNode) -> Expr {
-    if let Some(expr) = get_func_instance_from_expr(db, ast_info, scope, node) {
+fn get_expr_from_index_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &IndexExprNode) -> Expr {
+    if let Some(expr) = get_func_instance_from_expr(db, scope, node) {
         return expr;
     }
 
-    let value = get_expr_from_ast(db, ast_info, scope, &node.value, None);
+    let value = get_expr_from_ast(db, scope, &node.value, None);
     let ty = db.get_type(value.type_id);
     match ty.as_ref() {
         Type::ArrayPtr(element_type_id) => {
             if node.index.is_empty() {
-                db.unexpected_index_num(Loc::new(ast_info.path, node.get_pos()), 1, 0);
+                db.unexpected_index_num(node.value.get_loc(), 1, 0);
                 return Expr {
                     type_id: *element_type_id,
                     kind: ExprKind::Invalid,
                 };
             }
             if node.index.len() != 1 {
-                db.unexpected_index_num(Loc::new(ast_info.path, node.get_pos()), 1, node.index.len());
+                db.unexpected_index_num(node.value.get_loc(), 1, node.index.len());
             }
 
-            let index = get_expr_from_ast(db, ast_info, scope, &node.index[0], None);
+            let index = get_expr_from_ast(db, scope, &node.index[0], None);
             let index_type = db.get_type(index.type_id);
 
             if !index_type.is_int() {
-                db.non_int_index(Loc::new(ast_info.path, node.index[0].get_pos()));
+                db.non_int_index(node.index[0].get_loc());
                 return Expr {
                     type_id: *element_type_id,
                     kind: ExprKind::Invalid,
@@ -551,7 +533,7 @@ fn get_expr_from_index_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Sco
         }
         Type::Unknown => value,
         _ => {
-            db.not_indexable(Loc::new(ast_info.path, node.get_pos()));
+            db.not_indexable(node.value.get_loc());
             Expr {
                 type_id: db.define_unknown_type(),
                 kind: ExprKind::Invalid,
@@ -560,29 +542,20 @@ fn get_expr_from_index_node(db: &impl ExprDb, ast_info: &AstInfo, scope: &Rc<Sco
     }
 }
 
-fn get_func_instance_from_expr(
-    db: &impl ExprDb,
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &IndexExprNode,
-) -> Option<Expr> {
+fn get_func_instance_from_expr(db: &impl ExprDb, scope: &Rc<Scope>, node: &IndexExprNode) -> Option<Expr> {
     let object = get_object_from_expr(db, scope, &node.value);
     let Object::GenericFunc{typeparams, gen_func_id, is_native: _} = object else {
         return None;
     };
 
     if typeparams.len() != node.index.len() {
-        db.wrong_number_of_type_arguments(
-            Loc::new(ast_info.path, node.get_pos()),
-            typeparams.len(),
-            node.index.len(),
-        );
+        db.wrong_number_of_type_arguments(node.value.get_loc(), typeparams.len(), node.index.len());
     }
 
     let typeargs: Rc<[TypeId]> = node
         .index
         .iter()
-        .map(|node| get_type_from_expr(db, ast_info, scope, node))
+        .map(|node| get_type_from_expr(db, scope, node))
         .collect();
     let typeargs_id = db.define_typeargs(typeargs);
 
@@ -592,17 +565,12 @@ fn get_func_instance_from_expr(
     })
 }
 
-fn get_expr_from_struct_lit_node(
-    db: &impl ExprDb,
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &StructLitNode,
-) -> Expr {
-    let type_id = get_type_from_expr(db, ast_info, scope, &node.target);
+fn get_expr_from_struct_lit_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &StructLitNode) -> Expr {
+    let type_id = get_type_from_expr(db, scope, &node.target);
     let ty = db.get_type(type_id);
 
     if !ty.is_struct() {
-        db.not_a_struct(Loc::new(ast_info.path, node.target.get_pos()), ty.display(db));
+        db.not_a_struct(node.loc, ty.display(db));
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -615,14 +583,14 @@ fn get_expr_from_struct_lit_node(
     for element in &node.elements {
         let field_name = db.define_symbol(element.key.value.clone());
         let type_id = struct_field.fields.get(&field_name).cloned().unwrap_or_else(|| {
-            db.no_such_field(Loc::new(ast_info.path, element.key.pos), &element.key.value);
+            db.no_such_field(element.key.loc, &element.key.value);
             db.define_unknown_type()
         });
-        let value = get_expr_from_ast(db, ast_info, scope, &element.value, Some(type_id));
+        let value = get_expr_from_ast(db, scope, &element.value, Some(type_id));
 
         let value = if !is_assignable(db, value.type_id, type_id) {
             db.type_mismatch(
-                Loc::new(ast_info.path, element.value.get_pos()),
+                element.value.get_loc(),
                 db.get_type(type_id).display(db),
                 db.get_type(value.type_id).display(db),
             );
@@ -655,17 +623,12 @@ fn get_expr_from_struct_lit_node(
     }
 }
 
-fn get_expr_from_selection_node(
-    db: &impl ExprDb,
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &SelectionExprNode,
-) -> Expr {
-    if let Some(expr) = get_expr_from_package_selection(db, ast_info, scope, node) {
+fn get_expr_from_selection_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &SelectionExprNode) -> Expr {
+    if let Some(expr) = get_expr_from_package_selection(db, scope, node) {
         return expr;
     }
 
-    let mut value_expr = get_expr_from_ast(db, ast_info, scope, &node.value, None);
+    let mut value_expr = get_expr_from_ast(db, scope, &node.value, None);
     while let Type::Pointer(element_type_id) = db.get_type(value_expr.type_id).as_ref() {
         value_expr = Expr {
             type_id: *element_type_id,
@@ -675,7 +638,7 @@ fn get_expr_from_selection_node(
 
     let value_type = db.get_type(value_expr.type_id);
     if !value_type.is_struct() {
-        db.not_a_struct(Loc::new(ast_info.path, node.get_pos()), value_type.display(db));
+        db.not_a_struct(node.value.get_loc(), value_type.display(db));
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -685,7 +648,7 @@ fn get_expr_from_selection_node(
 
     let selection_id = db.define_symbol(node.selection.value.clone());
     let Some((idx, _, type_id)) = struct_field.fields.get_full(&selection_id) else {
-        db.no_such_field(Loc::new(ast_info.path, node.selection.pos), &node.selection.value);
+        db.no_such_field(node.selection.loc, &node.selection.value);
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,
@@ -697,12 +660,7 @@ fn get_expr_from_selection_node(
     }
 }
 
-fn get_expr_from_package_selection(
-    db: &impl ExprDb,
-    ast_info: &AstInfo,
-    scope: &Scope,
-    node: &SelectionExprNode,
-) -> Option<Expr> {
+fn get_expr_from_package_selection(db: &impl ExprDb, scope: &Scope, node: &SelectionExprNode) -> Option<Expr> {
     let ExprNode::Ident(token) = node.value.as_ref() else { return None; };
     let ident_name = db.define_symbol(token.value.clone());
     let value_object = scope.get(ident_name)?;
@@ -710,7 +668,7 @@ fn get_expr_from_package_selection(
     let package_scope = db.get_package_scope(package_name);
     let selection_name = db.define_symbol(node.selection.value.clone());
     let Some(object) = package_scope.get(selection_name) else {
-        db.undeclared_symbol(Loc::new(ast_info.path, node.selection.pos), &node.selection.value);
+        db.undeclared_symbol(node.selection.loc, &node.selection.value);
         return Some(Expr{type_id: db.define_unknown_type(), kind: ExprKind::Invalid});
     };
 
@@ -720,7 +678,7 @@ fn get_expr_from_package_selection(
         | Object::GenericFunc { .. }
         | Object::GenericStruct { .. }
         | Object::Type(..) => {
-            db.not_a_value(Loc::new(ast_info.path, node.selection.pos));
+            db.not_a_value(node.selection.loc);
             Expr {
                 type_id: db.define_unknown_type(),
                 kind: ExprKind::Invalid,

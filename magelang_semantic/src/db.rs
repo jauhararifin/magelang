@@ -1,9 +1,10 @@
+use crate::ast::{get_ast_by_path, AstDb, AstInfo, ItemNode, Loc, PathId};
 use crate::builtin::get_builtin_scope;
 use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId};
-use crate::error::{ErrorAccumulator, Loc};
+use crate::error::ErrorAccumulator;
 use crate::expr::{get_global_expr, Expr, ExprDb};
 use crate::native::{get_generic_native_func, get_generic_native_func_inst, get_native_func, NativeDb, NativeFunc};
-use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, AstInfo, PackageDb, PackageId, PathId};
+use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, PackageDb, PackageId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, FuncBody, StatementDb};
 use crate::symbol::{SymbolDb, SymbolId};
@@ -12,7 +13,6 @@ use crate::ty::{
     StructField, StructTypeId, Type, TypeArgsId, TypeDb, TypeId,
 };
 use indexmap::IndexMap;
-use magelang_syntax::ItemNode;
 use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
@@ -26,10 +26,12 @@ pub struct Db {
 
     symbol_interner: Interner<Rc<str>>,
 
-    path_interner: Interner<Rc<Path>>,
     stdlib_cache: OnceCell<Rc<Path>>,
     package_cache: Cache<PackageId, Rc<Path>>,
     ast_cache: Cache<PackageId, Rc<AstInfo>>,
+
+    path_interner: Interner<Rc<Path>>,
+    ast_by_path: Cache<PathId, Rc<AstInfo>>,
 
     package_items: Cache<PackageId, Rc<IndexMap<SymbolId, Rc<ItemNode>>>>,
 
@@ -72,14 +74,6 @@ impl SymbolDb for Db {
 }
 
 impl PackageDb for Db {
-    fn define_path(&self, path: Rc<Path>) -> PathId {
-        self.path_interner.define(path).into()
-    }
-
-    fn get_path(&self, path_id: PathId) -> Rc<Path> {
-        self.path_interner.get(path_id.into())
-    }
-
     fn get_stdlib_path(&self) -> Rc<Path> {
         self.stdlib_cache.get_or_init(get_stdlib_path).clone()
     }
@@ -92,6 +86,20 @@ impl PackageDb for Db {
     fn get_package_ast(&self, package_id: PackageId) -> Rc<AstInfo> {
         self.ast_cache
             .get_or_init(package_id, || get_ast_by_package(self, package_id))
+    }
+}
+
+impl AstDb for Db {
+    fn define_path(&self, path: Rc<Path>) -> PathId {
+        self.path_interner.define(path).into()
+    }
+
+    fn get_path(&self, path_id: PathId) -> Rc<Path> {
+        self.path_interner.get(path_id.into())
+    }
+
+    fn get_ast_by_path(&self, path_id: PathId) -> Rc<AstInfo> {
+        self.ast_by_path.get_or_init(path_id, || get_ast_by_path(self, path_id))
     }
 }
 

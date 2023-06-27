@@ -1,17 +1,15 @@
 use crate::assignable::{get_assignable_from_ast, Assignable};
+use crate::ast::{
+    AssignStatementNode, BlockStatementNode, ElseNode, IfStatementNode, LetKind, LetStatementNode, ReturnStatementNode,
+    SignatureNode, StatementNode, Token, WhileStatementNode,
+};
 use crate::def::{FuncId, GenFuncId};
-use crate::error::Loc;
 use crate::expr::{get_expr_from_ast, Expr, ExprDb, ExprKind};
 use crate::native::{NativeDb, NativeFunc};
-use crate::package::AstInfo;
 use crate::scope::{get_typeparams_scope, Object, Scope, ScopeKind};
 use crate::symbol::SymbolId;
 use crate::ty::{get_type_from_expr, is_assignable, Type, TypeArgsId};
 use indexmap::IndexMap;
-use magelang_syntax::{
-    AssignStatementNode, AstNode, BlockStatementNode, ElseNode, IfStatementNode, LetKind, LetStatementNode,
-    ReturnStatementNode, SignatureNode, StatementNode, Token, WhileStatementNode,
-};
 use std::iter::zip;
 use std::rc::Rc;
 
@@ -55,7 +53,6 @@ pub trait StatementDb: ExprDb {
 }
 
 pub fn get_func_body(db: &(impl StatementDb + NativeDb), func_id: FuncId) -> Rc<FuncBody> {
-    let ast_info = db.get_package_ast(func_id.package());
     let func_node = db.get_ast_by_def_id(func_id.into()).expect("ast not found");
 
     if func_node.is_native_function() {
@@ -70,38 +67,26 @@ pub fn get_func_body(db: &(impl StatementDb + NativeDb), func_id: FuncId) -> Rc<
     );
 
     let scope = db.get_package_scope(func_id.package());
-    let (scope, last_unused_local) = get_func_scope(db, &ast_info, &scope, &func_node.signature);
+    let (scope, last_unused_local) = get_func_scope(db, &scope, &func_node.signature);
 
-    let result = get_stmt_from_block_ast(
-        db,
-        &ast_info,
-        &scope,
-        last_unused_local,
-        ScopeKind::Basic,
-        &func_node.body,
-    );
+    let result = get_stmt_from_block_ast(db, &scope, last_unused_local, ScopeKind::Basic, &func_node.body);
 
     let return_type_id = scope.return_type().unwrap();
     let return_type = db.get_type(return_type_id);
     if !return_type.is_void() && !result.is_returning {
-        db.missing_return_statement(Loc::new(ast_info.path, func_node.body.get_pos()));
+        db.missing_return_statement(func_node.body.loc);
     }
 
     Rc::new(FuncBody::User(result.statement))
 }
 
-fn get_func_scope(
-    db: &impl StatementDb,
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    sign_node: &SignatureNode,
-) -> (Rc<Scope>, usize) {
+fn get_func_scope(db: &impl StatementDb, scope: &Rc<Scope>, sign_node: &SignatureNode) -> (Rc<Scope>, usize) {
     let mut symbol_table = IndexMap::<SymbolId, Object>::default();
     let mut last_unused_local = 0;
     for param in &sign_node.parameters {
         let name = db.define_symbol(param.name.value.clone());
         if !symbol_table.contains_key(&name) {
-            let type_id = get_type_from_expr(db, ast_info, scope, &param.type_expr);
+            let type_id = get_type_from_expr(db, scope, &param.type_expr);
             symbol_table.insert(
                 name,
                 Object::Local {
@@ -114,7 +99,7 @@ fn get_func_scope(
     }
 
     let return_type = if let Some(ref return_type_node) = sign_node.return_type {
-        get_type_from_expr(db, ast_info, scope, return_type_node)
+        get_type_from_expr(db, scope, return_type_node)
     } else {
         db.define_void_type()
     };
@@ -124,7 +109,6 @@ fn get_func_scope(
 }
 
 pub fn get_generic_func_body(db: &(impl StatementDb + NativeDb), gen_func_id: GenFuncId) -> Rc<FuncBody> {
-    let ast_info = db.get_package_ast(gen_func_id.package());
     let func_node = db.get_ast_by_def_id(gen_func_id.into()).expect("ast not found");
 
     if func_node.is_native_function() {
@@ -138,22 +122,15 @@ pub fn get_generic_func_body(db: &(impl StatementDb + NativeDb), gen_func_id: Ge
     );
 
     let scope = db.get_package_scope(gen_func_id.package());
-    let scope = get_typeparams_scope(db, &ast_info, &scope, &func_node.signature.type_params);
-    let (scope, last_unused_local) = get_func_scope(db, &ast_info, &scope, &func_node.signature);
+    let scope = get_typeparams_scope(db, &scope, &func_node.signature.type_params);
+    let (scope, last_unused_local) = get_func_scope(db, &scope, &func_node.signature);
 
-    let result = get_stmt_from_block_ast(
-        db,
-        &ast_info,
-        &scope,
-        last_unused_local,
-        ScopeKind::Basic,
-        &func_node.body,
-    );
+    let result = get_stmt_from_block_ast(db, &scope, last_unused_local, ScopeKind::Basic, &func_node.body);
 
     let return_type_id = scope.return_type().unwrap();
     let return_type = db.get_type(return_type_id);
     if !return_type.is_void() && !result.is_returning {
-        db.missing_return_statement(Loc::new(ast_info.path, func_node.body.get_pos()));
+        db.missing_return_statement(func_node.body.loc);
     }
 
     Rc::new(FuncBody::User(result.statement))
@@ -164,7 +141,6 @@ pub fn get_generic_func_inst_body(
     gen_func_id: GenFuncId,
     typeargs_id: TypeArgsId,
 ) -> Rc<FuncBody> {
-    let ast_info = db.get_package_ast(gen_func_id.package());
     let func_node = db.get_ast_by_def_id(gen_func_id.into()).expect("ast not found");
 
     if func_node.is_native_function() {
@@ -189,21 +165,14 @@ pub fn get_generic_func_inst_body(
     }
     let scope = scope.new_child(ScopeKind::Basic, type_table);
 
-    let (scope, last_unused_local) = get_func_scope(db, &ast_info, &scope, &func_node.signature);
+    let (scope, last_unused_local) = get_func_scope(db, &scope, &func_node.signature);
 
-    let result = get_stmt_from_block_ast(
-        db,
-        &ast_info,
-        &scope,
-        last_unused_local,
-        ScopeKind::Basic,
-        &func_node.body,
-    );
+    let result = get_stmt_from_block_ast(db, &scope, last_unused_local, ScopeKind::Basic, &func_node.body);
 
     let return_type_id = scope.return_type().unwrap();
     let return_type = db.get_type(return_type_id);
     if !return_type.is_void() && !result.is_returning {
-        db.missing_return_statement(Loc::new(ast_info.path, func_node.body.get_pos()));
+        db.missing_return_statement(func_node.body.loc);
     }
 
     Rc::new(FuncBody::User(result.statement))
@@ -218,30 +187,21 @@ struct StatementResult {
 
 fn get_stmt_from_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     node: &StatementNode,
 ) -> StatementResult {
     match node {
-        StatementNode::Let(node) => get_stmt_from_let_ast(db, ast_info, scope, last_unused_local, node),
-        StatementNode::Assign(node) => get_stmt_from_assign_ast(db, ast_info, scope, last_unused_local, node),
-        StatementNode::Block(node) => {
-            get_stmt_from_block_ast(db, ast_info, scope, last_unused_local, ScopeKind::Basic, node)
-        }
-        StatementNode::If(node) => get_stmt_from_if_ast(db, ast_info, scope, last_unused_local, node),
-        StatementNode::While(node) => get_stmt_from_while_ast(db, ast_info, scope, last_unused_local, node),
-        StatementNode::Continue(token) => get_stmt_from_continue_ast(db, ast_info, scope, last_unused_local, token),
-        StatementNode::Break(token) => get_stmt_from_break_ast(db, ast_info, scope, last_unused_local, token),
-        StatementNode::Return(node) => get_stmt_from_return_ast(db, ast_info, scope, last_unused_local, node),
+        StatementNode::Let(node) => get_stmt_from_let_ast(db, scope, last_unused_local, node),
+        StatementNode::Assign(node) => get_stmt_from_assign_ast(db, scope, last_unused_local, node),
+        StatementNode::Block(node) => get_stmt_from_block_ast(db, scope, last_unused_local, ScopeKind::Basic, node),
+        StatementNode::If(node) => get_stmt_from_if_ast(db, scope, last_unused_local, node),
+        StatementNode::While(node) => get_stmt_from_while_ast(db, scope, last_unused_local, node),
+        StatementNode::Continue(token) => get_stmt_from_continue_ast(db, scope, last_unused_local, token),
+        StatementNode::Break(token) => get_stmt_from_break_ast(db, scope, last_unused_local, token),
+        StatementNode::Return(node) => get_stmt_from_return_ast(db, scope, last_unused_local, node),
         StatementNode::Expr(node) => StatementResult {
-            statement: Statement::Expr(get_expr_from_ast(
-                db,
-                ast_info,
-                scope,
-                node,
-                Some(db.define_void_type()),
-            )),
+            statement: Statement::Expr(get_expr_from_ast(db, scope, node, Some(db.define_void_type()))),
             new_scope: None,
             is_returning: false,
             last_unused_local,
@@ -251,26 +211,25 @@ fn get_stmt_from_ast(
 
 fn get_stmt_from_let_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     node: &LetStatementNode,
 ) -> StatementResult {
     let expr = match &node.kind {
         LetKind::TypeOnly { ty } => {
-            let type_id = get_type_from_expr(db, ast_info, scope, ty);
+            let type_id = get_type_from_expr(db, scope, ty);
             Expr {
                 type_id,
                 kind: ExprKind::Zero(type_id),
             }
         }
         LetKind::TypeValue { ty, value } => {
-            let type_id = get_type_from_expr(db, ast_info, scope, ty);
-            let value_expr = get_expr_from_ast(db, ast_info, scope, value, Some(type_id));
+            let type_id = get_type_from_expr(db, scope, ty);
+            let value_expr = get_expr_from_ast(db, scope, value, Some(type_id));
             let mut kind = value_expr.kind;
             if !is_assignable(db, value_expr.type_id, type_id) {
                 db.type_mismatch(
-                    Loc::new(ast_info.path, value.get_pos()),
+                    value.get_loc(),
                     db.get_type(type_id).display(db),
                     db.get_type(value_expr.type_id).display(db),
                 );
@@ -278,7 +237,7 @@ fn get_stmt_from_let_ast(
             }
             Expr { type_id, kind }
         }
-        LetKind::ValueOnly { value } => get_expr_from_ast(db, ast_info, scope, value, None),
+        LetKind::ValueOnly { value } => get_expr_from_ast(db, scope, value, None),
     };
 
     let name = db.define_symbol(node.name.value.clone());
@@ -300,17 +259,16 @@ fn get_stmt_from_let_ast(
 
 fn get_stmt_from_assign_ast(
     db: &impl ExprDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     node: &AssignStatementNode,
 ) -> StatementResult {
-    let receiver = get_assignable_from_ast(db, ast_info, scope, &node.receiver);
+    let receiver = get_assignable_from_ast(db, scope, &node.receiver);
 
-    let value = get_expr_from_ast(db, ast_info, scope, &node.value, Some(receiver.type_id));
+    let value = get_expr_from_ast(db, scope, &node.value, Some(receiver.type_id));
     if !is_assignable(db, value.type_id, receiver.type_id) {
         db.type_mismatch(
-            Loc::new(ast_info.path, node.value.get_pos()),
+            node.value.get_loc(),
             db.get_type(receiver.type_id).display(db),
             db.get_type(value.type_id).display(db),
         );
@@ -333,7 +291,6 @@ fn get_stmt_from_assign_ast(
 
 fn get_stmt_from_block_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     scope_kind: ScopeKind,
@@ -346,11 +303,11 @@ fn get_stmt_from_block_ast(
     let mut unreachable_error = false;
     for stmt in &node.statements {
         if is_returning && !unreachable_error {
-            db.unreachable_stmt(Loc::new(ast_info.path, stmt.get_pos()));
+            db.unreachable_stmt(stmt.get_loc());
             unreachable_error = true;
         }
 
-        let stmt_result = get_stmt_from_ast(db, &ast_info, &scope, last_unused_local, stmt);
+        let stmt_result = get_stmt_from_ast(db, &scope, last_unused_local, stmt);
         statements.push(stmt_result.statement);
         last_unused_local = stmt_result.last_unused_local;
         if stmt_result.is_returning {
@@ -370,39 +327,31 @@ fn get_stmt_from_block_ast(
 
 fn get_stmt_from_if_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     node: &IfStatementNode,
 ) -> StatementResult {
     let bool_type_id = db.define_type(Rc::new(Type::Bool));
-    let cond = get_expr_from_ast(db, ast_info, scope, &node.condition, Some(bool_type_id));
+    let cond = get_expr_from_ast(db, scope, &node.condition, Some(bool_type_id));
 
     if cond.type_id != bool_type_id {
         db.type_mismatch(
-            Loc::new(ast_info.path, node.condition.get_pos()),
+            node.condition.get_loc(),
             Type::Bool.display(db),
             db.get_type(cond.type_id).display(db),
         );
     }
 
-    let result = get_stmt_from_block_ast(db, ast_info, scope, last_unused_local, ScopeKind::Basic, &node.body);
+    let result = get_stmt_from_block_ast(db, scope, last_unused_local, ScopeKind::Basic, &node.body);
     let body = result.statement;
     let body_is_returning = result.is_returning;
     let last_unused_local = result.last_unused_local;
 
     let else_result = match &node.else_node {
         ElseNode::None => None,
-        ElseNode::ElseIf(stmt) => Some(get_stmt_from_if_ast(
-            db,
-            ast_info,
-            scope,
-            result.last_unused_local,
-            stmt,
-        )),
+        ElseNode::ElseIf(stmt) => Some(get_stmt_from_if_ast(db, scope, result.last_unused_local, stmt)),
         ElseNode::Else(stmt) => Some(get_stmt_from_block_ast(
             db,
-            ast_info,
             scope,
             result.last_unused_local,
             ScopeKind::Basic,
@@ -430,23 +379,22 @@ fn get_stmt_from_if_ast(
 
 fn get_stmt_from_while_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     node: &WhileStatementNode,
 ) -> StatementResult {
     let bool_type_id = db.define_type(Rc::new(Type::Bool));
-    let condition = get_expr_from_ast(db, ast_info, scope, &node.condition, Some(bool_type_id));
+    let condition = get_expr_from_ast(db, scope, &node.condition, Some(bool_type_id));
 
     if condition.type_id != bool_type_id {
         db.type_mismatch(
-            Loc::new(ast_info.path, node.condition.get_pos()),
+            node.condition.get_loc(),
             Type::Bool.display(db),
             db.get_type(condition.type_id).display(db),
         );
     }
 
-    let body_stmt = get_stmt_from_block_ast(db, ast_info, scope, last_unused_local, ScopeKind::Loop, &node.body);
+    let body_stmt = get_stmt_from_block_ast(db, scope, last_unused_local, ScopeKind::Loop, &node.body);
     StatementResult {
         statement: Statement::While(WhileStatement {
             cond: condition,
@@ -460,13 +408,12 @@ fn get_stmt_from_while_ast(
 
 fn get_stmt_from_continue_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     token: &Token,
 ) -> StatementResult {
     let statement = if !scope.inside_loop() {
-        db.not_in_a_loop(Loc::new(ast_info.path, token.pos.clone()), "continue");
+        db.not_in_a_loop(token.loc, "continue");
         Statement::Invalid
     } else {
         Statement::Continue
@@ -481,13 +428,12 @@ fn get_stmt_from_continue_ast(
 
 fn get_stmt_from_break_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     token: &Token,
 ) -> StatementResult {
     let statement = if !scope.inside_loop() {
-        db.not_in_a_loop(Loc::new(ast_info.path, token.pos.clone()), "break");
+        db.not_in_a_loop(token.loc, "break");
         Statement::Invalid
     } else {
         Statement::Break
@@ -502,7 +448,6 @@ fn get_stmt_from_break_ast(
 
 fn get_stmt_from_return_ast(
     db: &impl StatementDb,
-    ast_info: &AstInfo,
     scope: &Rc<Scope>,
     last_unused_local: usize,
     node: &ReturnStatementNode,
@@ -511,10 +456,10 @@ fn get_stmt_from_return_ast(
     let return_type = db.get_type(return_type_id);
 
     let statement = if let Some(ref value_node) = node.value {
-        let value_expr = get_expr_from_ast(db, ast_info, scope, value_node, Some(return_type_id));
+        let value_expr = get_expr_from_ast(db, scope, value_node, Some(return_type_id));
         if !is_assignable(db, value_expr.type_id, return_type_id) {
             db.type_mismatch(
-                Loc::new(ast_info.path, node.get_pos()),
+                node.loc,
                 return_type.display(db),
                 db.get_type(value_expr.type_id).display(db),
             );
@@ -529,11 +474,7 @@ fn get_stmt_from_return_ast(
             }))
         }
     } else if !return_type.is_void() {
-        db.type_mismatch(
-            Loc::new(ast_info.path, node.get_pos()),
-            return_type.display(db),
-            Type::Void.display(db),
-        );
+        db.type_mismatch(node.loc, return_type.display(db), Type::Void.display(db));
         Statement::Return(Some(Expr {
             type_id: return_type_id,
             kind: ExprKind::Invalid,

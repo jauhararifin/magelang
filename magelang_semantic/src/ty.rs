@@ -1,13 +1,11 @@
+use crate::ast::{
+    ArrayPtrExprNode, DerefExprNode, ExprNode, IndexExprNode, ItemNode, Location, SelectionExprNode, SignatureNode,
+    Token,
+};
 use crate::def::{DefDb, DefId, FuncId, GenFuncId, GenStructId, GlobalId, StructId};
-use crate::error::{Loc, Location};
-use crate::package::AstInfo;
 use crate::scope::{get_object_from_expr, get_typeparams_scope, Object, Scope, ScopeDb, ScopeKind};
 use crate::symbol::SymbolId;
 use indexmap::IndexMap;
-use magelang_syntax::{
-    ArrayPtrExprNode, AstNode, DerefExprNode, ExprNode, IndexExprNode, ItemNode, SelectionExprNode, SignatureNode,
-    Token,
-};
 use std::collections::HashMap;
 use std::iter::zip;
 use std::rc::Rc;
@@ -344,15 +342,13 @@ pub trait TypeDb: DefDb {
 }
 
 pub fn get_global_type(db: &(impl TypeDb + ScopeDb), global_id: GlobalId) -> TypeId {
-    let ast_info = db.get_package_ast(global_id.package());
     let node = db.get_ast_by_def_id(global_id.into()).expect("global id is not found");
     let global_node = node.as_global().expect("not a global node");
     let scope = db.get_package_scope(global_id.package());
-    get_type_from_expr(db, &ast_info, &scope, &global_node.ty)
+    get_type_from_expr(db, &scope, &global_node.ty)
 }
 
 pub fn get_func_type(db: &(impl TypeDb + ScopeDb), func_id: FuncId) -> FuncTypeId {
-    let ast_info = db.get_package_ast(func_id.package());
     let node = db.get_ast_by_def_id(func_id.into()).expect("func id not found");
     let scope = db.get_package_scope(func_id.package());
     let signature = match node.as_ref() {
@@ -360,11 +356,10 @@ pub fn get_func_type(db: &(impl TypeDb + ScopeDb), func_id: FuncId) -> FuncTypeI
         ItemNode::NativeFunction(signature) => signature,
         _ => unreachable!("not a function"),
     };
-    func_type_by_ast(db, &ast_info, &scope, signature)
+    func_type_by_ast(db, &scope, signature)
 }
 
 pub fn get_generic_func_type(db: &(impl TypeDb + ScopeDb), gen_func_id: GenFuncId) -> FuncTypeId {
-    let ast_info = db.get_package_ast(gen_func_id.package());
     let node = db
         .get_ast_by_def_id(gen_func_id.into())
         .expect("generic func id not found");
@@ -375,33 +370,28 @@ pub fn get_generic_func_type(db: &(impl TypeDb + ScopeDb), gen_func_id: GenFuncI
         ItemNode::NativeFunction(signature) => signature,
         _ => unreachable!("not a generic func"),
     };
-    let scope = get_typeparams_scope(db, &ast_info, &scope, &signature.type_params);
-    func_type_by_ast(db, &ast_info, &scope, signature)
+    let scope = get_typeparams_scope(db, &scope, &signature.type_params);
+    func_type_by_ast(db, &scope, signature)
 }
 
 /// func_type_by_ast returns the interned function type. This function works for both
 /// generic function and normal function.
-fn func_type_by_ast(
-    db: &(impl TypeDb + ScopeDb),
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &SignatureNode,
-) -> FuncTypeId {
+fn func_type_by_ast(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &SignatureNode) -> FuncTypeId {
     let mut declared_at = HashMap::<SymbolId, Location>::default();
     let mut params = Vec::default();
     for param in &node.parameters {
         let name = db.define_symbol(param.name.value.clone());
         if let Some(pos) = declared_at.get(&name) {
-            db.redeclared_symbol(&param.name.value, pos, Loc::new(ast_info.path, param.name.pos));
+            db.redeclared_symbol(&param.name.value, pos, param.name.loc);
         } else {
-            declared_at.insert(name, db.get_location(ast_info, param.name.pos));
+            declared_at.insert(name, db.get_location(param.name.loc));
         }
-        let type_id = get_type_from_expr(db, ast_info, scope, &param.type_expr);
+        let type_id = get_type_from_expr(db, scope, &param.type_expr);
         params.push(type_id);
     }
 
     let return_type = if let Some(return_type_expr) = &node.return_type {
-        get_type_from_expr(db, ast_info, scope, return_type_expr)
+        get_type_from_expr(db, scope, return_type_expr)
     } else {
         db.define_void_type()
     };
@@ -416,7 +406,6 @@ pub fn get_struct_field(db: &(impl TypeDb + ScopeDb), struct_type_id: StructType
         StructType::GenericInst(gen_struct_id, _) => gen_struct_id.into(),
     };
 
-    let ast_info = db.get_package_ast(def_id.package);
     let struct_node = db.get_ast_by_def_id(def_id).expect("struct node is not found");
     let struct_node = struct_node.as_struct().expect("not a struct node");
 
@@ -436,13 +425,13 @@ pub fn get_struct_field(db: &(impl TypeDb + ScopeDb), struct_type_id: StructType
     let mut fields = IndexMap::<SymbolId, TypeId>::default();
     for field in &struct_node.fields {
         let name = db.define_symbol(field.name.value.clone());
-        let loc = Loc::new(ast_info.path, field.pos);
+        let loc = field.loc;
         if let Some(location) = declared_at.get(&name) {
             db.redeclared_symbol(&field.name.value, location.clone(), loc);
         } else {
-            let location = db.get_location(&ast_info, field.pos);
+            let location = db.get_location(field.loc);
             declared_at.insert(name, location);
-            let type_id = get_type_from_expr(db, &ast_info, &scope, &field.type_expr);
+            let type_id = get_type_from_expr(db, &scope, &field.type_expr);
             fields.insert(name, type_id);
         }
     }
@@ -450,19 +439,14 @@ pub fn get_struct_field(db: &(impl TypeDb + ScopeDb), struct_type_id: StructType
     Rc::new(StructField { fields })
 }
 
-pub fn get_type_from_expr(
-    db: &(impl TypeDb + ScopeDb),
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &ExprNode,
-) -> TypeId {
+pub fn get_type_from_expr(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &ExprNode) -> TypeId {
     match node {
-        ExprNode::Ident(token) => get_type_from_ident(db, ast_info, scope, token),
-        ExprNode::Deref(node) => get_type_from_deref(db, ast_info, scope, node),
-        ExprNode::ArrayPtr(node) => get_type_from_array_ptr(db, ast_info, scope, node),
-        ExprNode::Selection(node) => get_type_from_selection(db, ast_info, scope, node),
-        ExprNode::Index(node) => get_type_from_index(db, ast_info, scope, node),
-        ExprNode::Grouped(node) => get_type_from_expr(db, ast_info, scope, &node.value),
+        ExprNode::Ident(token) => get_type_from_ident(db, scope, token),
+        ExprNode::Deref(node) => get_type_from_deref(db, scope, node),
+        ExprNode::ArrayPtr(node) => get_type_from_array_ptr(db, scope, node),
+        ExprNode::Selection(node) => get_type_from_selection(db, scope, node),
+        ExprNode::Index(node) => get_type_from_index(db, scope, node),
+        ExprNode::Grouped(node) => get_type_from_expr(db, scope, &node.value),
         ExprNode::IntegerLiteral(..)
         | ExprNode::RealLiteral(..)
         | ExprNode::BooleanLit(..)
@@ -472,101 +456,77 @@ pub fn get_type_from_expr(
         | ExprNode::Call(..)
         | ExprNode::Cast(..)
         | ExprNode::StructLit(..) => {
-            db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
+            db.not_a_type(node.get_loc());
             db.define_unknown_type()
         }
     }
 }
 
-fn get_type_from_ident(db: &(impl TypeDb + ScopeDb), ast_info: &AstInfo, scope: &Rc<Scope>, token: &Token) -> TypeId {
+fn get_type_from_ident(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, token: &Token) -> TypeId {
     let name = db.define_symbol(token.value.clone());
     let Some(object) = scope.get(name) else {
-        db.undeclared_symbol(Loc::new(ast_info.path, token.pos), &token.value);
+        db.undeclared_symbol(token.loc, &token.value);
         return db.define_unknown_type();
     };
     let Some(type_id) = object.as_type() else {
-        db.not_a_type(Loc::new(ast_info.path, token.pos));
+        db.not_a_type(token.loc);
         return db.define_unknown_type();
     };
     type_id
 }
 
-fn get_type_from_deref(
-    db: &(impl TypeDb + ScopeDb),
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &DerefExprNode,
-) -> TypeId {
-    let element_type_id = get_type_from_expr(db, ast_info, scope, &node.value);
+fn get_type_from_deref(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &DerefExprNode) -> TypeId {
+    let element_type_id = get_type_from_expr(db, scope, &node.value);
     db.define_ptr_type(element_type_id)
 }
 
-fn get_type_from_array_ptr(
-    db: &(impl TypeDb + ScopeDb),
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &ArrayPtrExprNode,
-) -> TypeId {
-    let element_type_id = get_type_from_expr(db, ast_info, scope, &node.element);
+fn get_type_from_array_ptr(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &ArrayPtrExprNode) -> TypeId {
+    let element_type_id = get_type_from_expr(db, scope, &node.element);
     db.define_array_ptr_type(element_type_id)
 }
 
-fn get_type_from_selection(
-    db: &(impl TypeDb + ScopeDb),
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &SelectionExprNode,
-) -> TypeId {
+fn get_type_from_selection(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &SelectionExprNode) -> TypeId {
     let ExprNode::Ident(package_tok) = node.value.as_ref() else {
-        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
+        db.not_a_type(node.value.get_loc());
         return db.define_unknown_type();
     };
     let package_name_tok = db.define_symbol(package_tok.value.clone());
     let Some(import) = scope.get(package_name_tok) else {
-        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
+        db.not_a_type(node.value.get_loc());
         return db.define_unknown_type();
     };
     let Some(package_name) = import.as_import() else {
-        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
+        db.not_a_type(node.value.get_loc());
         return db.define_unknown_type();
     };
     let package_scope = db.get_package_scope(package_name);
     let selection = db.define_symbol(node.selection.value.clone());
     let Some(object) = package_scope.get(selection) else {
-        db.undeclared_symbol(Loc::new(ast_info.path, node.get_pos()), &node.selection.value);
+        db.undeclared_symbol(node.value.get_loc(), &node.selection.value);
         return db.define_unknown_type();
     };
     let Some(type_id) = object.as_type() else {
-        db.not_a_type(Loc::new(ast_info.path, node.get_pos()));
+        db.not_a_type(node.value.get_loc());
         return db.define_unknown_type();
     };
     type_id
 }
 
-fn get_type_from_index(
-    db: &(impl TypeDb + ScopeDb),
-    ast_info: &AstInfo,
-    scope: &Rc<Scope>,
-    node: &IndexExprNode,
-) -> TypeId {
+fn get_type_from_index(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &IndexExprNode) -> TypeId {
     let object = get_object_from_expr(db, scope, &node.value);
     let Object::GenericStruct { typeparams, gen_struct_id } = object else {
-        db.not_a_generic_type(Loc::new(ast_info.path, node.get_pos()));
+        db.not_a_generic_type(node.value.get_loc());
         return db.define_unknown_type();
     };
 
     if typeparams.len() != node.index.len() {
-        db.wrong_number_of_type_arguments(
-            Loc::new(ast_info.path, node.get_pos()),
-            typeparams.len(),
-            node.index.len(),
-        );
+        db.wrong_number_of_type_arguments(node.value.get_loc(), typeparams.len(), node.index.len());
     }
 
     let typeargs: Rc<[TypeId]> = node
         .index
         .iter()
-        .map(|node| get_type_from_expr(db, ast_info, scope, node))
+        .map(|node| get_type_from_expr(db, scope, node))
         .collect();
     let typeargs_id = db.define_typeargs(typeargs);
 

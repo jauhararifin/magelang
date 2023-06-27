@@ -4,7 +4,6 @@ use crate::scanner::scan;
 use crate::token::{Pos, Token, TokenKind};
 use std::collections::VecDeque;
 use std::fmt::Display;
-use std::rc::Rc;
 
 pub struct ParseResult {
     pub root: PackageNode,
@@ -50,12 +49,12 @@ impl FileParser {
         }
     }
 
-    fn parse_root(&mut self) -> Vec<Rc<ItemNode>> {
-        let mut items = Vec::<Rc<ItemNode>>::new();
+    fn parse_root(&mut self) -> Vec<ItemNode> {
+        let mut items = Vec::<ItemNode>::new();
 
         while !self.tokens.is_empty() {
             if let Some(item) = self.parse_item_node() {
-                items.push(Rc::new(item));
+                items.push(item);
             }
         }
 

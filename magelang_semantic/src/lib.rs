@@ -1,5 +1,4 @@
 mod assignable;
-mod ast;
 mod builtin;
 mod db;
 mod def;
@@ -12,6 +11,7 @@ mod stmt;
 mod symbol;
 mod ty;
 mod value;
+mod ast;
 
 pub use assignable::{get_assignable_from_ast, Assignable, AssignableKind};
 pub use db::Db;

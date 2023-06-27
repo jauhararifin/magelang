@@ -1,5 +1,4 @@
 use crate::token::{Pos, Token};
-use std::rc::Rc;
 
 pub trait AstNode {
     fn get_pos(&self) -> Pos;
@@ -7,14 +6,8 @@ pub trait AstNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PackageNode {
-    pub items: Vec<Rc<ItemNode>>,
+    pub items: Vec<ItemNode>,
     pub comments: Vec<Token>,
-}
-
-impl PackageNode {
-    pub fn imports(&self) -> impl Iterator<Item = &ImportNode> {
-        self.items.iter().map(Rc::as_ref).filter_map(ItemNode::as_import)
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
