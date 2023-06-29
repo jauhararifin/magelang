@@ -1,0 +1,12 @@
+[package]
+name = "magelang"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+magelang_syntax = { path = "../magelang_syntax" }
+magelang_semantic = { path = "../magelang_semantic" }
+clap = { version = "4.2.1", features = ["derive"] }
+
