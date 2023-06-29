@@ -21,6 +21,7 @@ use std::hash::Hash;
 use std::path::Path;
 use std::rc::Rc;
 
+#[derive(Default)]
 pub struct Db {
     errors: RefCell<Vec<(Loc, String)>>,
 
@@ -60,6 +61,13 @@ pub struct Db {
 impl ErrorAccumulator for Db {
     fn report_error(&self, location: Loc, message: String) {
         self.errors.borrow_mut().push((location, message));
+    }
+}
+
+impl Db {
+    pub fn take_errors(&self) -> Vec<(Loc, String)> {
+        let errors = self.errors.take();
+        errors
     }
 }
 
@@ -214,6 +222,15 @@ impl NativeDb for Db {
 struct Interner<T> {
     id_to_item: RefCell<Vec<T>>,
     item_to_id: RefCell<HashMap<T, usize>>,
+}
+
+impl<T> Default for Interner<T> {
+    fn default() -> Self {
+        Self {
+            id_to_item: RefCell::new(Vec::default()),
+            item_to_id: RefCell::new(HashMap::default()),
+        }
+    }
 }
 
 impl<T> Interner<T>

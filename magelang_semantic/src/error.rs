@@ -143,4 +143,15 @@ pub trait ErrorAccumulator {
             format!("Invalid native function return type, expected {expected}, got {got}"),
         );
     }
+
+    fn missing_main(&self, loc: Loc) {
+        self.report_error(loc, String::from("missing main function"))
+    }
+
+    fn invalid_main_signature(&self, loc: Loc) {
+        self.report_error(
+            loc,
+            String::from("main function shouldn't accept any parameters and should return void"),
+        )
+    }
 }
