@@ -849,12 +849,16 @@ pub trait AstDb: ErrorAccumulator {
         let offset: usize = loc.1.into();
         let partition = ast_info.lines.partition_point(|line| *line < offset);
         let line = partition + 1;
-        let line_offset = ast_info
-            .lines
-            .get(partition)
-            .or(ast_info.lines.last())
-            .cloned()
-            .unwrap_or_default();
+        let line_offset = if partition == 0 {
+            0
+        } else {
+            ast_info
+                .lines
+                .get(partition-1)
+                .or(ast_info.lines.last())
+                .cloned()
+                .unwrap_or_default()
+        };
         let col = offset - line_offset;
         Location { path, line, col }
     }

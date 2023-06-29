@@ -264,4 +264,3 @@ pub fn get_typeparams_scope(
 
     scope.new_child(ScopeKind::Basic, symbol_table)
 }
-
