@@ -884,6 +884,10 @@ pub fn get_ast_by_path(db: &impl AstDb, path_id: PathId) -> Rc<AstInfo> {
     }
 
     let parse_result = parse(&source_code);
+    for err in parse_result.errors {
+        db.syntax_error(Loc::new(path_id, err.pos), err.kind);
+    }
+
     let root = PackageNode::from_raw(parse_result.root, path_id);
 
     Rc::new(AstInfo {

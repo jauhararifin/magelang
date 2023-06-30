@@ -1,10 +1,31 @@
 use crate::ast::{Loc, Location, PathId};
-use magelang_syntax::Pos;
+use magelang_syntax::{Pos, SyntaxErrorKind};
 use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
 
 pub trait ErrorAccumulator {
-    fn report_error(&self, pos: Loc, error: String);
+    fn report_error(&self, loc: Loc, error: String);
+
+    fn syntax_error(&self, loc: Loc, kind: SyntaxErrorKind) {
+        match kind {
+            SyntaxErrorKind::UnexpectedChar(ch) => self.report_error(loc, format!("Unexpected character '{ch}'")),
+            SyntaxErrorKind::UnexpectedToken(token_kind) => {
+                self.report_error(loc, format!("Unexpected token {token_kind}"))
+            }
+            SyntaxErrorKind::InvalidDigitInBase { digit, base } => {
+                self.report_error(loc, format!("Cannot use {digit} as digit of {base}-base number"))
+            }
+            SyntaxErrorKind::NonDecimalFraction => {
+                self.report_error(loc, String::from("Can only use decimal for fractional number literal"))
+            }
+            SyntaxErrorKind::MissingClosingQuote => {
+                self.report_error(loc, String::from("Missing string closing quote"))
+            }
+            SyntaxErrorKind::Unexpected { expected, found } => {
+                self.report_error(loc, format!("Expected {expected}, but found {found}"))
+            }
+        }
+    }
 
     fn cannot_open_file(&self, path_id: PathId, io_err: &std::io::Error) {
         self.report_error(Loc::new(path_id, Pos::new(0)), format!("Cannot open file: {io_err}"))
