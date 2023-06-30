@@ -4,6 +4,7 @@ use crate::def::DefId;
 use crate::package::PackageId;
 use crate::scope::Object;
 use crate::stmt::StatementDb;
+use crate::ty::StructType;
 use indexmap::IndexSet;
 use magelang_syntax::Pos;
 use std::collections::HashSet;
@@ -91,14 +92,13 @@ fn check_item(db: &impl StatementDb, def_id: DefId, node: &ItemNode) {
 }
 
 fn check_struct_item(db: &impl StatementDb, def_id: DefId) {
-    check_struct_gen_item(db, def_id);
+    let struct_type = StructType::Concrete(def_id.into());
+    let struct_type_id = db.define_struct_type(struct_type);
+    db.get_struct_field(struct_type_id);
 }
 
 fn check_struct_gen_item(db: &impl StatementDb, def_id: DefId) {
-    let scope = db.get_package_scope(def_id.package);
-    let object = scope.get(def_id.name).unwrap();
-    let type_id = object.as_type().unwrap();
-    db.get_struct_field(type_id.into());
+    db.get_generic_struct_field(def_id.into());
 }
 
 fn check_global_item(db: &impl StatementDb, def_id: DefId) {

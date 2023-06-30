@@ -337,6 +337,7 @@ pub trait TypeDb: DefDb {
     fn get_global_type_id(&self, global_id: GlobalId) -> TypeId;
     fn get_func_type_id(&self, func_id: FuncId) -> FuncTypeId;
     fn get_struct_field(&self, struct_type_id: StructTypeId) -> Rc<StructField>;
+    fn get_generic_struct_field(&self, struct_id: StructId) -> Rc<StructField>;
     fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId;
     fn get_generic_func_inst_type_id(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> FuncTypeId;
 }
@@ -420,6 +421,33 @@ pub fn get_struct_field(db: &(impl TypeDb + ScopeDb), struct_type_id: StructType
         }
         scope = scope.new_child(ScopeKind::Basic, type_table);
     }
+
+    let mut declared_at = HashMap::<SymbolId, Location>::default();
+    let mut fields = IndexMap::<SymbolId, TypeId>::default();
+    for field in &struct_node.fields {
+        let name = db.define_symbol(field.name.value.clone());
+        let loc = field.loc;
+        if let Some(location) = declared_at.get(&name) {
+            db.redeclared_symbol(&field.name.value, location.clone(), loc);
+        } else {
+            let location = db.get_location(field.loc);
+            declared_at.insert(name, location);
+            let type_id = get_type_from_expr(db, &scope, &field.type_expr);
+            fields.insert(name, type_id);
+        }
+    }
+
+    Rc::new(StructField { fields })
+}
+
+pub fn get_generic_struct_field(db: &(impl TypeDb + ScopeDb), struct_id: StructId) -> Rc<StructField> {
+    let struct_node = db
+        .get_ast_by_def_id(struct_id.into())
+        .expect("struct node is not found");
+    let struct_node = struct_node.as_struct().expect("not a struct node");
+
+    let scope = db.get_package_scope(struct_id.package());
+    let scope = get_typeparams_scope(db, &scope, &struct_node.type_params);
 
     let mut declared_at = HashMap::<SymbolId, Location>::default();
     let mut fields = IndexMap::<SymbolId, TypeId>::default();
@@ -523,13 +551,17 @@ fn get_type_from_index(db: &(impl TypeDb + ScopeDb), scope: &Rc<Scope>, node: &I
         db.wrong_number_of_type_arguments(node.value.get_loc(), typeparams.len(), node.index.len());
     }
 
-    let typeargs: Rc<[TypeId]> = node
+    let mut typeargs: Vec<TypeId> = node
         .index
         .iter()
         .map(|node| get_type_from_expr(db, scope, node))
+        .take(typeparams.len())
         .collect();
-    let typeargs_id = db.define_typeargs(typeargs);
+    while typeargs.len() < typeparams.len() {
+        typeargs.push(db.define_unknown_type());
+    }
 
+    let typeargs_id = db.define_typeargs(typeargs.into());
     db.define_struct_type(StructType::GenericInst(gen_struct_id, typeargs_id))
         .into()
 }

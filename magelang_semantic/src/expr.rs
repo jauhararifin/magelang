@@ -484,6 +484,8 @@ fn get_expr_from_cast_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &CastExprN
 
     let kind = if value_type.is_arithmetic() && target_type.is_arithmetic() {
         ExprKind::Cast(Box::new(value), target_type_id)
+    } else if value_type.is_unknown() || target_type.is_unknown() {
+        ExprKind::Cast(Box::new(value), target_type_id)
     } else {
         db.unsupported_casting(node.value.get_loc(), value_type.display(db), target_type.display(db));
         ExprKind::Invalid

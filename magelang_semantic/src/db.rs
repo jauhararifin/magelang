@@ -9,8 +9,8 @@ use crate::scope::{get_package_scope, Scope, ScopeDb};
 use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, FuncBody, StatementDb};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{
-    get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_global_type, get_struct_field, FuncTypeId,
-    StructField, StructTypeId, Type, TypeArgsId, TypeDb, TypeId,
+    get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_generic_struct_field, get_global_type,
+    get_struct_field, FuncTypeId, StructField, StructTypeId, Type, TypeArgsId, TypeDb, TypeId,
 };
 use indexmap::IndexMap;
 use std::cell::OnceCell;
@@ -148,6 +148,10 @@ impl TypeDb for Db {
     fn get_struct_field(&self, struct_type_id: StructTypeId) -> Rc<StructField> {
         self.struct_field_cache
             .get_or_init(struct_type_id, || get_struct_field(self, struct_type_id))
+    }
+
+    fn get_generic_struct_field(&self, struct_id: crate::def::StructId) -> Rc<StructField> {
+        get_generic_struct_field(self, struct_id)
     }
 
     fn get_generic_func_type_id(&self, gen_func_id: GenFuncId) -> FuncTypeId {
