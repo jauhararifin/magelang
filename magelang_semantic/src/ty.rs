@@ -204,9 +204,9 @@ impl IntType {
         let sign = if self.sign { "i" } else { "u" };
         let bitsize = match self.size {
             BitSize::I8 => "8",
-            BitSize::I16 => "8",
-            BitSize::I32 => "8",
-            BitSize::I64 => "8",
+            BitSize::I16 => "16",
+            BitSize::I32 => "32",
+            BitSize::I64 => "64",
             BitSize::ISize => "size",
         };
         format!("{}{}", sign, bitsize)

@@ -854,7 +854,7 @@ pub trait AstDb: ErrorAccumulator {
         } else {
             ast_info
                 .lines
-                .get(partition-1)
+                .get(partition - 1)
                 .or(ast_info.lines.last())
                 .cloned()
                 .unwrap_or_default()
@@ -867,22 +867,23 @@ pub trait AstDb: ErrorAccumulator {
 pub fn get_ast_by_path(db: &impl AstDb, path_id: PathId) -> Rc<AstInfo> {
     let path = db.get_path(path_id);
 
-    let text: Rc<[u8]> = match std::fs::read(&path) {
-        Ok(content) => content.into(),
+    let text: Vec<u8> = match std::fs::read(&path) {
+        Ok(content) => content,
         Err(io_err) => {
             db.cannot_open_file(path_id, &io_err);
-            Rc::new([])
+            Vec::default()
         }
     };
+    let source_code = String::from_utf8_lossy(&text);
 
     let mut lines = Vec::default();
-    for (i, c) in text.iter().enumerate() {
-        if *c == '\n' as u8 {
+    for (i, c) in source_code.chars().enumerate() {
+        if c == '\n' {
             lines.push(i);
         }
     }
 
-    let parse_result = parse(&text);
+    let parse_result = parse(&source_code);
     let root = PackageNode::from_raw(parse_result.root, path_id);
 
     Rc::new(AstInfo {

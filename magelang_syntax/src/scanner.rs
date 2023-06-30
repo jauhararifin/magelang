@@ -7,9 +7,8 @@ pub struct ScanResult {
     pub errors: Vec<SyntaxError>,
 }
 
-pub fn scan(source_code: &[u8]) -> ScanResult {
-    let text = String::from_utf8_lossy(source_code);
-    let mut scanner = Scanner::new(&text);
+pub fn scan(source_code: &str) -> ScanResult {
+    let mut scanner = Scanner::new(source_code);
     let mut tokens = Vec::default();
     while let Some(token) = scanner.scan() {
         tokens.push(token);
@@ -48,6 +47,7 @@ impl Scanner {
         while let Some(ch) = self.text.front() {
             if ch.is_whitespace() {
                 self.text.pop_front();
+                self.offset += 1;
             } else {
                 break;
             }

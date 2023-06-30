@@ -10,7 +10,7 @@ pub struct ParseResult {
     pub errors: Vec<SyntaxError>,
 }
 
-pub fn parse(source_code: &[u8]) -> ParseResult {
+pub fn parse(source_code: &str) -> ParseResult {
     let scan_result = scan(source_code);
 
     let mut comments = Vec::default();

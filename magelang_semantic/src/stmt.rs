@@ -459,7 +459,7 @@ fn get_stmt_from_return_ast(
         let value_expr = get_expr_from_ast(db, scope, value_node, Some(return_type_id));
         if !is_assignable(db, value_expr.type_id, return_type_id) {
             db.type_mismatch(
-                node.loc,
+                value_node.get_loc(),
                 return_type.display(db),
                 db.get_type(value_expr.type_id).display(db),
             );
