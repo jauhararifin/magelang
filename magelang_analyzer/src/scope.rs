@@ -4,7 +4,7 @@ use crate::name::DefId;
 use crate::symbols::SymbolId;
 use crate::ty::{BitSize, FloatType, StructBody, Type, TypeId};
 use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{BlockStatementNode, GlobalNode, SignatureNode, StructNode};
+use magelang_syntax::{BlockStatementNode, GlobalNode, Pos, SignatureNode, StructNode};
 use std::cell::OnceCell;
 use std::rc::Rc;
 
@@ -83,11 +83,25 @@ impl Object {
             _ => None,
         }
     }
+
+    pub fn pos(&self) -> Option<Pos> {
+        match self {
+            Self::Import(obj) => Some(obj.pos),
+            Self::Type(..) => None,
+            Self::Struct(obj) => Some(obj.node.pos),
+            Self::Global(obj) => Some(obj.node.pos),
+            Self::Local(..) => todo!(),
+            Self::Func(obj) => Some(obj.signature.pos),
+            Self::GenericStruct(obj) => Some(obj.node.pos),
+            Self::GenericFunc(obj) => Some(obj.signature.pos),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct ImportObject {
     pub package: SymbolId,
+    pub pos: Pos,
 }
 
 #[derive(Debug)]

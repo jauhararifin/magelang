@@ -283,3 +283,67 @@ fn substitute_generic_args<E>(
         }
     }
 }
+
+pub fn display_type_id<E>(ctx: &TypeCheckContext<'_, E>, type_id: TypeId) -> String {
+    display_type(ctx, ctx.types.get(type_id).as_ref())
+}
+
+pub fn display_type<E>(ctx: &TypeCheckContext<'_, E>, ty: &Type) -> String {
+    match ty {
+        Type::Unknown => String::from("{unknown}"),
+        Type::NamedStruct(named_type) => format!(
+            "{}.{}",
+            ctx.symbols.get(named_type.def_id.package),
+            ctx.symbols.get(named_type.def_id.name),
+        ),
+        Type::NamedStructInst(named_inst_type) => {
+            let mut s = format!(
+                "{}.{}<",
+                ctx.symbols.get(named_inst_type.def_id.package),
+                ctx.symbols.get(named_inst_type.def_id.name),
+            );
+            let type_args = ctx.typeargs.get(named_inst_type.type_args);
+            for ty in type_args.iter() {
+                s.push_str(&display_type_id(ctx, *ty));
+                s.push(',');
+            }
+            s.push('>');
+            s
+        }
+        Type::Func(func_type) => {
+            let mut s = String::from("fn(");
+            for ty in &func_type.params {
+                s.push_str(&display_type_id(ctx, *ty));
+            }
+            s.push_str("):");
+            s.push_str(&display_type_id(ctx, func_type.return_type));
+            s
+        }
+        Type::Void => String::from("void"),
+        Type::Bool => String::from("bool"),
+        Type::Int(sign, size) => {
+            format!(
+                "{}{}",
+                if *sign { "i" } else { "u" },
+                match size {
+                    BitSize::I8 => "8",
+                    BitSize::I16 => "16",
+                    BitSize::I32 => "32",
+                    BitSize::I64 => "64",
+                    BitSize::ISize => "size",
+                }
+            )
+        }
+        Type::Float(float_ty) => match float_ty {
+            FloatType::F32 => String::from("f32"),
+            FloatType::F64 => String::from("f64"),
+        },
+        Type::Ptr(type_id) => {
+            format!("*{}", display_type_id(ctx, *type_id))
+        }
+        Type::ArrayPtr(type_id) => {
+            format!("[*]{}", display_type_id(ctx, *type_id))
+        }
+        Type::TypeArg(typearg) => ctx.symbols.get(typearg.symbol).as_ref().into(),
+    }
+}

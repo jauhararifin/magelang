@@ -1,6 +1,6 @@
 use crate::errors::SemanticError;
 use crate::interner::{SizedInterner, UnsizedInterner};
-use crate::name::DefId;
+use crate::name::{display_name, DefId, Name};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
@@ -60,7 +60,8 @@ pub fn analyze(
         package_scopes: &package_scopes,
         scope: builtin_scope,
     };
-    generate_struct_bodies(&typecheck_ctx, &package_scopes);
+    generate_struct_bodies(&typecheck_ctx);
+    check_circular_types(&typecheck_ctx);
 }
 
 pub struct Context<'a, E> {
@@ -147,7 +148,7 @@ fn build_object_nodes<E: ErrorReporter>(
     object_nodes
 }
 
-fn build_symbol_table< E: ErrorReporter>(
+fn build_symbol_table<E: ErrorReporter>(
     ctx: &Context<'_, E>,
     object_nodes: IndexMap<DefId, ItemNode>,
 ) -> IndexMap<DefId, Object> {
@@ -185,6 +186,7 @@ fn init_import_object<E: ErrorReporter>(
     let package_name = ctx.symbols.define(package_path.as_str());
     Some(Object::Import(ImportObject {
         package: package_name,
+        pos: import_node.pos,
     }))
 }
 
@@ -355,11 +357,33 @@ fn build_package_scope(
     package_scopes
 }
 
-fn generate_struct_bodies<E: ErrorReporter>(
-    ctx: &TypeCheckContext<'_, E>,
-    package_scopes: &HashMap<SymbolId, Rc<Scope>>,
-) {
-    for (_, scope) in package_scopes.iter() {
+pub struct TypeCheckContext<'a, E> {
+    pub files: &'a FileManager,
+    pub errors: &'a E,
+    pub symbols: &'a SymbolInterner,
+    pub types: &'a TypeInterner,
+    pub typeargs: &'a TypeArgsInterner,
+
+    pub package_scopes: &'a HashMap<SymbolId, Rc<Scope>>,
+    pub scope: Rc<Scope>,
+}
+
+impl<'a, E> TypeCheckContext<'a, E> {
+    pub fn with_scope(&self, scope: Rc<Scope>) -> Self {
+        Self {
+            files: self.files,
+            errors: self.errors,
+            symbols: self.symbols,
+            types: self.types,
+            typeargs: self.typeargs,
+            package_scopes: self.package_scopes,
+            scope,
+        }
+    }
+}
+
+fn generate_struct_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
+    for (_, scope) in ctx.package_scopes.iter() {
         for (_, object) in scope.iter() {
             match object {
                 Object::Struct(struct_object) => {
@@ -430,27 +454,111 @@ fn get_struct_body_from_node<E: ErrorReporter>(
     StructBody { fields }
 }
 
-pub struct TypeCheckContext<'a, E> {
-    pub files: &'a FileManager,
-    pub errors: &'a E,
-    pub symbols: &'a SymbolInterner,
-    pub types: &'a TypeInterner,
-    pub typeargs: &'a TypeArgsInterner,
+fn check_circular_types<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
+    let dep_list = build_struct_dependency_list(ctx);
 
-    pub package_scopes: &'a HashMap<SymbolId, Rc<Scope>>,
-    pub scope: Rc<Scope>,
-}
+    let mut visited = IndexSet::<Name>::default();
+    let mut in_chain = IndexSet::<Name>::default();
+    for name in dep_list.keys() {
+        if visited.contains(name) {
+            continue;
+        }
 
-impl<'a, E> TypeCheckContext<'a, E> {
-    pub fn with_scope(&self, scope: Rc<Scope>) -> Self {
-        Self {
-            files: self.files,
-            errors: self.errors,
-            symbols: self.symbols,
-            types: self.types,
-            typeargs: self.typeargs,
-            package_scopes: self.package_scopes,
-            scope,
+        let mut stack = vec![*name];
+        while let Some(name) = stack.pop() {
+            if in_chain.contains(&name) {
+                in_chain.remove(&name);
+                continue;
+            }
+
+            stack.push(name);
+            visited.insert(name);
+            in_chain.insert(name);
+
+            for dep in dep_list.get(&name).unwrap_or(&IndexSet::default()).iter() {
+                if !visited.contains(dep) {
+                    stack.push(*dep);
+                } else if in_chain.contains(dep) {
+                    report_circular_type(ctx, &in_chain, *dep);
+                }
+            }
         }
     }
+}
+
+fn build_struct_dependency_list<E: ErrorReporter>(
+    ctx: &TypeCheckContext<E>,
+) -> IndexMap<Name, IndexSet<Name>> {
+    let mut adjlist = IndexMap::<Name, IndexSet<Name>>::default();
+    let type_objects = ctx
+        .package_scopes
+        .iter()
+        .flat_map(|(_, scope)| scope.iter())
+        .filter_map(|(_, object)| object.type_id());
+
+    for type_id in type_objects {
+        let ty = ctx.types.get(type_id);
+        let (struct_type, name) = match ty.as_ref() {
+            Type::NamedStruct(struct_type) => (
+                struct_type.body.get().expect("missing struct body"),
+                Name::Def(struct_type.def_id),
+            ),
+            Type::NamedStructInst(struct_inst_type) => (
+                &struct_inst_type.body,
+                Name::Instance(struct_inst_type.def_id, struct_inst_type.type_args),
+            ),
+            _ => continue,
+        };
+
+        for (_, type_id) in &struct_type.fields {
+            let ty = ctx.types.get(*type_id);
+            let dep_name = match ty.as_ref() {
+                Type::NamedStruct(named_struct) => Name::Def(named_struct.def_id),
+                Type::NamedStructInst(named_struct_inst) => {
+                    Name::Instance(named_struct_inst.def_id, named_struct_inst.type_args)
+                }
+                _ => continue,
+            };
+            adjlist.entry(name).or_default().insert(dep_name);
+        }
+    }
+
+    adjlist
+}
+
+fn report_circular_type<E: ErrorReporter>(
+    ctx: &TypeCheckContext<E>,
+    in_chain: &IndexSet<Name>,
+    start: Name,
+) {
+    let mut chain = Vec::default();
+    let mut started = false;
+    for name in in_chain {
+        if name == &start {
+            started = true;
+        }
+        if started {
+            chain.push(*name);
+        }
+    }
+
+    let mut chain_str = Vec::default();
+    for name in chain {
+        let display = display_name(ctx, &name);
+        chain_str.push(display);
+    }
+
+    let def_id = match start {
+        Name::Def(def_id) => def_id,
+        Name::Instance(def_id, _) => def_id,
+    };
+    let pos = ctx
+        .package_scopes
+        .get(&def_id.package)
+        .unwrap()
+        .lookup(def_id.name)
+        .unwrap()
+        .pos()
+        .unwrap();
+    ctx.errors.circular_type(pos, &chain_str);
 }
