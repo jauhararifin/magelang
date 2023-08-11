@@ -217,6 +217,7 @@ dependencies = [
  "clap",
  "magelang_semantic",
  "magelang_syntax",
+ "magelang_wasm",
 ]
 
 [[package]]
@@ -231,6 +232,14 @@ dependencies = [
 [[package]]
 name = "magelang_syntax"
 version = "0.1.0"
+
+[[package]]
+name = "magelang_wasm"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "magelang_semantic",
+]
 
 [[package]]
 name = "once_cell"

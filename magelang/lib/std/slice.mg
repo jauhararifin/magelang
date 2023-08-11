@@ -1,19 +1,26 @@
 import mem "std/mem";
 
-fn make_slice[T](len: usize): []T {
-  let array_ptr = mem.alloc_array[T](len);
-
-  let the_slice = mem.alloc_array[usize](2);
-  the_slice[0] = array_ptr as usize;
-  the_slice[1] = len;
-
-  return the_slice as []T;
+struct Slice[T]{
+  p:   [*]T,
+  len: usize,
 }
 
-fn sub_slice[T](s: []T, start: usize, end: usize): []T {
-  let slice_container = mem.alloc_array[usize](2);
-  slice_container[0] = s as usize;
-  slice_container[1] = end - start;
-  return slice_container as []T;
+fn init[T](this: *Slice[T], len: usize) {
+  this.p = mem.alloc_array[T](len);
+  this.len = len;
+}
+
+fn get[T](this: *Slice[T], index: usize): T {
+  if index >= this.len {
+    panic("index out of range");
+  }
+  return this.p[index];
+}
+
+fn set[T](this: *Slice[T], index: usize, val: T) {
+  if index >= this.len {
+    panic("index out of range");
+  }
+  this.p[index] = val;
 }
 

@@ -15,15 +15,16 @@ mod ty;
 mod value;
 
 pub use assignable::{get_assignable_from_ast, Assignable, AssignableKind};
+pub use ast::AstDb;
 pub use checker::check_main_package;
 pub use db::Db;
+pub use def::{DefId, FuncId, GenFuncId, GlobalId, StructId};
 pub use expr::{Expr, ExprKind};
-pub use scope::Object;
-pub use stmt::{IfStatement, Statement, StatementDb, WhileStatement};
-pub use symbol::{SymbolDb, SymbolId};
 pub use package::PackageId;
-pub use ast::AstDb;
+pub use scope::Object;
+pub use stmt::{FuncBody, IfStatement, Statement, StatementDb, WhileStatement};
+pub use symbol::{SymbolDb, SymbolId};
 pub use ty::{
-    BitSize, FloatSize, FuncType, FuncTypeId, IntType, StructField, StructType, StructTypeId, TypeArgsId, TypeDb,
-    TypeId,
+    BitSize, FloatSize, FloatType, FuncType, FuncTypeId, IntType, StructField, StructType, StructTypeId, Type,
+    TypeArgsId, TypeDb, TypeId,
 };

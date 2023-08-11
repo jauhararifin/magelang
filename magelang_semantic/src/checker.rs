@@ -1,12 +1,10 @@
 use crate::ast::ItemNode;
-use crate::ast::Loc;
 use crate::def::DefId;
 use crate::package::PackageId;
 use crate::scope::Object;
 use crate::stmt::StatementDb;
 use crate::ty::StructType;
 use indexmap::IndexSet;
-use magelang_syntax::Pos;
 use std::collections::HashSet;
 
 pub fn check_main_package(db: &impl StatementDb, package_id: PackageId) {
@@ -127,28 +125,5 @@ fn check_native_func_gen_item(db: &impl StatementDb, def_id: DefId) {
 }
 
 fn check_main_func(db: &impl StatementDb, package_id: PackageId) {
-    let path = db.get_package_path(package_id);
-    let path_id = db.define_path(path);
-    let pos = Loc::new(path_id, Pos::new(1));
-
-    let scope = db.get_package_scope(package_id);
-    let main_symbol = db.define_symbol("main".into());
-    let Some(main_object) = scope.get(main_symbol) else {
-        db.missing_main(pos);
-        return;
-    };
-    let Object::Func{func_id: main_func_id, is_native} = main_object else {
-        db.missing_main(pos);
-        return;
-    };
-    if is_native {
-        db.invalid_main_signature(pos);
-        return;
-    }
-    let type_id = db.get_func_type_id(main_func_id);
-    let func_ty = db.get_func_type(type_id);
-    if !func_ty.params.is_empty() || func_ty.return_type != db.define_void_type() {
-        db.invalid_main_signature(pos);
-        return;
-    }
+    db.get_main_func(package_id);
 }

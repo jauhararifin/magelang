@@ -1,15 +1,17 @@
 use crate::assignable::{get_assignable_from_ast, Assignable};
 use crate::ast::{
-    AssignStatementNode, BlockStatementNode, ElseNode, IfStatementNode, LetKind, LetStatementNode, ReturnStatementNode,
-    SignatureNode, StatementNode, Token, WhileStatementNode,
+    AssignStatementNode, BlockStatementNode, ElseNode, IfStatementNode, LetKind, LetStatementNode, Loc,
+    ReturnStatementNode, SignatureNode, StatementNode, Token, WhileStatementNode,
 };
-use crate::def::{FuncId, GenFuncId};
+use crate::def::{DefId, FuncId, GenFuncId};
 use crate::expr::{get_expr_from_ast, Expr, ExprDb, ExprKind};
 use crate::native::{NativeDb, NativeFunc};
+use crate::package::PackageId;
 use crate::scope::{get_typeparams_scope, Object, Scope, ScopeKind};
 use crate::symbol::SymbolId;
 use crate::ty::{get_type_from_expr, is_assignable, Type, TypeArgsId};
 use indexmap::IndexMap;
+use magelang_syntax::Pos;
 use std::iter::zip;
 use std::rc::Rc;
 
@@ -50,6 +52,7 @@ pub trait StatementDb: ExprDb {
     fn get_func_body(&self, func_id: FuncId) -> Rc<FuncBody>;
     fn get_generic_func_body(&self, gen_func_id: GenFuncId) -> Rc<FuncBody>;
     fn get_generic_func_inst_body(&self, gen_func_id: GenFuncId, typeargs_id: TypeArgsId) -> Rc<FuncBody>;
+    fn get_main_func(&self, package_id: PackageId) -> FuncId;
 }
 
 pub fn get_func_body(db: &(impl StatementDb + NativeDb), func_id: FuncId) -> Rc<FuncBody> {
@@ -176,6 +179,35 @@ pub fn get_generic_func_inst_body(
     }
 
     Rc::new(FuncBody::User(result.statement))
+}
+
+pub fn get_main_func(db: &(impl StatementDb + NativeDb), package_id: PackageId) -> FuncId {
+    let path = db.get_package_path(package_id);
+    let path_id = db.define_path(path);
+    let loc = Loc::new(path_id, Pos::new(1));
+
+    let scope = db.get_package_scope(package_id);
+    let main_symbol = db.define_symbol("main".into());
+    let Some(main_object) = scope.get(main_symbol) else {
+        db.missing_main(loc);
+        return DefId::new(package_id, main_symbol).into();
+    };
+    let Object::Func{func_id: main_func_id, is_native} = main_object else {
+        db.missing_main(loc);
+        return DefId::new(package_id, main_symbol).into();
+    };
+    if is_native {
+        db.invalid_main_signature(loc);
+        return main_func_id;
+    }
+    let type_id = db.get_func_type_id(main_func_id);
+    let func_ty = db.get_func_type(type_id);
+    if !func_ty.params.is_empty() || func_ty.return_type != db.define_void_type() {
+        db.invalid_main_signature(loc);
+        return main_func_id;
+    }
+
+    main_func_id
 }
 
 struct StatementResult {

@@ -434,7 +434,9 @@ fn get_expr_from_call_node(db: &impl ExprDb, scope: &Rc<Scope>, node: &CallExprN
     let func_expr = get_expr_from_ast(db, scope, &node.target, None);
     let func_type = db.get_type(func_expr.type_id);
     let Some(func_type) = func_type.as_func() else {
-        db.not_callable(node.loc);
+        if !func_type.is_unknown() {
+            db.not_callable(node.loc);
+        }
         return Expr {
             type_id: db.define_unknown_type(),
             kind: ExprKind::Invalid,

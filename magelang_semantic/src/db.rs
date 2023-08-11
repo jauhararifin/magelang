@@ -1,12 +1,14 @@
 use crate::ast::{get_ast_by_path, AstDb, AstInfo, ItemNode, Loc, PathId};
 use crate::builtin::get_builtin_scope;
-use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId};
+use crate::def::{get_items_by_package, DefDb, FuncId, GenFuncId, GlobalId, StructId};
 use crate::error::ErrorAccumulator;
 use crate::expr::{get_global_expr, Expr, ExprDb};
 use crate::native::{get_generic_native_func, get_generic_native_func_inst, get_native_func, NativeDb, NativeFunc};
 use crate::package::{get_ast_by_package, get_package_path, get_stdlib_path, PackageDb, PackageId};
 use crate::scope::{get_package_scope, Scope, ScopeDb};
-use crate::stmt::{get_func_body, get_generic_func_body, get_generic_func_inst_body, FuncBody, StatementDb};
+use crate::stmt::{
+    get_func_body, get_generic_func_body, get_generic_func_inst_body, get_main_func, FuncBody, StatementDb,
+};
 use crate::symbol::{SymbolDb, SymbolId};
 use crate::ty::{
     get_func_type, get_generic_func_inst_type_id, get_generic_func_type, get_generic_struct_field, get_global_type,
@@ -56,6 +58,7 @@ pub struct Db {
     native_func_cache: Cache<FuncId, NativeFunc>,
     generic_native_func_cache: Cache<GenFuncId, NativeFunc>,
     generic_native_func_inst_cache: Cache<(GenFuncId, TypeArgsId), NativeFunc>,
+    main_func_cache: Cache<PackageId, FuncId>,
 }
 
 impl ErrorAccumulator for Db {
@@ -150,7 +153,7 @@ impl TypeDb for Db {
             .get_or_init(struct_type_id, || get_struct_field(self, struct_type_id))
     }
 
-    fn get_generic_struct_field(&self, struct_id: crate::def::StructId) -> Rc<StructField> {
+    fn get_generic_struct_field(&self, struct_id: StructId) -> Rc<StructField> {
         get_generic_struct_field(self, struct_id)
     }
 
@@ -201,6 +204,11 @@ impl StatementDb for Db {
             .get_or_init((gen_func_id, typeargs_id), || {
                 get_generic_func_inst_body(self, gen_func_id, typeargs_id)
             })
+    }
+
+    fn get_main_func(&self, package_id: PackageId) -> FuncId {
+        self.main_func_cache
+            .get_or_init(package_id, || get_main_func(self, package_id))
     }
 }
 

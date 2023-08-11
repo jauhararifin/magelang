@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 use magelang_semantic::{check_main_package, AstDb, Db, SymbolDb};
+use magelang_wasm::build_wasm_ir;
 
 #[derive(Parser, Debug)]
 struct CliArgs {
@@ -38,8 +39,24 @@ fn main() {
     let db = Db::default();
 
     match args.command {
-        Command::Compile(..) => {
-            todo!();
+        Command::Compile(arg) => {
+            let main_package = db.define_symbol(arg.package_name.into());
+            check_main_package(&db, main_package.into());
+
+            let mut has_error = false;
+            for (loc, message) in db.take_errors() {
+                has_error = true;
+                let location = db.get_location(loc);
+                eprintln!("{}: {}", location, message);
+            }
+
+            if has_error {
+                println!("Compilation is stopped due to errors");
+                std::process::exit(1);
+            }
+
+            let module = build_wasm_ir(&db, main_package.into());
+            println!("ir: {module:?}");
         }
         Command::Check(arg) => {
             let main_package = db.define_symbol(arg.package_name.into());

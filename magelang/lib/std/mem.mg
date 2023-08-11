@@ -1,10 +1,10 @@
 import wasm "std/wasm";
 
-let last_offset: usize = @data_end();
+let last_offset: usize = wasm.data_end();
 
 fn alloc[T](): *T {
-  while last_offset % 8 != 0 {
-    last_offset = last_offset + 1;
+  if last_offset % 8 != 0 {
+    last_offset = last_offset + 8 - last_offset % 8;
   }
 
   let ptr = last_offset;
@@ -20,8 +20,8 @@ fn alloc[T](): *T {
 }
 
 fn alloc_array[T](len: usize): [*]T {
-  while last_offset % 8 != 0 {
-    last_offset = last_offset + 1;
+  if last_offset % 8 != 0 {
+    last_offset = last_offset + 8 - last_offset % 8;
   }
 
   let ptr = last_offset;

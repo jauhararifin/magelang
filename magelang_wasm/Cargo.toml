@@ -1,13 +1,10 @@
 [package]
-name = "magelang"
+name = "magelang_wasm"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-magelang_syntax = { path = "../magelang_syntax" }
 magelang_semantic = { path = "../magelang_semantic" }
-magelang_wasm = { path = "../magelang_wasm" }
-clap = { version = "4.2.1", features = ["derive"] }
-
+indexmap = "1.9.3"

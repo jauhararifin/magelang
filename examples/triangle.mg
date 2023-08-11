@@ -3,7 +3,7 @@ import mem "std/mem";
 import wasi "std/wasi";
 
 fn main() {
-  let n = fmt.read_i64();
+  let n = 10;
 
   let i = 0;
   while i < n {

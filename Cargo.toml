@@ -3,5 +3,6 @@ resolver = "2"
 members = [
   "magelang_syntax",
   "magelang_semantic",
+  "magelang_wasm",
   "magelang",
 ]

@@ -67,6 +67,7 @@ impl From<TypeArgsId> for usize {
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum Type {
     Unknown,
+    Named(NamedType),
     Void,
     Int(IntType),
     Float(FloatType),
@@ -147,6 +148,12 @@ impl Type {
             Self::GenericArg(symbol_id) => db.get_symbol(*symbol_id).as_ref().into(),
         }
     }
+}
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct NamedType {
+    pub def: DefId,
+    pub underlying: TypeId,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
