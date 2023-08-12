@@ -53,46 +53,39 @@ pub struct StructNode {
 pub struct StructFieldNode {
     pub pos: Pos,
     pub name: Token,
-    pub ty: TypeExprNode,
+    pub ty: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct GlobalNode {
     pub pos: Pos,
     pub name: Token,
-    pub ty: TypeExprNode,
-    pub value: Option<ValueExprNode>,
+    pub ty: ExprNode,
+    pub value: Option<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct FunctionNode {
     pub pos: Pos,
     pub signature: SignatureNode,
-    pub body: BlockStatementNode,
+    pub body: Option<BlockStatementNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SignatureNode {
     pub pos: Pos,
-    pub tags: Vec<TagNode>,
+    pub annotations: Vec<AnnotationNode>,
     pub name: Token,
     pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
-    pub return_type: Option<TypeExprNode>,
+    pub return_type: Option<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct TagNode {
+pub struct AnnotationNode {
     pub pos: Pos,
     pub name: Token,
     pub arguments: Vec<Token>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ParameterNode {
-    pub pos: Pos,
-    pub name: Token,
-    pub ty: TypeExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -101,40 +94,14 @@ pub struct TypeParameterNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum TypeExprNode {
-    Named(NamedTypeNode),
-    Ptr(PtrTypeNode),
-    ArrayPtr(ArrayPtrTypeNode),
-    Instance(InstanceTypeNode),
-    Grouped(Box<TypeExprNode>),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum NamedTypeNode {
-    Ident(Token),
-    Selection(Token, Token),
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ArrayPtrTypeNode {
+pub struct ParameterNode {
     pub pos: Pos,
-    pub element: Box<TypeExprNode>,
+    pub name: Token,
+    pub ty: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct PtrTypeNode {
-    pub pos: Pos,
-    pub element: Box<TypeExprNode>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct InstanceTypeNode {
-    pub name: NamedTypeNode,
-    pub arguments: Vec<TypeExprNode>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum ValueExprNode {
+pub enum ExprNode {
     Ident(Token),
     Integer(Token),
     Frac(Token),
@@ -145,48 +112,77 @@ pub enum ValueExprNode {
     Unary(UnaryExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
+    ArrayPtr(ArrayPtrExprNode),
     Struct(StructExprNode),
     Selection(SelectionExprNode),
     Index(IndexExprNode),
-    Grouped(Box<ValueExprNode>),
+    Grouped(Box<ExprNode>),
+}
+
+impl ExprNode {
+    pub fn pos(&self) -> Pos {
+        match self {
+            Self::Ident(tok) => tok.pos,
+            Self::Integer(tok) => tok.pos,
+            Self::Frac(tok) => tok.pos,
+            Self::Bool(tok) => tok.pos,
+            Self::String(tok) => tok.pos,
+            Self::Binary(node) => node.a.pos(),
+            Self::Deref(node) => node.value.pos(),
+            Self::Unary(node) => node.value.pos(),
+            Self::Call(node) => node.callee.pos(),
+            Self::Cast(node) => node.value.pos(),
+            Self::ArrayPtr(node) => node.pos,
+            Self::Struct(node) => node.pos,
+            Self::Selection(node) => node.value.pos(),
+            Self::Index(node) => node.value.pos(),
+            Self::Grouped(node) => node.pos(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BinaryExprNode {
-    pub a: Box<ValueExprNode>,
+    pub a: Box<ExprNode>,
     pub op: Token,
-    pub b: Box<ValueExprNode>,
+    pub b: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DerefExprNode {
     pub pos: Pos,
-    pub value: Box<ValueExprNode>,
+    pub value: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnaryExprNode {
     pub op: Token,
-    pub value: Box<ValueExprNode>,
+    pub value: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct CallExprNode {
     pub pos: Pos,
-    pub callee: Box<ValueExprNode>,
-    pub arguments: Vec<ValueExprNode>,
+    pub callee: Box<ExprNode>,
+    pub arguments: Vec<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct CastExprNode {
-    pub value: Box<ValueExprNode>,
-    pub target: TypeExprNode,
+    pub value: Box<ExprNode>,
+    pub target: Box<ExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ArrayPtrExprNode {
+    pub pos: Pos,
+    pub element: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StructExprNode {
     pub pos: Pos,
-    pub target: TypeExprNode,
+    pub target: Box<ExprNode>,
     pub elements: Vec<KeyValue>,
 }
 
@@ -194,24 +190,24 @@ pub struct StructExprNode {
 pub struct KeyValue {
     pub pos: Pos,
     pub key: Token,
-    pub value: ValueExprNode,
+    pub value: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SelectionExprNode {
-    pub value: Box<ValueExprNode>,
+    pub value: Box<ExprNode>,
     pub selection: Token,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IndexExprNode {
-    pub value: Box<ValueExprNode>,
-    pub indexes: Vec<ValueExprNode>,
+    pub value: Box<ExprNode>,
+    pub indexes: Vec<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct GroupedExprNode {
-    pub value: Box<ValueExprNode>,
+    pub value: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -224,7 +220,7 @@ pub enum StatementNode {
     Continue(Token),
     Break(Token),
     Return(ReturnStatementNode),
-    Expr(ValueExprNode),
+    Expr(ExprNode),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -236,23 +232,16 @@ pub struct LetStatementNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LetKind {
-    TypeOnly {
-        ty: TypeExprNode,
-    },
-    TypeValue {
-        ty: TypeExprNode,
-        value: ValueExprNode,
-    },
-    ValueOnly {
-        value: ValueExprNode,
-    },
+    TypeOnly { ty: ExprNode },
+    TypeValue { ty: ExprNode, value: ExprNode },
+    ValueOnly { value: ExprNode },
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct AssignStatementNode {
     pub pos: Pos,
-    pub receiver: ValueExprNode,
-    pub value: ValueExprNode,
+    pub receiver: ExprNode,
+    pub value: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -264,7 +253,7 @@ pub struct BlockStatementNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct IfStatementNode {
     pub pos: Pos,
-    pub condition: ValueExprNode,
+    pub condition: ExprNode,
     pub body: BlockStatementNode,
     pub else_node: Option<Box<StatementNode>>,
 }
@@ -272,12 +261,12 @@ pub struct IfStatementNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct WhileStatementNode {
     pub pos: Pos,
-    pub condition: ValueExprNode,
+    pub condition: ExprNode,
     pub body: BlockStatementNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReturnStatementNode {
     pub pos: Pos,
-    pub value: Option<ValueExprNode>,
+    pub value: Option<ExprNode>,
 }
