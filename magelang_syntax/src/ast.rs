@@ -216,11 +216,68 @@ pub struct GroupedExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StatementNode {
+    Let(LetStatementNode),
+    Assign(AssignStatementNode),
     Block(BlockStatementNode),
+    If(IfStatementNode),
+    While(WhileStatementNode),
+    Continue(Token),
+    Break(Token),
+    Return(ReturnStatementNode),
+    Expr(ValueExprNode),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct LetStatementNode {
+    pub pos: Pos,
+    pub name: Token,
+    pub kind: LetKind,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum LetKind {
+    TypeOnly {
+        ty: TypeExprNode,
+    },
+    TypeValue {
+        ty: TypeExprNode,
+        value: ValueExprNode,
+    },
+    ValueOnly {
+        value: ValueExprNode,
+    },
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct AssignStatementNode {
+    pub pos: Pos,
+    pub receiver: ValueExprNode,
+    pub value: ValueExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BlockStatementNode {
     pub pos: Pos,
     pub statements: Vec<StatementNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IfStatementNode {
+    pub pos: Pos,
+    pub condition: ValueExprNode,
+    pub body: BlockStatementNode,
+    pub else_node: Option<Box<StatementNode>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct WhileStatementNode {
+    pub pos: Pos,
+    pub condition: ValueExprNode,
+    pub body: BlockStatementNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ReturnStatementNode {
+    pub pos: Pos,
+    pub value: Option<ValueExprNode>,
 }
