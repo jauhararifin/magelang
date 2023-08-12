@@ -134,7 +134,85 @@ pub struct InstanceTypeNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ValueExprNode {}
+pub enum ValueExprNode {
+    Ident(Token),
+    Integer(Token),
+    Frac(Token),
+    Bool(Token),
+    String(Token),
+    Binary(BinaryExprNode),
+    Deref(DerefExprNode),
+    Unary(UnaryExprNode),
+    Call(CallExprNode),
+    Cast(CastExprNode),
+    Struct(StructExprNode),
+    Selection(SelectionExprNode),
+    Index(IndexExprNode),
+    Grouped(Box<ValueExprNode>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BinaryExprNode {
+    pub a: Box<ValueExprNode>,
+    pub op: Token,
+    pub b: Box<ValueExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DerefExprNode {
+    pub pos: Pos,
+    pub value: Box<ValueExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnaryExprNode {
+    pub op: Token,
+    pub value: Box<ValueExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CallExprNode {
+    pub pos: Pos,
+    pub callee: Box<ValueExprNode>,
+    pub arguments: Vec<ValueExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CastExprNode {
+    pub value: Box<ValueExprNode>,
+    pub target: TypeExprNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StructExprNode {
+    pub pos: Pos,
+    pub target: TypeExprNode,
+    pub elements: Vec<KeyValue>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct KeyValue {
+    pub pos: Pos,
+    pub key: Token,
+    pub value: ValueExprNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SelectionExprNode {
+    pub value: Box<ValueExprNode>,
+    pub selection: Token,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IndexExprNode {
+    pub value: Box<ValueExprNode>,
+    pub indexes: Vec<ValueExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct GroupedExprNode {
+    pub value: Box<ValueExprNode>,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StatementNode {
