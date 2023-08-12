@@ -35,6 +35,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             .or_else(|| self.scan_number_lit())
             .or_else(|| self.scan_comments())
             .or_else(|| self.scan_symbols())
+            .or_else(|| self.scan_invalid())
     }
 
     fn skip_whitespace(&mut self) {
@@ -371,6 +372,16 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
     }
 
+    fn scan_invalid(&mut self) -> Option<Token> {
+        let (c, pos) = self.next()?;
+        self.errors.unexpected_char(pos, c);
+        Some(Token {
+            kind: TokenKind::Invalid,
+            value: c.to_string(),
+            pos,
+        })
+    }
+
     fn next_if(&mut self, func: impl FnOnce(char) -> bool) -> Option<(char, Pos)> {
         let ch = self.text.front()?;
         if func(*ch) {
@@ -399,7 +410,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
 trait ScanningError: ErrorReporter {
     fn unexpected_char(&self, pos: Pos, ch: char) {
-        self.report(pos, format!("Unexpected char '{ch}"));
+        self.report(pos, format!("Unexpected char '{ch}'"));
     }
 
     fn missing_closing_quote(&self, pos: Pos) {

@@ -418,7 +418,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
         let Some(value) = self.parse_expr(true) else {
             self.errors
-                .unexpected_parsing(pos, "type_expression", "nothing");
+                .unexpected_parsing(pos, "type expression", "nothing");
             return None;
         };
 
