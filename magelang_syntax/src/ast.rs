@@ -93,6 +93,12 @@ pub struct TypeParameterNode {
     pub name: Token,
 }
 
+impl From<Token> for TypeParameterNode {
+    fn from(name: Token) -> Self {
+        Self { name }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParameterNode {
     pub pos: Pos,
