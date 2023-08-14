@@ -51,9 +51,9 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
 
     let tok = f.token();
     let item = match &tok.kind {
-        TokenKind::Let => f.parse_global(annotations).map(ItemNode::Global),
+        TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
         TokenKind::Fn => f.parse_func(annotations).map(ItemNode::Function),
-        TokenKind::Import => f.parse_import(annotations).map(ItemNode::Import),
+        TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
         TokenKind::Struct => f.parse_struct(annotations).map(ItemNode::Struct),
         _ => {
             if let Some(annotation) = annotations.last() {
@@ -144,6 +144,49 @@ where
     Some((opening, items, closing))
 }
 
+fn parse_import<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    annotations: Vec<AnnotationNode>,
+) -> Option<ImportNode> {
+    let import_tok = f.take_if(TokenKind::Import)?;
+    let pos = import_tok.pos;
+    let name = f.take(TokenKind::Ident, true)?;
+    let path = f.take(TokenKind::StringLit, true)?;
+    f.take(TokenKind::SemiColon, true)?;
+    Some(ImportNode {
+        pos,
+        annotations,
+        name,
+        path,
+    })
+}
+
+fn parse_global<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    annotations: Vec<AnnotationNode>,
+) -> Option<GlobalNode> {
+    let let_tok = f.take_if(TokenKind::Let)?;
+    let pos = let_tok.pos;
+
+    let name = f.take(TokenKind::Ident, true)?;
+    f.take(TokenKind::Colon, true)?;
+    let ty = f.parse_expr(true)?;
+    let value = if f.take_if(TokenKind::Equal).is_some() {
+        f.parse_expr(true)
+    } else {
+        None
+    };
+    f.take(TokenKind::SemiColon, true)?;
+
+    Some(GlobalNode {
+        pos,
+        annotations,
+        name,
+        ty,
+        value,
+    })
+}
+
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn new(errors: &'a Error, tokens: VecDeque<Token>, last_pos: Pos) -> Self {
         Self {
@@ -151,43 +194,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             tokens,
             last_pos,
         }
-    }
-
-    fn parse_import(&mut self, annotations: Vec<AnnotationNode>) -> Option<ImportNode> {
-        let import_tok = self.take(TokenKind::Import, true)?;
-        let pos = import_tok.pos;
-        let name = self.take(TokenKind::Ident, true)?;
-        let path = self.take(TokenKind::StringLit, true)?;
-        self.take(TokenKind::SemiColon, true)?;
-        Some(ImportNode {
-            pos,
-            annotations,
-            name,
-            path,
-        })
-    }
-
-    fn parse_global(&mut self, annotations: Vec<AnnotationNode>) -> Option<GlobalNode> {
-        let let_tok = self.take(TokenKind::Let, true)?;
-        let pos = let_tok.pos;
-
-        let name = self.take(TokenKind::Ident, true)?;
-        self.take(TokenKind::Colon, true)?;
-        let ty = self.parse_expr(true)?;
-        let value = if self.take_if(TokenKind::Equal).is_some() {
-            self.parse_expr(true)
-        } else {
-            None
-        };
-        self.take(TokenKind::SemiColon, true)?;
-
-        Some(GlobalNode {
-            pos,
-            annotations,
-            name,
-            ty,
-            value,
-        })
     }
 
     fn parse_struct(&mut self, annotations: Vec<AnnotationNode>) -> Option<StructNode> {
