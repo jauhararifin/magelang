@@ -60,7 +60,7 @@ impl FileManager {
         let mut lines = Vec::default();
         for (i, c) in source.char_indices() {
             if c == '\n' {
-                lines.push(file_offset + i);
+                lines.push(i);
             }
             self.last_offset += 1;
         }
@@ -225,53 +225,112 @@ mod tests {
     fn test_get_location() {
         let mut file_manager = FileManager::default();
         let path = PathBuf::from("some_dummy_file");
-        let file = file_manager.add_file(path, String::from("aaa\nbbb\nccc\n"));
+        let file1 = file_manager.add_file(path, String::from("aaa\nbbb\nccc\n"));
 
-        let pos = file.offset.with_offset(0);
+        let pos = file1.offset.with_offset(0);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (1, 1));
 
-        let pos = file.offset.with_offset(1);
+        let pos = file1.offset.with_offset(1);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (1, 2));
 
-        let pos = file.offset.with_offset(2);
+        let pos = file1.offset.with_offset(2);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (1, 3));
 
-        let pos = file.offset.with_offset(3);
+        let pos = file1.offset.with_offset(3);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (1, 4));
 
-        let pos = file.offset.with_offset(4);
+        let pos = file1.offset.with_offset(4);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (2, 1));
 
-        let pos = file.offset.with_offset(5);
+        let pos = file1.offset.with_offset(5);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (2, 2));
 
-        let pos = file.offset.with_offset(6);
+        let pos = file1.offset.with_offset(6);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (2, 3));
 
-        let pos = file.offset.with_offset(7);
+        let pos = file1.offset.with_offset(7);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (2, 4));
 
-        let pos = file.offset.with_offset(8);
+        let pos = file1.offset.with_offset(8);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (3, 1));
 
-        let pos = file.offset.with_offset(9);
+        let pos = file1.offset.with_offset(9);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (3, 2));
 
-        let pos = file.offset.with_offset(10);
+        let pos = file1.offset.with_offset(10);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (3, 3));
 
-        let pos = file.offset.with_offset(11);
+        let pos = file1.offset.with_offset(11);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (3, 4));
+
+        let path = PathBuf::from("other_file");
+        let file2 = file_manager.add_file(path, String::from("some other\nfile"));
+
+        let pos = file2.offset.with_offset(1);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (1, 2));
+
+        let pos = file2.offset.with_offset(12);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (2, 2));
+
+        let pos = file1.offset.with_offset(0);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (1, 1));
+
+        let pos = file1.offset.with_offset(1);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (1, 2));
+
+        let pos = file1.offset.with_offset(2);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (1, 3));
+
+        let pos = file1.offset.with_offset(3);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (1, 4));
+
+        let pos = file1.offset.with_offset(4);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (2, 1));
+
+        let pos = file1.offset.with_offset(5);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (2, 2));
+
+        let pos = file1.offset.with_offset(6);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (2, 3));
+
+        let pos = file1.offset.with_offset(7);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (2, 4));
+
+        let pos = file1.offset.with_offset(8);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (3, 1));
+
+        let pos = file1.offset.with_offset(9);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (3, 2));
+
+        let pos = file1.offset.with_offset(10);
+        let loc = file_manager.location(pos);
+        assert_eq!((loc.line, loc.col), (3, 3));
+
+        let pos = file1.offset.with_offset(11);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (3, 4));
     }
