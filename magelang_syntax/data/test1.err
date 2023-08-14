@@ -1,3 +1,0 @@
-data/test1.mg:1:5: Missing closing ')'
-data/test1.mg:7:7: Expected ':', but found ')'
-data/test1.mg:9:1: Missing closing function body

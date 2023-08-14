@@ -1,42 +1,41 @@
 use magelang_syntax::{parse, ErrorManager, FileManager};
-use std::fs::{read_dir, read_to_string};
-use std::path::PathBuf;
+
+const TESTCASE_1: &str = r#"
+fn f(
+
+fn g(): i32 {
+  return 0;
+}
+
+fn f(a)
+
+fn g(): i32 {}
+
+@annotation1()
+fn g(): i32;
+
+fn g(): i32 {
+"#;
+
+const EXPECTED_ERRORS: &[&'static str] = &[
+    "testcase.mg:2:5: Missing closing ')'",
+    "testcase.mg:8:7: Expected ':', but found ')'",
+    "testcase.mg:8:7: Missing function body",
+    "testcase.mg:15:13: Expected '{', but found EOF",
+];
 
 #[test]
 fn test_parsing() {
-    let crate_dir = env!("CARGO_MANIFEST_DIR");
-    let mut testdata_path = PathBuf::from(crate_dir);
-    testdata_path.push("data/");
+    let mut error_manager = ErrorManager::default();
+    let mut file_manager = FileManager::default();
+    let file = file_manager.add_file("testcase.mg".into(), TESTCASE_1.to_string());
+    parse(&error_manager, &file);
 
-    let paths = read_dir(&testdata_path).expect("cannot read test data directory");
-    for path in paths {
-        let mut path = path.unwrap().path();
-        let Some(ext) = path.extension() else { continue };
-        if ext != "mg" {
-            continue;
-        }
-
-        let mut error_manager = ErrorManager::default();
-        let mut file_manager = FileManager::default();
-        let file = file_manager
-            .open(path.clone())
-            .expect("cannot open file {path:?}");
-        parse(&error_manager, &file);
-
-        let mut error_str = String::default();
-        for err in error_manager.take() {
-            let location = file_manager.location(err.pos);
-            let message = &err.message;
-            error_str.push_str(&format!("{location}: {message}\n"));
-        }
-
-        let mut expected_error = String::default();
-        path.set_extension("err");
-        if path.exists() {
-            expected_error =
-                read_to_string(&path).expect("cannot read expected error file: {path:?}");
-        }
-
-        assert_eq!(expected_error, error_str);
+    let mut error_str = Vec::default();
+    for err in error_manager.take() {
+        let location = file_manager.location(err.pos);
+        let message = &err.message;
+        error_str.push(format!("{location}: {message}"));
     }
+    assert_eq!(EXPECTED_ERRORS, error_str);
 }

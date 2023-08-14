@@ -47,37 +47,91 @@ fn parse_root<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<ItemNode> {
 }
 
 fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> {
-    let mut annotations = Vec::default();
-    while let Some(annotation) = f.parse_annotation() {
-        annotations.push(annotation);
-    }
+    let annotations = parse_annotations(f);
 
     let tok = f.token();
-    if tok.kind == TokenKind::Eof {
-        return None;
-    }
-
     let item = match &tok.kind {
         TokenKind::Let => f.parse_global(annotations).map(ItemNode::Global),
         TokenKind::Fn => f.parse_func(annotations).map(ItemNode::Function),
         TokenKind::Import => f.parse_import(annotations).map(ItemNode::Import),
         TokenKind::Struct => f.parse_struct(annotations).map(ItemNode::Struct),
-        _ => None,
+        _ => {
+            if let Some(annotation) = annotations.last() {
+                f.errors.dangling_annotations(annotation.pos);
+            }
+            None
+        }
     };
 
     if item.is_none() {
         let stopping_token = &[
+            TokenKind::Let,
             TokenKind::Fn,
-            TokenKind::SemiColon,
             TokenKind::Import,
             TokenKind::Struct,
-            TokenKind::Let,
+            TokenKind::SemiColon,
         ];
         f.skip_until_before(stopping_token);
         f.take_if(TokenKind::SemiColon);
     }
 
     item
+}
+
+fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationNode> {
+    let mut result = Vec::default();
+
+    while let Some(at_sign) = f.take_if(TokenKind::AtSign) {
+        let pos = at_sign.pos;
+        let name = f.take(TokenKind::Ident, true);
+        let args = parse_sequence(
+            f,
+            TokenKind::OpenBrac,
+            TokenKind::Comma,
+            TokenKind::CloseBrac,
+            |this| this.take_if(TokenKind::StringLit),
+        );
+        let Some(name) = name else { continue};
+        let Some((_,arguments,_)) = args else {continue};
+        result.push(AnnotationNode {
+            pos,
+            name,
+            arguments,
+        });
+    }
+
+    result
+}
+
+fn parse_sequence<T, F, E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    begin_tok: TokenKind,
+    delim_tok: TokenKind,
+    end_tok: TokenKind,
+    parse_fn: F,
+) -> Option<(Token, Vec<T>, Token)>
+where
+    F: Fn(&mut FileParser<E>) -> Option<T>,
+{
+    let opening = f.take(begin_tok, true)?;
+
+    let mut items = Vec::<T>::default();
+    while f.kind() != end_tok && f.kind() != TokenKind::Eof {
+        if let Some(item) = parse_fn(f) {
+            items.push(item);
+            f.take_if(delim_tok);
+        } else {
+            f.take_if(delim_tok);
+            break;
+        }
+    }
+
+    let Some(closing) = f.take_if(end_tok) else {
+        f.errors.missing(opening.pos, format!("closing {end_tok}"));
+        return None;
+    };
+
+    Some((opening, items, closing))
 }
 
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
@@ -87,23 +141,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             tokens,
             last_pos,
         }
-    }
-
-    fn parse_annotation(&mut self) -> Option<AnnotationNode> {
-        let at_sign = self.take_if(TokenKind::AtSign)?;
-        let pos = at_sign.pos;
-        let name = self.take(TokenKind::Ident, true)?;
-        let (_, arguments, _) = self.parse_sequence(
-            TokenKind::OpenBrac,
-            TokenKind::Comma,
-            TokenKind::CloseBrac,
-            |this| this.take_if(TokenKind::StringLit),
-        )?;
-        Some(AnnotationNode {
-            pos,
-            name,
-            arguments,
-        })
     }
 
     fn parse_import(&mut self, annotations: Vec<AnnotationNode>) -> Option<ImportNode> {
@@ -200,7 +237,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             });
         }
 
-        let Some(body) = self.parse_block_stmt() else {
+        let Some(body) = self.parse_block_stmt(false) else {
             self.errors.missing(signature.end_pos, "function body");
             return None;
         };
@@ -308,7 +345,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             TokenKind::Let => StatementNode::Let(self.parse_let_stmt()?),
             TokenKind::If => StatementNode::If(self.parse_if_stmt()?),
             TokenKind::While => StatementNode::While(self.parse_while_stmt()?),
-            TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt()?),
+            TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt(true)?),
             TokenKind::Continue => {
                 StatementNode::Continue(self.take(TokenKind::Continue, true).unwrap())
             }
@@ -372,14 +409,14 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         let pos = if_tok.pos;
 
         let condition = self.parse_expr(false)?;
-        let body = self.parse_block_stmt()?;
+        let body = self.parse_block_stmt(true)?;
 
         let else_node = self.take_if(TokenKind::Else).and_then(|_| {
             let stmt = if self.kind() == TokenKind::If {
                 let else_if = self.parse_if_stmt()?;
                 StatementNode::If(else_if)
             } else {
-                let else_body = self.parse_block_stmt()?;
+                let else_body = self.parse_block_stmt(true)?;
                 StatementNode::Block(else_body)
             };
             Some(Box::new(stmt))
@@ -398,7 +435,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         let pos = while_tok.pos;
 
         let condition = self.parse_expr(false)?;
-        let body = self.parse_block_stmt()?;
+        let body = self.parse_block_stmt(true)?;
 
         Some(WhileStatementNode {
             pos,
@@ -407,8 +444,8 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         })
     }
 
-    fn parse_block_stmt(&mut self) -> Option<BlockStatementNode> {
-        let open = self.take(TokenKind::OpenBlock, true)?;
+    fn parse_block_stmt(&mut self, report: bool) -> Option<BlockStatementNode> {
+        let open = self.take(TokenKind::OpenBlock, report)?;
         let pos = open.pos;
         let mut statements = vec![];
         loop {
@@ -424,7 +461,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 self.tokens.pop_front();
             }
         }
-        self.take(TokenKind::CloseBlock, true)?;
+        self.take(TokenKind::CloseBlock, true);
         Some(BlockStatementNode { pos, statements })
     }
 
@@ -719,6 +756,10 @@ trait ParsingError: ErrorReporter {
 
     fn unexpected_token(&self, pos: Pos, kind: TokenKind) {
         self.report(pos, format!("Expected token {kind}"));
+    }
+
+    fn dangling_annotations(&self, pos: Pos) {
+        self.report(pos, String::from("There is no object to annotate"));
     }
 }
 

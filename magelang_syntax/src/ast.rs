@@ -111,6 +111,27 @@ pub struct ParameterNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum TypeExprNode {
+    Named(NamedTypeNode),
+    Ptr(Box<TypeExprNode>),
+    ArrayPtr(Box<TypeExprNode>),
+    Instance(TypeInstanceNode),
+    Grouped(Box<TypeExprNode>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum NamedTypeNode {
+    Ident(Token),
+    Selection(Token, Token),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TypeInstanceNode {
+    generic_type: NamedTypeNode,
+    type_arguments: Vec<TypeExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum ExprNode {
     Ident(Token),
     Integer(Token),
