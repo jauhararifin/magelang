@@ -83,7 +83,11 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
 
     while let Some(at_sign) = f.take_if(TokenKind::AtSign) {
         let pos = at_sign.pos;
-        let name = f.take(TokenKind::Ident, true);
+        let name = f.take_if(TokenKind::Ident);
+        if name.is_none() {
+            f.unexpected("annotation identifier");
+        }
+
         let args = parse_sequence(
             f,
             TokenKind::OpenBrac,
@@ -91,8 +95,14 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
             TokenKind::CloseBrac,
             |this| this.take_if(TokenKind::StringLit),
         );
-        let Some(name) = name else { continue};
-        let Some((_,arguments,_)) = args else {continue};
+        if args.is_none() {
+            f.unexpected("annotation arguments");
+        }
+
+        let Some(name) = name else { continue };
+        let Some((_, arguments, _)) = args else {
+            continue;
+        };
         result.push(AnnotationNode {
             pos,
             name,
@@ -113,7 +123,7 @@ fn parse_sequence<T, F, E: ErrorReporter>(
 where
     F: Fn(&mut FileParser<E>) -> Option<T>,
 {
-    let opening = f.take(begin_tok, true)?;
+    let opening = f.take_if(begin_tok)?;
 
     let mut items = Vec::<T>::default();
     while f.kind() != end_tok && f.kind() != TokenKind::Eof {
@@ -325,7 +335,8 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         }
 
         let Some(closing) = self.take_if(end_tok) else {
-            self.errors.missing(opening.pos, format!("closing {end_tok}"));
+            self.errors
+                .missing(opening.pos, format!("closing {end_tok}"));
             return None;
         };
 
@@ -684,6 +695,12 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 None
             }
         }
+    }
+
+    fn unexpected(&mut self, expected: impl Display) {
+        let token = self.token();
+        self.errors
+            .unexpected_parsing(token.pos, expected, token.kind);
     }
 
     fn is_empty(&self) -> bool {

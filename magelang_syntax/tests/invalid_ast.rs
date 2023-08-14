@@ -11,17 +11,22 @@ fn f(a)
 
 fn g(): i32 {}
 
-@annotation1()
+@annotation()
 fn g(): i32;
 
-fn g(): i32 {
+@()
+fn g(): i32;
+
+@annotation
+fn g(): i32;
 "#;
 
 const EXPECTED_ERRORS: &[&'static str] = &[
     "testcase.mg:2:5: Missing closing ')'",
     "testcase.mg:8:7: Expected ':', but found ')'",
     "testcase.mg:8:7: Missing function body",
-    "testcase.mg:15:13: Expected '{', but found EOF",
+    "testcase.mg:15:2: Expected annotation identifier, but found '('",
+    "testcase.mg:19:1: Expected annotation arguments, but found 'fn'",
 ];
 
 #[test]
