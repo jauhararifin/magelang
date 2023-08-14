@@ -79,6 +79,7 @@ pub struct SignatureNode {
     pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<ExprNode>,
+    pub end_pos: Pos,
 }
 
 #[derive(Debug, PartialEq, Eq)]

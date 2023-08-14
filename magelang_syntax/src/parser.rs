@@ -83,8 +83,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             ];
             self.skip_until_before(stopping_token);
             self.take_if(TokenKind::SemiColon);
-            self.errors
-                .unexpected_parsing(tok.pos, "declaration", "invalid syntax");
         }
 
         item
@@ -93,7 +91,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn parse_annotation(&mut self) -> Option<AnnotationNode> {
         let at_sign = self.take_if(TokenKind::AtSign)?;
         let pos = at_sign.pos;
-        let name = self.take(TokenKind::Ident)?;
+        let name = self.take(TokenKind::Ident, true)?;
         let (_, arguments, _) = self.parse_sequence(
             TokenKind::OpenBrac,
             TokenKind::Comma,
@@ -108,27 +106,27 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_import(&mut self) -> Option<ImportNode> {
-        let import_tok = self.take(TokenKind::Import)?;
+        let import_tok = self.take(TokenKind::Import, true)?;
         let pos = import_tok.pos;
-        let name = self.take(TokenKind::Ident)?;
-        let path = self.take(TokenKind::StringLit)?;
-        self.take(TokenKind::SemiColon)?;
+        let name = self.take(TokenKind::Ident, true)?;
+        let path = self.take(TokenKind::StringLit, true)?;
+        self.take(TokenKind::SemiColon, true)?;
         Some(ImportNode { pos, name, path })
     }
 
     fn parse_global(&mut self) -> Option<ItemNode> {
-        let let_tok = self.take(TokenKind::Let)?;
+        let let_tok = self.take(TokenKind::Let, true)?;
         let pos = let_tok.pos;
 
-        let name = self.take(TokenKind::Ident)?;
-        self.take(TokenKind::Colon)?;
+        let name = self.take(TokenKind::Ident, true)?;
+        self.take(TokenKind::Colon, true)?;
         let ty = self.parse_expr(true)?;
         let value = if self.take_if(TokenKind::Equal).is_some() {
             self.parse_expr(true)
         } else {
             None
         };
-        self.take(TokenKind::SemiColon)?;
+        self.take(TokenKind::SemiColon, true)?;
 
         Some(ItemNode::Global(GlobalNode {
             pos,
@@ -139,17 +137,17 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_struct(&mut self) -> Option<ItemNode> {
-        let struct_tok = self.take(TokenKind::Struct)?;
+        let struct_tok = self.take(TokenKind::Struct, true)?;
         let pos = struct_tok.pos;
 
-        let name = self.take(TokenKind::Ident)?;
+        let name = self.take(TokenKind::Ident, true)?;
 
         let type_params = if self.kind() == TokenKind::OpenSquare {
             let (_, type_params, _) = self.parse_sequence(
                 TokenKind::OpenSquare,
                 TokenKind::Comma,
                 TokenKind::CloseSquare,
-                |parser| parser.take(TokenKind::Ident),
+                |parser| parser.take(TokenKind::Ident, true),
             )?;
             type_params
                 .into_iter()
@@ -164,8 +162,8 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             TokenKind::Comma,
             TokenKind::CloseBlock,
             |parser| {
-                let name = parser.take(TokenKind::Ident)?;
-                parser.take(TokenKind::Colon)?;
+                let name = parser.take(TokenKind::Ident, true)?;
+                parser.take(TokenKind::Colon, true)?;
                 let ty = parser.parse_expr(true)?;
                 Some(StructFieldNode {
                     pos: name.pos,
@@ -194,7 +192,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             }));
         }
 
-        let body = self.parse_block_stmt()?;
+        let Some(body) = self.parse_block_stmt() else {
+            self.errors.missing(signature.end_pos, "function body");
+            return None;
+        };
         Some(ItemNode::Function(FunctionNode {
             pos,
             signature,
@@ -203,16 +204,16 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_signature(&mut self, annotations: Vec<AnnotationNode>) -> Option<SignatureNode> {
-        let func = self.take(TokenKind::Fn)?;
+        let func = self.take(TokenKind::Fn, true)?;
         let pos = func.pos;
-        let name = self.take(TokenKind::Ident)?;
+        let name = self.take(TokenKind::Ident, true)?;
 
         let type_params = if self.kind() == TokenKind::OpenSquare {
             let (_, type_parameters, _) = self.parse_sequence(
                 TokenKind::OpenSquare,
                 TokenKind::Comma,
                 TokenKind::CloseSquare,
-                |parser| parser.take(TokenKind::Ident),
+                |parser| parser.take(TokenKind::Ident, true),
             )?;
             type_parameters
                 .into_iter()
@@ -222,7 +223,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             Vec::default()
         };
 
-        let (_, parameters, _) = self.parse_sequence(
+        let (_, parameters, close_brac) = self.parse_sequence(
             TokenKind::OpenBrac,
             TokenKind::Comma,
             TokenKind::CloseBrac,
@@ -239,6 +240,11 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             None
         };
 
+        let end_pos = return_type
+            .as_ref()
+            .map(|expr| expr.pos())
+            .unwrap_or(close_brac.pos);
+
         Some(SignatureNode {
             pos,
             annotations,
@@ -246,6 +252,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             type_params,
             parameters,
             return_type,
+            end_pos,
         })
     }
 
@@ -259,30 +266,32 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     where
         F: Fn(&mut Self) -> Option<T>,
     {
-        let opening = self.take(begin_tok)?;
+        let opening = self.take(begin_tok, true)?;
 
         let mut items = Vec::<T>::default();
         while self.kind() != end_tok && self.kind() != TokenKind::Eof {
             if let Some(item) = parse_fn(self) {
                 items.push(item);
+                self.take_if(delim_tok);
+            } else {
+                self.take_if(delim_tok);
+                break;
             }
-            self.take_if(delim_tok);
         }
 
-        let closing = self.take(end_tok)?;
+        let Some(closing) = self.take_if(end_tok) else {
+            self.errors.missing(opening.pos, format!("closing {end_tok}"));
+            return None;
+        };
 
         Some((opening, items, closing))
     }
 
     fn parse_parameter(&mut self) -> Option<ParameterNode> {
-        let name = self.take(TokenKind::Ident)?;
+        let name = self.take(TokenKind::Ident, false)?;
         let pos = name.pos;
-        let _ = self.take(TokenKind::Colon)?;
-        let Some(ty) = self.parse_expr(false) else {
-            self.errors
-                .unexpected_parsing(pos, "type expression", "nothing");
-            return None;
-        };
+        let _ = self.take(TokenKind::Colon, true)?;
+        let ty = self.parse_expr(false)?;
         Some(ParameterNode { pos, name, ty })
     }
 
@@ -292,8 +301,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             TokenKind::If => StatementNode::If(self.parse_if_stmt()?),
             TokenKind::While => StatementNode::While(self.parse_while_stmt()?),
             TokenKind::OpenBlock => StatementNode::Block(self.parse_block_stmt()?),
-            TokenKind::Continue => StatementNode::Continue(self.take(TokenKind::Continue).unwrap()),
-            TokenKind::Break => StatementNode::Break(self.take(TokenKind::Break).unwrap()),
+            TokenKind::Continue => {
+                StatementNode::Continue(self.take(TokenKind::Continue, true).unwrap())
+            }
+            TokenKind::Break => StatementNode::Break(self.take(TokenKind::Break, true).unwrap()),
             TokenKind::Return => StatementNode::Return(self.parse_return_stmt()?),
             _ => {
                 let expr = self.parse_expr(true)?;
@@ -313,23 +324,23 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_let_stmt(&mut self) -> Option<LetStatementNode> {
-        let let_tok = self.take(TokenKind::Let)?;
+        let let_tok = self.take(TokenKind::Let, true)?;
         let pos = let_tok.pos;
 
-        let name = self.take(TokenKind::Ident)?;
+        let name = self.take(TokenKind::Ident, true)?;
 
         if self.take_if(TokenKind::Colon).is_some() {
             let ty = self.parse_expr(true)?;
             if self.take_if(TokenKind::Equal).is_some() {
                 let value = self.parse_expr(true)?;
-                self.take(TokenKind::SemiColon)?;
+                self.take(TokenKind::SemiColon, true)?;
                 Some(LetStatementNode {
                     pos,
                     name,
                     kind: LetKind::TypeValue { ty, value },
                 })
             } else {
-                self.take(TokenKind::SemiColon)?;
+                self.take(TokenKind::SemiColon, true)?;
                 Some(LetStatementNode {
                     pos,
                     name,
@@ -337,9 +348,9 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 })
             }
         } else {
-            self.take(TokenKind::Equal)?;
+            self.take(TokenKind::Equal, true)?;
             let value = self.parse_expr(true)?;
-            self.take(TokenKind::SemiColon)?;
+            self.take(TokenKind::SemiColon, true)?;
             Some(LetStatementNode {
                 pos,
                 name,
@@ -349,7 +360,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_if_stmt(&mut self) -> Option<IfStatementNode> {
-        let if_tok = self.take(TokenKind::If)?;
+        let if_tok = self.take(TokenKind::If, true)?;
         let pos = if_tok.pos;
 
         let condition = self.parse_expr(false)?;
@@ -375,7 +386,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_while_stmt(&mut self) -> Option<WhileStatementNode> {
-        let while_tok = self.take(TokenKind::While)?;
+        let while_tok = self.take(TokenKind::While, true)?;
         let pos = while_tok.pos;
 
         let condition = self.parse_expr(false)?;
@@ -389,7 +400,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn parse_block_stmt(&mut self) -> Option<BlockStatementNode> {
-        let open = self.take(TokenKind::OpenBlock)?;
+        let open = self.take(TokenKind::OpenBlock, true)?;
         let pos = open.pos;
         let mut statements = vec![];
         loop {
@@ -405,12 +416,12 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 self.tokens.pop_front();
             }
         }
-        self.take(TokenKind::CloseBlock)?;
+        self.take(TokenKind::CloseBlock, true)?;
         Some(BlockStatementNode { pos, statements })
     }
 
     fn parse_return_stmt(&mut self) -> Option<ReturnStatementNode> {
-        let return_tok = self.take(TokenKind::Return)?;
+        let return_tok = self.take(TokenKind::Return, true)?;
         let pos = return_tok.pos;
         if self.take_if(TokenKind::SemiColon).is_some() {
             return Some(ReturnStatementNode { pos, value: None });
@@ -422,7 +433,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             return None;
         };
 
-        self.take(TokenKind::SemiColon)?;
+        self.take(TokenKind::SemiColon, true)?;
         Some(ReturnStatementNode {
             pos,
             value: Some(value),
@@ -537,8 +548,8 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             let kind = self.kind();
             target = match kind {
                 TokenKind::Dot => {
-                    self.take(TokenKind::Dot)?;
-                    let selection = self.take(TokenKind::Ident)?;
+                    self.take(TokenKind::Dot, true)?;
+                    let selection = self.take(TokenKind::Ident, true)?;
                     ExprNode::Selection(SelectionExprNode {
                         value: Box::new(target),
                         selection,
@@ -579,8 +590,8 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                         TokenKind::Comma,
                         TokenKind::CloseBlock,
                         |parser| {
-                            let key = parser.take(TokenKind::Ident)?;
-                            parser.take(TokenKind::Colon)?;
+                            let key = parser.take(TokenKind::Ident, true)?;
+                            parser.take(TokenKind::Colon, true)?;
                             let value = parser.parse_expr(true)?;
                             Some(KeyValue {
                                 pos: key.pos,
@@ -607,16 +618,18 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
     fn parse_primary_expr(&mut self) -> Option<ExprNode> {
         match self.kind() {
-            TokenKind::Ident => self.take(TokenKind::Ident).map(ExprNode::Ident),
-            TokenKind::IntegerLit => self.take(TokenKind::IntegerLit).map(ExprNode::Integer),
-            TokenKind::RealLit => self.take(TokenKind::RealLit).map(ExprNode::Frac),
-            TokenKind::StringLit => self.take(TokenKind::StringLit).map(ExprNode::String),
-            TokenKind::True => self.take(TokenKind::True).map(ExprNode::Bool),
-            TokenKind::False => self.take(TokenKind::False).map(ExprNode::Bool),
+            TokenKind::Ident => self.take(TokenKind::Ident, true).map(ExprNode::Ident),
+            TokenKind::IntegerLit => self
+                .take(TokenKind::IntegerLit, true)
+                .map(ExprNode::Integer),
+            TokenKind::RealLit => self.take(TokenKind::RealLit, true).map(ExprNode::Frac),
+            TokenKind::StringLit => self.take(TokenKind::StringLit, true).map(ExprNode::String),
+            TokenKind::True => self.take(TokenKind::True, true).map(ExprNode::Bool),
+            TokenKind::False => self.take(TokenKind::False, true).map(ExprNode::Bool),
             TokenKind::OpenBrac => {
-                let _ = self.take(TokenKind::OpenBrac).unwrap();
+                let _ = self.take(TokenKind::OpenBrac, true).unwrap();
                 let expr = self.parse_expr(true)?;
-                let _ = self.take(TokenKind::CloseBrac)?;
+                let _ = self.take(TokenKind::CloseBrac, true)?;
                 Some(ExprNode::Grouped(Box::new(expr)))
             }
             TokenKind::SemiColon => None,
@@ -647,12 +660,14 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             .unwrap_or(TokenKind::Eof)
     }
 
-    fn take(&mut self, kind: TokenKind) -> Option<Token> {
-        let token = self.tokens.pop_front()?;
+    fn take(&mut self, kind: TokenKind, report: bool) -> Option<Token> {
+        let token = self.tokens.front()?;
         if token.kind == kind {
-            Some(token)
+            self.tokens.pop_front()
         } else {
-            self.errors.unexpected_parsing(token.pos, kind, token.kind);
+            if report {
+                self.errors.unexpected_parsing(token.pos, kind, token.kind);
+            }
             None
         }
     }
@@ -684,6 +699,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 trait ParsingError: ErrorReporter {
     fn unexpected_parsing(&self, pos: Pos, expected: impl Display, found: impl Display) {
         self.report(pos, format!("Expected {expected}, but found {found}"));
+    }
+
+    fn missing(&self, pos: Pos, kind: impl Display) {
+        self.report(pos, format!("Missing {kind}"));
     }
 
     fn unexpected_token(&self, pos: Pos, kind: TokenKind) {
