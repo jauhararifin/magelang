@@ -37,6 +37,7 @@ impl ItemNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImportNode {
     pub pos: Pos,
+    pub annotations: Vec<AnnotationNode>,
     pub name: Token,
     pub path: Token,
 }
@@ -44,6 +45,7 @@ pub struct ImportNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct StructNode {
     pub pos: Pos,
+    pub annotations: Vec<AnnotationNode>,
     pub name: Token,
     pub type_params: Vec<TypeParameterNode>,
     pub fields: Vec<StructFieldNode>,
@@ -59,6 +61,7 @@ pub struct StructFieldNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct GlobalNode {
     pub pos: Pos,
+    pub annotations: Vec<AnnotationNode>,
     pub name: Token,
     pub ty: ExprNode,
     pub value: Option<ExprNode>,

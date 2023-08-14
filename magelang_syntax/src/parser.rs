@@ -24,7 +24,7 @@ pub fn parse(errors: &impl ErrorReporter, file: &File) -> PackageNode {
         .unwrap_or(file.offset);
     let mut parser = FileParser::new(errors, filtered_tokens, last_pos);
 
-    let items = parser.parse_root();
+    let items = parse_root(&mut parser);
     PackageNode { items, comments }
 }
 
@@ -34,6 +34,52 @@ struct FileParser<'a, Error> {
     last_pos: Pos,
 }
 
+fn parse_root<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<ItemNode> {
+    let mut items = Vec::<ItemNode>::default();
+
+    while !f.is_empty() {
+        if let Some(item) = parse_item_node(f) {
+            items.push(item);
+        }
+    }
+
+    items
+}
+
+fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> {
+    let mut annotations = Vec::default();
+    while let Some(annotation) = f.parse_annotation() {
+        annotations.push(annotation);
+    }
+
+    let tok = f.token();
+    if tok.kind == TokenKind::Eof {
+        return None;
+    }
+
+    let item = match &tok.kind {
+        TokenKind::Let => f.parse_global(annotations).map(ItemNode::Global),
+        TokenKind::Fn => f.parse_func(annotations).map(ItemNode::Function),
+        TokenKind::Import => f.parse_import(annotations).map(ItemNode::Import),
+        TokenKind::Struct => f.parse_struct(annotations).map(ItemNode::Struct),
+        _ => None,
+    };
+
+    if item.is_none() {
+        let stopping_token = &[
+            TokenKind::Fn,
+            TokenKind::SemiColon,
+            TokenKind::Import,
+            TokenKind::Struct,
+            TokenKind::Let,
+        ];
+        f.skip_until_before(stopping_token);
+        f.take_if(TokenKind::SemiColon);
+    }
+
+    item
+}
+
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn new(errors: &'a Error, tokens: VecDeque<Token>, last_pos: Pos) -> Self {
         Self {
@@ -41,51 +87,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             tokens,
             last_pos,
         }
-    }
-
-    fn parse_root(&mut self) -> Vec<ItemNode> {
-        let mut items = Vec::<ItemNode>::default();
-
-        while !self.tokens.is_empty() {
-            if let Some(item) = self.parse_item_node() {
-                items.push(item);
-            }
-        }
-
-        items
-    }
-
-    fn parse_item_node(&mut self) -> Option<ItemNode> {
-        let mut annotations = Vec::default();
-        while let Some(annotation) = self.parse_annotation() {
-            annotations.push(annotation);
-        }
-
-        let tok = self.token();
-        if tok.kind == TokenKind::Eof {
-            return None;
-        }
-
-        let item = match &tok.kind {
-            TokenKind::Let => self.parse_global(),
-            TokenKind::Fn => self.parse_func(annotations),
-            TokenKind::Import => self.parse_import().map(ItemNode::Import),
-            TokenKind::Struct => self.parse_struct(),
-            _ => None,
-        };
-
-        if item.is_none() {
-            let stopping_token = &[
-                TokenKind::Fn,
-                TokenKind::SemiColon,
-                TokenKind::Import,
-                TokenKind::Let,
-            ];
-            self.skip_until_before(stopping_token);
-            self.take_if(TokenKind::SemiColon);
-        }
-
-        item
     }
 
     fn parse_annotation(&mut self) -> Option<AnnotationNode> {
@@ -105,16 +106,21 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         })
     }
 
-    fn parse_import(&mut self) -> Option<ImportNode> {
+    fn parse_import(&mut self, annotations: Vec<AnnotationNode>) -> Option<ImportNode> {
         let import_tok = self.take(TokenKind::Import, true)?;
         let pos = import_tok.pos;
         let name = self.take(TokenKind::Ident, true)?;
         let path = self.take(TokenKind::StringLit, true)?;
         self.take(TokenKind::SemiColon, true)?;
-        Some(ImportNode { pos, name, path })
+        Some(ImportNode {
+            pos,
+            annotations,
+            name,
+            path,
+        })
     }
 
-    fn parse_global(&mut self) -> Option<ItemNode> {
+    fn parse_global(&mut self, annotations: Vec<AnnotationNode>) -> Option<GlobalNode> {
         let let_tok = self.take(TokenKind::Let, true)?;
         let pos = let_tok.pos;
 
@@ -128,15 +134,16 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         };
         self.take(TokenKind::SemiColon, true)?;
 
-        Some(ItemNode::Global(GlobalNode {
+        Some(GlobalNode {
             pos,
+            annotations,
             name,
             ty,
             value,
-        }))
+        })
     }
 
-    fn parse_struct(&mut self) -> Option<ItemNode> {
+    fn parse_struct(&mut self, annotations: Vec<AnnotationNode>) -> Option<StructNode> {
         let struct_tok = self.take(TokenKind::Struct, true)?;
         let pos = struct_tok.pos;
 
@@ -173,34 +180,35 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             },
         )?;
 
-        Some(ItemNode::Struct(StructNode {
+        Some(StructNode {
             pos,
+            annotations,
             name,
             type_params,
             fields,
-        }))
+        })
     }
 
-    fn parse_func(&mut self, annotations: Vec<AnnotationNode>) -> Option<ItemNode> {
+    fn parse_func(&mut self, annotations: Vec<AnnotationNode>) -> Option<FunctionNode> {
         let signature = self.parse_signature(annotations)?;
         let pos = signature.pos;
         if self.take_if(TokenKind::SemiColon).is_some() {
-            return Some(ItemNode::Function(FunctionNode {
+            return Some(FunctionNode {
                 pos,
                 signature,
                 body: None,
-            }));
+            });
         }
 
         let Some(body) = self.parse_block_stmt() else {
             self.errors.missing(signature.end_pos, "function body");
             return None;
         };
-        Some(ItemNode::Function(FunctionNode {
+        Some(FunctionNode {
             pos,
             signature,
             body: Some(body),
-        }))
+        })
     }
 
     fn parse_signature(&mut self, annotations: Vec<AnnotationNode>) -> Option<SignatureNode> {
@@ -639,6 +647,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 None
             }
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
     }
 
     fn token(&mut self) -> Token {
