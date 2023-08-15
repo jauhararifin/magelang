@@ -51,10 +51,10 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
 
     let tok = f.token();
     let item = match &tok.kind {
+        TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
+        TokenKind::Struct => parse_struct(f, annotations).map(ItemNode::Struct),
         TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
         TokenKind::Fn => f.parse_func(annotations).map(ItemNode::Function),
-        TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
-        TokenKind::Struct => f.parse_struct(annotations).map(ItemNode::Struct),
         _ => {
             if let Some(annotation) = annotations.last() {
                 f.errors.dangling_annotations(annotation.pos);
@@ -271,6 +271,56 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
     }
 }
 
+fn parse_struct<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    annotations: Vec<AnnotationNode>,
+) -> Option<StructNode> {
+    let struct_tok = f.take_if(TokenKind::Struct)?;
+    let pos = struct_tok.pos;
+
+    let name = f.take(TokenKind::Ident, true);
+
+    let type_params = if f.kind() == TokenKind::Lt {
+        let result = f.parse_sequence(TokenKind::Lt, TokenKind::Comma, TokenKind::Gt, |parser| {
+            parser.take(TokenKind::Ident, true)
+        });
+        result.map(|(_, type_params, _)| {
+            type_params
+                .into_iter()
+                .map(TypeParameterNode::from)
+                .collect()
+        })
+    } else {
+        None
+    };
+
+    let (_, fields, _) = f.parse_sequence(
+        TokenKind::OpenBlock,
+        TokenKind::Comma,
+        TokenKind::CloseBlock,
+        |parser| {
+            let name = parser.take(TokenKind::Ident, true)?;
+            parser.take(TokenKind::Colon, true)?;
+            let ty = parser.parse_expr(true)?;
+            Some(StructFieldNode {
+                pos: name.pos,
+                name,
+                ty,
+            })
+        },
+    )?;
+
+    let name = name?;
+    let type_params = type_params?;
+    Some(StructNode {
+        pos,
+        annotations,
+        name,
+        type_params,
+        fields,
+    })
+}
+
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn new(errors: &'a Error, tokens: VecDeque<Token>, last_pos: Pos) -> Self {
         Self {
@@ -278,52 +328,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             tokens,
             last_pos,
         }
-    }
-
-    fn parse_struct(&mut self, annotations: Vec<AnnotationNode>) -> Option<StructNode> {
-        let struct_tok = self.take(TokenKind::Struct, true)?;
-        let pos = struct_tok.pos;
-
-        let name = self.take(TokenKind::Ident, true)?;
-
-        let type_params = if self.kind() == TokenKind::OpenSquare {
-            let (_, type_params, _) = self.parse_sequence(
-                TokenKind::OpenSquare,
-                TokenKind::Comma,
-                TokenKind::CloseSquare,
-                |parser| parser.take(TokenKind::Ident, true),
-            )?;
-            type_params
-                .into_iter()
-                .map(TypeParameterNode::from)
-                .collect()
-        } else {
-            Vec::default()
-        };
-
-        let (_, fields, _) = self.parse_sequence(
-            TokenKind::OpenBlock,
-            TokenKind::Comma,
-            TokenKind::CloseBlock,
-            |parser| {
-                let name = parser.take(TokenKind::Ident, true)?;
-                parser.take(TokenKind::Colon, true)?;
-                let ty = parser.parse_expr(true)?;
-                Some(StructFieldNode {
-                    pos: name.pos,
-                    name,
-                    ty,
-                })
-            },
-        )?;
-
-        Some(StructNode {
-            pos,
-            annotations,
-            name,
-            type_params,
-            fields,
-        })
     }
 
     fn parse_func(&mut self, annotations: Vec<AnnotationNode>) -> Option<FunctionNode> {
@@ -829,9 +833,9 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn take(&mut self, kind: TokenKind, report: bool) -> Option<Token> {
-        let token = self.tokens.front()?;
+        let token = self.token();
         if token.kind == kind {
-            self.tokens.pop_front()
+            Some(self.pop())
         } else {
             if report {
                 self.errors.unexpected_parsing(token.pos, kind, token.kind);

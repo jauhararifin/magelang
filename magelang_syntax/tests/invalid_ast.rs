@@ -66,6 +66,12 @@ let _: [*package = 10;
 let _: [*]package = 10;
 
 fn g(): i32{}
+
+struct {}
+struct a
+struct a<i32>
+struct <i32>{}
+struct a<i32>{field1: type1}
 "#;
 
 const EXPECTED_ERRORS: &[&'static str] = &[
@@ -82,4 +88,8 @@ const EXPECTED_ERRORS: &[&'static str] = &[
     "testcase.mg:44:25: Missing closing '>'",
     "testcase.mg:46:9: Expected '*', but found IDENT",
     "testcase.mg:47:10: Expected ']', but found IDENT",
+    "testcase.mg:52:8: Expected IDENT, but found '{'",
+    "testcase.mg:54:1: Expected '{', but found 'struct'",
+    "testcase.mg:55:1: Expected '{', but found 'struct'",
+    "testcase.mg:55:8: Expected IDENT, but found '<'",
 ];
