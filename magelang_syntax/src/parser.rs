@@ -198,7 +198,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 ty
             } else {
                 f.errors.missing(close_tok.pos, "pointee type");
-                TypeExprNode::Invalid
+                TypeExprNode::Invalid(tok.pos)
             };
             Some(TypeExprNode::ArrayPtr(ArrayPtrTypeNode {
                 pos: tok.pos,
@@ -211,7 +211,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 ty
             } else {
                 f.errors.missing(tok.pos, "pointee type");
-                TypeExprNode::Invalid
+                TypeExprNode::Invalid(tok.pos)
             };
             Some(TypeExprNode::Ptr(PtrTypeNode {
                 pos: tok.pos,
@@ -226,6 +226,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
         }
         TokenKind::Ident => {
             let name = f.take(TokenKind::Ident).unwrap();
+            let pos = name.pos;
             let named_type = if f.take_if(TokenKind::Dot).is_some() {
                 let package = name;
                 let name = f.take(TokenKind::Ident);
@@ -252,10 +253,10 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             };
 
             let Some(ty) = named_type else {
-                return Some(TypeExprNode::Invalid);
+                return Some(TypeExprNode::Invalid(pos));
             };
             let Some(type_args) = type_args else {
-                return Some(TypeExprNode::Invalid);
+                return Some(TypeExprNode::Invalid(pos));
             };
 
             if type_args.is_empty() {
@@ -306,7 +307,7 @@ fn parse_struct<E: ErrorReporter>(
         |parser| {
             let name = parser.take(TokenKind::Ident)?;
             parser.take(TokenKind::Colon)?;
-            let ty = parser.parse_expr(true)?;
+            let ty = parse_type_expr(parser)?;
             Some(StructFieldNode {
                 pos: name.pos,
                 name,
@@ -357,12 +358,12 @@ fn parse_signature<E: ErrorReporter>(
     let pos = func.pos;
     let name = f.take(TokenKind::Ident)?;
 
-    let type_params = if f.kind() == TokenKind::OpenSquare {
+    let type_params = if f.kind() == TokenKind::Lt {
         let (_, type_parameters, _) = parse_sequence(
             f,
-            TokenKind::OpenSquare,
+            TokenKind::Lt,
             TokenKind::Comma,
-            TokenKind::CloseSquare,
+            TokenKind::Gt,
             |parser| parser.take(TokenKind::Ident),
         )?;
         type_parameters
@@ -381,7 +382,7 @@ fn parse_signature<E: ErrorReporter>(
         parse_parameter,
     )?;
     let return_type = if f.take_if(TokenKind::Colon).is_some() {
-        let Some(expr) = f.parse_expr(false) else {
+        let Some(expr) = parse_type_expr(f) else {
             f.errors
                 .unexpected_parsing(pos, "type expression", "nothing");
             return None;
@@ -411,7 +412,7 @@ fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterN
     let name = f.take_if(TokenKind::Ident)?;
     let pos = name.pos;
     let _ = f.take(TokenKind::Colon)?;
-    let ty = f.parse_expr(false)?;
+    let ty = parse_type_expr(f)?;
     Some(ParameterNode { pos, name, ty })
 }
 
@@ -448,7 +449,7 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
     let name = f.take(TokenKind::Ident)?;
 
     if f.take_if(TokenKind::Colon).is_some() {
-        let ty = f.parse_expr(true)?;
+        let ty = parse_type_expr(f)?;
         if f.take_if(TokenKind::Equal).is_some() {
             let value = f.parse_expr(true)?;
             f.take(TokenKind::SemiColon)?;
@@ -652,7 +653,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn parse_cast_expr(&mut self, allow_struct_lit: bool) -> Option<ExprNode> {
         let value = self.parse_unary_expr(allow_struct_lit)?;
         if self.take_if(TokenKind::As).is_some() {
-            let target = self.parse_unary_expr(allow_struct_lit)?;
+            let target = parse_type_expr(self)?;
             Some(ExprNode::Cast(CastExprNode {
                 value: Box::new(value),
                 target: Box::new(target),

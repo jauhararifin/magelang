@@ -55,7 +55,7 @@ pub struct StructNode {
 pub struct StructFieldNode {
     pub pos: Pos,
     pub name: Token,
-    pub ty: ExprNode,
+    pub ty: TypeExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -81,7 +81,7 @@ pub struct SignatureNode {
     pub name: Token,
     pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
-    pub return_type: Option<ExprNode>,
+    pub return_type: Option<TypeExprNode>,
     pub end_pos: Pos,
 }
 
@@ -107,12 +107,12 @@ impl From<Token> for TypeParameterNode {
 pub struct ParameterNode {
     pub pos: Pos,
     pub name: Token,
-    pub ty: ExprNode,
+    pub ty: TypeExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TypeExprNode {
-    Invalid,
+    Invalid(Pos),
     Named(NamedTypeNode),
     Ptr(PtrTypeNode),
     ArrayPtr(ArrayPtrTypeNode),
@@ -120,10 +120,32 @@ pub enum TypeExprNode {
     Grouped(Box<TypeExprNode>),
 }
 
+impl TypeExprNode {
+    pub fn pos(&self) -> Pos {
+        match self {
+            Self::Invalid(pos) => *pos,
+            Self::Named(node) => node.pos(),
+            Self::Ptr(node) => node.pos,
+            Self::ArrayPtr(node) => node.pos,
+            Self::Instance(node) => node.ty.pos(),
+            Self::Grouped(node) => node.pos(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum NamedTypeNode {
     Ident(Token),
     Selection(Token, Token),
+}
+
+impl NamedTypeNode {
+    pub fn pos(&self) -> Pos {
+        match self {
+            Self::Ident(tok) => tok.pos,
+            Self::Selection(tok, _) => tok.pos,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -156,7 +178,6 @@ pub enum ExprNode {
     Unary(UnaryExprNode),
     Call(CallExprNode),
     Cast(CastExprNode),
-    ArrayPtr(ArrayPtrExprNode),
     Struct(StructExprNode),
     Selection(SelectionExprNode),
     Index(IndexExprNode),
@@ -176,7 +197,6 @@ impl ExprNode {
             Self::Unary(node) => node.value.pos(),
             Self::Call(node) => node.callee.pos(),
             Self::Cast(node) => node.value.pos(),
-            Self::ArrayPtr(node) => node.pos,
             Self::Struct(node) => node.pos,
             Self::Selection(node) => node.value.pos(),
             Self::Index(node) => node.value.pos(),
@@ -214,13 +234,7 @@ pub struct CallExprNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CastExprNode {
     pub value: Box<ExprNode>,
-    pub target: Box<ExprNode>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ArrayPtrExprNode {
-    pub pos: Pos,
-    pub element: Box<ExprNode>,
+    pub target: Box<TypeExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -276,8 +290,8 @@ pub struct LetStatementNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LetKind {
-    TypeOnly { ty: ExprNode },
-    TypeValue { ty: ExprNode, value: ExprNode },
+    TypeOnly { ty: TypeExprNode },
+    TypeValue { ty: TypeExprNode, value: ExprNode },
     ValueOnly { value: ExprNode },
 }
 
