@@ -170,7 +170,7 @@ fn parse_global<E: ErrorReporter>(
 
     let name = f.take(TokenKind::Ident, true)?;
     f.take(TokenKind::Colon, true)?;
-    let ty = f.parse_expr(true)?;
+    let ty = parse_type_expr(f)?;
     let value = if f.take_if(TokenKind::Equal).is_some() {
         f.parse_expr(true)
     } else {
@@ -185,6 +185,90 @@ fn parse_global<E: ErrorReporter>(
         ty,
         value,
     })
+}
+
+fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNode> {
+    let tok = f.token();
+    match &tok.kind {
+        TokenKind::OpenSquare => {
+            let tok = f.pop();
+            f.take(TokenKind::Mul, true)?;
+            let close_tok = f.take(TokenKind::CloseSquare, true)?;
+            let ty = if let Some(ty) = parse_type_expr(f) {
+                ty
+            } else {
+                f.errors.missing(close_tok.pos, "pointee type");
+                TypeExprNode::Invalid
+            };
+            Some(TypeExprNode::ArrayPtr(ArrayPtrTypeNode {
+                pos: tok.pos,
+                ty: Box::new(ty),
+            }))
+        }
+        TokenKind::Mul => {
+            let tok = f.pop();
+            let ty = if let Some(ty) = parse_type_expr(f) {
+                ty
+            } else {
+                f.errors.missing(tok.pos, "pointee type");
+                TypeExprNode::Invalid
+            };
+            Some(TypeExprNode::Ptr(PtrTypeNode {
+                pos: tok.pos,
+                ty: Box::new(ty),
+            }))
+        }
+        TokenKind::OpenBrac => {
+            f.pop();
+            let inner_ty = parse_type_expr(f);
+            f.take(TokenKind::CloseBrac, true);
+            inner_ty.map(Box::new).map(TypeExprNode::Grouped)
+        }
+        TokenKind::Ident => {
+            let name = f.take(TokenKind::Ident, true).unwrap();
+            let named_type = if f.take_if(TokenKind::Dot).is_some() {
+                let package = name;
+                let name = f.take(TokenKind::Ident, true);
+                if let Some(name) = name {
+                    Some(NamedTypeNode::Selection(package, name))
+                } else {
+                    None
+                }
+            } else {
+                Some(NamedTypeNode::Ident(name))
+            };
+
+            let type_args = if f.kind() == TokenKind::Lt {
+                parse_sequence(
+                    f,
+                    TokenKind::Lt,
+                    TokenKind::Comma,
+                    TokenKind::Gt,
+                    parse_type_expr,
+                )
+                .map(|(_, type_args, _)| type_args)
+            } else {
+                None
+            };
+
+            let Some(ty) = named_type else {
+                return Some(TypeExprNode::Invalid)
+            };
+            let Some(type_args) = type_args else {
+                return Some(TypeExprNode::Invalid)
+            };
+
+            if type_args.is_empty() {
+                Some(TypeExprNode::Named(ty))
+            } else {
+                Some(TypeExprNode::Instance(TypeInstanceNode {
+                    ty,
+                    args: type_args,
+                }))
+            }
+        }
+        _ => None,
+    }
 }
 
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
@@ -732,6 +816,18 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             .unwrap_or(TokenKind::Eof)
     }
 
+    fn pop(&mut self) -> Token {
+        if let Some(tok) = self.tokens.pop_front() {
+            tok
+        } else {
+            Token {
+                kind: TokenKind::Eof,
+                value: "".into(),
+                pos: self.last_pos,
+            }
+        }
+    }
+
     fn take(&mut self, kind: TokenKind, report: bool) -> Option<Token> {
         let token = self.tokens.front()?;
         if token.kind == kind {
@@ -773,8 +869,8 @@ trait ParsingError: ErrorReporter {
         self.report(pos, format!("Expected {expected}, but found {found}"));
     }
 
-    fn missing(&self, pos: Pos, kind: impl Display) {
-        self.report(pos, format!("Missing {kind}"));
+    fn missing(&self, pos: Pos, component: impl Display) {
+        self.report(pos, format!("Missing {component}"));
     }
 
     fn unexpected_token(&self, pos: Pos, kind: TokenKind) {

@@ -63,7 +63,7 @@ pub struct GlobalNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
     pub name: Token,
-    pub ty: ExprNode,
+    pub ty: TypeExprNode,
     pub value: Option<ExprNode>,
 }
 
@@ -112,9 +112,10 @@ pub struct ParameterNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TypeExprNode {
+    Invalid,
     Named(NamedTypeNode),
-    Ptr(Box<TypeExprNode>),
-    ArrayPtr(Box<TypeExprNode>),
+    Ptr(PtrTypeNode),
+    ArrayPtr(ArrayPtrTypeNode),
     Instance(TypeInstanceNode),
     Grouped(Box<TypeExprNode>),
 }
@@ -126,9 +127,21 @@ pub enum NamedTypeNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct PtrTypeNode {
+    pub pos: Pos,
+    pub ty: Box<TypeExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ArrayPtrTypeNode {
+    pub pos: Pos,
+    pub ty: Box<TypeExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeInstanceNode {
-    generic_type: NamedTypeNode,
-    type_arguments: Vec<TypeExprNode>,
+    pub ty: NamedTypeNode,
+    pub args: Vec<TypeExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

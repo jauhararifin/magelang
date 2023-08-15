@@ -40,6 +40,32 @@ import;
 
 let global: i32 = 10;
 let global = 10;
+
+let global: package.sometype = 10;
+let global: package.sometype<int> = 10;
+let global: package.sometype<int,int> = 10;
+let global: sometype = 10;
+let global: *sometype = 10;
+let global: *package.sometype = 10;
+let global: *package.sometype<i32,package.package<i32> > = 10;
+let global: *package.sometype<i32,(package.package<i32>)> = 10;
+let global: [*]sometype = 10;
+let global: [*]package.sometype = 10;
+let global: [*]package.sometype<i32,package.package<i32> > = 10;
+let global: [*]package.sometype<i32,(package.package<i32>)> = 10;
+
+let _: * = 10;
+let _: *package = 10;
+let _: *package. = 10;
+let _: *package.sometype = 10;
+let _: *package.sometype< = 10;
+let _: *package.sometype<i32 = 10;
+let _: *package.sometype<i32> = 10;
+let _: [package = 10;
+let _: [*package = 10;
+let _: [*]package = 10;
+
+fn g(): i32{}
 "#;
 
 const EXPECTED_ERRORS: &[&'static str] = &[
@@ -50,4 +76,10 @@ const EXPECTED_ERRORS: &[&'static str] = &[
     "testcase.mg:19:1: Expected annotation arguments, but found 'fn'",
     "testcase.mg:21:7: Expected IDENT, but found ';'",
     "testcase.mg:24:12: Expected ':', but found '='",
+    "testcase.mg:39:8: Missing pointee type",
+    "testcase.mg:41:18: Expected IDENT, but found '='",
+    "testcase.mg:43:25: Missing closing '>'",
+    "testcase.mg:44:25: Missing closing '>'",
+    "testcase.mg:46:9: Expected '*', but found IDENT",
+    "testcase.mg:47:10: Expected ']', but found IDENT",
 ];
