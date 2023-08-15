@@ -172,7 +172,7 @@ fn parse_global<E: ErrorReporter>(
     f.take(TokenKind::Colon)?;
     let ty = parse_type_expr(f)?;
     let value = if f.take_if(TokenKind::Equal).is_some() {
-        f.parse_expr(true)
+        parse_expr(f, true)
     } else {
         None
     };
@@ -426,10 +426,10 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
         TokenKind::Break => StatementNode::Break(f.take(TokenKind::Break).unwrap()),
         TokenKind::Return => StatementNode::Return(parse_return_stmt(f)?),
         _ => {
-            let expr = f.parse_expr(true)?;
+            let expr = parse_expr(f, true)?;
             let pos = expr.pos();
             if f.take_if(TokenKind::Equal).is_some() {
-                let value = f.parse_expr(true)?;
+                let value = parse_expr(f, true)?;
                 StatementNode::Assign(AssignStatementNode {
                     pos,
                     receiver: expr,
@@ -451,7 +451,7 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
     if f.take_if(TokenKind::Colon).is_some() {
         let ty = parse_type_expr(f)?;
         if f.take_if(TokenKind::Equal).is_some() {
-            let value = f.parse_expr(true)?;
+            let value = parse_expr(f, true)?;
             f.take(TokenKind::SemiColon)?;
             Some(LetStatementNode {
                 pos,
@@ -468,7 +468,7 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
         }
     } else {
         f.take(TokenKind::Equal)?;
-        let value = f.parse_expr(true)?;
+        let value = parse_expr(f, true)?;
         f.take(TokenKind::SemiColon)?;
         Some(LetStatementNode {
             pos,
@@ -482,7 +482,7 @@ fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementN
     let if_tok = f.take(TokenKind::If)?;
     let pos = if_tok.pos;
 
-    let condition = f.parse_expr(false)?;
+    let condition = parse_expr(f, false)?;
     let body = parse_block_stmt(f)?;
 
     let else_node = f.take_if(TokenKind::Else).and_then(|_| {
@@ -508,7 +508,7 @@ fn parse_while_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhileStat
     let while_tok = f.take(TokenKind::While)?;
     let pos = while_tok.pos;
 
-    let condition = f.parse_expr(false)?;
+    let condition = parse_expr(f, false)?;
     let Some(body) = parse_block_stmt(f) else {
             f.errors.missing(while_tok.pos, "while body");
             return None;
@@ -549,7 +549,7 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
         return Some(ReturnStatementNode { pos, value: None });
     }
 
-    let Some(value) = f.parse_expr(true) else {
+    let Some(value) = parse_expr(f, true) else {
             f.errors
                 .unexpected_parsing(pos, "type expression", "nothing");
             return None;
@@ -562,236 +562,224 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
     })
 }
 
+fn parse_expr<E: ErrorReporter>(f: &mut FileParser<E>, allow_struct_lit: bool) -> Option<ExprNode> {
+    parse_binary_expr(f, TokenKind::Or, allow_struct_lit)
+}
+
+const BINOP_PRECEDENCE: &[TokenKind] = &[
+    TokenKind::Or,
+    TokenKind::And,
+    TokenKind::BitOr,
+    TokenKind::BitXor,
+    TokenKind::BitAnd,
+    TokenKind::Eq,
+    TokenKind::NEq,
+    TokenKind::Lt,
+    TokenKind::LEq,
+    TokenKind::Gt,
+    TokenKind::GEq,
+    TokenKind::ShiftLeft,
+    TokenKind::ShiftRight,
+    TokenKind::Add,
+    TokenKind::Sub,
+    TokenKind::Mul,
+    TokenKind::Div,
+    TokenKind::Mod,
+];
+
+fn parse_binary_expr<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    op: TokenKind,
+    allow_struct_lit: bool,
+) -> Option<ExprNode> {
+    let next_op = BINOP_PRECEDENCE.iter().skip_while(|p| *p != &op).nth(1);
+
+    let a = if let Some(next_op) = next_op {
+        parse_binary_expr(f, *next_op, allow_struct_lit)?
+    } else {
+        parse_cast_expr(f, allow_struct_lit)?
+    };
+
+    let mut result = a;
+    while let Some(op_token) = f.take_if(op) {
+        let b = if let Some(next_op) = next_op {
+            parse_binary_expr(f, *next_op, allow_struct_lit)?
+        } else {
+            parse_cast_expr(f, allow_struct_lit)?
+        };
+        result = ExprNode::Binary(BinaryExprNode {
+            a: Box::new(result),
+            op: op_token,
+            b: Box::new(b),
+        });
+    }
+
+    Some(result)
+}
+
+fn parse_cast_expr<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    allow_struct_lit: bool,
+) -> Option<ExprNode> {
+    let value = parse_unary_expr(f, allow_struct_lit)?;
+    if f.take_if(TokenKind::As).is_some() {
+        let target = parse_type_expr(f)?;
+        Some(ExprNode::Cast(CastExprNode {
+            value: Box::new(value),
+            target: Box::new(target),
+        }))
+    } else {
+        Some(value)
+    }
+}
+
+const UNARY_OP: &[TokenKind] = &[
+    TokenKind::Mul,
+    TokenKind::BitNot,
+    TokenKind::Sub,
+    TokenKind::Add,
+    TokenKind::Not,
+];
+
+fn parse_unary_expr<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    allow_struct_lit: bool,
+) -> Option<ExprNode> {
+    let mut ops = vec![];
+    while UNARY_OP.contains(&f.kind()) {
+        let op = f.tokens.pop_front().unwrap();
+        ops.push(op);
+    }
+
+    let mut value = parse_call_or_selection_expr(f, allow_struct_lit)?;
+    while let Some(op) = ops.pop() {
+        if op.kind == TokenKind::Mul {
+            value = ExprNode::Deref(DerefExprNode {
+                pos: op.pos,
+                value: Box::new(value),
+            })
+        } else {
+            value = ExprNode::Unary(UnaryExprNode {
+                op,
+                value: Box::new(value),
+            })
+        }
+    }
+
+    Some(value)
+}
+
+fn parse_call_or_selection_expr<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    allow_struct_lit: bool,
+) -> Option<ExprNode> {
+    let mut target = parse_primary_expr(f)?;
+    let mut pos = target.pos();
+
+    loop {
+        let kind = f.kind();
+        target = match kind {
+            TokenKind::Dot => {
+                f.take(TokenKind::Dot)?;
+                let selection = f.take(TokenKind::Ident)?;
+                ExprNode::Selection(SelectionExprNode {
+                    value: Box::new(target),
+                    selection,
+                })
+            }
+            TokenKind::OpenSquare => {
+                let (_, arguments, _) = parse_sequence(
+                    f,
+                    TokenKind::OpenSquare,
+                    TokenKind::Comma,
+                    TokenKind::CloseSquare,
+                    |this| parse_expr(this, true),
+                )?;
+                ExprNode::Index(IndexExprNode {
+                    value: Box::new(target),
+                    indexes: arguments,
+                })
+            }
+            TokenKind::OpenBrac => {
+                let (_, arguments, _) = parse_sequence(
+                    f,
+                    TokenKind::OpenBrac,
+                    TokenKind::Comma,
+                    TokenKind::CloseBrac,
+                    |this| parse_expr(this, true),
+                )?;
+                ExprNode::Call(CallExprNode {
+                    pos,
+                    callee: Box::new(target),
+                    arguments,
+                })
+            }
+            TokenKind::OpenBlock => {
+                if !allow_struct_lit {
+                    break;
+                }
+
+                let (_, elements, _) = parse_sequence(
+                    f,
+                    TokenKind::OpenBlock,
+                    TokenKind::Comma,
+                    TokenKind::CloseBlock,
+                    |parser| {
+                        let key = parser.take(TokenKind::Ident)?;
+                        parser.take(TokenKind::Colon)?;
+                        let value = parse_expr(parser, true)?;
+                        Some(KeyValue {
+                            pos: key.pos,
+                            key,
+                            value,
+                        })
+                    },
+                )?;
+                ExprNode::Struct(StructExprNode {
+                    pos,
+                    target: Box::new(target),
+                    elements,
+                })
+            }
+            _ => {
+                break;
+            }
+        };
+        pos = target.pos();
+    }
+
+    Some(target)
+}
+
+fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
+    match f.kind() {
+        TokenKind::Ident => f.take(TokenKind::Ident).map(ExprNode::Ident),
+        TokenKind::IntegerLit => f.take(TokenKind::IntegerLit).map(ExprNode::Integer),
+        TokenKind::RealLit => f.take(TokenKind::RealLit).map(ExprNode::Frac),
+        TokenKind::StringLit => f.take(TokenKind::StringLit).map(ExprNode::String),
+        TokenKind::True => f.take(TokenKind::True).map(ExprNode::Bool),
+        TokenKind::False => f.take(TokenKind::False).map(ExprNode::Bool),
+        TokenKind::OpenBrac => {
+            let _ = f.take(TokenKind::OpenBrac).unwrap();
+            let expr = parse_expr(f, true)?;
+            let _ = f.take(TokenKind::CloseBrac)?;
+            Some(ExprNode::Grouped(Box::new(expr)))
+        }
+        TokenKind::SemiColon => None,
+        _ => {
+            let tok = f.token();
+            f.errors.unexpected_token(tok.pos, tok.kind);
+            None
+        }
+    }
+}
+
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn new(errors: &'a Error, tokens: VecDeque<Token>, last_pos: Pos) -> Self {
         Self {
             errors,
             tokens,
             last_pos,
-        }
-    }
-
-    fn parse_sequence<T, F>(
-        &mut self,
-        begin_tok: TokenKind,
-        delim_tok: TokenKind,
-        end_tok: TokenKind,
-        parse_fn: F,
-    ) -> Option<(Token, Vec<T>, Token)>
-    where
-        F: Fn(&mut Self) -> Option<T>,
-    {
-        let opening = self.take(begin_tok)?;
-
-        let mut items = Vec::<T>::default();
-        while self.kind() != end_tok && self.kind() != TokenKind::Eof {
-            if let Some(item) = parse_fn(self) {
-                items.push(item);
-            }
-            self.take_if(delim_tok);
-        }
-
-        let closing = self.take(end_tok)?;
-
-        Some((opening, items, closing))
-    }
-
-    fn parse_expr(&mut self, allow_struct_lit: bool) -> Option<ExprNode> {
-        self.parse_binary_expr(TokenKind::Or, allow_struct_lit)
-    }
-
-    const BINOP_PRECEDENCE: &[TokenKind] = &[
-        TokenKind::Or,
-        TokenKind::And,
-        TokenKind::BitOr,
-        TokenKind::BitXor,
-        TokenKind::BitAnd,
-        TokenKind::Eq,
-        TokenKind::NEq,
-        TokenKind::Lt,
-        TokenKind::LEq,
-        TokenKind::Gt,
-        TokenKind::GEq,
-        TokenKind::ShiftLeft,
-        TokenKind::ShiftRight,
-        TokenKind::Add,
-        TokenKind::Sub,
-        TokenKind::Mul,
-        TokenKind::Div,
-        TokenKind::Mod,
-    ];
-
-    fn parse_binary_expr(&mut self, op: TokenKind, allow_struct_lit: bool) -> Option<ExprNode> {
-        let next_op = Self::BINOP_PRECEDENCE
-            .iter()
-            .skip_while(|p| *p != &op)
-            .nth(1);
-
-        let a = if let Some(next_op) = next_op {
-            self.parse_binary_expr(*next_op, allow_struct_lit)?
-        } else {
-            self.parse_cast_expr(allow_struct_lit)?
-        };
-
-        let mut result = a;
-        while let Some(op_token) = self.take_if(op) {
-            let b = if let Some(next_op) = next_op {
-                self.parse_binary_expr(*next_op, allow_struct_lit)?
-            } else {
-                self.parse_cast_expr(allow_struct_lit)?
-            };
-            result = ExprNode::Binary(BinaryExprNode {
-                a: Box::new(result),
-                op: op_token,
-                b: Box::new(b),
-            });
-        }
-
-        Some(result)
-    }
-
-    fn parse_cast_expr(&mut self, allow_struct_lit: bool) -> Option<ExprNode> {
-        let value = self.parse_unary_expr(allow_struct_lit)?;
-        if self.take_if(TokenKind::As).is_some() {
-            let target = parse_type_expr(self)?;
-            Some(ExprNode::Cast(CastExprNode {
-                value: Box::new(value),
-                target: Box::new(target),
-            }))
-        } else {
-            Some(value)
-        }
-    }
-
-    const UNARY_OP: &[TokenKind] = &[
-        TokenKind::Mul,
-        TokenKind::BitNot,
-        TokenKind::Sub,
-        TokenKind::Add,
-        TokenKind::Not,
-    ];
-
-    fn parse_unary_expr(&mut self, allow_struct_lit: bool) -> Option<ExprNode> {
-        let mut ops = vec![];
-        while Self::UNARY_OP.contains(&self.kind()) {
-            let op = self.tokens.pop_front().unwrap();
-            ops.push(op);
-        }
-
-        let mut value = self.parse_call_or_selection_expr(allow_struct_lit)?;
-        while let Some(op) = ops.pop() {
-            if op.kind == TokenKind::Mul {
-                value = ExprNode::Deref(DerefExprNode {
-                    pos: op.pos,
-                    value: Box::new(value),
-                })
-            } else {
-                value = ExprNode::Unary(UnaryExprNode {
-                    op,
-                    value: Box::new(value),
-                })
-            }
-        }
-
-        Some(value)
-    }
-
-    fn parse_call_or_selection_expr(&mut self, allow_struct_lit: bool) -> Option<ExprNode> {
-        let mut target = self.parse_primary_expr()?;
-        let mut pos = target.pos();
-
-        loop {
-            let kind = self.kind();
-            target = match kind {
-                TokenKind::Dot => {
-                    self.take(TokenKind::Dot)?;
-                    let selection = self.take(TokenKind::Ident)?;
-                    ExprNode::Selection(SelectionExprNode {
-                        value: Box::new(target),
-                        selection,
-                    })
-                }
-                TokenKind::OpenSquare => {
-                    let (_, arguments, _) = self.parse_sequence(
-                        TokenKind::OpenSquare,
-                        TokenKind::Comma,
-                        TokenKind::CloseSquare,
-                        |this| this.parse_expr(true),
-                    )?;
-                    ExprNode::Index(IndexExprNode {
-                        value: Box::new(target),
-                        indexes: arguments,
-                    })
-                }
-                TokenKind::OpenBrac => {
-                    let (_, arguments, _) = self.parse_sequence(
-                        TokenKind::OpenBrac,
-                        TokenKind::Comma,
-                        TokenKind::CloseBrac,
-                        |this| this.parse_expr(true),
-                    )?;
-                    ExprNode::Call(CallExprNode {
-                        pos,
-                        callee: Box::new(target),
-                        arguments,
-                    })
-                }
-                TokenKind::OpenBlock => {
-                    if !allow_struct_lit {
-                        break;
-                    }
-
-                    let (_, elements, _) = self.parse_sequence(
-                        TokenKind::OpenBlock,
-                        TokenKind::Comma,
-                        TokenKind::CloseBlock,
-                        |parser| {
-                            let key = parser.take(TokenKind::Ident)?;
-                            parser.take(TokenKind::Colon)?;
-                            let value = parser.parse_expr(true)?;
-                            Some(KeyValue {
-                                pos: key.pos,
-                                key,
-                                value,
-                            })
-                        },
-                    )?;
-                    ExprNode::Struct(StructExprNode {
-                        pos,
-                        target: Box::new(target),
-                        elements,
-                    })
-                }
-                _ => {
-                    break;
-                }
-            };
-            pos = target.pos();
-        }
-
-        Some(target)
-    }
-
-    fn parse_primary_expr(&mut self) -> Option<ExprNode> {
-        match self.kind() {
-            TokenKind::Ident => self.take(TokenKind::Ident).map(ExprNode::Ident),
-            TokenKind::IntegerLit => self.take(TokenKind::IntegerLit).map(ExprNode::Integer),
-            TokenKind::RealLit => self.take(TokenKind::RealLit).map(ExprNode::Frac),
-            TokenKind::StringLit => self.take(TokenKind::StringLit).map(ExprNode::String),
-            TokenKind::True => self.take(TokenKind::True).map(ExprNode::Bool),
-            TokenKind::False => self.take(TokenKind::False).map(ExprNode::Bool),
-            TokenKind::OpenBrac => {
-                let _ = self.take(TokenKind::OpenBrac).unwrap();
-                let expr = self.parse_expr(true)?;
-                let _ = self.take(TokenKind::CloseBrac)?;
-                Some(ExprNode::Grouped(Box::new(expr)))
-            }
-            TokenKind::SemiColon => None,
-            _ => {
-                let tok = self.token();
-                self.errors.unexpected_token(tok.pos, tok.kind);
-                None
-            }
         }
     }
 
