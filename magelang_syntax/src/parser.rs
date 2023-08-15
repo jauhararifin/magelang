@@ -54,7 +54,7 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
         TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
         TokenKind::Struct => parse_struct(f, annotations).map(ItemNode::Struct),
         TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
-        TokenKind::Fn => f.parse_func(annotations).map(ItemNode::Function),
+        TokenKind::Fn => parse_func(f, annotations).map(ItemNode::Function),
         _ => {
             if let Some(annotation) = annotations.last() {
                 f.errors.dangling_annotations(annotation.pos);
@@ -252,10 +252,10 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             };
 
             let Some(ty) = named_type else {
-                return Some(TypeExprNode::Invalid)
+                return Some(TypeExprNode::Invalid);
             };
             let Some(type_args) = type_args else {
-                return Some(TypeExprNode::Invalid)
+                return Some(TypeExprNode::Invalid);
             };
 
             if type_args.is_empty() {
@@ -310,15 +310,102 @@ fn parse_struct<E: ErrorReporter>(
         },
     )?;
 
-    let name = name?;
-    let type_params = type_params?;
     Some(StructNode {
+        pos,
+        annotations,
+        name: name?,
+        type_params: type_params?,
+        fields,
+    })
+}
+
+fn parse_func<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    annotations: Vec<AnnotationNode>,
+) -> Option<FunctionNode> {
+    let signature = parse_signature(f, annotations)?;
+    let pos = signature.pos;
+    if f.take_if(TokenKind::SemiColon).is_some() {
+        return Some(FunctionNode {
+            pos,
+            signature,
+            body: None,
+        });
+    }
+
+    let Some(body) = f.parse_block_stmt(false) else {
+        f.errors.missing(signature.end_pos, "function body");
+        return None;
+    };
+    Some(FunctionNode {
+        pos,
+        signature,
+        body: Some(body),
+    })
+}
+
+fn parse_signature<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    annotations: Vec<AnnotationNode>,
+) -> Option<SignatureNode> {
+    let func = f.take(TokenKind::Fn, true)?;
+    let pos = func.pos;
+    let name = f.take(TokenKind::Ident, true)?;
+
+    let type_params = if f.kind() == TokenKind::OpenSquare {
+        let (_, type_parameters, _) = f.parse_sequence(
+            TokenKind::OpenSquare,
+            TokenKind::Comma,
+            TokenKind::CloseSquare,
+            |parser| parser.take(TokenKind::Ident, true),
+        )?;
+        type_parameters
+            .into_iter()
+            .map(TypeParameterNode::from)
+            .collect()
+    } else {
+        Vec::default()
+    };
+
+    let (_, parameters, close_brac) = f.parse_sequence(
+        TokenKind::OpenBrac,
+        TokenKind::Comma,
+        TokenKind::CloseBrac,
+        parse_parameter,
+    )?;
+    let return_type = if f.take_if(TokenKind::Colon).is_some() {
+        let Some(expr) = f.parse_expr(false) else {
+            f.errors
+                .unexpected_parsing(pos, "type expression", "nothing");
+            return None;
+        };
+        Some(expr)
+    } else {
+        None
+    };
+
+    let end_pos = return_type
+        .as_ref()
+        .map(|expr| expr.pos())
+        .unwrap_or(close_brac.pos);
+
+    Some(SignatureNode {
         pos,
         annotations,
         name,
         type_params,
-        fields,
+        parameters,
+        return_type,
+        end_pos,
     })
+}
+
+fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterNode> {
+    let name = f.take(TokenKind::Ident, false)?;
+    let pos = name.pos;
+    let _ = f.take(TokenKind::Colon, true)?;
+    let ty = f.parse_expr(false)?;
+    Some(ParameterNode { pos, name, ty })
 }
 
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
@@ -328,81 +415,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             tokens,
             last_pos,
         }
-    }
-
-    fn parse_func(&mut self, annotations: Vec<AnnotationNode>) -> Option<FunctionNode> {
-        let signature = self.parse_signature(annotations)?;
-        let pos = signature.pos;
-        if self.take_if(TokenKind::SemiColon).is_some() {
-            return Some(FunctionNode {
-                pos,
-                signature,
-                body: None,
-            });
-        }
-
-        let Some(body) = self.parse_block_stmt(false) else {
-            self.errors.missing(signature.end_pos, "function body");
-            return None;
-        };
-        Some(FunctionNode {
-            pos,
-            signature,
-            body: Some(body),
-        })
-    }
-
-    fn parse_signature(&mut self, annotations: Vec<AnnotationNode>) -> Option<SignatureNode> {
-        let func = self.take(TokenKind::Fn, true)?;
-        let pos = func.pos;
-        let name = self.take(TokenKind::Ident, true)?;
-
-        let type_params = if self.kind() == TokenKind::OpenSquare {
-            let (_, type_parameters, _) = self.parse_sequence(
-                TokenKind::OpenSquare,
-                TokenKind::Comma,
-                TokenKind::CloseSquare,
-                |parser| parser.take(TokenKind::Ident, true),
-            )?;
-            type_parameters
-                .into_iter()
-                .map(TypeParameterNode::from)
-                .collect()
-        } else {
-            Vec::default()
-        };
-
-        let (_, parameters, close_brac) = self.parse_sequence(
-            TokenKind::OpenBrac,
-            TokenKind::Comma,
-            TokenKind::CloseBrac,
-            Self::parse_parameter,
-        )?;
-        let return_type = if self.take_if(TokenKind::Colon).is_some() {
-            let Some(expr) = self.parse_expr(false) else {
-                self.errors
-                    .unexpected_parsing(pos, "type expression", "nothing");
-                return None;
-            };
-            Some(expr)
-        } else {
-            None
-        };
-
-        let end_pos = return_type
-            .as_ref()
-            .map(|expr| expr.pos())
-            .unwrap_or(close_brac.pos);
-
-        Some(SignatureNode {
-            pos,
-            annotations,
-            name,
-            type_params,
-            parameters,
-            return_type,
-            end_pos,
-        })
     }
 
     fn parse_sequence<T, F>(
@@ -435,14 +447,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         };
 
         Some((opening, items, closing))
-    }
-
-    fn parse_parameter(&mut self) -> Option<ParameterNode> {
-        let name = self.take(TokenKind::Ident, false)?;
-        let pos = name.pos;
-        let _ = self.take(TokenKind::Colon, true)?;
-        let ty = self.parse_expr(false)?;
-        Some(ParameterNode { pos, name, ty })
     }
 
     fn parse_stmt(&mut self) -> Option<StatementNode> {
