@@ -89,7 +89,7 @@ const EXPECTED_ERRORS: &[&'static str] = &[
     "testcase.mg:46:9: Expected '*', but found IDENT",
     "testcase.mg:47:10: Expected ']', but found IDENT",
     "testcase.mg:52:8: Expected IDENT, but found '{'",
-    "testcase.mg:54:1: Expected '{', but found 'struct'",
-    "testcase.mg:55:1: Expected '{', but found 'struct'",
+    "testcase.mg:54:1: Expected struct body, but found 'struct'",
+    "testcase.mg:55:1: Expected struct body, but found 'struct'",
     "testcase.mg:55:8: Expected IDENT, but found '<'",
 ];

@@ -299,7 +299,7 @@ fn parse_struct<E: ErrorReporter>(
         None
     };
 
-    let (_, fields, _) = parse_sequence(
+    let fields = parse_sequence(
         f,
         TokenKind::OpenBlock,
         TokenKind::Comma,
@@ -314,7 +314,11 @@ fn parse_struct<E: ErrorReporter>(
                 ty,
             })
         },
-    )?;
+    );
+    if fields.is_none() {
+        f.errors.unexpected_parsing(f.token().pos, "struct body", f.token().kind);
+    }
+    let fields = fields.map(|(_, fields, _)| fields).unwrap_or_default();
 
     Some(StructNode {
         pos,
@@ -634,7 +638,6 @@ fn parse_cast_expr<E: ErrorReporter>(
 }
 
 const UNARY_OP: &[TokenKind] = &[
-    TokenKind::Mul,
     TokenKind::BitNot,
     TokenKind::Sub,
     TokenKind::Add,
@@ -651,25 +654,18 @@ fn parse_unary_expr<E: ErrorReporter>(
         ops.push(op);
     }
 
-    let mut value = parse_call_or_selection_expr(f, allow_struct_lit)?;
+    let mut value = parse_sequence_of_expr(f, allow_struct_lit)?;
     while let Some(op) = ops.pop() {
-        if op.kind == TokenKind::Mul {
-            value = ExprNode::Deref(DerefExprNode {
-                pos: op.pos,
-                value: Box::new(value),
-            })
-        } else {
-            value = ExprNode::Unary(UnaryExprNode {
-                op,
-                value: Box::new(value),
-            })
-        }
+        value = ExprNode::Unary(UnaryExprNode {
+            op,
+            value: Box::new(value),
+        })
     }
 
     Some(value)
 }
 
-fn parse_call_or_selection_expr<E: ErrorReporter>(
+fn parse_sequence_of_expr<E: ErrorReporter>(
     f: &mut FileParser<E>,
     allow_struct_lit: bool,
 ) -> Option<ExprNode> {
@@ -681,11 +677,22 @@ fn parse_call_or_selection_expr<E: ErrorReporter>(
         target = match kind {
             TokenKind::Dot => {
                 f.take(TokenKind::Dot)?;
-                let selection = f.take(TokenKind::Ident)?;
-                ExprNode::Selection(SelectionExprNode {
-                    value: Box::new(target),
-                    selection,
-                })
+                match f.kind() {
+                    TokenKind::Ident => {
+                        let selection = f.take(TokenKind::Ident)?;
+                        ExprNode::Selection(SelectionExprNode {
+                            value: Box::new(target),
+                            selection,
+                        })
+                    }
+                    TokenKind::Mul => {
+                        _ = f.take(TokenKind::Mul)?;
+                        ExprNode::Deref(DerefExprNode {
+                            value: Box::new(target),
+                        })
+                    }
+                    _ => todo!(),
+                }
             }
             TokenKind::OpenSquare => {
                 let (_, arguments, _) = parse_sequence(
@@ -698,6 +705,16 @@ fn parse_call_or_selection_expr<E: ErrorReporter>(
                 ExprNode::Index(IndexExprNode {
                     value: Box::new(target),
                     indexes: arguments,
+                })
+            }
+            TokenKind::Lt => {
+                let (_, args, _) =
+                    parse_sequence(f, TokenKind::Lt, TokenKind::Comma, TokenKind::Gt, |this| {
+                        parse_type_expr(this)
+                    })?;
+                ExprNode::Instance(InstanceExprNode {
+                    value: Box::new(target),
+                    args,
                 })
             }
             TokenKind::OpenBrac => {
@@ -868,7 +885,7 @@ trait ParsingError: ErrorReporter {
     }
 
     fn unexpected_token(&self, pos: Pos, kind: TokenKind) {
-        self.report(pos, format!("Expected token {kind}"));
+        self.report(pos, format!("Unexpected token {kind}"));
     }
 
     fn dangling_annotations(&self, pos: Pos) {

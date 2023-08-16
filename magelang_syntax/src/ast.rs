@@ -181,6 +181,7 @@ pub enum ExprNode {
     Struct(StructExprNode),
     Selection(SelectionExprNode),
     Index(IndexExprNode),
+    Instance(InstanceExprNode),
     Grouped(Box<ExprNode>),
 }
 
@@ -200,6 +201,7 @@ impl ExprNode {
             Self::Struct(node) => node.pos,
             Self::Selection(node) => node.value.pos(),
             Self::Index(node) => node.value.pos(),
+            Self::Instance(node) => node.value.pos(),
             Self::Grouped(node) => node.pos(),
         }
     }
@@ -214,7 +216,6 @@ pub struct BinaryExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DerefExprNode {
-    pub pos: Pos,
     pub value: Box<ExprNode>,
 }
 
@@ -261,6 +262,12 @@ pub struct SelectionExprNode {
 pub struct IndexExprNode {
     pub value: Box<ExprNode>,
     pub indexes: Vec<ExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct InstanceExprNode {
+    pub value: Box<ExprNode>,
+    pub args: Vec<TypeExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

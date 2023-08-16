@@ -54,5 +54,5 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
             eprintln!("{location}: {message}");
         }
     }
-    write!(writer, "{:#?}", node).unwrap();
+    let _ = write!(writer, "{:#?}", node);
 }
