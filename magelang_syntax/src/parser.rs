@@ -1029,6 +1029,9 @@ struct a<i32>{field1: type1}
 
 // this is some comment
 let a: i32 = 10; // this is also some comment;
+let a: i32 = SomeStruct{a: 10};
+let a: i32 = pkg.SomeStruct{a: 10};
+let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
 
 @dangling_annotation()
 "#;
@@ -1051,6 +1054,6 @@ let a: i32 = 10; // this is also some comment;
         "testcase.mg:54:1: Expected struct body, but found 'struct'",
         "testcase.mg:55:1: Expected struct body, but found 'struct'",
         "testcase.mg:55:8: Expected IDENT, but found '<'",
-        "testcase.mg:61:1: There is no object to annotate",
+        "testcase.mg:64:1: There is no object to annotate",
     ];
 }
