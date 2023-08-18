@@ -241,7 +241,7 @@ pub struct CastExprNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct StructExprNode {
     pub pos: Pos,
-    pub target: Box<ExprNode>,
+    pub target: TypeExprNode,
     pub elements: Vec<KeyValue>,
 }
 

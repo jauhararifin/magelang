@@ -316,7 +316,8 @@ fn parse_struct<E: ErrorReporter>(
         },
     );
     if fields.is_none() {
-        f.errors.unexpected_parsing(f.token().pos, "struct body", f.token().kind);
+        f.errors
+            .unexpected_parsing(f.token().pos, "struct body", f.token().kind);
     }
     let fields = fields.map(|(_, fields, _)| fields).unwrap_or_default();
 
@@ -691,7 +692,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                             value: Box::new(target),
                         })
                     }
-                    _ => todo!(),
+                    _ => break,
                 }
             }
             TokenKind::OpenSquare => {
@@ -752,9 +753,10 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                         })
                     },
                 )?;
+                let target = convert_expr_to_type_expr(target);
                 ExprNode::Struct(StructExprNode {
                     pos,
-                    target: Box::new(target),
+                    target,
                     elements,
                 })
             }
@@ -766,6 +768,59 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
     }
 
     Some(target)
+}
+
+fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
+    let pos = node.pos();
+    match node {
+        ExprNode::Ident(tok) => TypeExprNode::Named(NamedTypeNode::Ident(tok)),
+        ExprNode::Selection(..) => {
+            if let Some(v) = convert_expr_to_named_type_node(node) {
+                TypeExprNode::Named(v)
+            } else {
+                TypeExprNode::Invalid(pos)
+            }
+        }
+        ExprNode::Instance(node) => {
+            let pos = node.value.pos();
+            if let Some(ty) = convert_expr_to_named_type_node(*node.value) {
+                TypeExprNode::Instance(TypeInstanceNode {
+                    ty,
+                    args: node.args,
+                })
+            } else {
+                TypeExprNode::Invalid(pos)
+            }
+        }
+        ExprNode::Grouped(node) => {
+            TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
+        }
+        ExprNode::Integer(tok)
+        | ExprNode::Frac(tok)
+        | ExprNode::Bool(tok)
+        | ExprNode::String(tok)
+        | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => TypeExprNode::Invalid(tok.pos),
+        ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
+        ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
+        ExprNode::Call(node) => TypeExprNode::Invalid(node.callee.pos()),
+        ExprNode::Cast(node) => TypeExprNode::Invalid(node.value.pos()),
+        ExprNode::Struct(node) => TypeExprNode::Invalid(node.target.pos()),
+        ExprNode::Index(node) => TypeExprNode::Invalid(node.value.pos()),
+    }
+}
+
+fn convert_expr_to_named_type_node(node: ExprNode) -> Option<NamedTypeNode> {
+    Some(match node {
+        ExprNode::Ident(tok) => NamedTypeNode::Ident(tok),
+        ExprNode::Selection(selection_expr_node) => {
+            if let ExprNode::Ident(value) = *selection_expr_node.value {
+                NamedTypeNode::Selection(value, selection_expr_node.selection)
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    })
 }
 
 fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
@@ -894,3 +949,108 @@ trait ParsingError: ErrorReporter {
 }
 
 impl<T> ParsingError for T where T: ErrorReporter {}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn test_parsing_error() {
+        let mut error_manager = ErrorManager::default();
+        let mut file_manager = FileManager::default();
+        let file = file_manager.add_file("testcase.mg".into(), TESTCASE_1.to_string());
+        parse(&error_manager, &file);
+
+        let mut error_str = Vec::default();
+        for err in error_manager.take() {
+            let location = file_manager.location(err.pos);
+            let message = &err.message;
+            error_str.push(format!("{location}: {message}"));
+        }
+        assert_eq!(EXPECTED_ERRORS, error_str);
+    }
+
+    const TESTCASE_1: &str = r#"
+fn f(
+
+fn g(): i32 {
+  return 0;
+}
+
+fn f(a)
+
+fn g(): i32 {}
+
+@annotation()
+fn g(): i32;
+
+@()
+fn g(): i32;
+
+@annotation
+fn g(): i32;
+
+import;
+
+let global: i32 = 10;
+let global = 10;
+
+let global: package.sometype = 10;
+let global: package.sometype<int> = 10;
+let global: package.sometype<int,int> = 10;
+let global: sometype = 10;
+let global: *sometype = 10;
+let global: *package.sometype = 10;
+let global: *package.sometype<i32,package.package<i32> > = 10;
+let global: *package.sometype<i32,(package.package<i32>)> = 10;
+let global: [*]sometype = 10;
+let global: [*]package.sometype = 10;
+let global: [*]package.sometype<i32,package.package<i32> > = 10;
+let global: [*]package.sometype<i32,(package.package<i32>)> = 10;
+
+let _: * = 10;
+let _: *package = 10;
+let _: *package. = 10;
+let _: *package.sometype = 10;
+let _: *package.sometype< = 10;
+let _: *package.sometype<i32 = 10;
+let _: *package.sometype<i32> = 10;
+let _: [package = 10;
+let _: [*package = 10;
+let _: [*]package = 10;
+
+fn g(): i32{}
+
+struct {}
+struct a
+struct a<i32>
+struct <i32>{}
+struct a<i32>{field1: type1}
+
+// this is some comment
+let a: i32 = 10; // this is also some comment;
+
+@dangling_annotation()
+"#;
+
+    const EXPECTED_ERRORS: &[&'static str] = &[
+        "testcase.mg:2:5: Missing closing ')'",
+        "testcase.mg:8:7: Expected ':', but found ')'",
+        "testcase.mg:8:7: Missing function body",
+        "testcase.mg:15:2: Expected annotation identifier, but found '('",
+        "testcase.mg:19:1: Expected annotation arguments, but found 'fn'",
+        "testcase.mg:21:7: Expected IDENT, but found ';'",
+        "testcase.mg:24:12: Expected ':', but found '='",
+        "testcase.mg:39:8: Missing pointee type",
+        "testcase.mg:41:18: Expected IDENT, but found '='",
+        "testcase.mg:43:25: Missing closing '>'",
+        "testcase.mg:44:25: Missing closing '>'",
+        "testcase.mg:46:9: Expected '*', but found IDENT",
+        "testcase.mg:47:10: Expected ']', but found IDENT",
+        "testcase.mg:52:8: Expected IDENT, but found '{'",
+        "testcase.mg:54:1: Expected struct body, but found 'struct'",
+        "testcase.mg:55:1: Expected struct body, but found 'struct'",
+        "testcase.mg:55:8: Expected IDENT, but found '<'",
+        "testcase.mg:61:1: There is no object to annotate",
+    ];
+}
