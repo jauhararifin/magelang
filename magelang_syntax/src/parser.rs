@@ -991,6 +991,8 @@ fn g(): i32;
 fn g(): i32;
 
 import;
+import something;
+import something "something";
 
 let global: i32 = 10;
 let global = 10;
@@ -1018,6 +1020,7 @@ let _: *package.sometype<i32> = 10;
 let _: [package = 10;
 let _: [*package = 10;
 let _: [*]package = 10;
+let _: i32;
 
 fn g(): i32{}
 
@@ -1043,17 +1046,18 @@ let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
         "testcase.mg:15:2: Expected annotation identifier, but found '('",
         "testcase.mg:19:1: Expected annotation arguments, but found 'fn'",
         "testcase.mg:21:7: Expected IDENT, but found ';'",
-        "testcase.mg:24:12: Expected ':', but found '='",
-        "testcase.mg:39:8: Missing pointee type",
-        "testcase.mg:41:18: Expected IDENT, but found '='",
-        "testcase.mg:43:25: Missing closing '>'",
-        "testcase.mg:44:25: Missing closing '>'",
-        "testcase.mg:46:9: Expected '*', but found IDENT",
-        "testcase.mg:47:10: Expected ']', but found IDENT",
-        "testcase.mg:52:8: Expected IDENT, but found '{'",
-        "testcase.mg:54:1: Expected struct body, but found 'struct'",
-        "testcase.mg:55:1: Expected struct body, but found 'struct'",
-        "testcase.mg:55:8: Expected IDENT, but found '<'",
-        "testcase.mg:64:1: There is no object to annotate",
+        "testcase.mg:22:17: Expected STRING_LIT, but found ';'",
+        "testcase.mg:26:12: Expected ':', but found '='",
+        "testcase.mg:41:8: Missing pointee type",
+        "testcase.mg:43:18: Expected IDENT, but found '='",
+        "testcase.mg:45:25: Missing closing '>'",
+        "testcase.mg:46:25: Missing closing '>'",
+        "testcase.mg:48:9: Expected '*', but found IDENT",
+        "testcase.mg:49:10: Expected ']', but found IDENT",
+        "testcase.mg:55:8: Expected IDENT, but found '{'",
+        "testcase.mg:57:1: Expected struct body, but found 'struct'",
+        "testcase.mg:58:1: Expected struct body, but found 'struct'",
+        "testcase.mg:58:8: Expected IDENT, but found '<'",
+        "testcase.mg:67:1: There is no object to annotate",
     ];
 }
