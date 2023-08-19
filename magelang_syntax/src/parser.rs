@@ -1020,6 +1020,7 @@ let _: *package.sometype<i32> = 10;
 let _: [package = 10;
 let _: [*package = 10;
 let _: [*]package = 10;
+let _: [*] = 10;
 let _: i32;
 
 fn g(): i32{}
@@ -1054,10 +1055,11 @@ let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
         "testcase.mg:46:25: Missing closing '>'",
         "testcase.mg:48:9: Expected '*', but found IDENT",
         "testcase.mg:49:10: Expected ']', but found IDENT",
-        "testcase.mg:55:8: Expected IDENT, but found '{'",
-        "testcase.mg:57:1: Expected struct body, but found 'struct'",
+        "testcase.mg:51:10: Missing pointee type",
+        "testcase.mg:56:8: Expected IDENT, but found '{'",
         "testcase.mg:58:1: Expected struct body, but found 'struct'",
-        "testcase.mg:58:8: Expected IDENT, but found '<'",
-        "testcase.mg:67:1: There is no object to annotate",
+        "testcase.mg:59:1: Expected struct body, but found 'struct'",
+        "testcase.mg:59:8: Expected IDENT, but found '<'",
+        "testcase.mg:68:1: There is no object to annotate",
     ];
 }
