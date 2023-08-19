@@ -200,6 +200,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "magelang_analyzer"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+]
+
+[[package]]
 name = "magelang_syntax"
 version = "0.1.0"
 dependencies = [
