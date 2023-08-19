@@ -194,3 +194,33 @@ const TEST_SIGNATURE_ERROR: &[(&'static str, &'static str)] = &[
     ("testcase.mg:5:20", "Missing return type"),
 ];
 testcase!(test_signatures, TEST_SIGNATURE_SOURCE, TEST_SIGNATURE_ERROR);
+
+const TEST_STATEMENTS_SOURCE: &str = r#"
+fn f(): i32 {
+    let a: i32 = 10;
+    let b = 10;
+    let c: i32;
+    if a == 0 {
+        return a;
+    }
+    if true {
+        return a;
+    } else if false && true {
+        return b;
+    } else {
+        return c;
+    }
+    while a != 0 {
+        a = a / 10;
+        if a % 2 == 0 {
+            continue;
+        }
+        if a == 10 {
+            break;
+        }
+    }
+}
+"#;
+const TEST_STATEMENTS_ERROR: &[(&'static str, &'static str)] = &[
+];
+testcase!(test_statements, TEST_STATEMENTS_SOURCE, TEST_STATEMENTS_ERROR);
