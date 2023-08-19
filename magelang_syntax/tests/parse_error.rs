@@ -163,9 +163,14 @@ testcase!(
 
 const TEST_VALUE_EXPRS_SOURCE: &str = r#"
 let a: i32 = 10;
+let a: i32 = 10 + 20 * (30 - 1) / 2 + 3 >> 5 as i32;
+let a: bool = !!(false && true);
 let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
+let a: i32 = pkg.some_func<i32>(a, b)[1].*;
+let a: f32 = 1.0 + 2.0;
+let a: [*]u8 = "some string";
 "#;
 const TEST_VALUE_EXPRS_ERROR: &[(&'static str, &'static str)] = &[];
 testcase!(
