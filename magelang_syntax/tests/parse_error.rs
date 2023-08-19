@@ -178,10 +178,14 @@ const TEST_SIGNATURE_SOURCE: &str = r#"
 fn;
 fn f;
 fn empty_func();
+fn missing_return():;
+fn returning():i32;
+fn f(a: i32, b: i32): i32;
 fn func_with_typeargs<T,U>();
 "#;
 const TEST_SIGNATURE_ERROR: &[(&'static str, &'static str)] = &[
     ("testcase.mg:2:3", "Expected IDENT, but found ';'"),
     ("testcase.mg:3:4", "Missing function parameter list"),
+    ("testcase.mg:5:20", "Missing return type"),
 ];
 testcase!(test_signatures, TEST_SIGNATURE_SOURCE, TEST_SIGNATURE_ERROR);

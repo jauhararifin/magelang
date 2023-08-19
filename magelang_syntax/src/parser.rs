@@ -384,13 +384,13 @@ fn parse_signature<E: ErrorReporter>(
         f.errors.missing(name.pos, "function parameter list");
     }
 
-    let return_type = if f.take_if(TokenKind::Colon).is_some() {
-        let Some(expr) = parse_type_expr(f) else {
-            f.errors
-                .unexpected_parsing(pos, "type expression", "nothing");
-            return None;
-        };
-        Some(expr)
+    let return_type = if let Some(colon_tok) = f.take_if(TokenKind::Colon) {
+        if let Some(expr) = parse_type_expr(f) {
+            Some(expr)
+        } else {
+            f.errors.missing(colon_tok.pos, "return type");
+            None
+        }
     } else {
         None
     };
