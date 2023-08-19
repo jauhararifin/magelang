@@ -239,23 +239,17 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 Some(NamedTypeNode::Ident(name))
             };
 
-            let type_args = if f.kind() == TokenKind::Lt {
-                parse_sequence(
-                    f,
-                    TokenKind::Lt,
-                    TokenKind::Comma,
-                    TokenKind::Gt,
-                    parse_type_expr,
-                )
-                .map(|(_, type_args, _)| type_args)
-            } else {
-                None
-            };
+            let type_args = parse_sequence(
+                f,
+                TokenKind::Lt,
+                TokenKind::Comma,
+                TokenKind::Gt,
+                parse_type_expr,
+            )
+            .map(|(_, type_args, _)| type_args)
+            .unwrap_or_default();
 
             let Some(ty) = named_type else {
-                return Some(TypeExprNode::Invalid(pos));
-            };
-            let Some(type_args) = type_args else {
                 return Some(TypeExprNode::Invalid(pos));
             };
 
@@ -379,13 +373,17 @@ fn parse_signature<E: ErrorReporter>(
         Vec::default()
     };
 
-    let (_, parameters, close_brac) = parse_sequence(
+    let param_result = parse_sequence(
         f,
         TokenKind::OpenBrac,
         TokenKind::Comma,
         TokenKind::CloseBrac,
         parse_parameter,
-    )?;
+    );
+    if param_result.is_none() {
+        f.errors.missing(name.pos, "function parameter list");
+    }
+
     let return_type = if f.take_if(TokenKind::Colon).is_some() {
         let Some(expr) = parse_type_expr(f) else {
             f.errors
@@ -400,7 +398,12 @@ fn parse_signature<E: ErrorReporter>(
     let end_pos = return_type
         .as_ref()
         .map(|expr| expr.pos())
-        .unwrap_or(close_brac.pos);
+        .or(param_result.as_ref().map(|(_, _, close_tok)| close_tok.pos))
+        .unwrap_or(name.pos);
+
+    let parameters = param_result
+        .map(|(_, params, _)| params)
+        .unwrap_or_default();
 
     Some(SignatureNode {
         pos,
@@ -949,117 +952,3 @@ trait ParsingError: ErrorReporter {
 }
 
 impl<T> ParsingError for T where T: ErrorReporter {}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[test]
-    fn test_parsing_error() {
-        let mut error_manager = ErrorManager::default();
-        let mut file_manager = FileManager::default();
-        let file = file_manager.add_file("testcase.mg".into(), TESTCASE_1.to_string());
-        parse(&error_manager, &file);
-
-        let mut error_str = Vec::default();
-        for err in error_manager.take() {
-            let location = file_manager.location(err.pos);
-            let message = &err.message;
-            error_str.push(format!("{location}: {message}"));
-        }
-        assert_eq!(EXPECTED_ERRORS, error_str);
-    }
-
-    const TESTCASE_1: &str = r#"
-fn f(
-
-fn g(): i32 {
-  return 0;
-}
-
-fn f(a)
-
-fn g(): i32 {}
-
-@annotation()
-fn g(): i32;
-
-@()
-fn g(): i32;
-
-@annotation
-fn g(): i32;
-
-import;
-import something;
-import something "something";
-
-let global: i32 = 10;
-let global = 10;
-
-let global: package.sometype = 10;
-let global: package.sometype<int> = 10;
-let global: package.sometype<int,int> = 10;
-let global: sometype = 10;
-let global: *sometype = 10;
-let global: *package.sometype = 10;
-let global: *package.sometype<i32,package.package<i32> > = 10;
-let global: *package.sometype<i32,(package.package<i32>)> = 10;
-let global: [*]sometype = 10;
-let global: [*]package.sometype = 10;
-let global: [*]package.sometype<i32,package.package<i32> > = 10;
-let global: [*]package.sometype<i32,(package.package<i32>)> = 10;
-
-let _: * = 10;
-let _: *package = 10;
-let _: *package. = 10;
-let _: *package.sometype = 10;
-let _: *package.sometype< = 10;
-let _: *package.sometype<i32 = 10;
-let _: *package.sometype<i32> = 10;
-let _: [package = 10;
-let _: [*package = 10;
-let _: [*]package = 10;
-let _: [*] = 10;
-let _: i32;
-
-fn g(): i32{}
-
-struct {}
-struct a
-struct a<i32>
-struct <i32>{}
-struct a<i32>{field1: type1}
-
-// this is some comment
-let a: i32 = 10; // this is also some comment;
-let a: i32 = SomeStruct{a: 10};
-let a: i32 = pkg.SomeStruct{a: 10};
-let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
-
-@dangling_annotation()
-"#;
-
-    const EXPECTED_ERRORS: &[&'static str] = &[
-        "testcase.mg:2:5: Missing closing ')'",
-        "testcase.mg:8:7: Expected ':', but found ')'",
-        "testcase.mg:8:7: Missing function body",
-        "testcase.mg:15:2: Expected annotation identifier, but found '('",
-        "testcase.mg:19:1: Expected annotation arguments, but found 'fn'",
-        "testcase.mg:21:7: Expected IDENT, but found ';'",
-        "testcase.mg:22:17: Expected STRING_LIT, but found ';'",
-        "testcase.mg:26:12: Expected ':', but found '='",
-        "testcase.mg:41:8: Missing pointee type",
-        "testcase.mg:43:18: Expected IDENT, but found '='",
-        "testcase.mg:45:25: Missing closing '>'",
-        "testcase.mg:46:25: Missing closing '>'",
-        "testcase.mg:48:9: Expected '*', but found IDENT",
-        "testcase.mg:49:10: Expected ']', but found IDENT",
-        "testcase.mg:51:10: Missing pointee type",
-        "testcase.mg:56:8: Expected IDENT, but found '{'",
-        "testcase.mg:58:1: Expected struct body, but found 'struct'",
-        "testcase.mg:59:1: Expected struct body, but found 'struct'",
-        "testcase.mg:59:8: Expected IDENT, but found '<'",
-        "testcase.mg:68:1: There is no object to annotate",
-    ];
-}

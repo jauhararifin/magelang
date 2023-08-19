@@ -38,7 +38,9 @@ impl ErrorReporter for ErrorManager {
 impl ErrorManager {
     pub fn take(&mut self) -> Vec<Error> {
         let mut errs = self.errors.borrow_mut();
-        errs.drain(..).collect()
+        let mut errors: Vec<Error> = errs.drain(..).collect();
+        errors.sort_by(|a, b| a.pos.cmp(&b.pos));
+        errors
     }
 
     pub fn is_empty(&self) -> bool {
