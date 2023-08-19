@@ -11,4 +11,3 @@ pub enum Name {
     Def(DefId),
     Instance(DefId, TypeArgsId),
 }
-

@@ -15,9 +15,17 @@ impl Pos {
     pub fn with_offset(&self, offset: usize) -> Self {
         Self(self.0 + offset)
     }
+}
 
-    pub fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+impl std::cmp::Ord for Pos {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
+    }
+}
+
+impl std::cmp::PartialOrd for Pos {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.0.cmp(&other.0))
     }
 }
 

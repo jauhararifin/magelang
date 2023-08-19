@@ -230,11 +230,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             let named_type = if f.take_if(TokenKind::Dot).is_some() {
                 let package = name;
                 let name = f.take(TokenKind::Ident);
-                if let Some(name) = name {
-                    Some(NamedTypeNode::Selection(package, name))
-                } else {
-                    None
-                }
+                name.map(|name| NamedTypeNode::Selection(package, name))
             } else {
                 Some(NamedTypeNode::Ident(name))
             };
@@ -518,9 +514,9 @@ fn parse_while_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhileStat
 
     let condition = parse_expr(f, false)?;
     let Some(body) = parse_block_stmt(f) else {
-            f.errors.missing(while_tok.pos, "while body");
-            return None;
-        };
+        f.errors.missing(while_tok.pos, "while body");
+        return None;
+    };
 
     Some(WhileStatementNode {
         pos,
@@ -558,10 +554,10 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
     }
 
     let Some(value) = parse_expr(f, true) else {
-            f.errors
-                .unexpected_parsing(pos, "type expression", "nothing");
-            return None;
-        };
+        f.errors
+            .unexpected_parsing(pos, "type expression", "nothing");
+        return None;
+    };
 
     f.take(TokenKind::SemiColon)?;
     Some(ReturnStatementNode {

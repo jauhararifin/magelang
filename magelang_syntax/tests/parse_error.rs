@@ -221,6 +221,9 @@ fn f(): i32 {
     }
 }
 "#;
-const TEST_STATEMENTS_ERROR: &[(&'static str, &'static str)] = &[
-];
-testcase!(test_statements, TEST_STATEMENTS_SOURCE, TEST_STATEMENTS_ERROR);
+const TEST_STATEMENTS_ERROR: &[(&'static str, &'static str)] = &[];
+testcase!(
+    test_statements,
+    TEST_STATEMENTS_SOURCE,
+    TEST_STATEMENTS_ERROR
+);
