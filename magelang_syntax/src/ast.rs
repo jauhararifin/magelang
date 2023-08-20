@@ -50,7 +50,7 @@ pub struct ImportNode {
     pub path: Token,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
@@ -59,7 +59,7 @@ pub struct StructNode {
     pub fields: Vec<StructFieldNode>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructFieldNode {
     pub pos: Pos,
     pub name: Token,
@@ -93,14 +93,14 @@ pub struct SignatureNode {
     pub end_pos: Pos,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AnnotationNode {
     pub pos: Pos,
     pub name: Token,
     pub arguments: Vec<Token>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TypeParameterNode {
     pub name: Token,
 }
@@ -118,7 +118,7 @@ pub struct ParameterNode {
     pub ty: TypeExprNode,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TypeExprNode {
     Invalid(Pos),
     Named(NamedTypeNode),
@@ -141,7 +141,7 @@ impl TypeExprNode {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum NamedTypeNode {
     Ident(Token),
     Selection(Token, Token),
@@ -156,19 +156,19 @@ impl NamedTypeNode {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PtrTypeNode {
     pub pos: Pos,
     pub ty: Box<TypeExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ArrayPtrTypeNode {
     pub pos: Pos,
     pub ty: Box<TypeExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TypeInstanceNode {
     pub ty: NamedTypeNode,
     pub args: Vec<TypeExprNode>,

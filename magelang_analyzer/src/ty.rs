@@ -2,6 +2,7 @@ use crate::interner::{Id, Interner};
 use crate::name::DefId;
 use crate::symbols::SymbolId;
 use indexmap::IndexMap;
+use magelang_syntax::StructNode;
 use std::cell::OnceCell;
 use std::hash::Hash;
 
@@ -29,17 +30,18 @@ pub enum Type {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct NamedStructType {
-    def_id: DefId,
-    underlying: OnceCell<StructType>,
+pub struct NamedStructType {
+    pub def_id: DefId,
+    pub node: StructNode,
+    pub body: OnceCell<StructBody>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct StructType {
-    fields: IndexMap<SymbolId, TypeId>,
+pub struct StructBody {
+    pub fields: IndexMap<SymbolId, TypeId>,
 }
 
-impl Hash for StructType {
+impl Hash for StructBody {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         for (k, v) in &self.fields {
             k.hash(state);
@@ -55,10 +57,10 @@ impl Hash for NamedStructType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct NamedStructInstType {
-    def_id: DefId,
-    type_args: TypeArgsId,
-    underlying: StructType,
+pub struct NamedStructInstType {
+    pub def_id: DefId,
+    pub type_args: TypeArgsId,
+    pub body: StructBody,
 }
 
 impl Hash for NamedStructInstType {
@@ -69,7 +71,7 @@ impl Hash for NamedStructInstType {
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
-struct FuncType {
+pub struct FuncType {
     pub params: Vec<TypeId>,
     pub return_type: TypeId,
 }
@@ -91,6 +93,6 @@ pub enum FloatType {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct TypeArg {
-    index: usize,
-    symbol: SymbolId,
+    pub index: usize,
+    pub symbol: SymbolId,
 }

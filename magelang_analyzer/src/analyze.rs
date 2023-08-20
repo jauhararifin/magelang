@@ -3,12 +3,17 @@ use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::symbols::{SymbolId, SymbolInterner};
-use crate::ty::{TypeArgsId, TypeArgsInterner, TypeInterner};
+use crate::ty::{NamedStructType, StructBody, Type, TypeArgsInterner, TypeId, TypeInterner};
 use crate::value::value_from_string_lit;
-use indexmap::IndexMap;
-use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos};
+use indexmap::{IndexMap, IndexSet};
+use magelang_syntax::{
+    parse, BlockStatementNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode,
+    ItemNode, PackageNode, Pos, SignatureNode, StructNode, TypeParameterNode,
+};
+use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::rc::Rc;
 
 pub fn analyze(
     file_manager: &mut FileManager,
@@ -29,7 +34,8 @@ pub fn analyze(
         main_package,
     );
 
-    build_object_nodes(&file_manager, error_manager, &symbols, package_asts);
+    let object_nodes = build_object_nodes(&file_manager, error_manager, &symbols, package_asts);
+    build_symbol_table(&file_manager, error_manager, &symbols, &types, object_nodes);
 }
 
 fn get_all_package_asts(
@@ -107,4 +113,272 @@ fn build_object_nodes(
     }
 
     object_nodes
+}
+
+#[derive(Debug)]
+enum Object {
+    Import(ImportObject),
+    Type(TypeId),
+    Global(GlobalObject),
+    Local(LocalObject),
+    Func(FuncObject),
+    GenericStruct(GenericStructObject),
+    GenericFunc(GenericFuncObject),
+}
+
+#[derive(Debug)]
+struct ImportObject {
+    package: SymbolId,
+}
+
+#[derive(Debug)]
+struct GlobalObject {
+    def_id: DefId,
+    node: GlobalNode,
+    ty: OnceCell<TypeId>,
+}
+
+#[derive(Debug)]
+struct LocalObject {
+    id: usize,
+    ty: TypeId,
+}
+
+#[derive(Debug)]
+struct FuncObject {
+    def_id: DefId,
+    signature: SignatureNode,
+    body_node: Option<BlockStatementNode>,
+    ty: OnceCell<TypeId>,
+    annotations: Rc<[Annotation]>,
+}
+
+#[derive(Debug)]
+struct GenericStructObject {
+    def_id: DefId,
+    type_params: IndexSet<SymbolId>,
+    node: StructNode,
+    body: OnceCell<StructBody>,
+}
+
+#[derive(Debug)]
+struct GenericFuncObject {
+    def_id: DefId,
+    signature: SignatureNode,
+    body_node: Option<BlockStatementNode>,
+    type_params: IndexSet<SymbolId>,
+    ty: OnceCell<TypeId>,
+    annotations: Rc<[Annotation]>,
+}
+
+fn build_symbol_table(
+    files: &FileManager,
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    types: &TypeInterner,
+    object_nodes: IndexMap<DefId, ItemNode>,
+) -> IndexMap<DefId, Object> {
+    let mut symbol_table = IndexMap::<DefId, Object>::default();
+    for (def_id, item_node) in object_nodes {
+        let object = match item_node {
+            ItemNode::Import(node) => init_import_object(errors, symbols, node),
+            ItemNode::Struct(node) => Some(init_struct_objects(
+                files, errors, symbols, types, def_id, node,
+            )),
+            ItemNode::Global(global_node) => Some(init_global_object(def_id, global_node)),
+            ItemNode::Function(func_node) => Some(init_function_object(
+                files, errors, symbols, def_id, func_node,
+            )),
+        };
+        let Some(object) = object else { continue };
+
+        symbol_table.insert(def_id, object);
+    }
+    symbol_table
+}
+
+fn init_import_object(
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    import_node: ImportNode,
+) -> Option<Object> {
+    let import_path = import_node.path.value.as_str();
+    let Some(package_path) = value_from_string_lit(import_path) else {
+        errors.invalid_utf8_package(import_node.path.pos);
+        return None;
+    };
+    let package_path = match String::from_utf8(package_path) {
+        Ok(v) => v,
+        Err(..) => {
+            errors.invalid_utf8_package(import_node.path.pos);
+            return None;
+        }
+    };
+    let package_name = symbols.define(package_path.as_str());
+    Some(Object::Import(ImportObject {
+        package: package_name,
+    }))
+}
+
+fn init_struct_objects(
+    files: &FileManager,
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    types: &TypeInterner,
+    def_id: DefId,
+    struct_node: StructNode,
+) -> Object {
+    if struct_node.type_params.is_empty() {
+        let ty = Type::NamedStruct(NamedStructType {
+            def_id,
+            node: struct_node,
+            body: OnceCell::default(),
+        });
+        let type_id = types.define(ty);
+        Object::Type(type_id)
+    } else {
+        let type_params =
+            get_typeparams_from_node(files, errors, symbols, &struct_node.type_params);
+        Object::GenericStruct(GenericStructObject {
+            def_id,
+            type_params,
+            node: struct_node,
+            body: OnceCell::default(),
+        })
+    }
+}
+
+fn get_typeparams_from_node(
+    files: &FileManager,
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    node: &[TypeParameterNode],
+) -> IndexSet<SymbolId> {
+    let mut type_param_pos = HashMap::<SymbolId, Pos>::default();
+    for type_param_node in node {
+        let type_name = type_param_node.name.value.as_str();
+        let type_param_name = symbols.define(type_name);
+        let pos = type_param_node.name.pos;
+        if let Some(defined_at) = type_param_pos.get(&type_param_name) {
+            errors.redeclared_symbol(
+                pos,
+                files.location(*defined_at),
+                &type_param_node.name.value,
+            );
+        } else {
+            type_param_pos.insert(type_param_name, pos);
+        }
+    }
+
+    type_param_pos.into_keys().collect()
+}
+
+fn init_global_object(def_id: DefId, global_node: GlobalNode) -> Object {
+    Object::Global(GlobalObject {
+        def_id,
+        node: global_node,
+        ty: OnceCell::default(),
+    })
+}
+
+fn init_function_object(
+    files: &FileManager,
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    def_id: DefId,
+    func_node: FunctionNode,
+) -> Object {
+    if func_node.body.is_none() {
+        return init_native_function_object(files, errors, symbols, def_id, func_node.signature);
+    }
+
+    let annotations = build_annotations_from_node(errors, &func_node.signature).into();
+    if func_node.signature.type_params.is_empty() {
+        Object::Func(FuncObject {
+            def_id,
+            signature: func_node.signature,
+            body_node: func_node.body,
+            ty: OnceCell::default(),
+            annotations,
+        })
+    } else {
+        let type_params =
+            get_typeparams_from_node(files, errors, symbols, &func_node.signature.type_params);
+        Object::GenericFunc(GenericFuncObject {
+            def_id,
+            signature: func_node.signature,
+            body_node: func_node.body,
+            type_params,
+            ty: OnceCell::default(),
+            annotations,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Annotation {
+    pub name: String,
+    pub arguments: Vec<String>,
+}
+
+fn build_annotations_from_node(
+    errors: &impl ErrorReporter,
+    signature: &SignatureNode,
+) -> Vec<Annotation> {
+    let mut annotations = Vec::default();
+    for annotation_node in &signature.annotations {
+        let mut arguments = Vec::default();
+        let mut valid = true;
+        for arg in &annotation_node.arguments {
+            let Some(arg_value) = value_from_string_lit(&arg.value) else {
+                errors.invalid_utf8_string(arg.pos);
+                valid = false;
+                continue;
+            };
+
+            let Ok(arg_value) = String::from_utf8(arg_value) else {
+                errors.invalid_utf8_string(arg.pos);
+                valid = false;
+                continue;
+            };
+
+            arguments.push(arg_value);
+        }
+        if valid {
+            annotations.push(Annotation {
+                name: annotation_node.name.value.clone(),
+                arguments,
+            })
+        }
+    }
+    annotations
+}
+
+fn init_native_function_object(
+    files: &FileManager,
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    def_id: DefId,
+    signature: SignatureNode,
+) -> Object {
+    let annotations = build_annotations_from_node(errors, &signature).into();
+    if signature.type_params.is_empty() {
+        Object::Func(FuncObject {
+            def_id,
+            signature,
+            body_node: None,
+            ty: OnceCell::default(),
+            annotations,
+        })
+    } else {
+        let type_params = get_typeparams_from_node(files, errors, symbols, &signature.type_params);
+        Object::GenericFunc(GenericFuncObject {
+            def_id,
+            signature,
+            body_node: None,
+            type_params,
+            ty: OnceCell::default(),
+            annotations,
+        })
+    }
 }
