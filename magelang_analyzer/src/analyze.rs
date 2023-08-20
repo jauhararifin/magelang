@@ -2,13 +2,14 @@ use crate::errors::SemanticError;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
 use crate::path::{get_package_path, get_stdlib_path};
+use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
-use crate::ty::{NamedStructType, StructBody, Type, TypeArgsInterner, TypeId, TypeInterner};
+use crate::ty::{BitSize, FloatType, NamedStructType, Type, TypeArgsInterner, TypeInterner};
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    parse, BlockStatementNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode,
-    ItemNode, PackageNode, Pos, SignatureNode, StructNode, TypeParameterNode,
+    parse, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode, ItemNode, PackageNode,
+    Pos, SignatureNode, StructNode, TypeParameterNode,
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -44,6 +45,8 @@ pub fn analyze(
 
     let object_nodes = build_object_nodes(&ctx, package_asts);
     let symbol_tables = build_symbol_table(&ctx, object_nodes);
+
+    let builtin_scope = get_builtin_scope(&ctx);
 }
 
 struct Context<'a, E> {
@@ -128,62 +131,6 @@ fn build_object_nodes<'ctx, E: ErrorReporter>(
     }
 
     object_nodes
-}
-
-#[derive(Debug)]
-enum Object {
-    Import(ImportObject),
-    Type(TypeId),
-    Global(GlobalObject),
-    Local(LocalObject),
-    Func(FuncObject),
-    GenericStruct(GenericStructObject),
-    GenericFunc(GenericFuncObject),
-}
-
-#[derive(Debug)]
-struct ImportObject {
-    package: SymbolId,
-}
-
-#[derive(Debug)]
-struct GlobalObject {
-    def_id: DefId,
-    node: GlobalNode,
-    ty: OnceCell<TypeId>,
-}
-
-#[derive(Debug)]
-struct LocalObject {
-    id: usize,
-    ty: TypeId,
-}
-
-#[derive(Debug)]
-struct FuncObject {
-    def_id: DefId,
-    signature: SignatureNode,
-    body_node: Option<BlockStatementNode>,
-    ty: OnceCell<TypeId>,
-    annotations: Rc<[Annotation]>,
-}
-
-#[derive(Debug)]
-struct GenericStructObject {
-    def_id: DefId,
-    type_params: IndexSet<SymbolId>,
-    node: StructNode,
-    body: OnceCell<StructBody>,
-}
-
-#[derive(Debug)]
-struct GenericFuncObject {
-    def_id: DefId,
-    signature: SignatureNode,
-    body_node: Option<BlockStatementNode>,
-    type_params: IndexSet<SymbolId>,
-    ty: OnceCell<TypeId>,
-    annotations: Rc<[Annotation]>,
 }
 
 fn build_symbol_table<'ctx, E: ErrorReporter>(
@@ -313,12 +260,6 @@ fn init_function_object<'ctx, E: ErrorReporter>(
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Annotation {
-    pub name: String,
-    pub arguments: Vec<String>,
-}
-
 fn build_annotations_from_node<'ctx, E: ErrorReporter>(
     ctx: &Context<'ctx, E>,
     signature: &SignatureNode,
@@ -377,4 +318,39 @@ fn init_native_function_object<'ctx, E: ErrorReporter>(
             annotations,
         })
     }
+}
+
+fn get_builtin_scope<'ctx, E>(ctx: &Context<'ctx, E>) -> Rc<Scope> {
+    let i8_type = ctx.types.define(Type::Int(true, BitSize::I8));
+    let i16_type = ctx.types.define(Type::Int(true, BitSize::I16));
+    let i32_type = ctx.types.define(Type::Int(true, BitSize::I32));
+    let i64_type = ctx.types.define(Type::Int(true, BitSize::I64));
+    let isize_type = ctx.types.define(Type::Int(true, BitSize::ISize));
+    let u8_type = ctx.types.define(Type::Int(false, BitSize::I8));
+    let u16_type = ctx.types.define(Type::Int(false, BitSize::I16));
+    let u32_type = ctx.types.define(Type::Int(false, BitSize::I32));
+    let u64_type = ctx.types.define(Type::Int(false, BitSize::I64));
+    let usize_type = ctx.types.define(Type::Int(false, BitSize::ISize));
+    let f32_type = ctx.types.define(Type::Float(FloatType::F32));
+    let f64_type = ctx.types.define(Type::Float(FloatType::F64));
+    let void_type = ctx.types.define(Type::Void);
+    let bool_type = ctx.types.define(Type::Bool);
+
+    let scope = Scope::new(IndexMap::from([
+        (ctx.symbols.define("i8"), Object::Type(i8_type)),
+        (ctx.symbols.define("i16"), Object::Type(i16_type)),
+        (ctx.symbols.define("i32"), Object::Type(i32_type)),
+        (ctx.symbols.define("i64"), Object::Type(i64_type)),
+        (ctx.symbols.define("isize"), Object::Type(isize_type)),
+        (ctx.symbols.define("u8"), Object::Type(u8_type)),
+        (ctx.symbols.define("u16"), Object::Type(u16_type)),
+        (ctx.symbols.define("u32"), Object::Type(u32_type)),
+        (ctx.symbols.define("u64"), Object::Type(u64_type)),
+        (ctx.symbols.define("f32"), Object::Type(f32_type)),
+        (ctx.symbols.define("f64"), Object::Type(f64_type)),
+        (ctx.symbols.define("usize"), Object::Type(usize_type)),
+        (ctx.symbols.define("void"), Object::Type(void_type)),
+        (ctx.symbols.define("bool"), Object::Type(bool_type)),
+    ]));
+    Rc::new(scope)
 }
