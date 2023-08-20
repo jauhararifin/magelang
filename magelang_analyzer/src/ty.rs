@@ -29,6 +29,16 @@ pub enum Type {
     TypeArg(TypeArg),
 }
 
+impl Type {
+    pub fn as_named_struct(&self) -> Option<&NamedStructType> {
+        if let Self::NamedStruct(ty) = self {
+            Some(ty)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct NamedStructType {
     pub def_id: DefId,

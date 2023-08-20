@@ -41,18 +41,32 @@ impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (&SymbolId, &Object)> {
         self.table.iter()
     }
+
+    pub fn objects(&self) -> impl Iterator<Item = &Object> {
+        self.table.values()
+    }
 }
 
 #[derive(Debug)]
 pub enum Object {
     Import(ImportObject),
-    BuiltinType(TypeId),
+    Type(TypeId),
     Struct(StructObject),
     Global(GlobalObject),
     Local(LocalObject),
     Func(FuncObject),
     GenericStruct(GenericStructObject),
     GenericFunc(GenericFuncObject),
+}
+
+impl Object {
+    pub fn as_struct(&self) -> Option<&StructObject> {
+        if let Self::Struct(struct_object) = self {
+            Some(struct_object)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -130,20 +144,20 @@ pub fn get_builtin_scope<'ctx, E>(ctx: &Context<'ctx, E>) -> Rc<Scope> {
     let bool_type = ctx.types.define(Type::Bool);
 
     let scope = Scope::new(IndexMap::from([
-        (ctx.symbols.define("i8"), Object::BuiltinType(i8_type)),
-        (ctx.symbols.define("i16"), Object::BuiltinType(i16_type)),
-        (ctx.symbols.define("i32"), Object::BuiltinType(i32_type)),
-        (ctx.symbols.define("i64"), Object::BuiltinType(i64_type)),
-        (ctx.symbols.define("isize"), Object::BuiltinType(isize_type)),
-        (ctx.symbols.define("u8"), Object::BuiltinType(u8_type)),
-        (ctx.symbols.define("u16"), Object::BuiltinType(u16_type)),
-        (ctx.symbols.define("u32"), Object::BuiltinType(u32_type)),
-        (ctx.symbols.define("u64"), Object::BuiltinType(u64_type)),
-        (ctx.symbols.define("f32"), Object::BuiltinType(f32_type)),
-        (ctx.symbols.define("f64"), Object::BuiltinType(f64_type)),
-        (ctx.symbols.define("usize"), Object::BuiltinType(usize_type)),
-        (ctx.symbols.define("void"), Object::BuiltinType(void_type)),
-        (ctx.symbols.define("bool"), Object::BuiltinType(bool_type)),
+        (ctx.symbols.define("i8"), Object::Type(i8_type)),
+        (ctx.symbols.define("i16"), Object::Type(i16_type)),
+        (ctx.symbols.define("i32"), Object::Type(i32_type)),
+        (ctx.symbols.define("i64"), Object::Type(i64_type)),
+        (ctx.symbols.define("isize"), Object::Type(isize_type)),
+        (ctx.symbols.define("u8"), Object::Type(u8_type)),
+        (ctx.symbols.define("u16"), Object::Type(u16_type)),
+        (ctx.symbols.define("u32"), Object::Type(u32_type)),
+        (ctx.symbols.define("u64"), Object::Type(u64_type)),
+        (ctx.symbols.define("f32"), Object::Type(f32_type)),
+        (ctx.symbols.define("f64"), Object::Type(f64_type)),
+        (ctx.symbols.define("usize"), Object::Type(usize_type)),
+        (ctx.symbols.define("void"), Object::Type(void_type)),
+        (ctx.symbols.define("bool"), Object::Type(bool_type)),
     ]));
     Rc::new(scope)
 }

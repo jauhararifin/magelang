@@ -4,7 +4,7 @@ use crate::name::DefId;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
-use crate::ty::{NamedStructType, Type, TypeArgsInterner, TypeInterner};
+use crate::ty::{NamedStructType, StructBody, Type, TypeArg, TypeArgsInterner, TypeInterner};
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
@@ -47,6 +47,7 @@ pub fn analyze(
     let symbol_tables = build_symbol_table(&ctx, object_nodes);
     let builtin_scope = get_builtin_scope(&ctx);
     let package_scopes = build_package_scope(builtin_scope, symbol_tables);
+    generate_struct_bodies(&ctx, &package_scopes);
 }
 
 pub struct Context<'a, E> {
@@ -341,9 +342,61 @@ fn build_package_scope(
     package_scopes
 }
 
-fn build_struct_body<'ctx, E: ErrorReporter>(
+fn generate_struct_bodies<'ctx, E: ErrorReporter>(
     ctx: &Context<'ctx, E>,
     package_scopes: &HashMap<SymbolId, Rc<Scope>>,
 ) {
-    todo!();
+    for (_, scope) in package_scopes.iter() {
+        for (_, object) in scope.iter() {
+            match object {
+                Object::Struct(struct_object) => {
+                    let scope = scope.clone();
+                    let body = get_struct_body_from_node(ctx, &scope, &struct_object.node);
+
+                    ctx.types
+                        .get(struct_object.type_id)
+                        .as_named_struct()
+                        .expect("not a named struct")
+                        .body
+                        .set(body)
+                        .expect("cannot set struct body");
+                }
+                Object::GenericStruct(generic_obj) => {
+                    let scope =
+                        build_scope_for_typeparam(ctx, scope, generic_obj.type_params.iter());
+                    let body = get_struct_body_from_node(ctx, &scope, &generic_obj.node);
+                    generic_obj
+                        .body
+                        .set(body)
+                        .expect("cannot set generic struct body");
+                }
+                _ => continue,
+            };
+        }
+    }
+}
+
+fn build_scope_for_typeparam<'ctx, 'a, E>(
+    ctx: &Context<'ctx, E>,
+    scope: &Rc<Scope>,
+    type_params: impl Iterator<Item = &'a SymbolId>,
+) -> Rc<Scope> {
+    let mut typeparam_table = IndexMap::<SymbolId, Object>::default();
+    for (index, typeparam) in type_params.enumerate() {
+        let ty = ctx.types.define(Type::TypeArg(TypeArg {
+            index,
+            symbol: *typeparam,
+        }));
+        let type_param_obj = Object::Type(ty);
+        typeparam_table.insert(*typeparam, type_param_obj);
+    }
+    Rc::new(scope.new_child(typeparam_table))
+}
+
+fn get_struct_body_from_node<'ctx, E: ErrorReporter>(
+    ctx: &Context<'ctx, E>,
+    scope: &Scope,
+    node: &StructNode,
+) -> StructBody {
+    todo!()
 }
