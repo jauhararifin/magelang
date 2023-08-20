@@ -204,6 +204,7 @@ name = "magelang_analyzer"
 version = "0.1.0"
 dependencies = [
  "indexmap",
+ "magelang_syntax",
 ]
 
 [[package]]

@@ -4,8 +4,28 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct Id<Item: ?Sized>(usize, PhantomData<Item>);
+#[derive(PartialEq, Eq, Hash)]
+pub struct Id<Item: ?Sized>(usize, PhantomData<fn() -> Item>);
+
+impl<Item: ?Sized> std::fmt::Debug for Id<Item> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Id<{}>{:?}", std::any::type_name::<Self>(), self.0)
+    }
+}
+
+impl<Item: ?Sized> Default for Id<Item> {
+    fn default() -> Self {
+        Self(0, PhantomData)
+    }
+}
+
+impl<Item: ?Sized> Clone for Id<Item> {
+    fn clone(&self) -> Self {
+        Self(self.0, PhantomData)
+    }
+}
+
+impl<Item: ?Sized> Copy for Id<Item> {}
 
 pub struct Interner<Item: ?Sized> {
     internal: RefCell<InternerInternal<Item>>,
