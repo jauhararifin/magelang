@@ -6,3 +6,5 @@ mod path;
 mod symbols;
 mod ty;
 mod value;
+
+pub use analyze::analyze;

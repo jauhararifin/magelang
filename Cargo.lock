@@ -159,6 +159,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
 
 [[package]]
+name = "home"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5444c27eef6923071f7ebcc33e3444508466a76f7a2b93da00ed6e19f30c1ddb"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -196,6 +205,7 @@ name = "magelang"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "magelang_analyzer",
  "magelang_syntax",
 ]
 
@@ -203,6 +213,7 @@ dependencies = [
 name = "magelang_analyzer"
 version = "0.1.0"
 dependencies = [
+ "home",
  "indexmap",
  "magelang_syntax",
 ]

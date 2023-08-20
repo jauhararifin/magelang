@@ -1,12 +1,13 @@
 use crate::errors::SemanticError;
 use crate::interner::{SizedInterner, UnsizedInterner};
+use crate::name::DefId;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::symbols::{SymbolId, SymbolInterner};
 use crate::ty::{TypeArgsId, TypeArgsInterner, TypeInterner};
 use crate::value::value_from_string_lit;
 use indexmap::IndexMap;
-use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode};
-use std::collections::HashSet;
+use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos};
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 pub fn analyze(
@@ -14,9 +15,9 @@ pub fn analyze(
     error_manager: &impl ErrorReporter,
     main_package: &str,
 ) {
-    let mut symbols = SymbolInterner::default();
-    let mut types = TypeInterner::default();
-    let mut typeargs = TypeArgsInterner::default();
+    let symbols = SymbolInterner::default();
+    let types = TypeInterner::default();
+    let typeargs = TypeArgsInterner::default();
 
     let stdlib_path = get_stdlib_path();
     let main_package = symbols.define(main_package);
@@ -27,6 +28,8 @@ pub fn analyze(
         &stdlib_path,
         main_package,
     );
+
+    build_object_nodes(&file_manager, error_manager, &symbols, package_asts);
 }
 
 fn get_all_package_asts(
@@ -72,4 +75,36 @@ fn get_all_package_asts(
     }
 
     package_asts
+}
+
+fn build_object_nodes(
+    files: &FileManager,
+    errors: &impl ErrorReporter,
+    symbols: &SymbolInterner,
+    package_asts: IndexMap<SymbolId, PackageNode>,
+) -> IndexMap<DefId, ItemNode> {
+    let mut object_nodes = IndexMap::<DefId, ItemNode>::default();
+    let mut object_pos = HashMap::<DefId, Pos>::default();
+
+    for (package_name, package_ast) in package_asts {
+        for item in package_ast.items {
+            let object_name = symbols.define(item.name());
+            let object_id = DefId {
+                package: package_name,
+                name: object_name,
+            };
+
+            let pos = item.pos();
+            if let Some(declared_at) = object_pos.get(&object_id) {
+                let declared_at = files.location(*declared_at);
+                errors.redeclared_symbol(pos, declared_at, &symbols.get(object_name));
+                continue;
+            }
+
+            object_nodes.insert(object_id, item);
+            object_pos.insert(object_id, pos);
+        }
+    }
+
+    object_nodes
 }

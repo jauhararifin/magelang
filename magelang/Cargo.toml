@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 magelang_syntax = { path = "../magelang_syntax" }
+magelang_analyzer = { path = "../magelang_analyzer" }
 clap = { version = "4.0", features = ["derive"] }
 
