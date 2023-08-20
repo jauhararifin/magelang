@@ -32,6 +32,14 @@ impl ItemNode {
             Self::Function(node) => node.pos,
         }
     }
+
+    pub fn as_import(&self) -> Option<&ImportNode> {
+        if let Self::Import(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

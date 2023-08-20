@@ -1,5 +1,8 @@
 mod analyze;
+mod errors;
 mod interner;
 mod name;
-mod ty;
+mod path;
 mod symbols;
+mod ty;
+mod value;

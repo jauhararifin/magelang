@@ -49,11 +49,11 @@ impl<Item: ?Sized> Interner<Item> {
     }
 }
 
-trait SizedInterner<Item> {
+pub trait SizedInterner<Item> {
     fn define(&self, item: Item) -> Id<Item>;
 }
 
-trait UnsizedInterner<'a, Item: ?Sized> {
+pub trait UnsizedInterner<'a, Item: ?Sized> {
     fn define(&self, item: &'a Item) -> Id<Item>;
 }
 
