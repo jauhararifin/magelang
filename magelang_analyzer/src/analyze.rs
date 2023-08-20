@@ -4,7 +4,7 @@ use crate::name::DefId;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
-use crate::ty::{BitSize, FloatType, NamedStructType, Type, TypeArgsInterner, TypeInterner};
+use crate::ty::{NamedStructType, Type, TypeArgsInterner, TypeInterner};
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
@@ -45,16 +45,16 @@ pub fn analyze(
 
     let object_nodes = build_object_nodes(&ctx, package_asts);
     let symbol_tables = build_symbol_table(&ctx, object_nodes);
-
     let builtin_scope = get_builtin_scope(&ctx);
+    let package_scopes = build_package_scope(builtin_scope, symbol_tables);
 }
 
-struct Context<'a, E> {
-    files: &'a FileManager,
-    errors: &'a E,
-    symbols: &'a SymbolInterner,
-    types: &'a TypeInterner,
-    typeargs: &'a TypeArgsInterner,
+pub struct Context<'a, E> {
+    pub files: &'a FileManager,
+    pub errors: &'a E,
+    pub symbols: &'a SymbolInterner,
+    pub types: &'a TypeInterner,
+    pub typeargs: &'a TypeArgsInterner,
 }
 
 fn get_all_package_asts(
@@ -182,11 +182,14 @@ fn init_struct_objects<'ctx, E: ErrorReporter>(
     if struct_node.type_params.is_empty() {
         let ty = Type::NamedStruct(NamedStructType {
             def_id,
-            node: struct_node,
             body: OnceCell::default(),
         });
         let type_id = ctx.types.define(ty);
-        Object::Type(type_id)
+        Object::Struct(StructObject {
+            def_id,
+            node: struct_node,
+            type_id,
+        })
     } else {
         let type_params = get_typeparams_from_node(ctx, &struct_node.type_params);
         Object::GenericStruct(GenericStructObject {
@@ -320,37 +323,27 @@ fn init_native_function_object<'ctx, E: ErrorReporter>(
     }
 }
 
-fn get_builtin_scope<'ctx, E>(ctx: &Context<'ctx, E>) -> Rc<Scope> {
-    let i8_type = ctx.types.define(Type::Int(true, BitSize::I8));
-    let i16_type = ctx.types.define(Type::Int(true, BitSize::I16));
-    let i32_type = ctx.types.define(Type::Int(true, BitSize::I32));
-    let i64_type = ctx.types.define(Type::Int(true, BitSize::I64));
-    let isize_type = ctx.types.define(Type::Int(true, BitSize::ISize));
-    let u8_type = ctx.types.define(Type::Int(false, BitSize::I8));
-    let u16_type = ctx.types.define(Type::Int(false, BitSize::I16));
-    let u32_type = ctx.types.define(Type::Int(false, BitSize::I32));
-    let u64_type = ctx.types.define(Type::Int(false, BitSize::I64));
-    let usize_type = ctx.types.define(Type::Int(false, BitSize::ISize));
-    let f32_type = ctx.types.define(Type::Float(FloatType::F32));
-    let f64_type = ctx.types.define(Type::Float(FloatType::F64));
-    let void_type = ctx.types.define(Type::Void);
-    let bool_type = ctx.types.define(Type::Bool);
+fn build_package_scope(
+    builtin_scope: Rc<Scope>,
+    symbol_table: IndexMap<DefId, Object>,
+) -> HashMap<SymbolId, Rc<Scope>> {
+    let mut package_table = HashMap::<SymbolId, IndexMap<SymbolId, Object>>::default();
+    for (def_id, object) in symbol_table {
+        let table = package_table.entry(def_id.package).or_default();
+        table.insert(def_id.name, object);
+    }
 
-    let scope = Scope::new(IndexMap::from([
-        (ctx.symbols.define("i8"), Object::Type(i8_type)),
-        (ctx.symbols.define("i16"), Object::Type(i16_type)),
-        (ctx.symbols.define("i32"), Object::Type(i32_type)),
-        (ctx.symbols.define("i64"), Object::Type(i64_type)),
-        (ctx.symbols.define("isize"), Object::Type(isize_type)),
-        (ctx.symbols.define("u8"), Object::Type(u8_type)),
-        (ctx.symbols.define("u16"), Object::Type(u16_type)),
-        (ctx.symbols.define("u32"), Object::Type(u32_type)),
-        (ctx.symbols.define("u64"), Object::Type(u64_type)),
-        (ctx.symbols.define("f32"), Object::Type(f32_type)),
-        (ctx.symbols.define("f64"), Object::Type(f64_type)),
-        (ctx.symbols.define("usize"), Object::Type(usize_type)),
-        (ctx.symbols.define("void"), Object::Type(void_type)),
-        (ctx.symbols.define("bool"), Object::Type(bool_type)),
-    ]));
-    Rc::new(scope)
+    let mut package_scopes = HashMap::<SymbolId, Rc<Scope>>::default();
+    for (package_name, table) in package_table {
+        package_scopes.insert(package_name, Rc::new(builtin_scope.new_child(table)));
+    }
+
+    package_scopes
+}
+
+fn build_struct_body<'ctx, E: ErrorReporter>(
+    ctx: &Context<'ctx, E>,
+    package_scopes: &HashMap<SymbolId, Rc<Scope>>,
+) {
+    todo!();
 }

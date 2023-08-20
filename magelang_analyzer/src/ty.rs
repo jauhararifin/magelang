@@ -32,7 +32,6 @@ pub enum Type {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct NamedStructType {
     pub def_id: DefId,
-    pub node: StructNode,
     pub body: OnceCell<StructBody>,
 }
 
