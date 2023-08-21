@@ -109,8 +109,8 @@ pub struct TypeArg {
     pub symbol: SymbolId,
 }
 
-pub fn get_type_from_node<'ctx, E: ErrorReporter>(
-    ctx: &TypeCheckContext<'ctx, E>,
+pub fn get_type_from_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<'_, E>,
     node: &TypeExprNode,
 ) -> TypeId {
     let unknown_type = LazyCell::new(|| ctx.types.define(Type::Unknown));
@@ -176,8 +176,8 @@ pub fn get_type_from_node<'ctx, E: ErrorReporter>(
     }
 }
 
-fn get_type_from_named_type_node<'ctx, E: ErrorReporter>(
-    ctx: &TypeCheckContext<'ctx, E>,
+fn get_type_from_named_type_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<'_, E>,
     named_type_node: &NamedTypeNode,
 ) -> TypeId {
     let unknown_type = LazyCell::new(|| ctx.types.define(Type::Unknown));
@@ -220,8 +220,8 @@ fn get_object_from_named_type_node<'ctx, E: ErrorReporter>(
     }
 }
 
-fn substitute_generic_args<'ctx, E>(
-    ctx: &TypeCheckContext<'ctx, E>,
+fn substitute_generic_args<E>(
+    ctx: &TypeCheckContext<'_, E>,
     args: &[TypeId],
     generic_type_id: TypeId,
 ) -> TypeId {

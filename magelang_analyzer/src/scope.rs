@@ -143,7 +143,7 @@ pub struct GenericFuncObject {
     pub annotations: Rc<[Annotation]>,
 }
 
-pub fn get_builtin_scope<'ctx, E>(ctx: &Context<'ctx, E>) -> Rc<Scope> {
+pub fn get_builtin_scope<E>(ctx: &Context<'_, E>) -> Rc<Scope> {
     let i8_type = ctx.types.define(Type::Int(true, BitSize::I8));
     let i16_type = ctx.types.define(Type::Int(true, BitSize::I16));
     let i32_type = ctx.types.define(Type::Int(true, BitSize::I32));

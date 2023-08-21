@@ -116,8 +116,8 @@ fn get_all_package_asts(
     package_asts
 }
 
-fn build_object_nodes<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn build_object_nodes<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     package_asts: IndexMap<SymbolId, PackageNode>,
 ) -> IndexMap<DefId, ItemNode> {
     let mut object_nodes = IndexMap::<DefId, ItemNode>::default();
@@ -147,8 +147,8 @@ fn build_object_nodes<'ctx, E: ErrorReporter>(
     object_nodes
 }
 
-fn build_symbol_table<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn build_symbol_table< E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     object_nodes: IndexMap<DefId, ItemNode>,
 ) -> IndexMap<DefId, Object> {
     let mut symbol_table = IndexMap::<DefId, Object>::default();
@@ -166,8 +166,8 @@ fn build_symbol_table<'ctx, E: ErrorReporter>(
     symbol_table
 }
 
-fn init_import_object<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn init_import_object<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     import_node: ImportNode,
 ) -> Option<Object> {
     let import_path = import_node.path.value.as_str();
@@ -188,8 +188,8 @@ fn init_import_object<'ctx, E: ErrorReporter>(
     }))
 }
 
-fn init_struct_objects<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn init_struct_objects<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     def_id: DefId,
     struct_node: StructNode,
 ) -> Object {
@@ -215,8 +215,8 @@ fn init_struct_objects<'ctx, E: ErrorReporter>(
     }
 }
 
-fn get_typeparams_from_node<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn get_typeparams_from_node<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     node: &[TypeParameterNode],
 ) -> IndexSet<SymbolId> {
     let mut type_param_pos = HashMap::<SymbolId, Pos>::default();
@@ -246,8 +246,8 @@ fn init_global_object(def_id: DefId, global_node: GlobalNode) -> Object {
     })
 }
 
-fn init_function_object<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn init_function_object<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     def_id: DefId,
     func_node: FunctionNode,
 ) -> Object {
@@ -277,8 +277,8 @@ fn init_function_object<'ctx, E: ErrorReporter>(
     }
 }
 
-fn build_annotations_from_node<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn build_annotations_from_node<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     signature: &SignatureNode,
 ) -> Vec<Annotation> {
     let mut annotations = Vec::default();
@@ -310,8 +310,8 @@ fn build_annotations_from_node<'ctx, E: ErrorReporter>(
     annotations
 }
 
-fn init_native_function_object<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn init_native_function_object<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     def_id: DefId,
     signature: SignatureNode,
 ) -> Object {
@@ -355,8 +355,8 @@ fn build_package_scope(
     package_scopes
 }
 
-fn generate_struct_bodies<'ctx, E: ErrorReporter>(
-    ctx: &TypeCheckContext<'ctx, E>,
+fn generate_struct_bodies<E: ErrorReporter>(
+    ctx: &TypeCheckContext<'_, E>,
     package_scopes: &HashMap<SymbolId, Rc<Scope>>,
 ) {
     for (_, scope) in package_scopes.iter() {
@@ -405,8 +405,8 @@ fn build_scope_for_typeparam<'ctx, 'a, E>(
     Rc::new(ctx.scope.new_child(typeparam_table))
 }
 
-fn get_struct_body_from_node<'ctx, E: ErrorReporter>(
-    ctx: &TypeCheckContext<'ctx, E>,
+fn get_struct_body_from_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<'_, E>,
     struct_node: &StructNode,
 ) -> StructBody {
     let mut field_pos = HashMap::<SymbolId, Pos>::default();

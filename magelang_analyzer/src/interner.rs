@@ -21,7 +21,7 @@ impl<Item: ?Sized> Default for Id<Item> {
 
 impl<Item: ?Sized> Clone for Id<Item> {
     fn clone(&self) -> Self {
-        Self(self.0, PhantomData)
+        *self
     }
 }
 
