@@ -44,10 +44,6 @@ impl Scope {
     pub fn iter(&self) -> impl Iterator<Item = (&SymbolId, &Object)> {
         self.table.iter()
     }
-
-    pub fn objects(&self) -> impl Iterator<Item = &Object> {
-        self.table.values()
-    }
 }
 
 #[derive(Debug)]

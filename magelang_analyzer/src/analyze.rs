@@ -4,6 +4,7 @@ use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::{display_name, DefId, Name};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
+use crate::statements::{get_stmt_from_block_node, Statement};
 use crate::symbols::{SymbolId, SymbolInterner};
 use crate::ty::{
     display_type_id, get_func_type_from_node, get_type_from_node, is_type_assignable,
@@ -12,8 +13,8 @@ use crate::ty::{
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    parse, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode, ItemNode, PackageNode,
-    Pos, SignatureNode, StructNode,
+    parse, BlockStatementNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode,
+    ItemNode, PackageNode, Pos, SignatureNode, StructNode,
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -66,6 +67,7 @@ pub fn analyze(
     // TODO: check circular global initialization.
     generate_object_types(&typecheck_ctx);
     generate_object_values(&typecheck_ctx);
+    generate_function_bodies(&typecheck_ctx);
 }
 
 pub struct Context<'a, E> {
@@ -592,4 +594,70 @@ fn generate_object_values<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
             };
         }
     }
+}
+
+fn generate_function_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
+    for (_, scope) in ctx.package_scopes.iter() {
+        for (_, object) in scope.iter() {
+            match object {
+                Object::Func(func_object) => {
+                    if let Some(ref body) = func_object.body_node {
+                        get_func_body_from_node(ctx, &func_object.signature, body)
+                    } else {
+                        Statement::Native
+                    }
+                }
+                Object::GenericFunc(generic_func_object) => {
+                    if let Some(ref body) = generic_func_object.body_node {
+                        get_func_body_from_node(ctx, &generic_func_object.signature, body)
+                    } else {
+                        Statement::Native
+                    }
+                }
+                _ => continue,
+            };
+        }
+    }
+}
+
+fn get_func_body_from_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<E>,
+    signature: &SignatureNode,
+    body: &BlockStatementNode,
+) -> Statement {
+    let scope = build_scope_for_typeparam(ctx, &signature.type_params);
+    let ctx = ctx.with_scope(scope);
+
+    let mut symbol_table = IndexMap::default();
+    let mut last_unused_local = 0;
+    for param in &signature.parameters {
+        let name = ctx.symbols.define(&param.name.value);
+        if symbol_table.contains_key(&name) {
+            continue;
+        }
+        let type_id = get_type_from_node(&ctx, &param.ty);
+        symbol_table.insert(
+            name,
+            Object::Local(LocalObject {
+                id: last_unused_local,
+                ty: type_id,
+            }),
+        );
+        last_unused_local += 1;
+    }
+    let scope = Rc::new(ctx.scope.new_child(symbol_table));
+    let ctx = ctx.with_scope(scope);
+
+    let return_type_id = if let Some(type_expr) = &signature.return_type {
+        get_type_from_node(&ctx, type_expr)
+    } else {
+        ctx.types.define(Type::Void)
+    };
+
+    let result = get_stmt_from_block_node(&ctx, last_unused_local, return_type_id, false, body);
+    let should_return = return_type_id != ctx.types.define(Type::Void);
+    if should_return && !result.is_returning {
+        ctx.errors.missing_return(signature.pos);
+    }
+    result.statement
 }

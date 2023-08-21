@@ -7,6 +7,7 @@ mod interner;
 mod name;
 mod path;
 mod scope;
+mod statements;
 mod symbols;
 mod ty;
 mod value;
