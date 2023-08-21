@@ -5,14 +5,14 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
 use crate::ty::{
-    get_type_from_node, NamedStructType, StructBody, Type, TypeArg, TypeArgsInterner, TypeId,
-    TypeInterner,
+    get_func_type_from_node, get_type_from_node, NamedStructType, StructBody, Type,
+    TypeArgsInterner, TypeId, TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     parse, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode, ItemNode, PackageNode,
-    Pos, SignatureNode, StructNode, TypeParameterNode,
+    Pos, SignatureNode, StructNode,
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -62,6 +62,8 @@ pub fn analyze(
     };
     generate_struct_bodies(&typecheck_ctx);
     check_circular_types(&typecheck_ctx);
+    // TODO: check circular global initialization.
+    generate_object_types(&typecheck_ctx);
 }
 
 pub struct Context<'a, E> {
@@ -207,37 +209,12 @@ fn init_struct_objects<E: ErrorReporter>(
             type_id,
         })
     } else {
-        let type_params = get_typeparams_from_node(ctx, &struct_node.type_params);
         Object::GenericStruct(GenericStructObject {
             def_id,
-            type_params,
             node: struct_node,
             body: OnceCell::default(),
         })
     }
-}
-
-fn get_typeparams_from_node<E: ErrorReporter>(
-    ctx: &Context<'_, E>,
-    node: &[TypeParameterNode],
-) -> IndexSet<SymbolId> {
-    let mut type_param_pos = HashMap::<SymbolId, Pos>::default();
-    for type_param_node in node {
-        let type_name = type_param_node.name.value.as_str();
-        let type_param_name = ctx.symbols.define(type_name);
-        let pos = type_param_node.name.pos;
-        if let Some(defined_at) = type_param_pos.get(&type_param_name) {
-            ctx.errors.redeclared_symbol(
-                pos,
-                ctx.files.location(*defined_at),
-                &type_param_node.name.value,
-            );
-        } else {
-            type_param_pos.insert(type_param_name, pos);
-        }
-    }
-
-    type_param_pos.into_keys().collect()
 }
 
 fn init_global_object(def_id: DefId, global_node: GlobalNode) -> Object {
@@ -267,12 +244,10 @@ fn init_function_object<E: ErrorReporter>(
             annotations,
         })
     } else {
-        let type_params = get_typeparams_from_node(ctx, &func_node.signature.type_params);
         Object::GenericFunc(GenericFuncObject {
             def_id,
             signature: func_node.signature,
             body_node: func_node.body,
-            type_params,
             ty: OnceCell::default(),
             annotations,
         })
@@ -327,12 +302,10 @@ fn init_native_function_object<E: ErrorReporter>(
             annotations,
         })
     } else {
-        let type_params = get_typeparams_from_node(ctx, &signature.type_params);
         Object::GenericFunc(GenericFuncObject {
             def_id,
             signature,
             body_node: None,
-            type_params,
             ty: OnceCell::default(),
             annotations,
         })
@@ -399,7 +372,7 @@ fn generate_struct_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
                         .expect("cannot set struct body");
                 }
                 Object::GenericStruct(generic_obj) => {
-                    let scope = build_scope_for_typeparam(ctx, generic_obj.type_params.iter());
+                    let scope = build_scope_for_typeparam(ctx, &generic_obj.node.type_params);
                     let ctx = ctx.with_scope(scope);
                     let body = get_struct_body_from_node(&ctx, &generic_obj.node);
                     generic_obj
@@ -411,22 +384,6 @@ fn generate_struct_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
             };
         }
     }
-}
-
-fn build_scope_for_typeparam<'ctx, 'a, E>(
-    ctx: &TypeCheckContext<'ctx, E>,
-    type_params: impl Iterator<Item = &'a SymbolId>,
-) -> Rc<Scope> {
-    let mut typeparam_table = IndexMap::<SymbolId, Object>::default();
-    for (index, typeparam) in type_params.enumerate() {
-        let ty = ctx.types.define(Type::TypeArg(TypeArg {
-            index,
-            symbol: *typeparam,
-        }));
-        let type_param_obj = Object::Type(ty);
-        typeparam_table.insert(*typeparam, type_param_obj);
-    }
-    Rc::new(ctx.scope.new_child(typeparam_table))
 }
 
 fn get_struct_body_from_node<E: ErrorReporter>(
@@ -561,4 +518,34 @@ fn report_circular_type<E: ErrorReporter>(
         .pos()
         .unwrap();
     ctx.errors.circular_type(pos, &chain_str);
+}
+
+fn generate_object_types<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
+    for (_, scope) in ctx.package_scopes.iter() {
+        for (_, object) in scope.iter() {
+            match object {
+                Object::Func(func_object) => {
+                    let func_type = get_func_type_from_node(ctx, &func_object.signature);
+                    let type_id = ctx.types.define(Type::Func(func_type));
+                    func_object
+                        .ty
+                        .set(type_id)
+                        .expect("cannot set function type");
+                }
+                Object::GenericFunc(generic_obj) => {
+                    let func_type = get_func_type_from_node(ctx, &generic_obj.signature);
+                    let type_id = ctx.types.define(Type::Func(func_type));
+                    generic_obj
+                        .ty
+                        .set(type_id)
+                        .expect("cannot set function type");
+                }
+                Object::Global(global_obj) => {
+                    let type_id = get_type_from_node(ctx, &global_obj.node.ty);
+                    global_obj.ty.set(type_id).expect("cannot set global type");
+                }
+                _ => continue,
+            };
+        }
+    }
 }

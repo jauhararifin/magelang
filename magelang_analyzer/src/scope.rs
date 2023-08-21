@@ -1,10 +1,12 @@
-use crate::analyze::Context;
+use crate::analyze::{Context, TypeCheckContext};
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
 use crate::symbols::SymbolId;
-use crate::ty::{BitSize, FloatType, StructBody, Type, TypeId};
-use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{BlockStatementNode, GlobalNode, Pos, SignatureNode, StructNode};
+use crate::ty::{BitSize, FloatType, StructBody, Type, TypeArg, TypeId};
+use indexmap::IndexMap;
+use magelang_syntax::{
+    BlockStatementNode, GlobalNode, Pos, SignatureNode, StructNode, TypeParameterNode,
+};
 use std::cell::OnceCell;
 use std::rc::Rc;
 
@@ -142,7 +144,6 @@ pub struct Annotation {
 #[derive(Debug)]
 pub struct GenericStructObject {
     pub def_id: DefId,
-    pub type_params: IndexSet<SymbolId>,
     pub node: StructNode,
     pub body: OnceCell<StructBody>,
 }
@@ -152,7 +153,6 @@ pub struct GenericFuncObject {
     pub def_id: DefId,
     pub signature: SignatureNode,
     pub body_node: Option<BlockStatementNode>,
-    pub type_params: IndexSet<SymbolId>,
     pub ty: OnceCell<TypeId>,
     pub annotations: Rc<[Annotation]>,
 }
@@ -190,4 +190,21 @@ pub fn get_builtin_scope<E>(ctx: &Context<'_, E>) -> Rc<Scope> {
         (ctx.symbols.define("bool"), Object::Type(bool_type)),
     ]));
     Rc::new(scope)
+}
+
+pub fn build_scope_for_typeparam<'ctx, 'a, E>(
+    ctx: &TypeCheckContext<'ctx, E>,
+    type_params: &[TypeParameterNode],
+) -> Rc<Scope> {
+    let mut typeparam_table = IndexMap::<SymbolId, Object>::default();
+    for (index, typeparam) in type_params.iter().enumerate() {
+        let typeparam = ctx.symbols.define(&typeparam.name.value);
+        let ty = ctx.types.define(Type::TypeArg(TypeArg {
+            index,
+            symbol: typeparam,
+        }));
+        let type_param_obj = Object::Type(ty);
+        typeparam_table.insert(typeparam, type_param_obj);
+    }
+    Rc::new(ctx.scope.new_child(typeparam_table))
 }

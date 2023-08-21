@@ -2,11 +2,12 @@ use crate::analyze::TypeCheckContext;
 use crate::errors::SemanticError;
 use crate::interner::{Id, Interner, SizedInterner, UnsizedInterner};
 use crate::name::DefId;
-use crate::scope::Object;
+use crate::scope::{build_scope_for_typeparam, Object};
 use crate::symbols::SymbolId;
 use indexmap::IndexMap;
-use magelang_syntax::{ErrorReporter, NamedTypeNode, TypeExprNode};
+use magelang_syntax::{ErrorReporter, NamedTypeNode, Pos, SignatureNode, TypeExprNode};
 use std::cell::{LazyCell, OnceCell};
+use std::collections::HashMap;
 use std::hash::Hash;
 
 pub type TypeInterner = Interner<Type>;
@@ -137,21 +138,21 @@ pub fn get_type_from_node<E: ErrorReporter>(
                 return *unknown_type;
             };
 
-            let type_params: Vec<SymbolId> = generic_struct.type_params.iter().cloned().collect();
+            let required_type_param = generic_struct.node.type_params.len();
             let mut type_args: Vec<TypeId> = node
                 .args
                 .iter()
                 .map(|node| get_type_from_node(ctx, node))
                 .collect();
 
-            if type_args.len() != type_params.len() {
+            if type_args.len() != required_type_param {
                 ctx.errors.type_arguments_count_mismatch(
                     node.ty.pos(),
-                    type_params.len(),
+                    required_type_param,
                     type_args.len(),
                 );
             }
-            while type_args.len() < type_params.len() {
+            while type_args.len() < required_type_param {
                 type_args.push(ctx.types.define(Type::Unknown));
             }
 
@@ -281,6 +282,44 @@ fn substitute_generic_args<E>(
             let element_type_id = substitute_generic_args(ctx, args, *element_type_id);
             ctx.types.define(Type::ArrayPtr(element_type_id))
         }
+    }
+}
+
+pub fn get_func_type_from_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<E>,
+    signature: &SignatureNode,
+) -> FuncType {
+    let scope = build_scope_for_typeparam(ctx, &signature.type_params);
+    let ctx = ctx.with_scope(scope);
+
+    let mut param_pos = HashMap::<SymbolId, Pos>::default();
+    let mut params = Vec::default();
+    for param_node in &signature.parameters {
+        let name = ctx.symbols.define(&param_node.name.value);
+        let pos = param_node.name.pos;
+        if let Some(defined_at) = param_pos.get(&name) {
+            ctx.errors.redeclared_symbol(
+                pos,
+                ctx.files.location(*defined_at),
+                &param_node.name.value,
+            );
+        } else {
+            param_pos.insert(name, pos);
+        }
+
+        let type_id = get_type_from_node(&ctx, &param_node.ty);
+        params.push(type_id);
+    }
+
+    let return_type = if let Some(expr) = &signature.return_type {
+        get_type_from_node(&ctx, expr)
+    } else {
+        ctx.types.define(Type::Void)
+    };
+
+    FuncType {
+        params,
+        return_type,
     }
 }
 
