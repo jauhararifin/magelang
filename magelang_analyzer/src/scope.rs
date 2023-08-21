@@ -67,6 +67,22 @@ impl Object {
             None
         }
     }
+
+    pub fn as_import(&self) -> Option<&ImportObject> {
+        if let Self::Import(import_object) = self {
+            Some(import_object)
+        } else {
+            None
+        }
+    }
+
+    pub fn type_id(&self) -> Option<TypeId> {
+        match self {
+            Self::Struct(struct_object) => Some(struct_object.type_id),
+            Self::Type(type_id) => Some(*type_id),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]

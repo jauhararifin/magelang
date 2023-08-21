@@ -5,13 +5,14 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
 use crate::ty::{
-    NamedStructType, StructBody, Type, TypeArg, TypeArgsInterner, TypeId, TypeInterner,
+    get_type_from_node, NamedStructType, StructBody, Type, TypeArg, TypeArgsInterner, TypeId,
+    TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     parse, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode, ItemNode, PackageNode,
-    Pos, SignatureNode, StructNode, TypeExprNode, TypeParameterNode,
+    Pos, SignatureNode, StructNode, TypeParameterNode,
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -48,8 +49,18 @@ pub fn analyze(
     let object_nodes = build_object_nodes(&ctx, package_asts);
     let symbol_tables = build_symbol_table(&ctx, object_nodes);
     let builtin_scope = get_builtin_scope(&ctx);
-    let package_scopes = build_package_scope(builtin_scope, symbol_tables);
-    generate_struct_bodies(&ctx, &package_scopes);
+    let package_scopes = build_package_scope(builtin_scope.clone(), symbol_tables);
+
+    let typecheck_ctx = TypeCheckContext {
+        files: file_manager,
+        errors: error_manager,
+        symbols: &symbols,
+        types: &types,
+        typeargs: &typeargs,
+        package_scopes: &package_scopes,
+        scope: builtin_scope,
+    };
+    generate_struct_bodies(&typecheck_ctx, &package_scopes);
 }
 
 pub struct Context<'a, E> {
@@ -345,15 +356,15 @@ fn build_package_scope(
 }
 
 fn generate_struct_bodies<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+    ctx: &TypeCheckContext<'ctx, E>,
     package_scopes: &HashMap<SymbolId, Rc<Scope>>,
 ) {
     for (_, scope) in package_scopes.iter() {
         for (_, object) in scope.iter() {
             match object {
                 Object::Struct(struct_object) => {
-                    let scope = scope.clone();
-                    let body = get_struct_body_from_node(ctx, &scope, &struct_object.node);
+                    let ctx = ctx.with_scope(scope.clone());
+                    let body = get_struct_body_from_node(&ctx, &struct_object.node);
 
                     ctx.types
                         .get(struct_object.type_id)
@@ -364,9 +375,9 @@ fn generate_struct_bodies<'ctx, E: ErrorReporter>(
                         .expect("cannot set struct body");
                 }
                 Object::GenericStruct(generic_obj) => {
-                    let scope =
-                        build_scope_for_typeparam(ctx, scope, generic_obj.type_params.iter());
-                    let body = get_struct_body_from_node(ctx, &scope, &generic_obj.node);
+                    let scope = build_scope_for_typeparam(ctx, generic_obj.type_params.iter());
+                    let ctx = ctx.with_scope(scope);
+                    let body = get_struct_body_from_node(&ctx, &generic_obj.node);
                     generic_obj
                         .body
                         .set(body)
@@ -379,8 +390,7 @@ fn generate_struct_bodies<'ctx, E: ErrorReporter>(
 }
 
 fn build_scope_for_typeparam<'ctx, 'a, E>(
-    ctx: &Context<'ctx, E>,
-    scope: &Rc<Scope>,
+    ctx: &TypeCheckContext<'ctx, E>,
     type_params: impl Iterator<Item = &'a SymbolId>,
 ) -> Rc<Scope> {
     let mut typeparam_table = IndexMap::<SymbolId, Object>::default();
@@ -392,12 +402,11 @@ fn build_scope_for_typeparam<'ctx, 'a, E>(
         let type_param_obj = Object::Type(ty);
         typeparam_table.insert(*typeparam, type_param_obj);
     }
-    Rc::new(scope.new_child(typeparam_table))
+    Rc::new(ctx.scope.new_child(typeparam_table))
 }
 
 fn get_struct_body_from_node<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
-    scope: &Scope,
+    ctx: &TypeCheckContext<'ctx, E>,
     struct_node: &StructNode,
 ) -> StructBody {
     let mut field_pos = HashMap::<SymbolId, Pos>::default();
@@ -413,7 +422,7 @@ fn get_struct_body_from_node<'ctx, E: ErrorReporter>(
             );
         } else {
             field_pos.insert(field_name, pos);
-            let type_id = get_type_from_node(ctx, scope, &field_node.ty);
+            let type_id = get_type_from_node(ctx, &field_node.ty);
             fields.insert(field_name, type_id);
         }
     }
@@ -421,10 +430,27 @@ fn get_struct_body_from_node<'ctx, E: ErrorReporter>(
     StructBody { fields }
 }
 
-fn get_type_from_node<'ctx, E>(
-    ctx: &Context<'ctx, E>,
-    scope: &Scope,
-    node: &TypeExprNode,
-) -> TypeId {
-    todo!();
+pub struct TypeCheckContext<'a, E> {
+    pub files: &'a FileManager,
+    pub errors: &'a E,
+    pub symbols: &'a SymbolInterner,
+    pub types: &'a TypeInterner,
+    pub typeargs: &'a TypeArgsInterner,
+
+    pub package_scopes: &'a HashMap<SymbolId, Rc<Scope>>,
+    pub scope: Rc<Scope>,
+}
+
+impl<'a, E> TypeCheckContext<'a, E> {
+    pub fn with_scope(&self, scope: Rc<Scope>) -> Self {
+        Self {
+            files: self.files,
+            errors: self.errors,
+            symbols: self.symbols,
+            types: self.types,
+            typeargs: self.typeargs,
+            package_scopes: self.package_scopes,
+            scope,
+        }
+    }
 }

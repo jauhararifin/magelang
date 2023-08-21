@@ -1,3 +1,5 @@
+#![feature(lazy_cell)]
+
 mod analyze;
 mod errors;
 mod interner;
