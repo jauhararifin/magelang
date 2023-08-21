@@ -686,8 +686,9 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                         })
                     }
                     TokenKind::Mul => {
-                        _ = f.take(TokenKind::Mul)?;
+                        let tok = f.take(TokenKind::Mul)?;
                         ExprNode::Deref(DerefExprNode {
+                            pos: tok.pos,
                             value: Box::new(target),
                         })
                     }
@@ -695,16 +696,10 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                 }
             }
             TokenKind::OpenSquare => {
-                let (_, arguments, _) = parse_sequence(
-                    f,
-                    TokenKind::OpenSquare,
-                    TokenKind::Comma,
-                    TokenKind::CloseSquare,
-                    |this| parse_expr(this, true),
-                )?;
+                let index = parse_expr(f, true)?;
                 ExprNode::Index(IndexExprNode {
                     value: Box::new(target),
-                    indexes: arguments,
+                    index: Box::new(index),
                 })
             }
             TokenKind::Lt => {

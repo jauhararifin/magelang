@@ -224,6 +224,7 @@ pub struct BinaryExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DerefExprNode {
+    pub pos: Pos,
     pub value: Box<ExprNode>,
 }
 
@@ -269,7 +270,7 @@ pub struct SelectionExprNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct IndexExprNode {
     pub value: Box<ExprNode>,
-    pub indexes: Vec<ExprNode>,
+    pub index: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

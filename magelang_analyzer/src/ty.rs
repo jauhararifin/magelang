@@ -34,8 +34,43 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    pub fn is_arithmetic(&self) -> bool {
+        matches!(
+            self,
+            Self::Int(..) | Self::Float(..) | Self::Ptr(..) | Self::ArrayPtr(..)
+        )
+    }
+
+    pub fn is_integral(&self) -> bool {
+        matches!(self, Self::Int(..) | Self::Ptr(..) | Self::ArrayPtr(..))
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float(..))
+    }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self, Self::Int(..))
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
     pub fn as_named_struct(&self) -> Option<&NamedStructType> {
         if let Self::NamedStruct(ty) = self {
+            Some(ty)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_func(&self) -> Option<&FuncType> {
+        if let Self::Func(ty) = self {
             Some(ty)
         } else {
             None
@@ -385,4 +420,14 @@ pub fn display_type<E>(ctx: &TypeCheckContext<'_, E>, ty: &Type) -> String {
         }
         Type::TypeArg(typearg) => ctx.symbols.get(typearg.symbol).as_ref().into(),
     }
+}
+
+pub fn is_type_assignable<E>(ctx: &TypeCheckContext<E>, target: TypeId, source: TypeId) -> bool {
+    let target_ty = ctx.types.get(target);
+    let source_ty = ctx.types.get(source);
+    if target_ty.is_unknown() || source_ty.is_unknown() {
+        return true;
+    }
+
+    target == source
 }

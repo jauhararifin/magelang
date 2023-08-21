@@ -1,4 +1,5 @@
 use crate::analyze::{Context, TypeCheckContext};
+use crate::expr::Expr;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
 use crate::symbols::SymbolId;
@@ -118,6 +119,7 @@ pub struct GlobalObject {
     pub def_id: DefId,
     pub node: GlobalNode,
     pub ty: OnceCell<TypeId>,
+    pub value: OnceCell<Expr>,
 }
 
 #[derive(Debug)]
@@ -192,8 +194,8 @@ pub fn get_builtin_scope<E>(ctx: &Context<'_, E>) -> Rc<Scope> {
     Rc::new(scope)
 }
 
-pub fn build_scope_for_typeparam<'ctx, 'a, E>(
-    ctx: &TypeCheckContext<'ctx, E>,
+pub fn build_scope_for_typeparam<E>(
+    ctx: &TypeCheckContext<E>,
     type_params: &[TypeParameterNode],
 ) -> Rc<Scope> {
     let mut typeparam_table = IndexMap::<SymbolId, Object>::default();

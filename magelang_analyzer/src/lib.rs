@@ -2,6 +2,7 @@
 
 mod analyze;
 mod errors;
+mod expr;
 mod interner;
 mod name;
 mod path;

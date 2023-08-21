@@ -1,12 +1,13 @@
 use crate::errors::SemanticError;
+use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::{display_name, DefId, Name};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
 use crate::ty::{
-    get_func_type_from_node, get_type_from_node, NamedStructType, StructBody, Type,
-    TypeArgsInterner, TypeId, TypeInterner,
+    display_type_id, get_func_type_from_node, get_type_from_node, is_type_assignable,
+    NamedStructType, StructBody, Type, TypeArgsInterner, TypeId, TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
@@ -64,6 +65,7 @@ pub fn analyze(
     check_circular_types(&typecheck_ctx);
     // TODO: check circular global initialization.
     generate_object_types(&typecheck_ctx);
+    generate_object_values(&typecheck_ctx);
 }
 
 pub struct Context<'a, E> {
@@ -222,6 +224,7 @@ fn init_global_object(def_id: DefId, global_node: GlobalNode) -> Object {
         def_id,
         node: global_node,
         ty: OnceCell::default(),
+        value: OnceCell::default(),
     })
 }
 
@@ -543,6 +546,47 @@ fn generate_object_types<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
                 Object::Global(global_obj) => {
                     let type_id = get_type_from_node(ctx, &global_obj.node.ty);
                     global_obj.ty.set(type_id).expect("cannot set global type");
+                }
+                _ => continue,
+            };
+        }
+    }
+}
+
+fn generate_object_values<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
+    for (_, scope) in ctx.package_scopes.iter() {
+        for (_, object) in scope.iter() {
+            match object {
+                Object::Global(global_obj) => {
+                    let type_id = global_obj.ty.get().expect("cannot set global type");
+                    let value_expr = if let Some(ref expr) = global_obj.node.value {
+                        get_expr_from_node(ctx, Some(*type_id), expr)
+                    } else {
+                        Expr {
+                            ty: *type_id,
+                            kind: ExprKind::Zero,
+                            assignable: false,
+                        }
+                    };
+
+                    if !is_type_assignable(ctx, *type_id, value_expr.ty) {
+                        let pos = global_obj
+                            .node
+                            .value
+                            .as_ref()
+                            .map(|expr| expr.pos())
+                            .unwrap_or(global_obj.node.pos);
+                        ctx.errors.type_mismatch(
+                            pos,
+                            display_type_id(ctx, *type_id),
+                            display_type_id(ctx, value_expr.ty),
+                        );
+                    };
+
+                    global_obj
+                        .value
+                        .set(value_expr)
+                        .expect("cannot set global value expression");
                 }
                 _ => continue,
             };
