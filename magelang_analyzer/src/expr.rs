@@ -803,7 +803,7 @@ fn get_expr_from_instance_node<E: ErrorReporter>(
         ctx.errors.non_generic_value(node.value.pos());
         return Expr {
             ty: ctx.types.define(Type::Unknown),
-            kind:ExprKind::Invalid,
+            kind: ExprKind::Invalid,
             assignable: false,
         };
     };
@@ -812,7 +812,7 @@ fn get_expr_from_instance_node<E: ErrorReporter>(
         ctx.errors.non_generic_value(node.value.pos());
         return Expr {
             ty: ctx.types.define(Type::Unknown),
-            kind:ExprKind::Invalid,
+            kind: ExprKind::Invalid,
             assignable: false,
         };
     };

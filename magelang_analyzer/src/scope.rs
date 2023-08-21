@@ -2,8 +2,9 @@ use crate::analyze::{Context, TypeCheckContext};
 use crate::expr::Expr;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
+use crate::statements::Statement;
 use crate::symbols::SymbolId;
-use crate::ty::{BitSize, FloatType, StructBody, Type, TypeArg, TypeId};
+use crate::ty::{BitSize, FloatType, StructBody, Type, TypeArg, TypeArgsId, TypeId};
 use indexmap::IndexMap;
 use magelang_syntax::{
     BlockStatementNode, GlobalNode, Pos, SignatureNode, StructNode, TypeParameterNode,
@@ -131,6 +132,7 @@ pub struct FuncObject {
     pub body_node: Option<BlockStatementNode>,
     pub ty: OnceCell<TypeId>,
     pub annotations: Rc<[Annotation]>,
+    pub body: OnceCell<Statement>,
 }
 
 #[derive(Debug, Clone)]
@@ -153,6 +155,8 @@ pub struct GenericFuncObject {
     pub body_node: Option<BlockStatementNode>,
     pub ty: OnceCell<TypeId>,
     pub annotations: Rc<[Annotation]>,
+    pub body: OnceCell<Statement>,
+    pub monomorphized: OnceCell<IndexMap<TypeArgsId, (TypeId, Statement)>>,
 }
 
 pub fn get_builtin_scope<E>(ctx: &Context<'_, E>) -> Rc<Scope> {

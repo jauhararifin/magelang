@@ -4,11 +4,12 @@ use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::{display_name, DefId, Name};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
-use crate::statements::{get_stmt_from_block_node, Statement};
+use crate::statements::{get_stmt_from_block_node, IfStatement, Statement, WhileStatement};
 use crate::symbols::{SymbolId, SymbolInterner};
 use crate::ty::{
     display_type_id, get_func_type_from_node, get_type_from_node, is_type_assignable,
-    NamedStructType, StructBody, Type, TypeArgsInterner, TypeId, TypeInterner,
+    substitute_generic_args, NamedStructType, StructBody, Type, TypeArgsId, TypeArgsInterner,
+    TypeId, TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
@@ -17,7 +18,8 @@ use magelang_syntax::{
     ItemNode, PackageNode, Pos, SignatureNode, StructNode,
 };
 use std::cell::OnceCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::iter::zip;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -65,9 +67,11 @@ pub fn analyze(
     generate_struct_bodies(&typecheck_ctx);
     check_circular_types(&typecheck_ctx);
     // TODO: check circular global initialization.
+
     generate_object_types(&typecheck_ctx);
     generate_object_values(&typecheck_ctx);
     generate_function_bodies(&typecheck_ctx);
+    monomorphize_functions(&typecheck_ctx);
 }
 
 pub struct Context<'a, E> {
@@ -247,6 +251,7 @@ fn init_function_object<E: ErrorReporter>(
             body_node: func_node.body,
             ty: OnceCell::default(),
             annotations,
+            body: OnceCell::default(),
         })
     } else {
         Object::GenericFunc(GenericFuncObject {
@@ -255,6 +260,8 @@ fn init_function_object<E: ErrorReporter>(
             body_node: func_node.body,
             ty: OnceCell::default(),
             annotations,
+            body: OnceCell::default(),
+            monomorphized: OnceCell::default(),
         })
     }
 }
@@ -305,6 +312,7 @@ fn init_native_function_object<E: ErrorReporter>(
             body_node: None,
             ty: OnceCell::default(),
             annotations,
+            body: OnceCell::default(),
         })
     } else {
         Object::GenericFunc(GenericFuncObject {
@@ -313,6 +321,8 @@ fn init_native_function_object<E: ErrorReporter>(
             body_node: None,
             ty: OnceCell::default(),
             annotations,
+            body: OnceCell::default(),
+            monomorphized: OnceCell::default(),
         })
     }
 }
@@ -601,18 +611,26 @@ fn generate_function_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
         for (_, object) in scope.iter() {
             match object {
                 Object::Func(func_object) => {
-                    if let Some(ref body) = func_object.body_node {
+                    let body = if let Some(ref body) = func_object.body_node {
                         get_func_body_from_node(ctx, &func_object.signature, body)
                     } else {
                         Statement::Native
-                    }
+                    };
+                    func_object
+                        .body
+                        .set(body)
+                        .expect("cannot set function body");
                 }
                 Object::GenericFunc(generic_func_object) => {
-                    if let Some(ref body) = generic_func_object.body_node {
+                    let body = if let Some(ref body) = generic_func_object.body_node {
                         get_func_body_from_node(ctx, &generic_func_object.signature, body)
                     } else {
                         Statement::Native
-                    }
+                    };
+                    generic_func_object
+                        .body
+                        .set(body)
+                        .expect("cannot set generic function body");
                 }
                 _ => continue,
             };
@@ -660,4 +678,420 @@ fn get_func_body_from_node<E: ErrorReporter>(
         ctx.errors.missing_return(signature.pos);
     }
     result.statement
+}
+
+fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
+    #[derive(Debug)]
+    enum Source<'a> {
+        Expr(&'a Expr, Rc<HashMap<SymbolId, TypeId>>),
+        Statement(&'a Statement, Rc<HashMap<SymbolId, TypeId>>),
+        FuncInst(DefId, TypeArgsId),
+    }
+
+    let mut queue = VecDeque::<Source>::default();
+    for scope in ctx.package_scopes.values() {
+        for (_, object) in scope.iter() {
+            match object {
+                Object::Import(..)
+                | Object::Struct(..)
+                | Object::Type(..)
+                | Object::Local(..)
+                | Object::GenericStruct(..)
+                | Object::GenericFunc(..) => continue,
+                Object::Global(global_object) => {
+                    let value = global_object
+                        .value
+                        .get()
+                        .expect("missing global value expr");
+                    queue.push_back(Source::Expr(value, Rc::default()));
+                }
+                Object::Func(func_obj) => {
+                    let body = func_obj.body.get().expect("missing func body");
+                    queue.push_back(Source::Statement(body, Rc::default()));
+                }
+            }
+        }
+    }
+
+    let mut monomorphized_funcs = HashMap::<DefId, Vec<TypeArgsId>>::default();
+    let mut func_insts = IndexSet::<(DefId, TypeArgsId)>::default();
+    while let Some(item) = queue.pop_front() {
+        match item {
+            Source::Expr(expr, type_scope) => match &expr.kind {
+                ExprKind::Invalid
+                | ExprKind::ConstI8(..)
+                | ExprKind::ConstI16(..)
+                | ExprKind::ConstI32(..)
+                | ExprKind::ConstI64(..)
+                | ExprKind::ConstIsize(..)
+                | ExprKind::ConstF32(..)
+                | ExprKind::ConstF64(..)
+                | ExprKind::ConstBool(..)
+                | ExprKind::Zero
+                | ExprKind::Bytes(..)
+                | ExprKind::Local(..)
+                | ExprKind::Global(..)
+                | ExprKind::Func(..) => (),
+                ExprKind::StructLit(_, values) => {
+                    for val in values {
+                        queue.push_back(Source::Expr(val, type_scope.clone()))
+                    }
+                }
+                ExprKind::FuncInst(def_id, typeargs_id) => {
+                    let typeargs = ctx.typeargs.get(*typeargs_id);
+                    let substituted_typeargs = typeargs
+                        .iter()
+                        .map(|type_id| substitute_generic_args(ctx, &typeargs, *type_id))
+                        .collect::<Vec<_>>();
+                    let substituted_typearg_id = ctx.typeargs.define(&substituted_typeargs);
+                    queue.push_back(Source::FuncInst(*def_id, substituted_typearg_id));
+                }
+                ExprKind::GetElement(expr, _) => queue.push_back(Source::Expr(expr, type_scope)),
+                ExprKind::GetElementAddr(expr, _) => {
+                    queue.push_back(Source::Expr(expr, type_scope))
+                }
+                ExprKind::GetIndex(arr, index) => {
+                    queue.push_back(Source::Expr(arr, type_scope.clone()));
+                    queue.push_back(Source::Expr(index, type_scope.clone()));
+                }
+                ExprKind::Deref(value) => {
+                    queue.push_back(Source::Expr(value, type_scope));
+                }
+                ExprKind::Call(callee, args) => {
+                    queue.push_back(Source::Expr(callee, type_scope.clone()));
+                    for arg in args {
+                        queue.push_back(Source::Expr(arg, type_scope.clone()));
+                    }
+                }
+                ExprKind::Add(a, b)
+                | ExprKind::Sub(a, b)
+                | ExprKind::Mul(a, b)
+                | ExprKind::Div(a, b)
+                | ExprKind::Mod(a, b)
+                | ExprKind::BitOr(a, b)
+                | ExprKind::BitAnd(a, b)
+                | ExprKind::BitXor(a, b)
+                | ExprKind::ShiftLeft(a, b)
+                | ExprKind::ShiftRight(a, b)
+                | ExprKind::And(a, b)
+                | ExprKind::Or(a, b)
+                | ExprKind::Eq(a, b)
+                | ExprKind::NEq(a, b)
+                | ExprKind::Gt(a, b)
+                | ExprKind::GEq(a, b)
+                | ExprKind::Lt(a, b)
+                | ExprKind::LEq(a, b) => {
+                    queue.push_back(Source::Expr(a, type_scope.clone()));
+                    queue.push_back(Source::Expr(b, type_scope.clone()));
+                }
+                ExprKind::Neg(value)
+                | ExprKind::BitNot(value)
+                | ExprKind::Not(value)
+                | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, type_scope)),
+            },
+            Source::Statement(stmt, type_scope) => match stmt {
+                Statement::NewLocal(expr) => queue.push_back(Source::Expr(expr, type_scope)),
+                Statement::Block(stmts) => {
+                    for stmt in stmts {
+                        queue.push_back(Source::Statement(stmt, type_scope.clone()));
+                    }
+                }
+                Statement::If(if_stmt) => {
+                    queue.push_back(Source::Expr(&if_stmt.cond, type_scope.clone()));
+                    queue.push_back(Source::Statement(&if_stmt.body, type_scope.clone()));
+                    if let Some(else_stmt) = &if_stmt.else_stmt {
+                        queue.push_back(Source::Statement(else_stmt.as_ref(), type_scope.clone()));
+                    }
+                }
+                Statement::While(while_stmt) => {
+                    queue.push_back(Source::Expr(&while_stmt.cond, type_scope.clone()));
+                    queue.push_back(Source::Statement(&while_stmt.body, type_scope.clone()));
+                }
+                Statement::Return(value) => {
+                    if let Some(value) = value {
+                        queue.push_back(Source::Expr(value, type_scope));
+                    }
+                }
+                Statement::Expr(expr) => {
+                    queue.push_back(Source::Expr(expr, type_scope));
+                }
+                Statement::Assign(target, value) => {
+                    queue.push_back(Source::Expr(target, type_scope.clone()));
+                    queue.push_back(Source::Expr(value, type_scope.clone()));
+                }
+                Statement::Native | Statement::Continue | Statement::Break => continue,
+            },
+            Source::FuncInst(def_id, typeargs_id) => {
+                if func_insts.contains(&(def_id, typeargs_id)) {
+                    continue;
+                }
+                func_insts.insert((def_id, typeargs_id));
+
+                let mut type_scope = HashMap::<SymbolId, TypeId>::default();
+                let typeargs = ctx.typeargs.get(typeargs_id);
+                let generic_func = ctx
+                    .package_scopes
+                    .get(&def_id.package)
+                    .expect("missing package scope")
+                    .lookup(def_id.name)
+                    .expect("missing object")
+                    .as_generic_func()
+                    .expect("not a generic func");
+
+                let type_params = generic_func.signature.type_params.iter();
+                for (type_param_node, ty) in zip(type_params, typeargs.iter()) {
+                    let type_param = ctx.symbols.define(&type_param_node.name.value);
+                    if !type_scope.contains_key(&type_param) {
+                        type_scope.insert(type_param, *ty);
+                    }
+                }
+
+                queue.push_back(Source::Statement(
+                    generic_func.body.get().expect("missing body"),
+                    Rc::new(type_scope),
+                ));
+
+                monomorphized_funcs
+                    .entry(def_id)
+                    .or_default()
+                    .push(typeargs_id);
+            }
+        }
+    }
+
+    for (def_id, typeargs_ids) in monomorphized_funcs {
+        let generic_func_obj = ctx
+            .package_scopes
+            .get(&def_id.package)
+            .expect("missing package scope")
+            .lookup(def_id.name)
+            .expect("missing object")
+            .as_generic_func()
+            .expect("object is not generic func");
+
+        let mut monomorphized = IndexMap::<TypeArgsId, (TypeId, Statement)>::default();
+        for typeargs_id in typeargs_ids {
+            let body_template = generic_func_obj
+                .body
+                .get()
+                .expect("missing generic func body");
+
+            let typeargs = ctx.typeargs.get(typeargs_id);
+            let monomorphized_type = substitute_generic_args(
+                ctx,
+                &typeargs,
+                *generic_func_obj.ty.get().expect("missing func type"),
+            );
+            let monomorphized_stmt = monomorphize_stmt(ctx, &typeargs, body_template);
+            monomorphized.insert(typeargs_id, (monomorphized_type, monomorphized_stmt));
+        }
+
+        generic_func_obj
+            .monomorphized
+            .set(monomorphized)
+            .expect("cannot set monomorphization");
+    }
+}
+
+fn monomorphize_stmt<E>(
+    ctx: &TypeCheckContext<E>,
+    arg_table: &[TypeId],
+    stmt: &Statement,
+) -> Statement {
+    match stmt {
+        Statement::Native => Statement::Native,
+        Statement::Continue => Statement::Continue,
+        Statement::Break => Statement::Break,
+        Statement::NewLocal(value) => {
+            let value = monomorphize_expr(ctx, arg_table, value.as_ref());
+            Statement::NewLocal(Box::new(value))
+        }
+        Statement::Block(statements) => {
+            let statements = statements
+                .iter()
+                .map(|stmt| monomorphize_stmt(ctx, arg_table, stmt))
+                .collect();
+            Statement::Block(statements)
+        }
+        Statement::If(if_stmt) => {
+            let cond = monomorphize_expr(ctx, arg_table, &if_stmt.cond);
+            let body = monomorphize_stmt(ctx, arg_table, &if_stmt.body);
+            let else_stmt = if_stmt
+                .else_stmt
+                .as_ref()
+                .map(|stmt| monomorphize_stmt(ctx, arg_table, stmt))
+                .map(Box::new);
+            Statement::If(IfStatement {
+                cond,
+                body: Box::new(body),
+                else_stmt,
+            })
+        }
+        Statement::While(while_stmt) => {
+            let cond = monomorphize_expr(ctx, arg_table, &while_stmt.cond);
+            let body = monomorphize_stmt(ctx, arg_table, &while_stmt.body);
+            Statement::While(WhileStatement {
+                cond,
+                body: Box::new(body),
+            })
+        }
+        Statement::Return(value) => {
+            let value = value
+                .as_ref()
+                .map(|value| monomorphize_expr(ctx, arg_table, value));
+            Statement::Return(value)
+        }
+        Statement::Expr(value) => {
+            let value = monomorphize_expr(ctx, arg_table, value);
+            Statement::Expr(value)
+        }
+        Statement::Assign(target, value) => {
+            let target = monomorphize_expr(ctx, arg_table, target);
+            let value = monomorphize_expr(ctx, arg_table, value);
+            Statement::Assign(target, value)
+        }
+    }
+}
+
+fn monomorphize_expr<E>(ctx: &TypeCheckContext<E>, arg_table: &[TypeId], expr: &Expr) -> Expr {
+    let type_id = substitute_generic_args(ctx, arg_table, expr.ty);
+
+    let kind = match &expr.kind {
+        ExprKind::Invalid => ExprKind::Invalid,
+        ExprKind::ConstI8(val) => ExprKind::ConstI8(*val),
+        ExprKind::ConstI16(val) => ExprKind::ConstI16(*val),
+        ExprKind::ConstI32(val) => ExprKind::ConstI32(*val),
+        ExprKind::ConstI64(val) => ExprKind::ConstI64(*val),
+        ExprKind::ConstIsize(val) => ExprKind::ConstIsize(*val),
+        ExprKind::ConstF32(val) => ExprKind::ConstF32(*val),
+        ExprKind::ConstF64(val) => ExprKind::ConstF64(*val),
+        ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
+        ExprKind::Zero => ExprKind::Zero,
+        ExprKind::StructLit(type_id, values) => {
+            let type_id = substitute_generic_args(ctx, arg_table, *type_id);
+            let values = values
+                .iter()
+                .map(|val| monomorphize_expr(ctx, arg_table, val))
+                .collect();
+            ExprKind::StructLit(type_id, values)
+        }
+        ExprKind::Bytes(val) => ExprKind::Bytes(val.clone()),
+        ExprKind::Local(idx) => ExprKind::Local(*idx),
+        ExprKind::Global(def_id) => ExprKind::Global(*def_id),
+        ExprKind::Func(def_id) => ExprKind::Func(*def_id),
+        ExprKind::FuncInst(def_id, typeargs_id) => ExprKind::FuncInst(*def_id, *typeargs_id),
+        ExprKind::GetElement(expr, idx) => ExprKind::GetElement(
+            Box::new(monomorphize_expr(ctx, arg_table, expr.as_ref())),
+            *idx,
+        ),
+        ExprKind::GetElementAddr(expr, idx) => ExprKind::GetElementAddr(
+            Box::new(monomorphize_expr(ctx, arg_table, expr.as_ref())),
+            *idx,
+        ),
+        ExprKind::GetIndex(target, idx_value) => ExprKind::GetIndex(
+            Box::new(monomorphize_expr(ctx, arg_table, target.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, idx_value.as_ref())),
+        ),
+        ExprKind::Deref(target) => {
+            ExprKind::Deref(Box::new(monomorphize_expr(ctx, arg_table, target.as_ref())))
+        }
+        ExprKind::Call(target, arguments) => ExprKind::Call(
+            Box::new(monomorphize_expr(ctx, arg_table, target)),
+            arguments
+                .iter()
+                .map(|arg| monomorphize_expr(ctx, arg_table, arg))
+                .collect(),
+        ),
+        ExprKind::Add(a, b) => ExprKind::Add(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Sub(a, b) => ExprKind::Sub(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Mul(a, b) => ExprKind::Mul(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Div(a, b) => ExprKind::Div(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Mod(a, b) => ExprKind::Mod(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::BitOr(a, b) => ExprKind::BitOr(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::BitAnd(a, b) => ExprKind::BitAnd(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::BitXor(a, b) => ExprKind::BitXor(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::ShiftLeft(a, b) => ExprKind::ShiftLeft(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::ShiftRight(a, b) => ExprKind::ShiftRight(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::And(a, b) => ExprKind::And(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Or(a, b) => ExprKind::Or(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Eq(a, b) => ExprKind::Eq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::NEq(a, b) => ExprKind::NEq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Gt(a, b) => ExprKind::Gt(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::GEq(a, b) => ExprKind::GEq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Lt(a, b) => ExprKind::Lt(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::LEq(a, b) => ExprKind::LEq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Neg(value) => {
+            ExprKind::Neg(Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())))
+        }
+        ExprKind::BitNot(value) => {
+            ExprKind::BitNot(Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())))
+        }
+        ExprKind::Not(value) => {
+            ExprKind::Not(Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())))
+        }
+        ExprKind::Cast(value, type_id) => ExprKind::Cast(
+            Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())),
+            substitute_generic_args(ctx, arg_table, *type_id),
+        ),
+    };
+
+    Expr {
+        ty: type_id,
+        kind,
+        assignable: expr.assignable,
+    }
 }
