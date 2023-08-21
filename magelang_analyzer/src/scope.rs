@@ -59,14 +59,6 @@ pub enum Object {
 }
 
 impl Object {
-    pub fn as_struct(&self) -> Option<&StructObject> {
-        if let Self::Struct(struct_object) = self {
-            Some(struct_object)
-        } else {
-            None
-        }
-    }
-
     pub fn as_import(&self) -> Option<&ImportObject> {
         if let Self::Import(import_object) = self {
             Some(import_object)

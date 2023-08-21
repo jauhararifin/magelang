@@ -297,6 +297,22 @@ pub enum StatementNode {
     Expr(ExprNode),
 }
 
+impl StatementNode {
+    pub fn pos(&self) -> Pos {
+        match self {
+            Self::Let(node) => node.pos,
+            Self::Assign(node) => node.pos,
+            Self::Block(node) => node.pos,
+            Self::If(node) => node.pos,
+            Self::While(node) => node.pos,
+            Self::Continue(node) => node.pos,
+            Self::Break(node) => node.pos,
+            Self::Return(node) => node.pos,
+            Self::Expr(node) => node.pos(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct LetStatementNode {
     pub pos: Pos,
