@@ -696,7 +696,9 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                 }
             }
             TokenKind::OpenSquare => {
+                f.take(TokenKind::OpenSquare)?;
                 let index = parse_expr(f, true)?;
+                f.take(TokenKind::CloseSquare)?;
                 ExprNode::Index(IndexExprNode {
                     value: Box::new(target),
                     index: Box::new(index),
