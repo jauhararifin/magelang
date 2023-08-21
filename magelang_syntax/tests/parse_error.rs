@@ -10,7 +10,7 @@ fn test_parsing(source: String, expected_errors: &[(&str, &str)]) {
     for err in error_manager.take() {
         let location = file_manager.location(err.pos);
         let message = &err.message;
-        actual_errors.push((format!("{location}"), format!("{message}")));
+        actual_errors.push((format!("{location}"), message.to_string()));
     }
 
     let actual_errors: Vec<(&str, &str)> = actual_errors
@@ -42,7 +42,7 @@ fn f(a)
 
 fn g(): i32 {}
 "#;
-const TEST_FUNCTION_DEFINITION_ERRORS: &[(&'static str, &'static str)] = &[
+const TEST_FUNCTION_DEFINITION_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:2:4", "Missing function parameter list"),
     ("testcase.mg:2:4", "Missing function body"),
     ("testcase.mg:2:5", "Missing closing ')'"),
@@ -67,7 +67,7 @@ fn g(): i32;
 
 @dangling_annotation()
 "#;
-const TEST_ANNOTATION_ERRORS: &[(&'static str, &'static str)] = &[
+const TEST_ANNOTATION_ERRORS: &[(&str, &str)] = &[
     (
         "testcase.mg:5:2",
         "Expected annotation identifier, but found '('",
@@ -89,7 +89,7 @@ import;
 import something;
 import something "something";
 "#;
-const TEST_IMPORTS_ERRORS: &[(&'static str, &'static str)] = &[
+const TEST_IMPORTS_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:2:7", "Expected IDENT, but found ';'"),
     ("testcase.mg:3:17", "Expected STRING_LIT, but found ';'"),
 ];
@@ -121,7 +121,7 @@ let _: [*]package = 10;
 let _: [*] = 10;
 let _: i32;
 "#;
-const TEST_TYPE_EXPRS_ERRORS: &[(&'static str, &'static str)] = &[
+const TEST_TYPE_EXPRS_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:14:8", "Missing pointee type"),
     ("testcase.mg:16:18", "Expected IDENT, but found '='"),
     ("testcase.mg:18:25", "Missing closing '>'"),
@@ -143,7 +143,7 @@ struct a<i32>
 struct <i32>{}
 struct a<i32>{field1: type1}
 "#;
-const TEST_STRUCT_DEFINITIONS_ERROR: &[(&'static str, &'static str)] = &[
+const TEST_STRUCT_DEFINITIONS_ERROR: &[(&str, &str)] = &[
     ("testcase.mg:2:8", "Expected IDENT, but found '{'"),
     (
         "testcase.mg:4:1",
@@ -172,7 +172,7 @@ let a: i32 = pkg.some_func<i32>(a, b)[1].*;
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
 "#;
-const TEST_VALUE_EXPRS_ERROR: &[(&'static str, &'static str)] = &[];
+const TEST_VALUE_EXPRS_ERROR: &[(&str, &str)] = &[];
 testcase!(
     test_value_exprs,
     TEST_VALUE_EXPRS_SOURCE,
@@ -188,7 +188,7 @@ fn returning():i32;
 fn f(a: i32, b: i32): i32;
 fn func_with_typeargs<T,U>();
 "#;
-const TEST_SIGNATURE_ERROR: &[(&'static str, &'static str)] = &[
+const TEST_SIGNATURE_ERROR: &[(&str, &str)] = &[
     ("testcase.mg:2:3", "Expected IDENT, but found ';'"),
     ("testcase.mg:3:4", "Missing function parameter list"),
     ("testcase.mg:5:20", "Missing return type"),
@@ -221,7 +221,7 @@ fn f(): i32 {
     }
 }
 "#;
-const TEST_STATEMENTS_ERROR: &[(&'static str, &'static str)] = &[];
+const TEST_STATEMENTS_ERROR: &[(&str, &str)] = &[];
 testcase!(
     test_statements,
     TEST_STATEMENTS_SOURCE,

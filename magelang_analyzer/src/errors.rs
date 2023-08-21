@@ -136,7 +136,7 @@ pub trait SemanticError: ErrorReporter {
     }
 
     fn non_generic_value(&self, pos: Pos) {
-        self.report(pos, format!("The expression is not a generic"));
+        self.report(pos, "The expression is not a generic".to_string());
     }
 
     fn non_struct_type(&self, pos: Pos) {

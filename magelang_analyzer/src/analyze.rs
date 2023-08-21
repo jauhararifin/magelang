@@ -841,9 +841,7 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
                 let type_params = generic_func.signature.type_params.iter();
                 for (type_param_node, ty) in zip(type_params, typeargs.iter()) {
                     let type_param = ctx.symbols.define(&type_param_node.name.value);
-                    if !type_scope.contains_key(&type_param) {
-                        type_scope.insert(type_param, *ty);
-                    }
+                    type_scope.entry(type_param).or_insert(*ty);
                 }
 
                 queue.push_back(Source::Statement(

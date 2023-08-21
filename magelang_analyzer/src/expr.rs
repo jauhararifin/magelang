@@ -99,7 +99,7 @@ pub fn get_expr_from_node<E: ErrorReporter>(
         }
         ExprNode::Index(node) => get_expr_from_index_node(ctx, expected_type, node),
         ExprNode::Instance(node) => get_expr_from_instance_node(ctx, node),
-        ExprNode::Grouped(node) => get_expr_from_node(ctx, expected_type, &node),
+        ExprNode::Grouped(node) => get_expr_from_node(ctx, expected_type, node),
     }
 }
 
