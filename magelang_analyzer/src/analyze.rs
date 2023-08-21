@@ -4,12 +4,14 @@ use crate::name::DefId;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::symbols::{SymbolId, SymbolInterner};
-use crate::ty::{NamedStructType, StructBody, Type, TypeArg, TypeArgsInterner, TypeInterner};
+use crate::ty::{
+    NamedStructType, StructBody, Type, TypeArg, TypeArgsInterner, TypeId, TypeInterner,
+};
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     parse, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode, ItemNode, PackageNode,
-    Pos, SignatureNode, StructNode, TypeParameterNode,
+    Pos, SignatureNode, StructNode, TypeExprNode, TypeParameterNode,
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -396,7 +398,33 @@ fn build_scope_for_typeparam<'ctx, 'a, E>(
 fn get_struct_body_from_node<'ctx, E: ErrorReporter>(
     ctx: &Context<'ctx, E>,
     scope: &Scope,
-    node: &StructNode,
+    struct_node: &StructNode,
 ) -> StructBody {
-    todo!()
+    let mut field_pos = HashMap::<SymbolId, Pos>::default();
+    let mut fields = IndexMap::<SymbolId, TypeId>::default();
+    for field_node in &struct_node.fields {
+        let field_name = ctx.symbols.define(&field_node.name.value);
+        let pos = field_node.pos;
+        if let Some(defined_at) = field_pos.get(&field_name) {
+            ctx.errors.redeclared_symbol(
+                pos,
+                ctx.files.location(*defined_at),
+                &field_node.name.value,
+            );
+        } else {
+            field_pos.insert(field_name, pos);
+            let type_id = get_type_from_node(ctx, scope, &field_node.ty);
+            fields.insert(field_name, type_id);
+        }
+    }
+
+    StructBody { fields }
+}
+
+fn get_type_from_node<'ctx, E>(
+    ctx: &Context<'ctx, E>,
+    scope: &Scope,
+    node: &TypeExprNode,
+) -> TypeId {
+    todo!();
 }
