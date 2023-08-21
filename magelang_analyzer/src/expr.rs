@@ -5,8 +5,8 @@ use crate::name::DefId;
 use crate::scope::Object;
 use crate::symbols::SymbolId;
 use crate::ty::{
-    display_type, display_type_id, get_type_from_node, is_type_assignable, BitSize, FloatType,
-    Type, TypeArgsId, TypeId,
+    display_type, display_type_id, get_type_from_node, is_type_assignable, substitute_generic_args,
+    BitSize, FloatType, Type, TypeArgsId, TypeId,
 };
 use crate::value::value_from_string_lit;
 use magelang_syntax::{
@@ -98,7 +98,7 @@ pub fn get_expr_from_node<E: ErrorReporter>(
             get_expr_from_selection_node(ctx, expected_type, selection_node)
         }
         ExprNode::Index(node) => get_expr_from_index_node(ctx, expected_type, node),
-        ExprNode::Instance(node) => todo!(),
+        ExprNode::Instance(node) => get_expr_from_instance_node(ctx, node),
         ExprNode::Grouped(node) => get_expr_from_node(ctx, expected_type, &node),
     }
 }
@@ -751,21 +751,6 @@ fn get_expr_from_selection_node<E: ErrorReporter>(
     }
 }
 
-fn get_object_from_selection<'ctx, E>(
-    ctx: &'ctx TypeCheckContext<'ctx, E>,
-    node: &SelectionExprNode,
-) -> Option<&'ctx Object> {
-    let ExprNode::Ident(token) = node.value.as_ref() else {
-        return None;
-    };
-    let ident_name = ctx.symbols.define(&token.value);
-    let object = ctx.scope.lookup(ident_name)?;
-    let import_object = object.as_import()?;
-    let package_scope = ctx.package_scopes.get(&import_object.package)?;
-    let selection = ctx.symbols.define(&node.selection.value);
-    package_scope.lookup(selection)
-}
-
 fn get_expr_from_index_node<E: ErrorReporter>(
     ctx: &TypeCheckContext<E>,
     expected_type: Option<TypeId>,
@@ -808,4 +793,81 @@ fn get_expr_from_index_node<E: ErrorReporter>(
             }
         }
     }
+}
+
+fn get_expr_from_instance_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<E>,
+    node: &InstanceExprNode,
+) -> Expr {
+    let Some(obj) = get_object_from_expr(ctx, &node.value) else {
+        ctx.errors.non_generic_value(node.value.pos());
+        return Expr {
+            ty: ctx.types.define(Type::Unknown),
+            kind:ExprKind::Invalid,
+            assignable: false,
+        };
+    };
+
+    let Some(generic_func) = obj.as_generic_func() else {
+        ctx.errors.non_generic_value(node.value.pos());
+        return Expr {
+            ty: ctx.types.define(Type::Unknown),
+            kind:ExprKind::Invalid,
+            assignable: false,
+        };
+    };
+
+    let expected_type_param = generic_func.signature.type_params.len();
+    let provided_type_param = node.args.len();
+    if expected_type_param != provided_type_param {
+        ctx.errors.type_arguments_count_mismatch(
+            node.value.pos(),
+            expected_type_param,
+            provided_type_param,
+        );
+    }
+
+    let type_id = *generic_func
+        .ty
+        .get()
+        .expect("missing generic function type");
+    let type_args: Vec<TypeId> = node
+        .args
+        .iter()
+        .map(|type_expr| get_type_from_node(ctx, type_expr))
+        .collect();
+    let instance_type_id = substitute_generic_args(ctx, &type_args, type_id);
+
+    let typeargs_id = ctx.typeargs.define(&type_args);
+    Expr {
+        ty: instance_type_id,
+        kind: ExprKind::FuncInst(generic_func.def_id, typeargs_id),
+        assignable: false,
+    }
+}
+
+fn get_object_from_expr<'ctx, E>(
+    ctx: &'ctx TypeCheckContext<'ctx, E>,
+    node: &ExprNode,
+) -> Option<&'ctx Object> {
+    match node {
+        ExprNode::Ident(token) => ctx.scope.lookup(ctx.symbols.define(&token.value)),
+        ExprNode::Selection(node) => get_object_from_selection(ctx, node),
+        _ => None,
+    }
+}
+
+fn get_object_from_selection<'ctx, E>(
+    ctx: &'ctx TypeCheckContext<'ctx, E>,
+    node: &SelectionExprNode,
+) -> Option<&'ctx Object> {
+    let ExprNode::Ident(token) = node.value.as_ref() else {
+        return None;
+    };
+    let ident_name = ctx.symbols.define(&token.value);
+    let object = ctx.scope.lookup(ident_name)?;
+    let import_object = object.as_import()?;
+    let package_scope = ctx.package_scopes.get(&import_object.package)?;
+    let selection = ctx.symbols.define(&node.selection.value);
+    package_scope.lookup(selection)
 }

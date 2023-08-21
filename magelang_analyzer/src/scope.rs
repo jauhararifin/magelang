@@ -79,6 +79,14 @@ impl Object {
         }
     }
 
+    pub fn as_generic_func(&self) -> Option<&GenericFuncObject> {
+        if let Self::GenericFunc(obj) = self {
+            Some(obj)
+        } else {
+            None
+        }
+    }
+
     pub fn type_id(&self) -> Option<TypeId> {
         match self {
             Self::Struct(struct_object) => Some(struct_object.type_id),

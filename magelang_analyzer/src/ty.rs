@@ -256,7 +256,7 @@ fn get_object_from_named_type_node<'ctx, E: ErrorReporter>(
     }
 }
 
-fn substitute_generic_args<E>(
+pub fn substitute_generic_args<E>(
     ctx: &TypeCheckContext<'_, E>,
     args: &[TypeId],
     generic_type_id: TypeId,
