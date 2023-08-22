@@ -871,3 +871,146 @@ fn get_object_from_selection<'ctx, E>(
     let selection = ctx.symbols.define(&node.selection.value);
     package_scope.lookup(selection)
 }
+
+pub fn monomorphize_expr<E>(ctx: &TypeCheckContext<E>, arg_table: &[TypeId], expr: &Expr) -> Expr {
+    let type_id = substitute_generic_args(ctx, arg_table, expr.ty);
+
+    let kind = match &expr.kind {
+        ExprKind::Invalid => ExprKind::Invalid,
+        ExprKind::ConstI8(val) => ExprKind::ConstI8(*val),
+        ExprKind::ConstI16(val) => ExprKind::ConstI16(*val),
+        ExprKind::ConstI32(val) => ExprKind::ConstI32(*val),
+        ExprKind::ConstI64(val) => ExprKind::ConstI64(*val),
+        ExprKind::ConstIsize(val) => ExprKind::ConstIsize(*val),
+        ExprKind::ConstF32(val) => ExprKind::ConstF32(*val),
+        ExprKind::ConstF64(val) => ExprKind::ConstF64(*val),
+        ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
+        ExprKind::Zero => ExprKind::Zero,
+        ExprKind::StructLit(type_id, values) => {
+            let type_id = substitute_generic_args(ctx, arg_table, *type_id);
+            let values = values
+                .iter()
+                .map(|val| monomorphize_expr(ctx, arg_table, val))
+                .collect();
+            ExprKind::StructLit(type_id, values)
+        }
+        ExprKind::Bytes(val) => ExprKind::Bytes(val.clone()),
+        ExprKind::Local(idx) => ExprKind::Local(*idx),
+        ExprKind::Global(def_id) => ExprKind::Global(*def_id),
+        ExprKind::Func(def_id) => ExprKind::Func(*def_id),
+        ExprKind::FuncInst(def_id, typeargs_id) => ExprKind::FuncInst(*def_id, *typeargs_id),
+        ExprKind::GetElement(expr, idx) => ExprKind::GetElement(
+            Box::new(monomorphize_expr(ctx, arg_table, expr.as_ref())),
+            *idx,
+        ),
+        ExprKind::GetElementAddr(expr, idx) => ExprKind::GetElementAddr(
+            Box::new(monomorphize_expr(ctx, arg_table, expr.as_ref())),
+            *idx,
+        ),
+        ExprKind::GetIndex(target, idx_value) => ExprKind::GetIndex(
+            Box::new(monomorphize_expr(ctx, arg_table, target.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, idx_value.as_ref())),
+        ),
+        ExprKind::Deref(target) => {
+            ExprKind::Deref(Box::new(monomorphize_expr(ctx, arg_table, target.as_ref())))
+        }
+        ExprKind::Call(target, arguments) => ExprKind::Call(
+            Box::new(monomorphize_expr(ctx, arg_table, target)),
+            arguments
+                .iter()
+                .map(|arg| monomorphize_expr(ctx, arg_table, arg))
+                .collect(),
+        ),
+        ExprKind::Add(a, b) => ExprKind::Add(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Sub(a, b) => ExprKind::Sub(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Mul(a, b) => ExprKind::Mul(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Div(a, b) => ExprKind::Div(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Mod(a, b) => ExprKind::Mod(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::BitOr(a, b) => ExprKind::BitOr(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::BitAnd(a, b) => ExprKind::BitAnd(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::BitXor(a, b) => ExprKind::BitXor(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::ShiftLeft(a, b) => ExprKind::ShiftLeft(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::ShiftRight(a, b) => ExprKind::ShiftRight(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::And(a, b) => ExprKind::And(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Or(a, b) => ExprKind::Or(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Eq(a, b) => ExprKind::Eq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::NEq(a, b) => ExprKind::NEq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Gt(a, b) => ExprKind::Gt(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::GEq(a, b) => ExprKind::GEq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Lt(a, b) => ExprKind::Lt(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::LEq(a, b) => ExprKind::LEq(
+            Box::new(monomorphize_expr(ctx, arg_table, a.as_ref())),
+            Box::new(monomorphize_expr(ctx, arg_table, b.as_ref())),
+        ),
+        ExprKind::Neg(value) => {
+            ExprKind::Neg(Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())))
+        }
+        ExprKind::BitNot(value) => {
+            ExprKind::BitNot(Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())))
+        }
+        ExprKind::Not(value) => {
+            ExprKind::Not(Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())))
+        }
+        ExprKind::Cast(value, type_id) => ExprKind::Cast(
+            Box::new(monomorphize_expr(ctx, arg_table, value.as_ref())),
+            substitute_generic_args(ctx, arg_table, *type_id),
+        ),
+    };
+
+    Expr {
+        ty: type_id,
+        kind,
+        assignable: expr.assignable,
+    }
+}

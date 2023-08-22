@@ -1,6 +1,6 @@
 use crate::analyze::TypeCheckContext;
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprKind};
+use crate::expr::{get_expr_from_node, monomorphize_expr, Expr, ExprKind};
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::scope::{LocalObject, Object, Scope};
 use crate::ty::{
@@ -311,5 +311,65 @@ fn get_stmt_from_if_node<E: ErrorReporter>(
         new_scope: None,
         is_returning: body_is_returning && else_is_returning,
         last_unused_local,
+    }
+}
+
+pub fn monomorphize_stmt<E>(
+    ctx: &TypeCheckContext<E>,
+    arg_table: &[TypeId],
+    stmt: &Statement,
+) -> Statement {
+    match stmt {
+        Statement::Native => Statement::Native,
+        Statement::Continue => Statement::Continue,
+        Statement::Break => Statement::Break,
+        Statement::NewLocal(value) => {
+            let value = monomorphize_expr(ctx, arg_table, value.as_ref());
+            Statement::NewLocal(Box::new(value))
+        }
+        Statement::Block(statements) => {
+            let statements = statements
+                .iter()
+                .map(|stmt| monomorphize_stmt(ctx, arg_table, stmt))
+                .collect();
+            Statement::Block(statements)
+        }
+        Statement::If(if_stmt) => {
+            let cond = monomorphize_expr(ctx, arg_table, &if_stmt.cond);
+            let body = monomorphize_stmt(ctx, arg_table, &if_stmt.body);
+            let else_stmt = if_stmt
+                .else_stmt
+                .as_ref()
+                .map(|stmt| monomorphize_stmt(ctx, arg_table, stmt))
+                .map(Box::new);
+            Statement::If(IfStatement {
+                cond,
+                body: Box::new(body),
+                else_stmt,
+            })
+        }
+        Statement::While(while_stmt) => {
+            let cond = monomorphize_expr(ctx, arg_table, &while_stmt.cond);
+            let body = monomorphize_stmt(ctx, arg_table, &while_stmt.body);
+            Statement::While(WhileStatement {
+                cond,
+                body: Box::new(body),
+            })
+        }
+        Statement::Return(value) => {
+            let value = value
+                .as_ref()
+                .map(|value| monomorphize_expr(ctx, arg_table, value));
+            Statement::Return(value)
+        }
+        Statement::Expr(value) => {
+            let value = monomorphize_expr(ctx, arg_table, value);
+            Statement::Expr(value)
+        }
+        Statement::Assign(target, value) => {
+            let target = monomorphize_expr(ctx, arg_table, target);
+            let value = monomorphize_expr(ctx, arg_table, value);
+            Statement::Assign(target, value)
+        }
     }
 }
