@@ -1,3 +1,8 @@
+use crate::analyze::TypeCheckContext;
+use crate::name::{DefId, Name};
+use crate::scope::Object;
+use indexmap::IndexMap;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -11,6 +16,12 @@ pub struct TypeArgs(Vec<TypeId>);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeArgsId(usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct FunctionId(usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct GlobalId(usize);
 
 #[derive(Debug, Default)]
 pub struct Module {
@@ -185,8 +196,8 @@ pub enum ExprKind {
     Bytes(Rc<[u8]>),
 
     Local(usize),
-    Global(usize),
-    Func(usize),
+    Global(GlobalId),
+    Func(FunctionId),
 
     GetElement(Box<Expr>, usize),
     GetElementAddr(Box<Expr>, usize),
@@ -258,4 +269,50 @@ pub struct IfStatement {
 pub struct WhileStatement {
     pub cond: Expr,
     pub body: Box<Statement>,
+}
+
+pub fn build_ir<E>(ctx: &TypeCheckContext<E>) {
+    let name_maps = map_names(ctx);
+}
+
+struct NameMaps {
+    func_to_idx: IndexMap<Name, FunctionId>,
+    global_to_idx: IndexMap<DefId, usize>,
+}
+
+fn map_names<E>(ctx: &TypeCheckContext<E>) -> NameMaps {
+    let mut func_to_idx = IndexMap::<Name, FunctionId>::default();
+    let mut global_to_idx = IndexMap::<DefId, usize>::default();
+
+    for (_, scope) in ctx.package_scopes {
+        for (_, object) in scope.iter() {
+            match object {
+                Object::Func(func_object) => {
+                    let func_id = FunctionId(func_to_idx.len());
+                    func_to_idx.insert(Name::Def(func_object.def_id), func_id);
+                }
+                Object::GenericFunc(generic_func_object) => {
+                    let Some(monomorphized) = generic_func_object.monomorphized.get() else {
+                        continue;
+                    };
+                    for (typeargs_id, _) in monomorphized {
+                        let func_id = FunctionId(func_to_idx.len());
+                        func_to_idx.insert(
+                            Name::Instance(generic_func_object.def_id, *typeargs_id),
+                            func_id,
+                        );
+                    }
+                }
+                Object::Global(global_object) => {
+                    global_to_idx.insert(global_object.def_id, global_to_idx.len());
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    NameMaps {
+        func_to_idx,
+        global_to_idx,
+    }
 }
