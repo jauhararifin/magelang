@@ -9,6 +9,7 @@ mod path;
 mod scope;
 mod statements;
 mod symbols;
+mod tree_ir;
 mod ty;
 mod value;
 
