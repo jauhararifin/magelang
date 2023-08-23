@@ -314,7 +314,29 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
                     functions.push(func);
                 }
                 Object::GenericFunc(generic_func_object) => {
-                    todo!();
+                    let Some(monomorphized) = generic_func_object.monomorphized.get() else {
+                        continue;
+                    };
+
+                    for (typeargs_id, (type_id, body)) in monomorphized {
+                        let func_type = ctx.types.get(*type_id);
+                        let func_type = func_type.as_func().expect("not a func type");
+
+                        let func = build_function_ir(
+                            ctx,
+                            &name_maps,
+                            &type_mapper,
+                            ObjectId::GenericInst {
+                                package_id: SymbolId(generic_func_object.def_id.package.0),
+                                name_id: SymbolId(generic_func_object.def_id.name.0),
+                                typeargs_id: type_mapper.get_typeargs_id(ctx, *typeargs_id),
+                            },
+                            func_type,
+                            body,
+                            generic_func_object.annotations.clone(),
+                        );
+                        functions.push(func);
+                    }
                 }
                 Object::Global(global_object) => {
                     let type_id = *global_object.ty.get().expect("missing global type");
