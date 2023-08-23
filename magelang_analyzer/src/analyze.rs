@@ -6,6 +6,7 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::statements::{get_stmt_from_block_node, monomorphize_stmt, Statement};
 use crate::symbols::{SymbolId, SymbolInterner};
+use crate::tree_ir::{build_ir, Module};
 use crate::ty::{
     display_type_id, get_func_type_from_node, get_type_from_node, is_type_assignable,
     substitute_generic_args, NamedStructType, StructBody, Type, TypeArgsId, TypeArgsInterner,
@@ -27,7 +28,7 @@ pub fn analyze(
     file_manager: &mut FileManager,
     error_manager: &impl ErrorReporter,
     main_package: &str,
-) {
+) -> Module {
     let symbols = SymbolInterner::default();
     let types = TypeInterner::default();
     let typeargs = TypeArgsInterner::default();
@@ -72,6 +73,8 @@ pub fn analyze(
     generate_object_values(&typecheck_ctx);
     generate_function_bodies(&typecheck_ctx);
     monomorphize_functions(&typecheck_ctx);
+
+    build_ir(&typecheck_ctx)
 }
 
 pub struct Context<'a, E> {

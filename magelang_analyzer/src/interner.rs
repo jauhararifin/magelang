@@ -50,7 +50,7 @@ impl<Item: ?Sized> Interner<Item> {
         self.internal.borrow().get(id)
     }
 
-    pub fn take(&mut self) -> Vec<Rc<Item>> {
+    pub fn take(&self) -> Vec<Rc<Item>> {
         self.internal.borrow_mut().take()
     }
 }
@@ -176,7 +176,6 @@ mod tests {
         let s = interner.get(id_b_2);
         assert_eq!("StringB", s.as_str());
 
-        let mut interner = interner;
         let all = interner.take();
         assert_eq!(
             vec!["StringA", "StringB", "StringC"],
@@ -212,7 +211,6 @@ mod tests {
         let s = interner.get(id_b_2);
         assert_eq!(&[3, 4, 5], s.as_ref());
 
-        let mut interner = interner;
         let mut all = interner.take();
         assert_eq!(&[6, 7, 8], all.pop().unwrap().as_ref());
         assert_eq!(&[3, 4, 5], all.pop().unwrap().as_ref());

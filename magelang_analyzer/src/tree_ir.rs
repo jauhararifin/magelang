@@ -1,4 +1,6 @@
 use crate::analyze::TypeCheckContext;
+use crate::expr;
+use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::{DefId, Name};
 use crate::scope::Object;
 use crate::ty;
@@ -272,8 +274,12 @@ pub struct WhileStatement {
     pub body: Box<Statement>,
 }
 
-pub fn build_ir<E>(ctx: &TypeCheckContext<E>) {
+pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
     let name_maps = map_names(ctx);
+    let type_mapper = TypeMapper::default();
+
+    let mut globals = Vec::default();
+    let mut functions = Vec::default();
 
     for (_, scope) in ctx.package_scopes {
         for (_, object) in scope.iter() {
@@ -285,12 +291,282 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) {
                     todo!();
                 }
                 Object::Global(global_object) => {
-                    todo!();
+                    let type_id = *global_object.ty.get().expect("missing global type");
+                    let ir_type_id = type_mapper.get_type_id(ctx, type_id);
+                    let value = build_expr_ir(
+                        ctx,
+                        &name_maps,
+                        &type_mapper,
+                        &[],
+                        global_object.value.get().expect("missing global value"),
+                    );
+                    globals.push(Global {
+                        id: ObjectId::Concrete {
+                            package_id: SymbolId(global_object.def_id.package.0),
+                            name_id: SymbolId(global_object.def_id.name.0),
+                        },
+                        type_id: ir_type_id,
+                        value,
+                    });
                 }
                 _ => continue,
             }
         }
     }
+
+    let symbols = ctx
+        .symbols
+        .take()
+        .into_iter()
+        .map(|s| s.as_ref().into())
+        .collect();
+
+    let types = type_mapper
+        .type_maps
+        .take()
+        .into_values()
+        .map(|(_, ty)| ty)
+        .collect();
+
+    let typeargs = type_mapper
+        .typeargs_maps
+        .take()
+        .into_values()
+        .map(|(_, type_ids)| TypeArgs(type_ids))
+        .collect();
+
+    Module {
+        symbols,
+        types,
+        typeargs,
+        globals,
+        functions,
+    }
+}
+
+fn build_expr_ir<E>(
+    ctx: &TypeCheckContext<E>,
+    name_maps: &NameMaps,
+    type_mapper: &TypeMapper,
+    generic_args: &[ty::TypeId],
+    ex: &expr::Expr,
+) -> Expr {
+    let type_id = type_mapper.get_type_id(ctx, ex.ty);
+
+    let kind = match &ex.kind {
+        expr::ExprKind::Invalid => unreachable!("there should be no invalid expr"),
+        expr::ExprKind::ConstI8(val) => ExprKind::ConstI8(*val),
+        expr::ExprKind::ConstI16(val) => ExprKind::ConstI16(*val),
+        expr::ExprKind::ConstI32(val) => ExprKind::ConstI32(*val),
+        expr::ExprKind::ConstI64(val) => ExprKind::ConstI64(*val),
+        expr::ExprKind::ConstIsize(val) => ExprKind::ConstIsize(*val),
+        expr::ExprKind::ConstF32(val) => ExprKind::ConstF32(*val),
+        expr::ExprKind::ConstF64(val) => ExprKind::ConstF64(*val),
+        expr::ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
+        expr::ExprKind::Zero => ExprKind::Zero(type_id),
+        expr::ExprKind::StructLit(type_id, values) => ExprKind::StructLit(
+            type_mapper.get_type_id(
+                ctx,
+                ty::substitute_generic_args(ctx, generic_args, *type_id),
+            ),
+            values
+                .iter()
+                .map(|value| build_expr_ir(ctx, name_maps, type_mapper, generic_args, value))
+                .collect(),
+        ),
+        expr::ExprKind::Bytes(val) => ExprKind::Bytes(val.clone()),
+        expr::ExprKind::Local(idx) => ExprKind::Local(*idx),
+        expr::ExprKind::Global(def_id) => ExprKind::Global(
+            *name_maps
+                .global_to_idx
+                .get(def_id)
+                .expect("missing global index"),
+        ),
+        expr::ExprKind::Func(def_id) => ExprKind::Func(
+            *name_maps
+                .func_to_idx
+                .get(&Name::Def(*def_id))
+                .expect("missing func index"),
+        ),
+        expr::ExprKind::FuncInst(def_id, typeargs_id) => {
+            let typeargs = ctx.typeargs.get(*typeargs_id);
+            let typeargs: Vec<ty::TypeId> = typeargs
+                .iter()
+                .map(|type_id| ty::substitute_generic_args(ctx, generic_args, *type_id))
+                .collect();
+            let typeargs_id = ctx.typeargs.define(&typeargs);
+            ExprKind::Func(
+                *name_maps
+                    .func_to_idx
+                    .get(&Name::Instance(*def_id, typeargs_id))
+                    .expect("missing generic func instance index"),
+            )
+        }
+        expr::ExprKind::GetElement(target, field) => ExprKind::GetElement(
+            Box::new(build_expr_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                target,
+            )),
+            *field,
+        ),
+        expr::ExprKind::GetElementAddr(target, field) => ExprKind::GetElementAddr(
+            Box::new(build_expr_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                target,
+            )),
+            *field,
+        ),
+        expr::ExprKind::GetIndex(arr, index) => ExprKind::GetIndex(
+            Box::new(build_expr_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                arr,
+            )),
+            Box::new(build_expr_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                index,
+            )),
+        ),
+        expr::ExprKind::Deref(expr) => ExprKind::Deref(Box::new(build_expr_ir(
+            ctx,
+            name_maps,
+            type_mapper,
+            generic_args,
+            expr,
+        ))),
+        expr::ExprKind::Call(callee, arguments) => ExprKind::Call(
+            Box::new(build_expr_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                callee,
+            )),
+            arguments
+                .iter()
+                .map(|expr| build_expr_ir(ctx, name_maps, type_mapper, generic_args, expr))
+                .collect(),
+        ),
+        expr::ExprKind::Add(a, b) => ExprKind::Add(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Sub(a, b) => ExprKind::Sub(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Mul(a, b) => ExprKind::Mul(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Div(a, b) => ExprKind::Div(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Mod(a, b) => ExprKind::Mod(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::BitOr(a, b) => ExprKind::BitOr(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::BitAnd(a, b) => ExprKind::BitAnd(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::BitXor(a, b) => ExprKind::BitXor(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::ShiftLeft(a, b) => ExprKind::ShiftLeft(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::ShiftRight(a, b) => ExprKind::ShiftRight(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::And(a, b) => ExprKind::And(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Or(a, b) => ExprKind::Or(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Eq(a, b) => ExprKind::Eq(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::NEq(a, b) => ExprKind::NEq(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Gt(a, b) => ExprKind::Gt(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::GEq(a, b) => ExprKind::GEq(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Lt(a, b) => ExprKind::Lt(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::LEq(a, b) => ExprKind::LEq(
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, a)),
+            Box::new(build_expr_ir(ctx, name_maps, type_mapper, generic_args, b)),
+        ),
+        expr::ExprKind::Neg(val) => ExprKind::Neg(Box::new(build_expr_ir(
+            ctx,
+            name_maps,
+            type_mapper,
+            generic_args,
+            val,
+        ))),
+        expr::ExprKind::BitNot(val) => ExprKind::BitNot(Box::new(build_expr_ir(
+            ctx,
+            name_maps,
+            type_mapper,
+            generic_args,
+            val,
+        ))),
+        expr::ExprKind::Not(val) => ExprKind::Not(Box::new(build_expr_ir(
+            ctx,
+            name_maps,
+            type_mapper,
+            generic_args,
+            val,
+        ))),
+        expr::ExprKind::Cast(val, type_id) => ExprKind::Cast(
+            Box::new(build_expr_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                val,
+            )),
+            type_mapper.get_type_id(
+                ctx,
+                ty::substitute_generic_args(ctx, generic_args, *type_id),
+            ),
+        ),
+    };
+
+    Expr { ty: type_id, kind }
 }
 
 struct NameMaps {
