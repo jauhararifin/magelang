@@ -5,7 +5,13 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 #[derive(PartialEq, Eq, Hash)]
-pub struct Id<Item: ?Sized>(usize, PhantomData<fn() -> Item>);
+pub struct Id<Item: ?Sized>(pub usize, PhantomData<fn() -> Item>);
+
+impl<Item: ?Sized> From<Id<Item>> for usize {
+    fn from(value: Id<Item>) -> Self {
+        value.0
+    }
+}
 
 impl<Item: ?Sized> std::fmt::Debug for Id<Item> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
