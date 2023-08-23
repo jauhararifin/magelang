@@ -3,6 +3,7 @@ use crate::expr;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::{DefId, Name};
 use crate::scope::Object;
+use crate::statements;
 use crate::ty;
 use indexmap::IndexMap;
 use std::cell::RefCell;
@@ -239,11 +240,11 @@ pub struct Function {
     pub ty: FuncType,
     pub locals: Vec<TypeId>,
     pub statement: Statement,
-    pub tags: Rc<[Tag]>,
+    pub annotations: Rc<[Annotation]>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Tag {
+pub struct Annotation {
     pub name: String,
     pub arguments: Vec<String>,
 }
@@ -274,6 +275,15 @@ pub struct WhileStatement {
     pub body: Box<Statement>,
 }
 
+impl From<DefId> for ObjectId {
+    fn from(value: DefId) -> Self {
+        Self::Concrete {
+            package_id: SymbolId(value.package.0),
+            name_id: SymbolId(value.name.0),
+        }
+    }
+}
+
 pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
     let name_maps = map_names(ctx);
     let type_mapper = TypeMapper::default();
@@ -285,7 +295,46 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
         for (_, object) in scope.iter() {
             match object {
                 Object::Func(func_object) => {
-                    todo!();
+                    let func_type = ctx
+                        .types
+                        .get(*func_object.ty.get().expect("missing func type"));
+                    let func_type = func_type.as_func().expect("not a func type");
+
+                    let mut locals = Vec::default();
+                    for type_id in func_type.params.iter() {
+                        locals.push(type_mapper.get_type_id(ctx, *type_id));
+                    }
+                    let statement = build_stmt_ir(
+                        ctx,
+                        &name_maps,
+                        &type_mapper,
+                        &[],
+                        func_object.body.get().expect("missing func body"),
+                    );
+                    let func = Function {
+                        id: func_object.def_id.into(),
+                        ty: FuncType {
+                            parameters: func_type
+                                .params
+                                .iter()
+                                .map(|type_id| type_mapper.get_type_id(ctx, *type_id))
+                                .collect(),
+                            return_type: type_mapper.get_type_id(ctx, func_type.return_type),
+                        },
+                        locals,
+                        statement,
+                        annotations: func_object
+                            .annotations
+                            .iter()
+                            .map(|annotation| Annotation {
+                                // TODO: don't clone, move
+                                name: annotation.name.clone(),
+                                arguments: annotation.arguments.clone(),
+                            })
+                            .collect(),
+                    };
+
+                    functions.push(func);
                 }
                 Object::GenericFunc(generic_func_object) => {
                     todo!();
@@ -301,10 +350,7 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
                         global_object.value.get().expect("missing global value"),
                     );
                     globals.push(Global {
-                        id: ObjectId::Concrete {
-                            package_id: SymbolId(global_object.def_id.package.0),
-                            name_id: SymbolId(global_object.def_id.name.0),
-                        },
+                        id: global_object.def_id.into(),
                         type_id: ir_type_id,
                         value,
                     });
@@ -342,6 +388,16 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
         globals,
         functions,
     }
+}
+
+fn build_stmt_ir<E>(
+    ctx: &TypeCheckContext<E>,
+    name_maps: &NameMaps,
+    type_mapper: &TypeMapper,
+    generic_args: &[ty::TypeId],
+    stmt: &statements::Statement,
+) -> Statement {
+    todo!();
 }
 
 fn build_expr_ir<E>(
@@ -646,10 +702,7 @@ impl TypeMapper {
             ty::Type::TypeArg(..) => unreachable!("found type argument"),
             ty::Type::NamedStruct(named_struct) => Type::Struct(self.get_struct(
                 ctx,
-                ObjectId::Concrete {
-                    package_id: SymbolId(named_struct.def_id.package.into()),
-                    name_id: SymbolId(named_struct.def_id.name.into()),
-                },
+                named_struct.def_id.into(),
                 named_struct.body.get().expect("missing struct body"),
             )),
             ty::Type::NamedStructInst(named_struct) => Type::Struct(self.get_struct(
