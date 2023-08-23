@@ -4,6 +4,7 @@ use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
 use crate::statements::Statement;
 use crate::symbols::SymbolId;
+use crate::tree_ir;
 use crate::ty::{BitSize, FloatType, StructBody, Type, TypeArg, TypeArgsId, TypeId};
 use indexmap::IndexMap;
 use magelang_syntax::{
@@ -131,14 +132,8 @@ pub struct FuncObject {
     pub signature: SignatureNode,
     pub body_node: Option<BlockStatementNode>,
     pub ty: OnceCell<TypeId>,
-    pub annotations: Rc<[Annotation]>,
+    pub annotations: Rc<[tree_ir::Annotation]>,
     pub body: OnceCell<Statement>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Annotation {
-    pub name: String,
-    pub arguments: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -154,7 +149,7 @@ pub struct GenericFuncObject {
     pub signature: SignatureNode,
     pub body_node: Option<BlockStatementNode>,
     pub ty: OnceCell<TypeId>,
-    pub annotations: Rc<[Annotation]>,
+    pub annotations: Rc<[tree_ir::Annotation]>,
     pub body: OnceCell<Statement>,
     pub monomorphized: OnceCell<IndexMap<TypeArgsId, (TypeId, Statement)>>,
 }

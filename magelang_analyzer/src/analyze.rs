@@ -6,7 +6,7 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::*;
 use crate::statements::{get_stmt_from_block_node, monomorphize_stmt, Statement};
 use crate::symbols::{SymbolId, SymbolInterner};
-use crate::tree_ir::{build_ir, Module};
+use crate::tree_ir::{build_ir, Annotation, Module};
 use crate::ty::{
     display_type_id, get_func_type_from_node, get_type_from_node, is_type_assignable,
     substitute_generic_args, NamedStructType, StructBody, Type, TypeArgsId, TypeArgsInterner,

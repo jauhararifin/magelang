@@ -2,11 +2,13 @@ use crate::analyze::TypeCheckContext;
 use crate::expr;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::{DefId, Name};
-use crate::scope::Object;
+use crate::scope::{Object, Scope};
 use crate::statements;
+use crate::symbols::SymbolInterner;
 use crate::ty;
 use indexmap::IndexMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -300,40 +302,15 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
                         .get(*func_object.ty.get().expect("missing func type"));
                     let func_type = func_type.as_func().expect("not a func type");
 
-                    let mut locals = Vec::default();
-                    for type_id in func_type.params.iter() {
-                        locals.push(type_mapper.get_type_id(ctx, *type_id));
-                    }
-                    let statement = build_stmt_ir(
+                    let func = build_function_ir(
                         ctx,
                         &name_maps,
                         &type_mapper,
-                        &[],
+                        func_object.def_id.into(),
+                        func_type,
                         func_object.body.get().expect("missing func body"),
+                        func_object.annotations.clone(),
                     );
-                    let func = Function {
-                        id: func_object.def_id.into(),
-                        ty: FuncType {
-                            parameters: func_type
-                                .params
-                                .iter()
-                                .map(|type_id| type_mapper.get_type_id(ctx, *type_id))
-                                .collect(),
-                            return_type: type_mapper.get_type_id(ctx, func_type.return_type),
-                        },
-                        locals,
-                        statement,
-                        annotations: func_object
-                            .annotations
-                            .iter()
-                            .map(|annotation| Annotation {
-                                // TODO: don't clone, move
-                                name: annotation.name.clone(),
-                                arguments: annotation.arguments.clone(),
-                            })
-                            .collect(),
-                    };
-
                     functions.push(func);
                 }
                 Object::GenericFunc(generic_func_object) => {
@@ -387,6 +364,37 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
         typeargs,
         globals,
         functions,
+    }
+}
+
+fn build_function_ir<E>(
+    ctx: &TypeCheckContext<E>,
+    name_maps: &NameMaps,
+    type_mapper: &TypeMapper,
+    object_id: ObjectId,
+    func_type: &ty::FuncType,
+    body: &statements::Statement,
+    annotations: Rc<[Annotation]>,
+) -> Function {
+    let mut locals = Vec::default();
+    for type_id in func_type.params.iter() {
+        locals.push(type_mapper.get_type_id(ctx, *type_id));
+    }
+    let statement = build_stmt_ir(ctx, &name_maps, &type_mapper, &[], body);
+
+    Function {
+        id: object_id,
+        ty: FuncType {
+            parameters: func_type
+                .params
+                .iter()
+                .map(|type_id| type_mapper.get_type_id(ctx, *type_id))
+                .collect(),
+            return_type: type_mapper.get_type_id(ctx, func_type.return_type),
+        },
+        locals,
+        statement,
+        annotations,
     }
 }
 
