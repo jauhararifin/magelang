@@ -1,14 +1,12 @@
 use crate::analyze::TypeCheckContext;
 use crate::expr;
-use crate::interner::{SizedInterner, UnsizedInterner};
+use crate::interner::UnsizedInterner;
 use crate::name::{DefId, Name};
-use crate::scope::{Object, Scope};
+use crate::scope::Object;
 use crate::statements;
-use crate::symbols::SymbolInterner;
 use crate::ty;
 use indexmap::IndexMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -402,7 +400,7 @@ fn build_function_ir<E>(
     for type_id in func_type.params.iter() {
         locals.push(type_mapper.get_type_id(ctx, *type_id));
     }
-    let statement = build_stmt_ir(ctx, &name_maps, &type_mapper, &[], body);
+    let statement = build_stmt_ir(ctx, &name_maps, &type_mapper, &[], &mut locals, body);
 
     Function {
         id: object_id,
@@ -425,9 +423,78 @@ fn build_stmt_ir<E>(
     name_maps: &NameMaps,
     type_mapper: &TypeMapper,
     generic_args: &[ty::TypeId],
+    locals: &mut Vec<TypeId>,
     stmt: &statements::Statement,
 ) -> Statement {
-    todo!();
+    match stmt {
+        statements::Statement::Native => Statement::Native,
+        statements::Statement::NewLocal(value) => {
+            let type_id = ty::substitute_generic_args(ctx, generic_args, value.ty);
+            let type_id = type_mapper.get_type_id(ctx, type_id);
+
+            let local = locals.len();
+            locals.push(type_id);
+
+            Statement::Assign(
+                Expr {
+                    ty: type_id,
+                    kind: ExprKind::Local(local),
+                },
+                build_expr_ir(ctx, name_maps, type_mapper, generic_args, value),
+            )
+        }
+        statements::Statement::Block(statements) => Statement::Block(
+            statements
+                .iter()
+                .map(|stmt| build_stmt_ir(ctx, name_maps, type_mapper, generic_args, locals, stmt))
+                .collect(),
+        ),
+        statements::Statement::If(if_stmt) => Statement::If(IfStatement {
+            cond: build_expr_ir(ctx, name_maps, type_mapper, generic_args, &if_stmt.cond),
+            body: Box::new(build_stmt_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                locals,
+                &if_stmt.body,
+            )),
+            else_stmt: if_stmt
+                .else_stmt
+                .as_ref()
+                .map(|stmt| build_stmt_ir(ctx, name_maps, type_mapper, generic_args, locals, stmt))
+                .map(Box::new),
+        }),
+        statements::Statement::While(while_stmt) => Statement::While(WhileStatement {
+            cond: build_expr_ir(ctx, name_maps, type_mapper, generic_args, &while_stmt.cond),
+            body: Box::new(build_stmt_ir(
+                ctx,
+                name_maps,
+                type_mapper,
+                generic_args,
+                locals,
+                &while_stmt.body,
+            )),
+        }),
+        statements::Statement::Return(value) => Statement::Return(
+            value
+                .as_ref()
+                .map(|expr| build_expr_ir(ctx, name_maps, type_mapper, generic_args, expr)),
+        ),
+        statements::Statement::Expr(expr) => Statement::Expr(build_expr_ir(
+            ctx,
+            name_maps,
+            type_mapper,
+            generic_args,
+            expr,
+        )),
+        statements::Statement::Assign(target, value) => Statement::Assign(
+            build_expr_ir(ctx, name_maps, type_mapper, generic_args, target),
+            build_expr_ir(ctx, name_maps, type_mapper, generic_args, value),
+        ),
+        statements::Statement::Continue => Statement::Continue,
+        statements::Statement::Break => Statement::Break,
+    }
 }
 
 fn build_expr_ir<E>(
