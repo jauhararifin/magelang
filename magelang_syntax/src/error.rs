@@ -22,6 +22,8 @@ impl Error {
 
 pub trait ErrorReporter {
     fn report(&self, pos: Pos, message: String);
+
+    fn has_errors(&self) -> bool;
 }
 
 #[derive(Default)]
@@ -32,6 +34,10 @@ pub struct ErrorManager {
 impl ErrorReporter for ErrorManager {
     fn report(&self, pos: Pos, message: String) {
         self.errors.borrow_mut().insert(Error { pos, message });
+    }
+
+    fn has_errors(&self) -> bool {
+        !self.errors.borrow().is_empty()
     }
 }
 

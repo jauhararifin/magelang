@@ -71,7 +71,7 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
 fn analyze_module(module_name: String, output: Option<std::path::PathBuf>) {
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
-    analyze(&mut file_manager, &error_manager, &module_name);
+    let module = analyze(&mut file_manager, &error_manager, &module_name);
 
     if !error_manager.is_empty() {
         for error in error_manager.take() {
@@ -79,13 +79,15 @@ fn analyze_module(module_name: String, output: Option<std::path::PathBuf>) {
             let message = error.message;
             eprintln!("{location}: {message}");
         }
+        return;
     }
 
+    let Some(module) = module else { return };
     let mut writer: Box<dyn std::io::Write> = if let Some(path) = output {
         let file = std::fs::File::create(path).unwrap();
         Box::new(file)
     } else {
         Box::new(std::io::stdout().lock())
     };
-    let _ = write!(writer, "To be defined");
+    let _ = write!(writer, "{module:#?}");
 }

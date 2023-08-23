@@ -28,7 +28,7 @@ pub fn analyze(
     file_manager: &mut FileManager,
     error_manager: &impl ErrorReporter,
     main_package: &str,
-) -> Module {
+) -> Option<Module> {
     let symbols = SymbolInterner::default();
     let types = TypeInterner::default();
     let typeargs = TypeArgsInterner::default();
@@ -74,7 +74,11 @@ pub fn analyze(
     generate_function_bodies(&typecheck_ctx);
     monomorphize_functions(&typecheck_ctx);
 
-    build_ir(&typecheck_ctx)
+    if error_manager.has_errors() {
+        return None;
+    }
+
+    Some(build_ir(&typecheck_ctx))
 }
 
 pub struct Context<'a, E> {
