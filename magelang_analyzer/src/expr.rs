@@ -898,7 +898,15 @@ pub fn monomorphize_expr<E>(ctx: &TypeCheckContext<E>, arg_table: &[TypeId], exp
         ExprKind::Local(idx) => ExprKind::Local(*idx),
         ExprKind::Global(def_id) => ExprKind::Global(*def_id),
         ExprKind::Func(def_id) => ExprKind::Func(*def_id),
-        ExprKind::FuncInst(def_id, typeargs_id) => ExprKind::FuncInst(*def_id, *typeargs_id),
+        ExprKind::FuncInst(def_id, typeargs_id) => {
+            let typeargs = ctx.typeargs.get(*typeargs_id);
+            let typeargs = typeargs
+                .iter()
+                .map(|type_id| substitute_generic_args(ctx, arg_table, *type_id))
+                .collect::<Vec<_>>();
+            let typeargs_id = ctx.typeargs.define(&typeargs);
+            ExprKind::FuncInst(*def_id, typeargs_id)
+        }
         ExprKind::GetElement(expr, idx) => ExprKind::GetElement(
             Box::new(monomorphize_expr(ctx, arg_table, expr.as_ref())),
             *idx,

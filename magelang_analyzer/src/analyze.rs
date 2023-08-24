@@ -20,7 +20,6 @@ use magelang_syntax::{
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::iter::zip;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -544,10 +543,11 @@ fn report_circular_type<E: ErrorReporter>(
 
 fn generate_object_types<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
     for (_, scope) in ctx.package_scopes.iter() {
+        let ctx = ctx.with_scope(scope.clone());
         for (_, object) in scope.iter() {
             match object {
                 Object::Func(func_object) => {
-                    let func_type = get_func_type_from_node(ctx, &func_object.signature);
+                    let func_type = get_func_type_from_node(&ctx, &func_object.signature);
                     let type_id = ctx.types.define(Type::Func(func_type));
                     func_object
                         .ty
@@ -555,7 +555,7 @@ fn generate_object_types<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
                         .expect("cannot set function type");
                 }
                 Object::GenericFunc(generic_obj) => {
-                    let func_type = get_func_type_from_node(ctx, &generic_obj.signature);
+                    let func_type = get_func_type_from_node(&ctx, &generic_obj.signature);
                     let type_id = ctx.types.define(Type::Func(func_type));
                     generic_obj
                         .ty
@@ -563,7 +563,7 @@ fn generate_object_types<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
                         .expect("cannot set function type");
                 }
                 Object::Global(global_obj) => {
-                    let type_id = get_type_from_node(ctx, &global_obj.node.ty);
+                    let type_id = get_type_from_node(&ctx, &global_obj.node.ty);
                     global_obj.ty.set(type_id).expect("cannot set global type");
                 }
                 _ => continue,
@@ -574,12 +574,13 @@ fn generate_object_types<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
 
 fn generate_object_values<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
     for (_, scope) in ctx.package_scopes.iter() {
+        let ctx = ctx.with_scope(scope.clone());
         for (_, object) in scope.iter() {
             match object {
                 Object::Global(global_obj) => {
                     let type_id = global_obj.ty.get().expect("cannot set global type");
                     let value_expr = if let Some(ref expr) = global_obj.node.value {
-                        get_expr_from_node(ctx, Some(*type_id), expr)
+                        get_expr_from_node(&ctx, Some(*type_id), expr)
                     } else {
                         Expr {
                             ty: *type_id,
@@ -588,7 +589,7 @@ fn generate_object_values<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
                         }
                     };
 
-                    if !is_type_assignable(ctx, *type_id, value_expr.ty) {
+                    if !is_type_assignable(&ctx, *type_id, value_expr.ty) {
                         let pos = global_obj
                             .node
                             .value
@@ -597,8 +598,8 @@ fn generate_object_values<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
                             .unwrap_or(global_obj.node.pos);
                         ctx.errors.type_mismatch(
                             pos,
-                            display_type_id(ctx, *type_id),
-                            display_type_id(ctx, value_expr.ty),
+                            display_type_id(&ctx, *type_id),
+                            display_type_id(&ctx, value_expr.ty),
                         );
                     };
 
@@ -615,11 +616,12 @@ fn generate_object_values<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
 
 fn generate_function_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
     for (_, scope) in ctx.package_scopes.iter() {
+        let ctx = ctx.with_scope(scope.clone());
         for (_, object) in scope.iter() {
             match object {
                 Object::Func(func_object) => {
                     let body = if let Some(ref body) = func_object.body_node {
-                        get_func_body_from_node(ctx, &func_object.signature, body)
+                        get_func_body_from_node(&ctx, &func_object.signature, body)
                     } else {
                         Statement::Native
                     };
@@ -630,7 +632,7 @@ fn generate_function_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<E>) {
                 }
                 Object::GenericFunc(generic_func_object) => {
                     let body = if let Some(ref body) = generic_func_object.body_node {
-                        get_func_body_from_node(ctx, &generic_func_object.signature, body)
+                        get_func_body_from_node(&ctx, &generic_func_object.signature, body)
                     } else {
                         Statement::Native
                     };
@@ -690,8 +692,8 @@ fn get_func_body_from_node<E: ErrorReporter>(
 fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
     #[derive(Debug)]
     enum Source<'a> {
-        Expr(&'a Expr, Rc<HashMap<SymbolId, TypeId>>),
-        Statement(&'a Statement, Rc<HashMap<SymbolId, TypeId>>),
+        Expr(&'a Expr, Rc<[TypeId]>),
+        Statement(&'a Statement, Rc<[TypeId]>),
         FuncInst(DefId, TypeArgsId),
     }
 
@@ -710,11 +712,11 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
                         .value
                         .get()
                         .expect("missing global value expr");
-                    queue.push_back(Source::Expr(value, Rc::default()));
+                    queue.push_back(Source::Expr(value, Rc::from([])));
                 }
                 Object::Func(func_obj) => {
                     let body = func_obj.body.get().expect("missing func body");
-                    queue.push_back(Source::Statement(body, Rc::default()));
+                    queue.push_back(Source::Statement(body, Rc::from([])));
                 }
             }
         }
@@ -748,7 +750,7 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
                     let typeargs = ctx.typeargs.get(*typeargs_id);
                     let substituted_typeargs = typeargs
                         .iter()
-                        .map(|type_id| substitute_generic_args(ctx, &typeargs, *type_id))
+                        .map(|type_id| substitute_generic_args(ctx, &type_scope, *type_id))
                         .collect::<Vec<_>>();
                     let substituted_typearg_id = ctx.typeargs.define(&substituted_typeargs);
                     queue.push_back(Source::FuncInst(*def_id, substituted_typearg_id));
@@ -834,7 +836,6 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
                 }
                 func_insts.insert((def_id, typeargs_id));
 
-                let mut type_scope = HashMap::<SymbolId, TypeId>::default();
                 let typeargs = ctx.typeargs.get(typeargs_id);
                 let generic_func = ctx
                     .package_scopes
@@ -845,15 +846,9 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
                     .as_generic_func()
                     .expect("not a generic func");
 
-                let type_params = generic_func.signature.type_params.iter();
-                for (type_param_node, ty) in zip(type_params, typeargs.iter()) {
-                    let type_param = ctx.symbols.define(&type_param_node.name.value);
-                    type_scope.entry(type_param).or_insert(*ty);
-                }
-
                 queue.push_back(Source::Statement(
                     generic_func.body.get().expect("missing body"),
-                    Rc::new(type_scope),
+                    typeargs.clone(),
                 ));
 
                 monomorphized_funcs
