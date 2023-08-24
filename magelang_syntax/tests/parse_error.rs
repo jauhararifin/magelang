@@ -65,6 +65,9 @@ fn g(): i32;
 @annotation
 fn g(): i32;
 
+@*annotation()
+fn g(): i32;
+
 @dangling_annotation()
 "#;
 const TEST_ANNOTATION_ERRORS: &[(&str, &str)] = &[
@@ -76,7 +79,11 @@ const TEST_ANNOTATION_ERRORS: &[(&str, &str)] = &[
         "testcase.mg:9:1",
         "Expected annotation arguments, but found 'fn'",
     ),
-    ("testcase.mg:11:1", "There is no object to annotate"),
+    (
+        "testcase.mg:11:2",
+        "Expected annotation identifier, but found '*'",
+    ),
+    ("testcase.mg:14:1", "There is no object to annotate"),
 ];
 testcase!(
     test_annotation,
