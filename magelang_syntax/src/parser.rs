@@ -226,36 +226,53 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
         }
         TokenKind::Ident => {
             let name = f.take(TokenKind::Ident).unwrap();
-            let pos = name.pos;
-            let named_type = if f.take_if(TokenKind::Dot).is_some() {
-                let package = name;
-                let name = f.take(TokenKind::Ident);
-                name.map(|name| NamedTypeNode::Selection(package, name))
+            if f.take_if(TokenKind::Dot).is_some() {
+                if f.kind() == TokenKind::Ident {
+                    let package = name;
+                    let name = f.take(TokenKind::Ident)?;
+                    let named_type = NamedTypeNode::Selection(package, name);
+                    if f.take_if(TokenKind::Dot).is_some() {
+                        let pos = f.token().pos;
+                        let Some(args) = parse_sequence(
+                            f,
+                            TokenKind::Lt,
+                            TokenKind::Comma,
+                            TokenKind::Gt,
+                            parse_type_expr,
+                        )
+                        .map(|(_, type_args, _)| type_args) else {
+                            f.errors.missing(pos, "type param list");
+                            return None;
+                        };
+                        Some(TypeExprNode::Instance(TypeInstanceNode {
+                            ty: named_type,
+                            args,
+                        }))
+                    } else {
+                        Some(TypeExprNode::Named(named_type))
+                    }
+                } else if f.kind() == TokenKind::Lt {
+                    let args = parse_sequence(
+                        f,
+                        TokenKind::Lt,
+                        TokenKind::Comma,
+                        TokenKind::Gt,
+                        parse_type_expr,
+                    )
+                    .map(|(_, type_args, _)| type_args)
+                    .unwrap_or_default();
+                    Some(TypeExprNode::Instance(TypeInstanceNode {
+                        ty: NamedTypeNode::Ident(name),
+                        args,
+                    }))
+                } else {
+                    let tok = f.token();
+                    f.errors
+                        .unexpected_parsing(tok.pos, TokenKind::Ident, tok.kind);
+                    return None;
+                }
             } else {
-                Some(NamedTypeNode::Ident(name))
-            };
-
-            let type_args = parse_sequence(
-                f,
-                TokenKind::Lt,
-                TokenKind::Comma,
-                TokenKind::Gt,
-                parse_type_expr,
-            )
-            .map(|(_, type_args, _)| type_args)
-            .unwrap_or_default();
-
-            let Some(ty) = named_type else {
-                return Some(TypeExprNode::Invalid(pos));
-            };
-
-            if type_args.is_empty() {
-                Some(TypeExprNode::Named(ty))
-            } else {
-                Some(TypeExprNode::Instance(TypeInstanceNode {
-                    ty,
-                    args: type_args,
-                }))
+                Some(TypeExprNode::Named(NamedTypeNode::Ident(name)))
             }
         }
         _ => None,
@@ -315,7 +332,7 @@ fn parse_struct<E: ErrorReporter>(
         pos,
         annotations,
         name: name?,
-        type_params: type_params?,
+        type_params: type_params.unwrap_or_default(),
         fields,
     })
 }
@@ -692,6 +709,19 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                             value: Box::new(target),
                         })
                     }
+                    TokenKind::Lt => {
+                        let (_, args, _) = parse_sequence(
+                            f,
+                            TokenKind::Lt,
+                            TokenKind::Comma,
+                            TokenKind::Gt,
+                            |this| parse_type_expr(this),
+                        )?;
+                        ExprNode::Instance(InstanceExprNode {
+                            value: Box::new(target),
+                            args,
+                        })
+                    }
                     _ => break,
                 }
             }
@@ -702,16 +732,6 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                 ExprNode::Index(IndexExprNode {
                     value: Box::new(target),
                     index: Box::new(index),
-                })
-            }
-            TokenKind::Lt => {
-                let (_, args, _) =
-                    parse_sequence(f, TokenKind::Lt, TokenKind::Comma, TokenKind::Gt, |this| {
-                        parse_type_expr(this)
-                    })?;
-                ExprNode::Instance(InstanceExprNode {
-                    value: Box::new(target),
-                    args,
                 })
             }
             TokenKind::OpenBrac => {

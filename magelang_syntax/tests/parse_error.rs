@@ -97,24 +97,24 @@ testcase!(test_imports, TEST_IMPORTS_SOURCE, TEST_IMPORTS_ERRORS);
 
 const TEST_TYPE_EXPRS_SOURCE: &str = r#"
 let _: package.sometype = 10;
-let _: package.sometype<int> = 10;
-let _: package.sometype<int,int> = 10;
+let _: package.sometype.<int> = 10;
+let _: package.sometype.<int,int> = 10;
 let _: sometype = 10;
 let _: *sometype = 10;
 let _: *package.sometype = 10;
-let _: *package.sometype<i32,package.package<i32> > = 10;
-let _: *package.sometype<i32,(package.package<i32>)> = 10;
+let _: *package.sometype.<i32,package.package.<i32> > = 10;
+let _: *package.sometype.<i32,(package.package.<i32>)> = 10;
 let _: [*]sometype = 10;
 let _: [*]package.sometype = 10;
-let _: [*]package.sometype<i32,package.package<i32> > = 10;
-let _: [*]package.sometype<i32,(package.package<i32>)> = 10;
+let _: [*]package.sometype.<i32,package.package.<i32> > = 10;
+let _: [*]package.sometype.<i32,(package.package.<i32>)> = 10;
 let _: * = 10;
 let _: *package = 10;
 let _: *package. = 10;
 let _: *package.sometype = 10;
-let _: *package.sometype< = 10;
-let _: *package.sometype<i32 = 10;
-let _: *package.sometype<i32> = 10;
+let _: *package.sometype.< = 10;
+let _: *package.sometype.<i32 = 10;
+let _: *package.sometype.<i32> = 10;
 let _: [package = 10;
 let _: [*package = 10;
 let _: [*]package = 10;
@@ -124,8 +124,8 @@ let _: i32;
 const TEST_TYPE_EXPRS_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:14:8", "Missing pointee type"),
     ("testcase.mg:16:18", "Expected IDENT, but found '='"),
-    ("testcase.mg:18:25", "Missing closing '>'"),
-    ("testcase.mg:19:25", "Missing closing '>'"),
+    ("testcase.mg:18:26", "Missing closing '>'"),
+    ("testcase.mg:19:26", "Missing closing '>'"),
     ("testcase.mg:21:9", "Expected '*', but found IDENT"),
     ("testcase.mg:22:10", "Expected ']', but found IDENT"),
     ("testcase.mg:24:10", "Missing pointee type"),
@@ -167,10 +167,11 @@ let a: i32 = 10 + 20 * (30 - 1) / 2 + 3 >> 5 as i32;
 let a: bool = !!(false && true);
 let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
-let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
-let a: i32 = pkg.some_func<i32>(a, b)[1].*;
+let a: i32 = pkg.SomeStruct.<a,b,c>{a: 10};
+let a: i32 = pkg.some_func.<i32>(a, b)[1].*;
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
+let a: i32 = a < b;
 "#;
 const TEST_VALUE_EXPRS_ERROR: &[(&str, &str)] = &[];
 testcase!(
