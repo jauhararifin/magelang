@@ -1,7 +1,0 @@
-
-@intrinsic("memory.grow")
-fn memory_grow(n: usize): usize;
-
-@intrinsic("memory.size")
-fn memory_size(): usize;
-
