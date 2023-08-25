@@ -134,9 +134,14 @@ let _: i32;
 "#;
 const TEST_TYPE_EXPRS_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:14:8", "Missing pointee type"),
+    ("testcase.mg:16:8", "Missing pointee type"),
     ("testcase.mg:16:18", "Expected IDENT, but found '='"),
+    ("testcase.mg:18:8", "Missing pointee type"),
     ("testcase.mg:18:26", "Missing closing '>'"),
+    ("testcase.mg:18:26", "Missing type param list"),
+    ("testcase.mg:19:8", "Missing pointee type"),
     ("testcase.mg:19:26", "Missing closing '>'"),
+    ("testcase.mg:19:26", "Missing type param list"),
     ("testcase.mg:21:9", "Expected '*', but found IDENT"),
     ("testcase.mg:22:10", "Expected ']', but found IDENT"),
     ("testcase.mg:24:10", "Missing pointee type"),
