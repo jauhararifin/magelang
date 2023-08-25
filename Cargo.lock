@@ -206,7 +206,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "magelang_analyzer",
+ "magelang_codegen",
  "magelang_syntax",
+ "wasm_helper",
 ]
 
 [[package]]
@@ -216,6 +218,15 @@ dependencies = [
  "home",
  "indexmap",
  "magelang_syntax",
+]
+
+[[package]]
+name = "magelang_codegen"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "magelang_analyzer",
+ "wasm_helper",
 ]
 
 [[package]]
@@ -294,9 +305,6 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 [[package]]
 name = "wasm_helper"
 version = "0.1.0"
-dependencies = [
- "indexmap",
-]
 
 [[package]]
 name = "windows-sys"

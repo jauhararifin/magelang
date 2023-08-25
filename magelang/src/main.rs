@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use magelang_analyzer::analyze;
+use magelang_codegen::generate_wasm_ir;
 use magelang_syntax::{parse, ErrorManager, FileManager};
+use wasm_helper::Serializer;
 
 #[derive(Parser)]
 struct Cli {
@@ -22,6 +24,12 @@ enum Commands {
         #[arg(short, long)]
         output: Option<std::path::PathBuf>,
     },
+    Compile {
+        module_name: String,
+
+        #[arg(short, long, default_value = "./a.wasm")]
+        output: std::path::PathBuf,
+    },
 }
 
 fn main() {
@@ -32,6 +40,10 @@ fn main() {
             module_name,
             output,
         } => analyze_module(module_name, output),
+        Commands::Compile {
+            module_name,
+            output,
+        } => compile(module_name, output),
     }
 }
 
@@ -90,4 +102,24 @@ fn analyze_module(module_name: String, output: Option<std::path::PathBuf>) {
         Box::new(std::io::stdout().lock())
     };
     let _ = write!(writer, "{module:#?}");
+}
+
+fn compile(module_name: String, output: std::path::PathBuf) {
+    let mut error_manager = ErrorManager::default();
+    let mut file_manager = FileManager::default();
+
+    let Some(module) = analyze(&mut file_manager, &error_manager, &module_name) else {
+        for error in error_manager.take() {
+            let location = file_manager.location(error.pos);
+            let message = error.message;
+            eprintln!("{location}: {message}");
+        }
+        return;
+    };
+
+    let mut f = std::fs::File::create(output).expect("cannot create output file");
+    let wasm_module = generate_wasm_ir(module);
+    wasm_module
+        .serialize(&mut f)
+        .expect("cannot write wasm to target file");
 }
