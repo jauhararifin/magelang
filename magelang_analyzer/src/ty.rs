@@ -6,7 +6,7 @@ use crate::scope::{build_scope_for_typeparam, Object};
 use crate::symbols::SymbolId;
 use indexmap::IndexMap;
 use magelang_syntax::{ErrorReporter, NamedTypeNode, Pos, SignatureNode, TypeExprNode};
-use std::cell::{LazyCell, OnceCell};
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -149,10 +149,8 @@ pub fn get_type_from_node<E: ErrorReporter>(
     ctx: &TypeCheckContext<'_, E>,
     node: &TypeExprNode,
 ) -> TypeId {
-    let unknown_type = LazyCell::new(|| ctx.types.define(Type::Unknown));
-
     match node {
-        TypeExprNode::Invalid(..) => *unknown_type,
+        TypeExprNode::Invalid(..) => ctx.types.define(Type::Unknown),
         TypeExprNode::Named(named_type_node) => get_type_from_named_type_node(ctx, named_type_node),
         TypeExprNode::Ptr(node) => {
             let element_type_id = get_type_from_node(ctx, &node.ty);
@@ -165,12 +163,12 @@ pub fn get_type_from_node<E: ErrorReporter>(
         TypeExprNode::Instance(node) => {
             let Some(obj) = get_object_from_named_type_node(ctx, &node.ty) else {
                 ctx.errors.expr_not_a_type(node.ty.pos());
-                return *unknown_type;
+                return ctx.types.define(Type::Unknown);
             };
 
             let Object::GenericStruct(generic_struct) = obj else {
                 ctx.errors.expr_not_a_type(node.ty.pos());
-                return *unknown_type;
+                return ctx.types.define(Type::Unknown);
             };
 
             let required_type_param = generic_struct.node.type_params.len();
@@ -216,8 +214,6 @@ fn get_type_from_named_type_node<E: ErrorReporter>(
     ctx: &TypeCheckContext<'_, E>,
     named_type_node: &NamedTypeNode,
 ) -> TypeId {
-    let unknown_type = LazyCell::new(|| ctx.types.define(Type::Unknown));
-
     let Some(object) = get_object_from_named_type_node(ctx, named_type_node) else {
         let name = match named_type_node {
             NamedTypeNode::Ident(name_tok) => &name_tok.value,
@@ -225,12 +221,12 @@ fn get_type_from_named_type_node<E: ErrorReporter>(
         };
 
         ctx.errors.undeclared_symbol(named_type_node.pos(), name);
-        return *unknown_type;
+        return ctx.types.define(Type::Unknown);
     };
 
     let Some(type_id) = object.type_id() else {
         ctx.errors.expr_not_a_type(named_type_node.pos());
-        return *unknown_type;
+        return ctx.types.define(Type::Unknown);
     };
     type_id
 }
