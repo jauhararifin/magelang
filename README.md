@@ -9,7 +9,7 @@ This project is in WIP state.
 
 ```bash
 # Magelang uses MAGELANG_ROOT environment variable to find the standard library
-export MAGELANG_ROOT=`pwd`
+export MAGELANG_ROOT=./magelang
 
 cargo run -- compile <the_main_package> -o <output_path>
 
@@ -50,7 +50,8 @@ fn gcd(a: i64, b: i64): i64 {
   return a;
 }
 
-// main is the first function executed.
+// function with @main() annotation will be executed first.
+@main()
 fn main() {
   let a: i64 = 1260;
   let b: i64 = 165;
