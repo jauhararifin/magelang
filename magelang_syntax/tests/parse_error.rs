@@ -83,6 +83,10 @@ const TEST_ANNOTATION_ERRORS: &[(&str, &str)] = &[
         "testcase.mg:11:2",
         "Expected annotation identifier, but found '*'",
     ),
+    (
+        "testcase.mg:11:2",
+        "Expected annotation arguments, but found '*'",
+    ),
     ("testcase.mg:14:1", "There is no object to annotate"),
 ];
 testcase!(
