@@ -14,3 +14,4 @@ mod ty;
 mod value;
 
 pub use analyze::analyze;
+pub use tree_ir::*;

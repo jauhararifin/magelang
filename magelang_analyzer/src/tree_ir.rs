@@ -10,22 +10,22 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TypeId(usize);
+pub struct TypeId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct SymbolId(usize);
+pub struct SymbolId(pub usize);
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct TypeArgs(Vec<TypeId>);
+pub struct TypeArgs(pub Vec<TypeId>);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TypeArgsId(usize);
+pub struct TypeArgsId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct FunctionId(usize);
+pub struct FunctionId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct GlobalId(usize);
+pub struct GlobalId(pub usize);
 
 #[derive(Debug, Default)]
 pub struct Module {
