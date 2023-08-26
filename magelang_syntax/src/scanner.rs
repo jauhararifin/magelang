@@ -307,6 +307,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     const SYMBOLS: &[(&'static str, TokenKind)] = &[
+        ("::", TokenKind::DoubleColon),
         (":", TokenKind::Colon),
         (";", TokenKind::SemiColon),
         (".", TokenKind::Dot),

@@ -121,10 +121,9 @@ pub struct ParameterNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TypeExprNode {
     Invalid(Pos),
-    Named(NamedTypeNode),
+    Path(PathNode),
     Ptr(PtrTypeNode),
     ArrayPtr(ArrayPtrTypeNode),
-    Instance(TypeInstanceNode),
     Grouped(Box<TypeExprNode>),
 }
 
@@ -132,27 +131,24 @@ impl TypeExprNode {
     pub fn pos(&self) -> Pos {
         match self {
             Self::Invalid(pos) => *pos,
-            Self::Named(node) => node.pos(),
+            Self::Path(node) => node.pos(),
             Self::Ptr(node) => node.pos,
             Self::ArrayPtr(node) => node.pos,
-            Self::Instance(node) => node.ty.pos(),
             Self::Grouped(node) => node.pos(),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum NamedTypeNode {
-    Ident(Token),
-    Selection(Token, Token),
+pub struct PathNode {
+    // TODO: use type system to ensure the names is never empty
+    pub names: Vec<Token>,
+    pub args: Vec<TypeExprNode>,
 }
 
-impl NamedTypeNode {
+impl PathNode {
     pub fn pos(&self) -> Pos {
-        match self {
-            Self::Ident(tok) => tok.pos,
-            Self::Selection(tok, _) => tok.pos,
-        }
+        self.names.first().unwrap().pos
     }
 }
 
@@ -168,15 +164,9 @@ pub struct ArrayPtrTypeNode {
     pub ty: Box<TypeExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct TypeInstanceNode {
-    pub ty: NamedTypeNode,
-    pub args: Vec<TypeExprNode>,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum ExprNode {
-    Ident(Token),
+    Path(PathNode),
     Integer(Token),
     Frac(Token),
     Bool(Token),
@@ -189,14 +179,12 @@ pub enum ExprNode {
     Struct(StructExprNode),
     Selection(SelectionExprNode),
     Index(IndexExprNode),
-    Instance(InstanceExprNode),
     Grouped(Box<ExprNode>),
 }
 
 impl ExprNode {
     pub fn pos(&self) -> Pos {
         match self {
-            Self::Ident(tok) => tok.pos,
             Self::Integer(tok) => tok.pos,
             Self::Frac(tok) => tok.pos,
             Self::Bool(tok) => tok.pos,
@@ -207,9 +195,9 @@ impl ExprNode {
             Self::Call(node) => node.callee.pos(),
             Self::Cast(node) => node.value.pos(),
             Self::Struct(node) => node.pos,
+            Self::Path(node) => node.pos(),
             Self::Selection(node) => node.value.pos(),
             Self::Index(node) => node.value.pos(),
-            Self::Instance(node) => node.value.pos(),
             Self::Grouped(node) => node.pos(),
         }
     }
@@ -271,12 +259,6 @@ pub struct SelectionExprNode {
 pub struct IndexExprNode {
     pub value: Box<ExprNode>,
     pub index: Box<ExprNode>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct InstanceExprNode {
-    pub value: Box<ExprNode>,
-    pub args: Vec<TypeExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

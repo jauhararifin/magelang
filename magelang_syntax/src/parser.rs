@@ -225,58 +225,45 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             inner_ty.map(Box::new).map(TypeExprNode::Grouped)
         }
         TokenKind::Ident => {
-            let name = f.take(TokenKind::Ident).unwrap();
-            if f.take_if(TokenKind::Dot).is_some() {
-                if f.kind() == TokenKind::Ident {
-                    let package = name;
-                    let name = f.take(TokenKind::Ident)?;
-                    let named_type = NamedTypeNode::Selection(package, name);
-                    if f.take_if(TokenKind::Dot).is_some() {
-                        let pos = f.token().pos;
-                        let Some(args) = parse_sequence(
-                            f,
-                            TokenKind::Lt,
-                            TokenKind::Comma,
-                            TokenKind::Gt,
-                            parse_type_expr,
-                        )
-                        .map(|(_, type_args, _)| type_args) else {
-                            f.errors.missing(pos, "type param list");
-                            return None;
-                        };
-                        Some(TypeExprNode::Instance(TypeInstanceNode {
-                            ty: named_type,
-                            args,
-                        }))
-                    } else {
-                        Some(TypeExprNode::Named(named_type))
-                    }
-                } else if f.kind() == TokenKind::Lt {
-                    let args = parse_sequence(
-                        f,
-                        TokenKind::Lt,
-                        TokenKind::Comma,
-                        TokenKind::Gt,
-                        parse_type_expr,
-                    )
-                    .map(|(_, type_args, _)| type_args)
-                    .unwrap_or_default();
-                    Some(TypeExprNode::Instance(TypeInstanceNode {
-                        ty: NamedTypeNode::Ident(name),
-                        args,
-                    }))
-                } else {
-                    let tok = f.token();
-                    f.errors
-                        .unexpected_parsing(tok.pos, TokenKind::Ident, tok.kind);
-                    return None;
-                }
-            } else {
-                Some(TypeExprNode::Named(NamedTypeNode::Ident(name)))
-            }
+            let path = parse_path(f).unwrap();
+            Some(TypeExprNode::Path(path))
         }
         _ => None,
     }
+}
+
+fn parse_path<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
+    let ident = f.take_if(TokenKind::Ident)?;
+
+    let mut names = vec![ident];
+    let mut args = Vec::default();
+    while f.take_if(TokenKind::DoubleColon).is_some() {
+        match f.kind() {
+            TokenKind::Ident => {
+                let ident = f.take(TokenKind::Ident).unwrap();
+                names.push(ident);
+            }
+            TokenKind::Lt => {
+                args = parse_sequence(
+                    f,
+                    TokenKind::Lt,
+                    TokenKind::Comma,
+                    TokenKind::Gt,
+                    parse_type_expr,
+                )
+                .map(|(_, type_args, _)| type_args)
+                .unwrap_or_default();
+                break;
+            }
+            _ => {
+                let tok = f.token();
+                f.errors.missing(tok.pos, "ident or generic args");
+                break;
+            }
+        };
+    }
+
+    Some(PathNode { names, args })
 }
 
 fn parse_struct<E: ErrorReporter>(
@@ -709,19 +696,6 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                             value: Box::new(target),
                         })
                     }
-                    TokenKind::Lt => {
-                        let (_, args, _) = parse_sequence(
-                            f,
-                            TokenKind::Lt,
-                            TokenKind::Comma,
-                            TokenKind::Gt,
-                            |this| parse_type_expr(this),
-                        )?;
-                        ExprNode::Instance(InstanceExprNode {
-                            value: Box::new(target),
-                            args,
-                        })
-                    }
                     _ => break,
                 }
             }
@@ -789,25 +763,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
 fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
     let pos = node.pos();
     match node {
-        ExprNode::Ident(tok) => TypeExprNode::Named(NamedTypeNode::Ident(tok)),
-        ExprNode::Selection(..) => {
-            if let Some(v) = convert_expr_to_named_type_node(node) {
-                TypeExprNode::Named(v)
-            } else {
-                TypeExprNode::Invalid(pos)
-            }
-        }
-        ExprNode::Instance(node) => {
-            let pos = node.value.pos();
-            if let Some(ty) = convert_expr_to_named_type_node(*node.value) {
-                TypeExprNode::Instance(TypeInstanceNode {
-                    ty,
-                    args: node.args,
-                })
-            } else {
-                TypeExprNode::Invalid(pos)
-            }
-        }
+        ExprNode::Path(path) => TypeExprNode::Path(path),
         ExprNode::Grouped(node) => {
             TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
         }
@@ -816,6 +772,7 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         | ExprNode::Bool(tok)
         | ExprNode::String(tok)
         | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => TypeExprNode::Invalid(tok.pos),
+        ExprNode::Selection(..) => TypeExprNode::Invalid(pos),
         ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
         ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
         ExprNode::Call(node) => TypeExprNode::Invalid(node.callee.pos()),
@@ -825,23 +782,9 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
     }
 }
 
-fn convert_expr_to_named_type_node(node: ExprNode) -> Option<NamedTypeNode> {
-    Some(match node {
-        ExprNode::Ident(tok) => NamedTypeNode::Ident(tok),
-        ExprNode::Selection(selection_expr_node) => {
-            if let ExprNode::Ident(value) = *selection_expr_node.value {
-                NamedTypeNode::Selection(value, selection_expr_node.selection)
-            } else {
-                return None;
-            }
-        }
-        _ => return None,
-    })
-}
-
 fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
     match f.kind() {
-        TokenKind::Ident => f.take(TokenKind::Ident).map(ExprNode::Ident),
+        TokenKind::Ident => parse_path(f).map(ExprNode::Path),
         TokenKind::IntegerLit => f.take(TokenKind::IntegerLit).map(ExprNode::Integer),
         TokenKind::RealLit => f.take(TokenKind::RealLit).map(ExprNode::Frac),
         TokenKind::StringLit => f.take(TokenKind::StringLit).map(ExprNode::String),
