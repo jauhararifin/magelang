@@ -913,6 +913,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn take(&mut self, kind: TokenKind) -> Option<Token> {
+        if kind == TokenKind::Gt {
+            self.split_shift_right();
+        }
+
         let token = self.token();
         if token.kind == kind {
             Some(self.pop())
@@ -923,6 +927,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 
     fn take_if(&mut self, kind: TokenKind) -> Option<Token> {
+        if kind == TokenKind::Gt {
+            self.split_shift_right();
+        }
+
         let tok = self
             .tokens
             .front()
@@ -932,6 +940,24 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             Some(tok)
         } else {
             None
+        }
+    }
+
+    fn split_shift_right(&mut self) {
+        let tok = self.tokens.front();
+        if tok.map_or(false, |token| token.kind == TokenKind::ShiftRight) {
+            let tok = self.tokens.pop_front().unwrap();
+            let pos = tok.pos;
+            self.tokens.push_front(Token {
+                kind: TokenKind::Gt,
+                value: ">".to_string(),
+                pos: pos.with_offset(1),
+            });
+            self.tokens.push_front(Token {
+                kind: TokenKind::Gt,
+                value: ">".to_string(),
+                pos,
+            });
         }
     }
 
