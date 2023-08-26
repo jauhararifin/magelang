@@ -19,13 +19,13 @@ enum Commands {
         output: Option<std::path::PathBuf>,
     },
     Analyze {
-        module_name: String,
+        package_name: String,
 
         #[arg(short, long)]
         output: Option<std::path::PathBuf>,
     },
     Compile {
-        module_name: String,
+        package_name: String,
 
         #[arg(short, long, default_value = "./a.wasm")]
         output: std::path::PathBuf,
@@ -37,13 +37,13 @@ fn main() {
     match args.command {
         Commands::Parse { file_name, output } => parse_ast(file_name, output),
         Commands::Analyze {
-            module_name,
+            package_name,
             output,
-        } => analyze_module(module_name, output),
+        } => analyze_package(package_name, output),
         Commands::Compile {
-            module_name,
+            package_name,
             output,
-        } => compile(module_name, output),
+        } => compile(package_name, output),
     }
 }
 
@@ -80,10 +80,10 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
     let _ = write!(writer, "{:#?}", node);
 }
 
-fn analyze_module(module_name: String, output: Option<std::path::PathBuf>) {
+fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
-    let module = analyze(&mut file_manager, &error_manager, &module_name);
+    let package = analyze(&mut file_manager, &error_manager, &package_name);
 
     if !error_manager.is_empty() {
         for error in error_manager.take() {
@@ -94,21 +94,21 @@ fn analyze_module(module_name: String, output: Option<std::path::PathBuf>) {
         return;
     }
 
-    let Some(module) = module else { return };
+    let Some(package) = package else { return };
     let mut writer: Box<dyn std::io::Write> = if let Some(path) = output {
         let file = std::fs::File::create(path).unwrap();
         Box::new(file)
     } else {
         Box::new(std::io::stdout().lock())
     };
-    let _ = write!(writer, "{module:#?}");
+    let _ = write!(writer, "{package:#?}");
 }
 
-fn compile(module_name: String, output: std::path::PathBuf) {
+fn compile(package_name: String, output: std::path::PathBuf) {
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
 
-    let Some(module) = analyze(&mut file_manager, &error_manager, &module_name) else {
+    let Some(package) = analyze(&mut file_manager, &error_manager, &package_name) else {
         for error in error_manager.take() {
             let location = file_manager.location(error.pos);
             let message = error.message;
@@ -118,7 +118,7 @@ fn compile(module_name: String, output: std::path::PathBuf) {
     };
 
     let mut f = std::fs::File::create(output).expect("cannot create output file");
-    let wasm_module = generate_wasm_ir(module);
+    let wasm_module = generate_wasm_ir(package);
     wasm_module
         .serialize(&mut f)
         .expect("cannot write wasm to target file");

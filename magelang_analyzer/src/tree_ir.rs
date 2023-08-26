@@ -28,7 +28,7 @@ pub struct FunctionId(pub usize);
 pub struct GlobalId(pub usize);
 
 #[derive(Debug, Default)]
-pub struct Module {
+pub struct Package {
     pub symbols: Vec<String>,
     pub types: Vec<Type>,
     pub typeargs: Vec<TypeArgs>,
@@ -284,7 +284,7 @@ impl From<DefId> for ObjectId {
     }
 }
 
-pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
+pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Package {
     let name_maps = map_names(ctx);
     let type_mapper = TypeMapper::default();
 
@@ -378,7 +378,7 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Module {
         .map(|(_, type_ids)| TypeArgs(type_ids))
         .collect();
 
-    Module {
+    Package {
         symbols,
         types,
         typeargs,

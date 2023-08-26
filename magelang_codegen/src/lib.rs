@@ -5,13 +5,13 @@ use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use wasm_helper as wasm;
 
-pub fn generate_wasm_ir(module: Module) -> wasm::Module {
+pub fn generate_wasm_ir(module: Package) -> wasm::Module {
     let mut generator = Generator::new(module);
     generator.build()
 }
 
 struct Generator {
-    module: Module,
+    module: Package,
 
     data: IndexMap<Rc<[u8]>, u32>,
     data_end: u32,
@@ -52,7 +52,7 @@ impl VariableLoc {
 }
 
 impl Generator {
-    fn new(module: Module) -> Self {
+    fn new(module: Package) -> Self {
         Self {
             module,
             data: IndexMap::default(),
@@ -2199,7 +2199,7 @@ impl Layout {
     }
 }
 
-fn build_type_layout(module: &Module, ty: &Type) -> Layout {
+fn build_type_layout(module: &Package, ty: &Type) -> Layout {
     match ty {
         Type::Struct(struct_type) => build_struct_layout(module, struct_type).layout,
         Type::Func(..) => Layout {
@@ -2275,7 +2275,7 @@ fn build_type_layout(module: &Module, ty: &Type) -> Layout {
     }
 }
 
-fn build_struct_layout(module: &Module, struct_type: &StructType) -> StructLayout {
+fn build_struct_layout(module: &Package, struct_type: &StructType) -> StructLayout {
     let mut idx_offset = Vec::default();
     let mut curr_idx = 0;
 
@@ -2419,19 +2419,19 @@ mod tests {
     use super::*;
 
     macro_rules! test_layout {
-        ($name: ident, $module: expr, $type:expr, $expected: expr) => {
+        ($name: ident, $package: expr, $type:expr, $expected: expr) => {
             #[test]
             fn $name() {
-                let module = $module;
-                let layout = build_type_layout(&module, &$type);
+                let package = $package;
+                let layout = build_type_layout(&package, &$type);
                 assert_eq!(layout, $expected)
             }
         };
         ($name: ident, $type:expr, $expected: expr) => {
             #[test]
             fn $name() {
-                let module = Module::default();
-                let layout = build_type_layout(&module, &$type);
+                let package = Package::default();
+                let layout = build_type_layout(&package, &$type);
                 assert_eq!(layout, $expected)
             }
         };
@@ -2450,7 +2450,7 @@ mod tests {
 
     test_layout! {
         test_layout_struct_1,
-        Module{
+        Package{
             symbols: vec![],
             types: vec![Type::Int(IntType::i32()), Type::Bool],
             typeargs: vec![],
@@ -2466,7 +2466,7 @@ mod tests {
 
     test_layout! {
         test_layout_struct_2,
-        Module{
+        Package{
             symbols: vec![],
             types: vec![Type::Int(IntType::i32()), Type::Bool],
             typeargs: vec![],
