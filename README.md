@@ -50,14 +50,21 @@ fn gcd(a: i64, b: i64): i64 {
   return a;
 }
 
-// function with @main() annotation will be executed first.
+// main is the first function executed.
 @main()
 fn main() {
   let a: i64 = 1260;
   let b: i64 = 165;
   // calling a function
   let c: i64 = gcd(a, b);
-  fmt.print_i64(c);
+  fmt::print_i64(c);
+  fmt::print_str("\n");
 }
 ```
+
+# TODOs
+
+[] Char literal
+[] For loops
+[] Public and private modifiers
 

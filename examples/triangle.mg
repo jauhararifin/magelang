@@ -7,17 +7,17 @@ fn main() {
   while i < n {
     let j = 0;
     while j < n-i-1 {
-      fmt.print_str(" ");
+      fmt::print_str(" ");
       j = j + 1;
     }
 
     j = 0;
     while j < 2*i+1 {
-      fmt.print_str("*");
+      fmt::print_str("*");
       j = j + 1;
     }
 
-    fmt.print_str("\n");
+    fmt::print_str("\n");
     i = i + 1;
   }
 }

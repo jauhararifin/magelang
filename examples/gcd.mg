@@ -26,5 +26,6 @@ fn main() {
   let b: i64 = 165;
   // calling a function
   let c: i64 = gcd(a, b);
-  fmt.print_i64(c);
+  fmt::print_i64(c);
+  fmt::print_str("\n");
 }
