@@ -1021,7 +1021,9 @@ impl Generator {
             ExprKind::GetElementAddr(addr, field) => {
                 let mut result = self.build_value_expr(addr);
 
-                let Type::Ptr(element_type_id) = self.module.types[addr.ty.0] else { unreachable!() };
+                let Type::Ptr(element_type_id) = self.module.types[addr.ty.0] else {
+                    unreachable!()
+                };
                 let struct_layout = self.struct_layouts.get(&element_type_id).unwrap();
                 let mem_offset = struct_layout.mem_offset[*field];
                 result.push(wasm::Instr::I32Const(mem_offset as i32));
@@ -1033,7 +1035,9 @@ impl Generator {
                 let mut result = self.build_value_expr(arr);
 
                 // TODO: (optimization) optimize field layout calculation by using cache.
-                let Type::ArrayPtr(element_type_id) = self.module.types[arr.ty.0] else { unreachable!() };
+                let Type::ArrayPtr(element_type_id) = self.module.types[arr.ty.0] else {
+                    unreachable!()
+                };
                 let element_type = &self.module.types[element_type_id.0];
                 let element_layout = build_type_layout(&self.module, element_type);
                 let element_size = element_layout.mem_size;
@@ -1048,7 +1052,9 @@ impl Generator {
             ExprKind::Deref(addr) => {
                 let mut result = self.build_value_expr(&addr);
 
-                let Type::Ptr(element_type_id) = self.module.types[addr.ty.0] else { unreachable!() };
+                let Type::Ptr(element_type_id) = self.module.types[addr.ty.0] else {
+                    unreachable!()
+                };
                 let mut stack = vec![(0u32, element_type_id)];
                 while let Some((offset, element_type_id)) = stack.pop() {
                     let ty = &self.module.types[element_type_id.0];

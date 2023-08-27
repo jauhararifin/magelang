@@ -727,16 +727,16 @@ fn get_expr_from_selection_node<E: ErrorReporter>(
 
     let selection_name = ctx.symbols.define(&selection_node.selection.value);
     let Some((idx, _, field_type_id)) = struct_type.fields.get_full(&selection_name) else {
-            ctx.errors.undeclared_field(
-                selection_node.selection.pos,
-                &selection_node.selection.value,
-            );
-            return Expr {
-                ty: ctx.types.define(Type::Unknown),
-                kind: ExprKind::Invalid,
-                assignable: false,
-            };
+        ctx.errors.undeclared_field(
+            selection_node.selection.pos,
+            &selection_node.selection.value,
+        );
+        return Expr {
+            ty: ctx.types.define(Type::Unknown),
+            kind: ExprKind::Invalid,
+            assignable: false,
         };
+    };
 
     let assignable = value.assignable;
     if is_ptr {
