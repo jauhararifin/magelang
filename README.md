@@ -64,7 +64,7 @@ fn main() {
 
 # TODOs
 
-[] Char literal
-[] For loops
-[] Public and private modifiers
+- [ ] Char literal
+- [ ] For loops
+- [ ] Public and private modifiers
 
