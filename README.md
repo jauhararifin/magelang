@@ -1,7 +1,7 @@
 # Magelang
 
 Magelang is a toy programming language I build just for fun. As for now, Magelang is only targetting web assembly.
-The syntax is similar to Go and Rust.
+The syntax is similar to Go and Rust. Magelang is in early development stage and doesn't have a lot of features yet.
 
 This project is in WIP state.
 
@@ -61,6 +61,72 @@ fn main() {
   fmt::print_str("\n");
 }
 ```
+
+# Guide
+
+## Installing
+
+```
+cargo install --path magelang
+```
+
+## Hello World
+
+```
+// the main functino should be annotated with @main() annotation.
+// You can call your main function anything you want, as long as it has
+// @main() annotation, it will be treated as a main function.
+@main()
+fn the_main_function() {
+  // use let to define a variable.
+  let msg = "Hello, world\n";
+
+  // we can cast a number to a pointer. In this case, we cast the number 40 to pointer to IoVec.
+  // This is like allocating an IoVec struct in address 40. Note that this is not a good way
+  // to allocate memory since address 40 might not be existed, or might be used to store some
+  // other data. Ideally, you should write memory allocator yourself to avoid these problem.
+  // But, since our case is so simple, we know that we can use address 40 to allocate IoVec.
+  let iovec = 40 as *IoVec;
+
+  // iovec.p access the address of field p in the IoVec struct. Note that it doesn't access
+  // the field, but only the address. To dereference the address, you can use .* operator.
+  // The line below assign msg (pointer to u8) to iovec.p field.
+  iovec.p.* = msg;
+  // Similarly, we also assign the len of the msg to iovec.len field.
+  iovec.len.* = 13;
+
+  // We use WASI's fd_write (https://github.com/WebAssembly/WASI/blob/main/legacy/preview1/docs.md#-iovec-record)
+  // to write bytes to stdout file.
+  fd_write(stdout, iovec, 1, 0 as *i32);
+}
+
+// IoVec is WASI's [Iovec](https://github.com/WebAssembly/WASI/blob/main/legacy/preview1/docs.md#-iovec-record)
+// structure representation.
+struct IoVec {
+  p: [*]u8,
+  len: i32,
+}
+
+// stdout is the file descriptor id for standard output.
+let stdout: i32 = 1;
+
+// To import web assembly function from host environment, you can use @wasm_import(...)
+// annotation. The @wasm_import annotation takes two string arguments, the module and the
+// name of the function you want to import.
+// In this case, we imported a [WASI](https://wasi.dev/) function from host environment to 
+// write bytes to file.
+@wasm_import("wasi_snapshot_preview1", "fd_write")
+fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
+```
+
+Save this code into a file named `hello.mg` and run `magelang compile hello -o hello.wasm`.
+You should have a compiled program named `hello.wasm` in your directory now. You can run
+the compiled webassembly program using webassembly runtime or load it to your host program.
+To run it using wasmtime, you can run `wasmtime hello.wasm`. You should see "Hello, world"
+text printed in your terminal.
+
+As for now, Magelang doesn't have an official standard library and package manager yet. So,
+we need to build everything ourself from scratch.
 
 # TODOs
 
