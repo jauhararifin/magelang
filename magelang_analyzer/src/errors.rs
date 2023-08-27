@@ -33,6 +33,10 @@ pub trait SemanticError: ErrorReporter {
         );
     }
 
+    fn expr_not_a_path(&self, pos: Pos) {
+        self.report(pos, String::from("The expression is not a path"));
+    }
+
     fn expr_not_a_type(&self, pos: Pos) {
         self.report(pos, String::from("The expression is not a type"));
     }
@@ -42,6 +46,13 @@ pub trait SemanticError: ErrorReporter {
     }
 
     fn type_arguments_count_mismatch(&self, pos: Pos, expected: usize, found: usize) {
+        if found == 0 {
+            self.report(
+                pos,
+                format!("Expected {expected} type arguments, but no type arguments found"),
+            );
+            return;
+        }
         self.report(
             pos,
             format!("Expected {expected} type arguments, but found {found}"),

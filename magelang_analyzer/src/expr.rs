@@ -11,8 +11,7 @@ use crate::ty::{
 use crate::value::value_from_string_lit;
 use magelang_syntax::{
     BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ErrorReporter, ExprNode,
-    IndexExprNode, InstanceExprNode, SelectionExprNode, StructExprNode, Token, TokenKind,
-    UnaryExprNode,
+    IndexExprNode, PathNode, SelectionExprNode, StructExprNode, Token, TokenKind, UnaryExprNode,
 };
 use std::collections::HashMap;
 use std::iter::zip;
@@ -83,7 +82,7 @@ pub fn get_expr_from_node<E: ErrorReporter>(
     node: &ExprNode,
 ) -> Expr {
     match node {
-        ExprNode::Ident(token) => get_expr_from_ident(ctx, expected_type, token),
+        ExprNode::Path(node) => get_expr_from_path(ctx, expected_type, node),
         ExprNode::Integer(token) => get_expr_from_int_lit(ctx, expected_type, token),
         ExprNode::Frac(token) => get_expr_from_float_lit(ctx, expected_type, token),
         ExprNode::Bool(token) => get_expr_from_boolean_lit(ctx, token),
@@ -98,19 +97,16 @@ pub fn get_expr_from_node<E: ErrorReporter>(
             get_expr_from_selection_node(ctx, expected_type, selection_node)
         }
         ExprNode::Index(node) => get_expr_from_index_node(ctx, expected_type, node),
-        ExprNode::Instance(node) => get_expr_from_instance_node(ctx, node),
         ExprNode::Grouped(node) => get_expr_from_node(ctx, expected_type, node),
     }
 }
 
-fn get_expr_from_ident<E: ErrorReporter>(
+fn get_expr_from_path<E: ErrorReporter>(
     ctx: &TypeCheckContext<E>,
     expected_type: Option<TypeId>,
-    token: &Token,
+    node: &PathNode,
 ) -> Expr {
-    let name = ctx.symbols.define(&token.value);
-    let Some(obj) = ctx.scope.lookup(name) else {
-        ctx.errors.undeclared_symbol(token.pos, &token.value);
+    let Some(object) = get_object_from_path(ctx, &node.names) else {
         return Expr {
             ty: expected_type.unwrap_or(ctx.types.define(Type::Unknown)),
             kind: ExprKind::Invalid,
@@ -118,34 +114,76 @@ fn get_expr_from_ident<E: ErrorReporter>(
         };
     };
 
-    match obj {
-        Object::Import(..)
-        | Object::GenericStruct(..)
-        | Object::GenericFunc(..)
-        | Object::Struct(..)
-        | Object::Type(..) => {
-            ctx.errors.expr_not_a_value(token.pos);
+    let is_generic = !node.args.is_empty();
+
+    match object {
+        Object::Import(..) | Object::GenericStruct(..) | Object::Struct(..) | Object::Type(..) => {
+            ctx.errors.expr_not_a_value(node.pos());
             Expr {
                 ty: expected_type.unwrap_or(ctx.types.define(Type::Unknown)),
                 kind: ExprKind::Invalid,
                 assignable: false,
             }
         }
-        Object::Global(global_obj) => Expr {
-            ty: *global_obj.ty.get().expect("missing global type"),
-            kind: ExprKind::Global(global_obj.def_id),
-            assignable: true,
-        },
-        Object::Local(local_obj) => Expr {
-            ty: local_obj.ty,
-            kind: ExprKind::Local(local_obj.id),
-            assignable: true,
-        },
-        Object::Func(func_obj) => Expr {
-            ty: *func_obj.ty.get().expect("missing function type"),
-            kind: ExprKind::Func(func_obj.def_id),
-            assignable: false,
-        },
+        Object::GenericFunc(generic_func) => {
+            let expected_type_param = generic_func.signature.type_params.len();
+            let provided_type_param = node.args.len();
+            if expected_type_param != provided_type_param {
+                ctx.errors.type_arguments_count_mismatch(
+                    node.pos(),
+                    expected_type_param,
+                    provided_type_param,
+                );
+            }
+
+            let type_id = *generic_func
+                .ty
+                .get()
+                .expect("missing generic function type");
+            let type_args: Vec<TypeId> = node
+                .args
+                .iter()
+                .map(|type_expr| get_type_from_node(ctx, type_expr))
+                .collect();
+            let instance_type_id = substitute_generic_args(ctx, &type_args, type_id);
+
+            let typeargs_id = ctx.typeargs.define(&type_args);
+            Expr {
+                ty: instance_type_id,
+                kind: ExprKind::FuncInst(generic_func.def_id, typeargs_id),
+                assignable: false,
+            }
+        }
+        Object::Global(global_obj) => {
+            if is_generic {
+                ctx.errors.non_generic_value(node.pos());
+            }
+            Expr {
+                ty: *global_obj.ty.get().expect("missing global type"),
+                kind: ExprKind::Global(global_obj.def_id),
+                assignable: true,
+            }
+        }
+        Object::Local(local_obj) => {
+            if is_generic {
+                ctx.errors.non_generic_value(node.pos());
+            }
+            Expr {
+                ty: local_obj.ty,
+                kind: ExprKind::Local(local_obj.id),
+                assignable: true,
+            }
+        }
+        Object::Func(func_obj) => {
+            if is_generic {
+                ctx.errors.non_generic_value(node.pos());
+            }
+            Expr {
+                ty: *func_obj.ty.get().expect("missing function type"),
+                kind: ExprKind::Func(func_obj.def_id),
+                assignable: false,
+            }
+        }
     }
 }
 
@@ -661,68 +699,37 @@ fn get_expr_from_selection_node<E: ErrorReporter>(
     expected_type: Option<TypeId>,
     selection_node: &SelectionExprNode,
 ) -> Expr {
-    if let Some(obj) = get_object_from_selection(ctx, selection_node) {
-        match obj {
-            Object::Global(global_obj) => Expr {
-                ty: *global_obj.ty.get().expect("missing global type"),
-                kind: ExprKind::Global(global_obj.def_id),
-                assignable: true,
-            },
-            Object::Local(local_obj) => Expr {
-                ty: local_obj.ty,
-                kind: ExprKind::Local(local_obj.id),
-                assignable: true,
-            },
-            Object::Func(func_obj) => Expr {
-                ty: *func_obj.ty.get().expect("missing function type"),
-                kind: ExprKind::Func(func_obj.def_id),
+    let value = get_expr_from_node(ctx, None, &selection_node.value);
+
+    let mut ty = ctx.types.get(value.ty);
+    let mut is_ptr = false;
+
+    if let Type::Ptr(element_type_id) = ty.as_ref() {
+        let element_ty = ctx.types.get(*element_type_id);
+        is_ptr = true;
+        ty = element_ty;
+    }
+
+    let struct_type = match ty.as_ref() {
+        Type::NamedStruct(named_struct_type) => {
+            named_struct_type.body.get().expect("missing struct body")
+        }
+        Type::NamedStructInst(named_struct_inst) => &named_struct_inst.body,
+        _ => {
+            ctx.errors.non_field_type(
+                selection_node.selection.pos,
+                &selection_node.selection.value,
+            );
+            return Expr {
+                ty: ctx.types.define(Type::Unknown),
+                kind: ExprKind::Invalid,
                 assignable: false,
-            },
-            Object::Import(..)
-            | Object::Struct(..)
-            | Object::Type(..)
-            | Object::GenericFunc(..)
-            | Object::GenericStruct(..) => {
-                ctx.errors.expr_not_a_value(selection_node.value.pos());
-                Expr {
-                    ty: ctx.types.define(Type::Unknown),
-                    kind: ExprKind::Invalid,
-                    assignable: false,
-                }
-            }
+            };
         }
-    } else {
-        let value = get_expr_from_node(ctx, expected_type, &selection_node.value);
+    };
 
-        let mut ty = ctx.types.get(value.ty);
-        let mut is_ptr = false;
-
-        if let Type::Ptr(element_type_id) = ty.as_ref() {
-            let element_ty = ctx.types.get(*element_type_id);
-            is_ptr = true;
-            ty = element_ty;
-        }
-
-        let struct_type = match ty.as_ref() {
-            Type::NamedStruct(named_struct_type) => {
-                named_struct_type.body.get().expect("missing struct body")
-            }
-            Type::NamedStructInst(named_struct_inst) => &named_struct_inst.body,
-            _ => {
-                ctx.errors.non_field_type(
-                    selection_node.selection.pos,
-                    &selection_node.selection.value,
-                );
-                return Expr {
-                    ty: ctx.types.define(Type::Unknown),
-                    kind: ExprKind::Invalid,
-                    assignable: false,
-                };
-            }
-        };
-
-        let selection_name = ctx.symbols.define(&selection_node.selection.value);
-        let Some((idx, _, field_type_id)) = struct_type.fields.get_full(&selection_name) else {
+    let selection_name = ctx.symbols.define(&selection_node.selection.value);
+    let Some((idx, _, field_type_id)) = struct_type.fields.get_full(&selection_name) else {
             ctx.errors.undeclared_field(
                 selection_node.selection.pos,
                 &selection_node.selection.value,
@@ -734,19 +741,18 @@ fn get_expr_from_selection_node<E: ErrorReporter>(
             };
         };
 
-        let assignable = value.assignable;
-        if is_ptr {
-            Expr {
-                ty: ctx.types.define(Type::Ptr(*field_type_id)),
-                kind: ExprKind::GetElementAddr(Box::new(value), idx),
-                assignable,
-            }
-        } else {
-            Expr {
-                ty: *field_type_id,
-                kind: ExprKind::GetElement(Box::new(value), idx),
-                assignable,
-            }
+    let assignable = value.assignable;
+    if is_ptr {
+        Expr {
+            ty: ctx.types.define(Type::Ptr(*field_type_id)),
+            kind: ExprKind::GetElementAddr(Box::new(value), idx),
+            assignable,
+        }
+    } else {
+        Expr {
+            ty: *field_type_id,
+            kind: ExprKind::GetElement(Box::new(value), idx),
+            assignable,
         }
     }
 }
@@ -795,81 +801,38 @@ fn get_expr_from_index_node<E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_instance_node<E: ErrorReporter>(
-    ctx: &TypeCheckContext<E>,
-    node: &InstanceExprNode,
-) -> Expr {
-    let Some(obj) = get_object_from_expr(ctx, &node.value) else {
-        ctx.errors.non_generic_value(node.value.pos());
-        return Expr {
-            ty: ctx.types.define(Type::Unknown),
-            kind: ExprKind::Invalid,
-            assignable: false,
-        };
-    };
-
-    let Some(generic_func) = obj.as_generic_func() else {
-        ctx.errors.non_generic_value(node.value.pos());
-        return Expr {
-            ty: ctx.types.define(Type::Unknown),
-            kind: ExprKind::Invalid,
-            assignable: false,
-        };
-    };
-
-    let expected_type_param = generic_func.signature.type_params.len();
-    let provided_type_param = node.args.len();
-    if expected_type_param != provided_type_param {
-        ctx.errors.type_arguments_count_mismatch(
-            node.value.pos(),
-            expected_type_param,
-            provided_type_param,
-        );
-    }
-
-    let type_id = *generic_func
-        .ty
-        .get()
-        .expect("missing generic function type");
-    let type_args: Vec<TypeId> = node
-        .args
-        .iter()
-        .map(|type_expr| get_type_from_node(ctx, type_expr))
-        .collect();
-    let instance_type_id = substitute_generic_args(ctx, &type_args, type_id);
-
-    let typeargs_id = ctx.typeargs.define(&type_args);
-    Expr {
-        ty: instance_type_id,
-        kind: ExprKind::FuncInst(generic_func.def_id, typeargs_id),
-        assignable: false,
-    }
-}
-
-fn get_object_from_expr<'ctx, E>(
+fn get_object_from_path<'ctx, E: ErrorReporter>(
     ctx: &'ctx TypeCheckContext<'ctx, E>,
-    node: &ExprNode,
+    paths: &[Token],
 ) -> Option<&'ctx Object> {
-    match node {
-        ExprNode::Ident(token) => ctx.scope.lookup(ctx.symbols.define(&token.value)),
-        ExprNode::Selection(node) => get_object_from_selection(ctx, node),
-        _ => None,
-    }
-}
+    assert!(!paths.is_empty());
 
-fn get_object_from_selection<'ctx, E>(
-    ctx: &'ctx TypeCheckContext<'ctx, E>,
-    node: &SelectionExprNode,
-) -> Option<&'ctx Object> {
-    let ExprNode::Ident(token) = node.value.as_ref() else {
+    let name = ctx.symbols.define(&paths[0].value);
+    let Some(object) = ctx.scope.lookup(name) else {
+        ctx.errors.undeclared_symbol(paths[0].pos, &paths[0].value);
         return None;
     };
-    let ident_name = ctx.symbols.define(&token.value);
-    let object = ctx.scope.lookup(ident_name)?;
-    let import_object = object.as_import()?;
-    let package_scope = ctx.package_scopes.get(&import_object.package)?;
-    let selection = ctx.symbols.define(&node.selection.value);
-    package_scope.lookup(selection)
+
+    if paths.len() == 1 {
+        return Some(object);
+    }
+
+    let Some(import_object) = object.as_import() else {
+        ctx.errors.expr_not_a_path(paths[0].pos);
+        return None;
+    };
+
+    let scope = ctx
+        .package_scopes
+        .get(&import_object.package)
+        .expect("missing package scope");
+    let name = ctx.symbols.define(&paths[1].value);
+    let Some(object) = scope.lookup(name) else {
+        ctx.errors.undeclared_symbol(paths[1].pos, &paths[1].value);
+        return None;
+    };
+
+    Some(object)
 }
 
 pub fn monomorphize_expr<E>(ctx: &TypeCheckContext<E>, arg_table: &[TypeId], expr: &Expr) -> Expr {
