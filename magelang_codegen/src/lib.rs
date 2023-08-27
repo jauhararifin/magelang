@@ -1050,7 +1050,7 @@ impl Generator {
                 result
             }
             ExprKind::Deref(addr) => {
-                let mut result = self.build_value_expr(&addr);
+                let mut result = self.build_value_expr(addr);
 
                 let Type::Ptr(element_type_id) = self.module.types[addr.ty.0] else {
                     unreachable!()

@@ -181,7 +181,7 @@ fn get_type_from_path_node<E: ErrorReporter>(
         | Object::Func(..)
         | Object::GenericFunc(..) => {
             ctx.errors.expr_not_a_type(node.pos());
-            return ctx.types.define(Type::Unknown);
+            ctx.types.define(Type::Unknown)
         }
         Object::Type(type_id) => {
             if is_generic {

@@ -291,7 +291,7 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Package {
     let mut globals = Vec::default();
     let mut functions = Vec::default();
 
-    for (_, scope) in ctx.package_scopes {
+    for scope in ctx.package_scopes.values() {
         for (_, object) in scope.iter() {
             match object {
                 Object::Func(func_object) => {
@@ -400,7 +400,7 @@ fn build_function_ir<E>(
     for type_id in func_type.params.iter() {
         locals.push(type_mapper.get_type_id(ctx, *type_id));
     }
-    let statement = build_stmt_ir(ctx, &name_maps, &type_mapper, &[], &mut locals, body);
+    let statement = build_stmt_ir(ctx, name_maps, type_mapper, &[], &mut locals, body);
 
     Function {
         id: object_id,
@@ -731,7 +731,7 @@ fn map_names<E>(ctx: &TypeCheckContext<E>) -> NameMaps {
     let mut func_to_idx = IndexMap::<Name, FunctionId>::default();
     let mut global_to_idx = IndexMap::<DefId, GlobalId>::default();
 
-    for (_, scope) in ctx.package_scopes {
+    for scope in ctx.package_scopes.values() {
         for (_, object) in scope.iter() {
             match object {
                 Object::Func(func_object) => {
