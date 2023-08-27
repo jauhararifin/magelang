@@ -1,4 +1,5 @@
 use crate::analyze::{Context, TypeCheckContext};
+use crate::errors::SemanticError;
 use crate::expr::Expr;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
@@ -8,7 +9,8 @@ use crate::tree_ir;
 use crate::ty::{BitSize, FloatType, StructBody, Type, TypeArg, TypeArgsId, TypeId};
 use indexmap::IndexMap;
 use magelang_syntax::{
-    BlockStatementNode, GlobalNode, Pos, SignatureNode, StructNode, TypeParameterNode,
+    BlockStatementNode, ErrorReporter, GlobalNode, Pos, SignatureNode, StructNode, Token,
+    TypeParameterNode,
 };
 use std::cell::OnceCell;
 use std::rc::Rc;
@@ -204,4 +206,38 @@ pub fn build_scope_for_typeparam<E>(
         typeparam_table.insert(typeparam, type_param_obj);
     }
     Rc::new(ctx.scope.new_child(typeparam_table))
+}
+
+pub fn get_object_from_path<'ctx, E: ErrorReporter>(
+    ctx: &'ctx TypeCheckContext<'ctx, E>,
+    paths: &[Token],
+) -> Option<&'ctx Object> {
+    assert!(!paths.is_empty());
+
+    let name = ctx.symbols.define(&paths[0].value);
+    let Some(object) = ctx.scope.lookup(name) else {
+        ctx.errors.undeclared_symbol(paths[0].pos, &paths[0].value);
+        return None;
+    };
+
+    if paths.len() == 1 {
+        return Some(object);
+    }
+
+    let Some(import_object) = object.as_import() else {
+        ctx.errors.expr_not_a_path(paths[0].pos);
+        return None;
+    };
+
+    let scope = ctx
+        .package_scopes
+        .get(&import_object.package)
+        .expect("missing package scope");
+    let name = ctx.symbols.define(&paths[1].value);
+    let Some(object) = scope.lookup(name) else {
+        ctx.errors.undeclared_symbol(paths[1].pos, &paths[1].value);
+        return None;
+    };
+
+    Some(object)
 }

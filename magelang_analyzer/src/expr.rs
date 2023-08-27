@@ -2,7 +2,7 @@ use crate::analyze::TypeCheckContext;
 use crate::errors::SemanticError;
 use crate::interner::{SizedInterner, UnsizedInterner};
 use crate::name::DefId;
-use crate::scope::Object;
+use crate::scope::{get_object_from_path, Object};
 use crate::symbols::SymbolId;
 use crate::ty::{
     display_type, display_type_id, get_type_from_node, is_type_assignable, substitute_generic_args,
@@ -93,9 +93,7 @@ pub fn get_expr_from_node<E: ErrorReporter>(
         ExprNode::Call(node) => get_expr_from_call_node(ctx, expected_type, node),
         ExprNode::Cast(node) => get_expr_from_cast_node(ctx, expected_type, node),
         ExprNode::Struct(struct_lit_node) => get_expr_from_struct_lit_node(ctx, struct_lit_node),
-        ExprNode::Selection(selection_node) => {
-            get_expr_from_selection_node(ctx, expected_type, selection_node)
-        }
+        ExprNode::Selection(selection_node) => get_expr_from_selection_node(ctx, selection_node),
         ExprNode::Index(node) => get_expr_from_index_node(ctx, expected_type, node),
         ExprNode::Grouped(node) => get_expr_from_node(ctx, expected_type, node),
     }
@@ -696,7 +694,6 @@ fn get_expr_from_struct_lit_node<E: ErrorReporter>(
 
 fn get_expr_from_selection_node<E: ErrorReporter>(
     ctx: &TypeCheckContext<E>,
-    expected_type: Option<TypeId>,
     selection_node: &SelectionExprNode,
 ) -> Expr {
     let value = get_expr_from_node(ctx, None, &selection_node.value);
@@ -799,40 +796,6 @@ fn get_expr_from_index_node<E: ErrorReporter>(
             }
         }
     }
-}
-
-fn get_object_from_path<'ctx, E: ErrorReporter>(
-    ctx: &'ctx TypeCheckContext<'ctx, E>,
-    paths: &[Token],
-) -> Option<&'ctx Object> {
-    assert!(!paths.is_empty());
-
-    let name = ctx.symbols.define(&paths[0].value);
-    let Some(object) = ctx.scope.lookup(name) else {
-        ctx.errors.undeclared_symbol(paths[0].pos, &paths[0].value);
-        return None;
-    };
-
-    if paths.len() == 1 {
-        return Some(object);
-    }
-
-    let Some(import_object) = object.as_import() else {
-        ctx.errors.expr_not_a_path(paths[0].pos);
-        return None;
-    };
-
-    let scope = ctx
-        .package_scopes
-        .get(&import_object.package)
-        .expect("missing package scope");
-    let name = ctx.symbols.define(&paths[1].value);
-    let Some(object) = scope.lookup(name) else {
-        ctx.errors.undeclared_symbol(paths[1].pos, &paths[1].value);
-        return None;
-    };
-
-    Some(object)
 }
 
 pub fn monomorphize_expr<E>(ctx: &TypeCheckContext<E>, arg_table: &[TypeId], expr: &Expr) -> Expr {

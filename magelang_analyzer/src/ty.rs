@@ -2,10 +2,10 @@ use crate::analyze::TypeCheckContext;
 use crate::errors::SemanticError;
 use crate::interner::{Id, Interner, SizedInterner, UnsizedInterner};
 use crate::name::DefId;
-use crate::scope::{build_scope_for_typeparam, Object};
+use crate::scope::{build_scope_for_typeparam, get_object_from_path, Object};
 use crate::symbols::SymbolId;
 use indexmap::IndexMap;
-use magelang_syntax::{ErrorReporter, NamedTypeNode, Pos, SignatureNode, TypeExprNode};
+use magelang_syntax::{ErrorReporter, PathNode, Pos, SignatureNode, TypeExprNode};
 use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -151,7 +151,7 @@ pub fn get_type_from_node<E: ErrorReporter>(
 ) -> TypeId {
     match node {
         TypeExprNode::Invalid(..) => ctx.types.define(Type::Unknown),
-        TypeExprNode::Named(named_type_node) => get_type_from_named_type_node(ctx, named_type_node),
+        TypeExprNode::Path(node) => get_type_from_path_node(ctx, node),
         TypeExprNode::Ptr(node) => {
             let element_type_id = get_type_from_node(ctx, &node.ty);
             ctx.types.define(Type::Ptr(element_type_id))
@@ -160,17 +160,42 @@ pub fn get_type_from_node<E: ErrorReporter>(
             let element_type_id = get_type_from_node(ctx, &node.ty);
             ctx.types.define(Type::ArrayPtr(element_type_id))
         }
-        TypeExprNode::Instance(node) => {
-            let Some(obj) = get_object_from_named_type_node(ctx, &node.ty) else {
-                ctx.errors.expr_not_a_type(node.ty.pos());
-                return ctx.types.define(Type::Unknown);
-            };
+        TypeExprNode::Grouped(node) => get_type_from_node(ctx, node),
+    }
+}
 
-            let Object::GenericStruct(generic_struct) = obj else {
-                ctx.errors.expr_not_a_type(node.ty.pos());
-                return ctx.types.define(Type::Unknown);
-            };
+fn get_type_from_path_node<E: ErrorReporter>(
+    ctx: &TypeCheckContext<'_, E>,
+    node: &PathNode,
+) -> TypeId {
+    let Some(object) = get_object_from_path(ctx, &node.names) else {
+        return ctx.types.define(Type::Unknown);
+    };
 
+    let is_generic = !node.args.is_empty();
+
+    match object {
+        Object::Import(..)
+        | Object::Global(..)
+        | Object::Local(..)
+        | Object::Func(..)
+        | Object::GenericFunc(..) => {
+            ctx.errors.expr_not_a_type(node.pos());
+            return ctx.types.define(Type::Unknown);
+        }
+        Object::Type(type_id) => {
+            if is_generic {
+                ctx.errors.non_generic_value(node.pos());
+            }
+            *type_id
+        }
+        Object::Struct(struct_object) => {
+            if is_generic {
+                ctx.errors.non_generic_value(node.pos());
+            }
+            struct_object.type_id
+        }
+        Object::GenericStruct(generic_struct) => {
             let required_type_param = generic_struct.node.type_params.len();
             let mut type_args: Vec<TypeId> = node
                 .args
@@ -180,7 +205,7 @@ pub fn get_type_from_node<E: ErrorReporter>(
 
             if type_args.len() != required_type_param {
                 ctx.errors.type_arguments_count_mismatch(
-                    node.ty.pos(),
+                    node.pos(),
                     required_type_param,
                     type_args.len(),
                 );
@@ -205,49 +230,6 @@ pub fn get_type_from_node<E: ErrorReporter>(
                 body: instanced_struct_body,
             });
             ctx.types.define(ty)
-        }
-        TypeExprNode::Grouped(node) => get_type_from_node(ctx, node),
-    }
-}
-
-fn get_type_from_named_type_node<E: ErrorReporter>(
-    ctx: &TypeCheckContext<'_, E>,
-    named_type_node: &NamedTypeNode,
-) -> TypeId {
-    let Some(object) = get_object_from_named_type_node(ctx, named_type_node) else {
-        let name = match named_type_node {
-            NamedTypeNode::Ident(name_tok) => &name_tok.value,
-            NamedTypeNode::Selection(.., name_tok) => &name_tok.value,
-        };
-
-        ctx.errors.undeclared_symbol(named_type_node.pos(), name);
-        return ctx.types.define(Type::Unknown);
-    };
-
-    let Some(type_id) = object.type_id() else {
-        ctx.errors.expr_not_a_type(named_type_node.pos());
-        return ctx.types.define(Type::Unknown);
-    };
-    type_id
-}
-
-fn get_object_from_named_type_node<'ctx, E: ErrorReporter>(
-    ctx: &'ctx TypeCheckContext<'ctx, E>,
-    named_type_node: &NamedTypeNode,
-) -> Option<&'ctx Object> {
-    match named_type_node {
-        NamedTypeNode::Ident(name_tok) => {
-            let name = ctx.symbols.define(&name_tok.value);
-            ctx.scope.lookup(name)
-        }
-        NamedTypeNode::Selection(package_tok, name_tok) => {
-            let package_name = ctx.symbols.define(&package_tok.value);
-            let obj = ctx.scope.lookup(package_name)?;
-            let import_obj = obj.as_import()?;
-            let package_scope = ctx.package_scopes.get(&import_obj.package)?;
-
-            let name = ctx.symbols.define(&name_tok.value);
-            package_scope.lookup(name)
         }
     }
 }
