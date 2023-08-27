@@ -15,6 +15,7 @@ use magelang_syntax::{
 use std::cell::OnceCell;
 use std::rc::Rc;
 
+#[derive(Default)]
 pub struct Scope {
     table: IndexMap<SymbolId, Object>,
     parent: Option<Rc<Scope>>,
@@ -229,10 +230,11 @@ pub fn get_object_from_path<'ctx, E: ErrorReporter>(
         return None;
     };
 
-    let scope = ctx
-        .package_scopes
-        .get(&import_object.package)
-        .expect("missing package scope");
+    let Some(scope) = ctx.package_scopes.get(&import_object.package) else {
+        ctx.errors.undeclared_symbol(paths[1].pos, &paths[1].value);
+        return None;
+    };
+
     let name = ctx.symbols.define(&paths[1].value);
     let Some(object) = scope.lookup(name) else {
         ctx.errors.undeclared_symbol(paths[1].pos, &paths[1].value);

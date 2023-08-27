@@ -5,6 +5,7 @@ use magelang_syntax::{parse, ErrorManager, FileManager};
 use wasm_helper::Serializer;
 
 #[derive(Parser)]
+#[command(author, version, about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

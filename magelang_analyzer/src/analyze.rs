@@ -722,6 +722,7 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
         }
     }
 
+    let empty_scope = Rc::new(Scope::default());
     let mut monomorphized_funcs = HashMap::<DefId, Vec<TypeArgsId>>::default();
     let mut func_insts = IndexSet::<(DefId, TypeArgsId)>::default();
     while let Some(item) = queue.pop_front() {
@@ -840,7 +841,7 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
                 let generic_func = ctx
                     .package_scopes
                     .get(&def_id.package)
-                    .expect("missing package scope")
+                    .unwrap_or(&empty_scope)
                     .lookup(def_id.name)
                     .expect("missing object")
                     .as_generic_func()
@@ -863,7 +864,7 @@ fn monomorphize_functions<E>(ctx: &TypeCheckContext<E>) {
         let generic_func_obj = ctx
             .package_scopes
             .get(&def_id.package)
-            .expect("missing package scope")
+            .unwrap_or(&empty_scope)
             .lookup(def_id.name)
             .expect("missing object")
             .as_generic_func()
