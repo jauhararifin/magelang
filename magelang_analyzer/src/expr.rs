@@ -597,6 +597,8 @@ fn get_expr_from_cast_node<E: ErrorReporter>(
 
     let valid_casting = (value_type.is_integral() && target_type.is_integral())
         || (value_type.is_float() && target_type.is_float())
+        || (value_type.is_integral() && target_type.is_float())
+        || (value_type.is_float() && target_type.is_integral())
         || value_type.is_unknown()
         || target_type.is_unknown();
 

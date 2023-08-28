@@ -1996,59 +1996,133 @@ impl Generator {
                             _ => vec![],
                         }
                     }
-                    Type::Int(source_int_type) => {
-                        let target_int_type = match target_type {
-                            Type::Int(target_int_type) => target_int_type,
-                            Type::Ptr(..) | Type::ArrayPtr(..) => &IntType {
-                                sign: false,
-                                size: BitSize::ISize,
+                    Type::Int(source_int_type) => match (source_int_type, target_type) {
+                        (
+                            IntType {
+                                sign: _,
+                                size: BitSize::I64,
                             },
-                            _ => unreachable!(),
-                        };
-                        match (source_int_type, target_int_type) {
+                            Type::Int(IntType {
+                                sign: _,
+                                size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                            })
+                            | Type::Ptr(..)
+                            | Type::ArrayPtr(..),
+                        ) => vec![wasm::Instr::I32WrapI64],
+                        (
+                            IntType {
+                                sign: true,
+                                size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                            },
+                            Type::Int(IntType {
+                                sign: _,
+                                size: BitSize::I64,
+                            }),
+                        ) => vec![wasm::Instr::I64ExtendI32S],
+                        (
+                            IntType {
+                                sign: false,
+                                size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                            },
+                            Type::Int(IntType {
+                                sign: _,
+                                size: BitSize::I64,
+                            }),
+                        ) => vec![wasm::Instr::I64ExtendI32U],
+                        (IntType { .. }, Type::Int(..) | Type::ArrayPtr(..) | Type::Ptr(..)) => {
+                            vec![]
+                        }
+                        (IntType { .. }, Type::Float(..)) => todo!(),
+                        _ => unreachable!("{source_int_type:?} {target_type:?}"),
+                    },
+                    Type::Float(source_float_type) => match target_type {
+                        Type::Float(target_float_type) => {
+                            match (source_float_type, target_float_type) {
+                                (FloatType::F32, FloatType::F64) => {
+                                    vec![wasm::Instr::F64PromoteF32]
+                                }
+                                (FloatType::F64, FloatType::F32) => {
+                                    vec![wasm::Instr::F32DemoteF64]
+                                }
+                                _ => vec![],
+                            }
+                        }
+                        Type::Int(int_type) => match (source_float_type, int_type) {
                             (
-                                IntType {
-                                    sign: _,
-                                    size: BitSize::I64,
-                                },
-                                IntType {
-                                    sign: _,
-                                    size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                                },
-                            ) => vec![wasm::Instr::I32WrapI64],
-                            (
+                                FloatType::F32,
                                 IntType {
                                     sign: true,
                                     size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                                 },
+                            ) => {
+                                vec![wasm::Instr::I32TruncF32S]
+                            }
+                            (
+                                FloatType::F32,
                                 IntType {
-                                    sign: _,
+                                    sign: true,
                                     size: BitSize::I64,
                                 },
-                            ) => vec![wasm::Instr::I64ExtendI32S],
+                            ) => {
+                                vec![wasm::Instr::I64TruncF32S]
+                            }
                             (
+                                FloatType::F32,
                                 IntType {
                                     sign: false,
                                     size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                                 },
+                            ) => {
+                                vec![wasm::Instr::I32TruncF32U]
+                            }
+                            (
+                                FloatType::F32,
                                 IntType {
-                                    sign: _,
+                                    sign: false,
                                     size: BitSize::I64,
                                 },
-                            ) => vec![wasm::Instr::I64ExtendI32U],
-                            _ => vec![],
-                        }
-                    }
-                    Type::Float(source_float_type) => {
-                        let Type::Float(target_float_type) = target_type else {
-                            unreachable!()
-                        };
-                        match (source_float_type, target_float_type) {
-                            (FloatType::F32, FloatType::F64) => vec![wasm::Instr::F64PromoteF32],
-                            (FloatType::F64, FloatType::F32) => vec![wasm::Instr::F32DemoteF64],
-                            _ => vec![],
-                        }
-                    }
+                            ) => {
+                                vec![wasm::Instr::I64TruncF32U]
+                            }
+                            (
+                                FloatType::F64,
+                                IntType {
+                                    sign: true,
+                                    size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                                },
+                            ) => {
+                                vec![wasm::Instr::I32TruncF64S]
+                            }
+                            (
+                                FloatType::F64,
+                                IntType {
+                                    sign: true,
+                                    size: BitSize::I64,
+                                },
+                            ) => {
+                                vec![wasm::Instr::I64TruncF64S]
+                            }
+                            (
+                                FloatType::F64,
+                                IntType {
+                                    sign: false,
+                                    size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                                },
+                            ) => {
+                                vec![wasm::Instr::I32TruncF64U]
+                            }
+                            (
+                                FloatType::F64,
+                                IntType {
+                                    sign: false,
+                                    size: BitSize::I64,
+                                },
+                            ) => {
+                                vec![wasm::Instr::I64TruncF64U]
+                            }
+                        },
+                        _ => unreachable!(),
+                    },
                     _ => unreachable!(),
                 };
                 result.extend(instrs);
