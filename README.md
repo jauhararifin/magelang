@@ -128,6 +128,63 @@ text printed in your terminal.
 As for now, Magelang doesn't have an official standard library and package manager yet. So,
 we need to build everything ourself from scratch.
 
+## Packages
+
+Magelang has quite simple module system, a file represents a package. You can import a package
+using `import <name> "path/to/package/file"` syntax. For example, let's split hello world example
+above into 2 packages, "hello" package and "fmt" package. Creates two files named `hello.mg` and
+`fmt.mg`:
+
+```
+// hello.mg
+
+import fmt "fmt";
+
+@main()
+fn the_main_function() {
+  let msg = "Hello again, world\n";
+  fmt::print_string(msg);
+}
+```
+
+```
+// fmt.mg
+
+fn print_string(msg: [*]u8) {
+  let len: i32 = 0;
+  while msg[len].* != 0 {
+    len = len + 1;
+  }
+
+  let iovec = 40 as *IoVec;
+  iovec.p.* = msg;
+  iovec.len.* = len;
+  fd_write(stdout, iovec, 1, 0 as *i32);
+}
+
+struct IoVec {
+  p: [*]u8,
+  len: i32,
+}
+
+let stdout: i32 = 1;
+
+@wasm_import("wasi_snapshot_preview1", "fd_write")
+fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
+```
+
+Now, compile it with `magelang compile hello -o hello.wasm`. You should be able to run
+the `hello.wasm` file and see the hello world message.
+
+As you can see, you can import the `fmt` package into `hello` package by writing
+`import fmt "fmt"`. Here, the first `fmt` is the name of the import, we can access all
+items in the `"fmt"` package using `fmt::<the_name_of_the_item>`. The second `"fmt"` is
+the path to fmt package, which is just "fmt".
+
+Magelang uses the current directory as the base path to find the package. In this case,
+"fmt" package is located at `./fmt.mg`. If you put the `fmt.mg` at `./a/b/c/d/fmt.mg`,
+then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
+
 # TODOs
 
 - [ ] Char literal
