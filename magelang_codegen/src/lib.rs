@@ -1044,6 +1044,14 @@ impl Generator {
 
                 result.push(wasm::Instr::I32Const(element_size as i32));
                 result.extend(self.build_value_expr(index));
+
+                let ty = &self.module.types[index.ty.0];
+                if let Type::Int(int_type) = ty {
+                    if int_type.size == BitSize::I64 {
+                        result.push(wasm::Instr::I32WrapI64);
+                    }
+                }
+
                 result.push(wasm::Instr::I32Mul);
                 result.push(wasm::Instr::I32Add);
 

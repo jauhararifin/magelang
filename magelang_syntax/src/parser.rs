@@ -571,33 +571,25 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
 }
 
 fn parse_expr<E: ErrorReporter>(f: &mut FileParser<E>, allow_struct_lit: bool) -> Option<ExprNode> {
-    parse_binary_expr(f, TokenKind::Or, allow_struct_lit)
+    parse_binary_expr(f, &[TokenKind::Or], allow_struct_lit)
 }
 
-const BINOP_PRECEDENCE: &[TokenKind] = &[
-    TokenKind::Or,
-    TokenKind::And,
-    TokenKind::BitOr,
-    TokenKind::BitXor,
-    TokenKind::BitAnd,
-    TokenKind::Eq,
-    TokenKind::NEq,
-    TokenKind::Lt,
-    TokenKind::LEq,
-    TokenKind::Gt,
-    TokenKind::GEq,
-    TokenKind::ShiftLeft,
-    TokenKind::ShiftRight,
-    TokenKind::Add,
-    TokenKind::Sub,
-    TokenKind::Mul,
-    TokenKind::Div,
-    TokenKind::Mod,
+const BINOP_PRECEDENCE: &[&[TokenKind]] = &[
+    &[TokenKind::Or],
+    &[TokenKind::And],
+    &[TokenKind::BitOr],
+    &[TokenKind::BitXor],
+    &[TokenKind::BitAnd],
+    &[TokenKind::Eq, TokenKind::NEq],
+    &[TokenKind::Lt, TokenKind::LEq, TokenKind::Gt, TokenKind::GEq],
+    &[TokenKind::ShiftLeft, TokenKind::ShiftRight],
+    &[TokenKind::Add, TokenKind::Sub],
+    &[TokenKind::Mul, TokenKind::Div, TokenKind::Mod],
 ];
 
 fn parse_binary_expr<E: ErrorReporter>(
     f: &mut FileParser<E>,
-    op: TokenKind,
+    op: &[TokenKind],
     allow_struct_lit: bool,
 ) -> Option<ExprNode> {
     let next_op = BINOP_PRECEDENCE.iter().skip_while(|p| *p != &op).nth(1);
@@ -609,7 +601,8 @@ fn parse_binary_expr<E: ErrorReporter>(
     };
 
     let mut result = a;
-    while let Some(op_token) = f.take_if(op) {
+    while op.contains(&f.kind()) {
+        let op_token = f.pop();
         let b = if let Some(next_op) = next_op {
             parse_binary_expr(f, *next_op, allow_struct_lit)?
         } else {
