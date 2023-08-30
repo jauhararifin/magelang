@@ -187,6 +187,7 @@ then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
 
 # TODOs
 
+- [ ] Support externref type for web assembly
 - [ ] Char literal
 - [ ] For loops
 - [ ] Public and private modifiers

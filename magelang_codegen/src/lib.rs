@@ -1079,7 +1079,7 @@ impl Generator {
                         }
                         Type::Void => (),
                         Type::Bool => {
-                            result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 9 }))
+                            result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }))
                         }
                         Type::Int(IntType {
                             sign: true,
@@ -2032,7 +2032,62 @@ impl Generator {
                         (IntType { .. }, Type::Int(..) | Type::ArrayPtr(..) | Type::Ptr(..)) => {
                             vec![]
                         }
-                        (IntType { .. }, Type::Float(..)) => todo!(),
+                        (
+                            IntType {
+                                sign: true,
+                                size: BitSize::I64,
+                            },
+                            Type::Float(FloatType::F32),
+                        ) => vec![wasm::Instr::F32ConvertI64S],
+                        (
+                            IntType {
+                                sign: false,
+                                size: BitSize::I64,
+                            },
+                            Type::Float(FloatType::F32),
+                        ) => vec![wasm::Instr::F32ConvertI64U],
+                        (
+                            IntType {
+                                sign: true,
+                                size: _,
+                            },
+                            Type::Float(FloatType::F32),
+                        ) => vec![wasm::Instr::F32ConvertI32S],
+                        (
+                            IntType {
+                                sign: false,
+                                size: _,
+                            },
+                            Type::Float(FloatType::F32),
+                        ) => vec![wasm::Instr::F32ConvertI32U],
+                        (
+                            IntType {
+                                sign: true,
+                                size: BitSize::I64,
+                            },
+                            Type::Float(FloatType::F64),
+                        ) => vec![wasm::Instr::F64ConvertI64S],
+                        (
+                            IntType {
+                                sign: false,
+                                size: BitSize::I64,
+                            },
+                            Type::Float(FloatType::F64),
+                        ) => vec![wasm::Instr::F64ConvertI64U],
+                        (
+                            IntType {
+                                sign: true,
+                                size: _,
+                            },
+                            Type::Float(FloatType::F64),
+                        ) => vec![wasm::Instr::F64ConvertI32S],
+                        (
+                            IntType {
+                                sign: false,
+                                size: _,
+                            },
+                            Type::Float(FloatType::F64),
+                        ) => vec![wasm::Instr::F64ConvertI32U],
                         _ => unreachable!("{source_int_type:?} {target_type:?}"),
                     },
                     Type::Float(source_float_type) => match target_type {
