@@ -704,7 +704,18 @@ impl Generator {
             }
             ExprKind::GetElement(..) => {
                 let mut result = self.build_value_expr(value);
-                let idx = Self::get_variable_loc(target);
+                let Some(idx) = Self::get_variable_loc(target) else {
+                    // it's possible that the target is non-local. For example:
+                    // let a: *SomeStruct = ...;
+                    // a.*.b.c = ...
+                    // in this case, this expression doesn't have to be assigned.
+                    // only the value should be executed.
+                    let types = self.build_wasm_val_type(&self.module.types[value.ty.0]);
+                    for _ in types {
+                        result.push(wasm::Instr::Drop);
+                    }
+                    return result;
+                };
                 result.extend(self.build_variable_set_instr(idx, target.ty));
                 result
             }
@@ -712,16 +723,16 @@ impl Generator {
         }
     }
 
-    fn get_variable_loc(expr: &Expr) -> VariableLoc {
+    fn get_variable_loc(expr: &Expr) -> Option<VariableLoc> {
         match &expr.kind {
-            ExprKind::Global(id) => VariableLoc::Global(id.0 as u32),
-            ExprKind::Local(id) => VariableLoc::Local(*id as u32),
+            ExprKind::Global(id) => Some(VariableLoc::Global(id.0 as u32)),
+            ExprKind::Local(id) => Some(VariableLoc::Local(*id as u32)),
             ExprKind::GetElement(target, field) => {
-                let mut var_idx = Self::get_variable_loc(target);
+                let mut var_idx = Self::get_variable_loc(target)?;
                 var_idx.add_offset(*field as u32);
-                var_idx
+                Some(var_idx)
             }
-            _ => unreachable!(),
+            _ => None,
         }
     }
 
