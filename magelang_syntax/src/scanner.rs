@@ -68,6 +68,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,
             "as" => TokenKind::As,
+            "null" => TokenKind::Null,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
             "continue" => TokenKind::Continue,

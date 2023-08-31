@@ -169,6 +169,7 @@ pub enum ExprNode {
     Path(PathNode),
     Integer(Token),
     Frac(Token),
+    Null(Token),
     Bool(Token),
     String(Token),
     Binary(BinaryExprNode),
@@ -187,6 +188,7 @@ impl ExprNode {
         match self {
             Self::Integer(tok) => tok.pos,
             Self::Frac(tok) => tok.pos,
+            Self::Null(tok) => tok.pos,
             Self::Bool(tok) => tok.pos,
             Self::String(tok) => tok.pos,
             Self::Binary(node) => node.a.pos(),
