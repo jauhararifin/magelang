@@ -753,7 +753,8 @@ impl Generator {
                     .collect()
             }
             Type::Void => vec![],
-            Type::Func(..)
+            Type::Opaque
+            | Type::Func(..)
             | Type::Bool
             | Type::Int(..)
             | Type::Float(..)
@@ -797,6 +798,7 @@ impl Generator {
                         }
 
                         Type::Void => (),
+                        Type::Opaque => unreachable!("opaque type can't be loaded from memory"),
 
                         Type::Int(IntType {
                             sign: _,
@@ -907,6 +909,7 @@ impl Generator {
             }
 
             Type::Void => self.build_value_expr(value),
+            Type::Opaque => unreachable!("opaque type can't be store in memory"),
 
             Type::Int(IntType {
                 sign: _,
@@ -1089,6 +1092,7 @@ impl Generator {
                             result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }))
                         }
                         Type::Void => (),
+                        Type::Opaque => unreachable!("opaque type can't be dereferenced"),
                         Type::Bool => {
                             result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }))
                         }
@@ -1719,11 +1723,11 @@ impl Generator {
                 result
             }
             ExprKind::Eq(a, b) => {
-                let mut result = self.build_value_expr(a);
-                result.extend(self.build_value_expr(b));
+                let a_instr = self.build_value_expr(a);
+                let b_instr = self.build_value_expr(b);
 
                 let ty = &self.module.types[a.ty.0];
-                let instrs = match ty {
+                let op_instr = match ty {
                     Type::Int(IntType {
                         sign: _,
                         size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
@@ -1738,6 +1742,21 @@ impl Generator {
 
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
+
+                    Type::Opaque => {
+                        let mut result = Vec::default();
+                        if !matches!(a.kind, ExprKind::Zero(..)) {
+                            result.extend(a_instr);
+                            result.push(wasm::Instr::RefIsNull);
+                        } else if !matches!(b.kind, ExprKind::Zero(..)) {
+                            result.extend(b_instr);
+                            result.push(wasm::Instr::RefIsNull);
+                        } else {
+                            result.push(wasm::Instr::I32Const(1));
+                        }
+                        return result;
+                    }
+
                     _ => {
                         vec![
                             wasm::Instr::Drop,
@@ -1747,15 +1766,18 @@ impl Generator {
                     }
                 };
 
-                result.extend(instrs);
+                let mut result = Vec::default();
+                result.extend(a_instr);
+                result.extend(b_instr);
+                result.extend(op_instr);
                 result
             }
             ExprKind::NEq(a, b) => {
-                let mut result = self.build_value_expr(a);
-                result.extend(self.build_value_expr(b));
+                let a_instr = self.build_value_expr(a);
+                let b_instr = self.build_value_expr(b);
 
                 let ty = &self.module.types[a.ty.0];
-                let instrs = match ty {
+                let op_instr = match ty {
                     Type::Int(IntType {
                         sign: _,
                         size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
@@ -1767,6 +1789,22 @@ impl Generator {
 
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
+
+                    Type::Opaque => {
+                        let mut result = Vec::default();
+                        if !matches!(a.kind, ExprKind::Zero(..)) {
+                            result.extend(a_instr);
+                            result.push(wasm::Instr::RefIsNull);
+                        } else if !matches!(b.kind, ExprKind::Zero(..)) {
+                            result.extend(b_instr);
+                            result.push(wasm::Instr::RefIsNull);
+                        } else {
+                            result.push(wasm::Instr::I32Const(1));
+                        }
+                        result.push(wasm::Instr::I32Eqz);
+                        return result;
+                    }
+
                     _ => {
                         vec![
                             wasm::Instr::Drop,
@@ -1775,9 +1813,12 @@ impl Generator {
                         ]
                     }
                 };
-                result.extend(instrs);
-                result.push(wasm::Instr::I32Eqz);
+                let mut result = Vec::default();
 
+                result.extend(a_instr);
+                result.extend(b_instr);
+                result.extend(op_instr);
+                result.push(wasm::Instr::I32Eqz);
                 result
             }
             ExprKind::Gt(a, b) => {
@@ -2233,6 +2274,7 @@ impl Generator {
             Type::Func(..) => vec![wasm::ValType::Num(wasm::NumType::I32)],
 
             Type::Void => vec![],
+            Type::Opaque => vec![wasm::ValType::Ref(wasm::RefType::ExternRef)],
             Type::Bool => vec![wasm::ValType::Num(wasm::NumType::I32)],
 
             Type::Int(IntType {
@@ -2262,6 +2304,7 @@ impl Generator {
                 .collect(),
             Type::Func(..) => vec![wasm::Instr::I32Const(0)],
             Type::Void => vec![],
+            Type::Opaque => vec![wasm::Instr::RefNull(wasm::RefType::ExternRef)],
             Type::Bool => vec![wasm::Instr::I32Const(0)],
             Type::Int(IntType {
                 sign: _,
@@ -2283,8 +2326,12 @@ impl Generator {
             wasm::ValType::Num(wasm::NumType::I64) => vec![wasm::Instr::I64Const(0)],
             wasm::ValType::Num(wasm::NumType::F32) => vec![wasm::Instr::F32Const(0f32)],
             wasm::ValType::Num(wasm::NumType::F64) => vec![wasm::Instr::F64Const(0f64)],
-            wasm::ValType::Ref(wasm::RefType::FuncRef) => unreachable!(),
-            wasm::ValType::Ref(wasm::RefType::ExternRef) => unreachable!(),
+            wasm::ValType::Ref(wasm::RefType::FuncRef) => {
+                vec![wasm::Instr::RefNull(wasm::RefType::FuncRef)]
+            }
+            wasm::ValType::Ref(wasm::RefType::ExternRef) => {
+                vec![wasm::Instr::RefNull(wasm::RefType::ExternRef)]
+            }
         }
     }
 
@@ -2366,6 +2413,7 @@ fn build_type_layout(module: &Package, ty: &Type) -> Layout {
             mem_size: 0,
             idx_size: 0,
         },
+        Type::Opaque => unreachable!("opaque has no layout"),
         Type::Bool => Layout {
             alignment: 1,
             mem_size: 1,

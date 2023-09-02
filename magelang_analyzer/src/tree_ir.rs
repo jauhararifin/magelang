@@ -41,6 +41,7 @@ pub enum Type {
     Struct(StructType),
     Func(FuncType),
     Void,
+    Opaque,
     Bool,
     Int(IntType),
     Float(FloatType),
@@ -820,6 +821,7 @@ impl TypeMapper {
                 return_type: self.get_type_id(ctx, func_type.return_type),
             }),
             ty::Type::Void => Type::Void,
+            ty::Type::Opaque => Type::Opaque,
             ty::Type::Bool => Type::Bool,
             ty::Type::Int(sign, size) => Type::Int(IntType {
                 sign: *sign,
@@ -827,8 +829,8 @@ impl TypeMapper {
             }),
             ty::Type::Float(float_type) => Type::Float((*float_type).into()),
             ty::Type::Ptr(element_type_id) => Type::Ptr(self.get_type_id(ctx, *element_type_id)),
-            ty::Type::ArrayPtr(element_type_id) => {
-                Type::ArrayPtr(self.get_type_id(ctx, *element_type_id))
+            ty::Type::ArrayPtr(array_ptr) => {
+                Type::ArrayPtr(self.get_type_id(ctx, array_ptr.element))
             }
         }
     }

@@ -171,6 +171,7 @@ pub fn get_builtin_scope<E>(ctx: &Context<'_, E>) -> Rc<Scope> {
     let f32_type = ctx.types.define(Type::Float(FloatType::F32));
     let f64_type = ctx.types.define(Type::Float(FloatType::F64));
     let void_type = ctx.types.define(Type::Void);
+    let opaque_type = ctx.types.define(Type::Opaque);
     let bool_type = ctx.types.define(Type::Bool);
 
     let scope = Scope::new(IndexMap::from([
@@ -187,6 +188,7 @@ pub fn get_builtin_scope<E>(ctx: &Context<'_, E>) -> Rc<Scope> {
         (ctx.symbols.define("f64"), Object::Type(f64_type)),
         (ctx.symbols.define("usize"), Object::Type(usize_type)),
         (ctx.symbols.define("void"), Object::Type(void_type)),
+        (ctx.symbols.define("opaque"), Object::Type(opaque_type)),
         (ctx.symbols.define("bool"), Object::Type(bool_type)),
     ]));
     Rc::new(scope)
@@ -202,6 +204,7 @@ pub fn build_scope_for_typeparam<E>(
         let ty = ctx.types.define(Type::TypeArg(TypeArg {
             index,
             symbol: typeparam,
+            sized: true,
         }));
         let type_param_obj = Object::Type(ty);
         typeparam_table.insert(typeparam, type_param_obj);

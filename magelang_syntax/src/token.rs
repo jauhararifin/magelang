@@ -164,7 +164,7 @@ pub enum TokenKind {
     IntegerLit,
     StringLit,
     RealLit,
-    Null,
+    Null, // TODO: consider treating null as a builtin variable instead of keyword.
     True,
     False,
     Continue,

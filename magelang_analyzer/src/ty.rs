@@ -25,15 +25,40 @@ pub enum Type {
     NamedStructInst(NamedStructInstType),
     Func(FuncType),
     Void,
+    // Opaque is type with unknown representation and unknown size. This is useful to
+    // represent externref type in webassembly.
+    // Opaque type doesn't have zero value, and can only be get from calling native function.
+    Opaque,
     Bool,
     Int(IntSign, BitSize),
     Float(FloatType),
     Ptr(TypeId),
-    ArrayPtr(TypeId),
+    ArrayPtr(ArrayPtrType),
     TypeArg(TypeArg),
 }
 
 impl Type {
+    pub fn is_sized(&self) -> bool {
+        match self {
+            Self::Unknown
+            | Type::Func(..)
+            | Type::Void
+            | Type::Opaque
+            | Type::Bool
+            | Type::Int(..)
+            | Type::Float(..)
+            | Type::Ptr(..) => true,
+            Type::NamedStruct(struct_type) => struct_type.sized,
+            Type::NamedStructInst(struct_type) => struct_type.sized,
+            Type::ArrayPtr(array_ptr) => array_ptr.sized,
+            Type::TypeArg(typearg) => typearg.sized,
+        }
+    }
+
+    pub fn is_opaque(&self) -> bool {
+        matches!(self, Self::Opaque)
+    }
+
     pub fn is_unknown(&self) -> bool {
         matches!(self, Self::Unknown)
     }
@@ -82,6 +107,7 @@ impl Type {
 pub struct NamedStructType {
     pub def_id: DefId,
     pub body: OnceCell<StructBody>,
+    pub sized: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -109,6 +135,7 @@ pub struct NamedStructInstType {
     pub def_id: DefId,
     pub type_args: TypeArgsId,
     pub body: StructBody,
+    pub sized: bool,
 }
 
 impl Hash for NamedStructInstType {
@@ -140,9 +167,16 @@ pub enum FloatType {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct ArrayPtrType {
+    pub element: TypeId,
+    pub sized: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct TypeArg {
     pub index: usize,
     pub symbol: SymbolId,
+    pub sized: bool,
 }
 
 pub fn get_type_from_node<E: ErrorReporter>(
@@ -157,8 +191,16 @@ pub fn get_type_from_node<E: ErrorReporter>(
             ctx.types.define(Type::Ptr(element_type_id))
         }
         TypeExprNode::ArrayPtr(node) => {
-            let element_type_id = get_type_from_node(ctx, &node.ty);
-            ctx.types.define(Type::ArrayPtr(element_type_id))
+            let element = get_type_from_node(ctx, &node.ty);
+
+            if !ctx.types.get(element).is_sized() {
+                todo!("report error: cannot use unsized type for array ptr");
+            }
+
+            ctx.types.define(Type::ArrayPtr(ArrayPtrType {
+                element,
+                sized: true,
+            }))
         }
         TypeExprNode::Grouped(node) => get_type_from_node(ctx, node),
     }
@@ -197,11 +239,18 @@ fn get_type_from_path_node<E: ErrorReporter>(
         }
         Object::GenericStruct(generic_struct) => {
             let required_type_param = generic_struct.node.type_params.len();
-            let mut type_args: Vec<TypeId> = node
-                .args
-                .iter()
-                .map(|node| get_type_from_node(ctx, node))
-                .collect();
+
+            let mut type_args = Vec::<TypeId>::default();
+            for node in &node.args {
+                let type_id = get_type_from_node(ctx, node);
+                type_args.push(type_id);
+
+                let ty = ctx.types.get(type_id);
+                if !ty.is_sized() {
+                    // TODO: in the future, support unsized type for type arg.
+                    todo!("report error: can't use unsized type for type arguments");
+                }
+            }
 
             if type_args.len() != required_type_param {
                 ctx.errors.type_arguments_count_mismatch(
@@ -220,6 +269,11 @@ fn get_type_from_path_node<E: ErrorReporter>(
                 let instanced_type = substitute_generic_args(ctx, &type_args, *type_id);
                 instanced_fields.insert(*name, instanced_type);
             }
+
+            let sized = instanced_fields
+                .values()
+                .all(|type_id| ctx.types.get(*type_id).is_sized());
+
             let instanced_struct_body = StructBody {
                 fields: instanced_fields,
             };
@@ -228,6 +282,7 @@ fn get_type_from_path_node<E: ErrorReporter>(
                 def_id: generic_struct.def_id,
                 type_args: ctx.typeargs.define(&type_args),
                 body: instanced_struct_body,
+                sized,
             });
             ctx.types.define(ty)
         }
@@ -244,6 +299,7 @@ pub fn substitute_generic_args<E>(
         Type::Unknown
         | Type::NamedStruct(..)
         | Type::Void
+        | Type::Opaque
         | Type::Bool
         | Type::Int(..)
         | Type::Float(..) => generic_type_id,
@@ -253,19 +309,22 @@ pub fn substitute_generic_args<E>(
                 .iter()
                 .map(|type_id| substitute_generic_args(ctx, args, *type_id))
                 .collect();
+
+            let fields = named_struct_inst_type
+                .body
+                .fields
+                .iter()
+                .map(|(name, type_id)| (*name, substitute_generic_args(ctx, args, *type_id)))
+                .collect::<IndexMap<_, _>>();
+            let sized = fields
+                .values()
+                .all(|type_id| ctx.types.get(*type_id).is_sized());
+
             ctx.types.define(Type::NamedStructInst(NamedStructInstType {
                 def_id: named_struct_inst_type.def_id,
                 type_args: ctx.typeargs.define(&typeargs),
-                body: StructBody {
-                    fields: named_struct_inst_type
-                        .body
-                        .fields
-                        .iter()
-                        .map(|(name, type_id)| {
-                            (*name, substitute_generic_args(ctx, args, *type_id))
-                        })
-                        .collect(),
-                },
+                body: StructBody { fields },
+                sized,
             }))
         }
         Type::Func(func_type) => {
@@ -291,9 +350,11 @@ pub fn substitute_generic_args<E>(
             let element_type_id = substitute_generic_args(ctx, args, *element_type_id);
             ctx.types.define(Type::Ptr(element_type_id))
         }
-        Type::ArrayPtr(element_type_id) => {
-            let element_type_id = substitute_generic_args(ctx, args, *element_type_id);
-            ctx.types.define(Type::ArrayPtr(element_type_id))
+        Type::ArrayPtr(array_ptr) => {
+            let element = substitute_generic_args(ctx, args, array_ptr.element);
+            let sized = ctx.types.get(element).is_sized();
+            ctx.types
+                .define(Type::ArrayPtr(ArrayPtrType { element, sized }))
         }
     }
 }
@@ -372,6 +433,7 @@ pub fn display_type<E>(ctx: &TypeCheckContext<'_, E>, ty: &Type) -> String {
             s
         }
         Type::Void => String::from("void"),
+        Type::Opaque => String::from("opaque"),
         Type::Bool => String::from("bool"),
         Type::Int(sign, size) => {
             format!(
@@ -393,8 +455,8 @@ pub fn display_type<E>(ctx: &TypeCheckContext<'_, E>, ty: &Type) -> String {
         Type::Ptr(type_id) => {
             format!("*{}", display_type_id(ctx, *type_id))
         }
-        Type::ArrayPtr(type_id) => {
-            format!("[*]{}", display_type_id(ctx, *type_id))
+        Type::ArrayPtr(array_ptr) => {
+            format!("[*]{}", display_type_id(ctx, array_ptr.element))
         }
         Type::TypeArg(typearg) => ctx.symbols.get(typearg.symbol).as_ref().into(),
     }

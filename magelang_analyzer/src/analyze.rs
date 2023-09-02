@@ -215,6 +215,7 @@ fn init_struct_objects<E: ErrorReporter>(
         let ty = Type::NamedStruct(NamedStructType {
             def_id,
             body: OnceCell::default(),
+            sized: false,
         });
         let type_id = ctx.types.define(ty);
         Object::Struct(StructObject {

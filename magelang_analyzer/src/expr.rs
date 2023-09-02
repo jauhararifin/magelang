@@ -6,7 +6,7 @@ use crate::scope::{get_object_from_path, Object};
 use crate::symbols::SymbolId;
 use crate::ty::{
     display_type, display_type_id, get_type_from_node, is_type_assignable, substitute_generic_args,
-    BitSize, FloatType, Type, TypeArgsId, TypeId,
+    ArrayPtrType, BitSize, FloatType, Type, TypeArgsId, TypeId,
 };
 use crate::value::value_from_string_lit;
 use magelang_syntax::{
@@ -85,6 +85,11 @@ pub fn get_expr_from_node<E: ErrorReporter>(
         ExprNode::Path(node) => get_expr_from_path(ctx, expected_type, node),
         ExprNode::Integer(token) => get_expr_from_int_lit(ctx, expected_type, token),
         ExprNode::Frac(token) => get_expr_from_float_lit(ctx, expected_type, token),
+        ExprNode::Null(..) => Expr {
+            ty: ctx.types.define(Type::Opaque),
+            kind: ExprKind::Zero,
+            assignable: false,
+        },
         ExprNode::Bool(token) => get_expr_from_boolean_lit(ctx, token),
         ExprNode::String(token) => get_expr_from_string_lit(ctx, token),
         ExprNode::Binary(node) => get_expr_from_binary_node(ctx, expected_type, node),
@@ -138,11 +143,19 @@ fn get_expr_from_path<E: ErrorReporter>(
                 .ty
                 .get()
                 .expect("missing generic function type");
-            let type_args: Vec<TypeId> = node
-                .args
-                .iter()
-                .map(|type_expr| get_type_from_node(ctx, type_expr))
-                .collect();
+
+            let mut type_args = Vec::<TypeId>::default();
+            for type_expr in &node.args {
+                let type_id = get_type_from_node(ctx, type_expr);
+                type_args.push(type_id);
+
+                let ty = ctx.types.get(type_id);
+                if !ty.is_sized() {
+                    // TODO: in the future, support unsized type for type arg.
+                    todo!("report error: can't use unsized type for type arguments");
+                }
+            }
+
             let instance_type_id = substitute_generic_args(ctx, &type_args, type_id);
 
             let typeargs_id = ctx.typeargs.define(&type_args);
@@ -311,7 +324,10 @@ fn get_expr_from_boolean_lit<E: ErrorReporter>(ctx: &TypeCheckContext<E>, token:
 
 fn get_expr_from_string_lit<E: ErrorReporter>(ctx: &TypeCheckContext<E>, token: &Token) -> Expr {
     let u8_type_id = ctx.types.define(Type::Int(false, BitSize::I8));
-    let type_id = ctx.types.define(Type::ArrayPtr(u8_type_id));
+    let type_id = ctx.types.define(Type::ArrayPtr(ArrayPtrType {
+        element: u8_type_id,
+        sized: true,
+    }));
 
     let Some(mut bytes) = value_from_string_lit(&token.value) else {
         return Expr {
@@ -396,7 +412,17 @@ fn get_expr_from_binary_node<E: ErrorReporter>(
                 Type::Unknown
             }
         }
-        TokenKind::Eq | TokenKind::NEq => Type::Bool,
+        TokenKind::Eq | TokenKind::NEq => {
+            if a_ty.is_opaque() {
+                let a_is_null = matches!(a.kind, ExprKind::Zero);
+                let b_is_null = matches!(b.kind, ExprKind::Zero);
+                if !a_is_null && !b_is_null {
+                    todo!("report error: cannot compare non null opaque type");
+                }
+            }
+
+            Type::Bool
+        }
         TokenKind::Gt | TokenKind::GEq | TokenKind::Lt | TokenKind::LEq => {
             if a_ty.is_arithmetic() {
                 Type::Bool
@@ -479,6 +505,11 @@ fn get_expr_from_deref_node<E: ErrorReporter>(
             assignable: false,
         };
     };
+
+    if !ctx.types.get(*element_ty).is_sized() {
+        todo!("report error: the element type cannot be dereferenced");
+    }
+
     Expr {
         ty: *element_ty,
         kind: ExprKind::Deref(Box::new(value)),
@@ -765,21 +796,21 @@ fn get_expr_from_index_node<E: ErrorReporter>(
     let ty = ctx.types.get(value.ty);
 
     match ty.as_ref() {
-        Type::ArrayPtr(element_type_id) => {
+        Type::ArrayPtr(array_ptr) => {
             let index = get_expr_from_node(ctx, expected_type, &node.index);
             let index_type = ctx.types.get(index.ty);
 
             if !index_type.is_int() {
                 ctx.errors.non_int_index(node.index.pos());
                 return Expr {
-                    ty: *element_type_id,
+                    ty: array_ptr.element,
                     kind: ExprKind::Invalid,
                     assignable: false,
                 };
             }
 
             Expr {
-                ty: ctx.types.define(Type::Ptr(*element_type_id)),
+                ty: ctx.types.define(Type::Ptr(array_ptr.element)),
                 kind: ExprKind::GetIndex(Box::new(value), Box::new(index)),
                 assignable: false,
             }
