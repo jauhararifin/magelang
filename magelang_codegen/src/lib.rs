@@ -16,7 +16,8 @@ struct Generator {
     data: IndexMap<Rc<[u8]>, u32>,
     data_end: u32,
     imports: Vec<wasm::Import>,
-    struct_layouts: HashMap<TypeId, StructLayout>,
+    struct_mem_layouts: HashMap<TypeId, StructMemLayout>,
+    struct_stack_layouts: HashMap<TypeId, StructStackLayout>,
     func_map: HashMap<usize, wasm::FuncIdx>,
     unused_func_id: wasm::FuncIdx,
     func_type_cache: RefCell<IndexMap<wasm::FuncType, wasm::TypeIdx>>,
@@ -29,7 +30,7 @@ struct Generator {
     locals: LocalManager,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum VariableLoc {
     Global(u32),
     Local(u32),
@@ -58,7 +59,8 @@ impl Generator {
             data: IndexMap::default(),
             data_end: 0,
             imports: Vec::default(),
-            struct_layouts: HashMap::default(),
+            struct_mem_layouts: HashMap::default(),
+            struct_stack_layouts: HashMap::default(),
             func_type_cache: RefCell::default(),
             func_map: HashMap::default(),
             unused_func_id: 0,
@@ -94,16 +96,18 @@ impl Generator {
             desc: wasm::ExportDesc::Mem(0),
         });
 
+        let func_table = wasm::TableType {
+            limits: wasm::Limits {
+                min: self.func_elems.len() as u32,
+                max: None,
+            },
+            ref_type: wasm::RefType::FuncRef,
+        };
+
         wasm::Module {
             types: self.func_type_cache.take().into_keys().collect(),
             funcs: std::mem::take(&mut self.functions),
-            tables: vec![wasm::TableType {
-                limits: wasm::Limits {
-                    min: self.func_elems.len() as u32,
-                    max: None,
-                },
-                ref_type: wasm::RefType::FuncRef,
-            }],
+            tables: vec![func_table],
             mems: vec![wasm::Mem { min: 1, max: None }],
             globals: std::mem::take(&mut self.globals),
             elems: std::mem::take(&mut self.func_elems),
@@ -234,8 +238,14 @@ impl Generator {
             let Type::Struct(struct_type) = ty else {
                 continue;
             };
-            let struct_layout = build_struct_layout(&self.module, struct_type);
-            self.struct_layouts.insert(TypeId(idx), struct_layout);
+            let struct_stack_layout = build_struct_stack_layout(&self.module, struct_type);
+            self.struct_stack_layouts
+                .insert(TypeId(idx), struct_stack_layout);
+
+            if let Some(struct_mem_layout) = build_struct_mem_layout(&self.module, struct_type) {
+                self.struct_mem_layouts
+                    .insert(TypeId(idx), struct_mem_layout);
+            }
         }
     }
 
@@ -463,7 +473,8 @@ impl Generator {
                                 }
                                 let type_id = typeargs.0[0];
                                 let layout =
-                                    build_type_layout(&self.module, &self.module.types[type_id.0]);
+                                    build_mem_layout(&self.module, &self.module.types[type_id.0])
+                                        .expect("type has no mem layout");
                                 vec![wasm::Instr::I32Const(layout.mem_size as i32)]
                             }
                             InstrinsicFunc::AlignOf => {
@@ -485,7 +496,8 @@ impl Generator {
                                 }
                                 let type_id = typeargs.0[0];
                                 let layout =
-                                    build_type_layout(&self.module, &self.module.types[type_id.0]);
+                                    build_mem_layout(&self.module, &self.module.types[type_id.0])
+                                        .expect("type has no mem layout");
                                 vec![wasm::Instr::I32Const(layout.alignment as i32)]
                             }
                         }),
@@ -704,7 +716,7 @@ impl Generator {
             }
             ExprKind::GetElement(..) => {
                 let mut result = self.build_value_expr(value);
-                let Some(idx) = Self::get_variable_loc(target) else {
+                let Some(idx) = self.get_variable_loc(target) else {
                     // it's possible that the target is non-local. For example:
                     // let a: *SomeStruct = ...;
                     // a.*.b.c = ...
@@ -723,13 +735,14 @@ impl Generator {
         }
     }
 
-    fn get_variable_loc(expr: &Expr) -> Option<VariableLoc> {
+    fn get_variable_loc(&self, expr: &Expr) -> Option<VariableLoc> {
         match &expr.kind {
             ExprKind::Global(id) => Some(VariableLoc::Global(id.0 as u32)),
-            ExprKind::Local(id) => Some(VariableLoc::Local(*id as u32)),
+            ExprKind::Local(id) => Some(VariableLoc::Local(self.locals.get_local(*id))),
             ExprKind::GetElement(target, field) => {
-                let mut var_idx = Self::get_variable_loc(target)?;
-                var_idx.add_offset(*field as u32);
+                let mut var_idx = self.get_variable_loc(target)?;
+                let struct_layout = &self.struct_stack_layouts.get(&target.ty).unwrap();
+                var_idx.add_offset(struct_layout.offset[*field]);
                 Some(var_idx)
             }
             _ => None,
@@ -740,14 +753,14 @@ impl Generator {
         let ty = &self.module.types[type_id.0];
         match ty {
             Type::Struct(struct_type) => {
-                let struct_layout = &self.struct_layouts.get(&type_id).unwrap();
+                let struct_layout = &self.struct_stack_layouts.get(&type_id).unwrap();
                 struct_type
                     .fields
                     .iter()
                     .enumerate()
                     .rev()
                     .flat_map(|(i, field)| {
-                        let offset = struct_layout.idx_offset[i];
+                        let offset = struct_layout.offset[i];
                         self.build_variable_set_instr(idx.with_offset(offset), field.ty)
                     })
                     .collect()
@@ -782,7 +795,7 @@ impl Generator {
                 result.extend(ptr_instr);
 
                 let mut stack = vec![];
-                let struct_layout = self.struct_layouts.get(&value.ty).unwrap();
+                let struct_layout = self.struct_mem_layouts.get(&value.ty).unwrap();
                 for (i, field) in struct_type.fields.iter().enumerate() {
                     stack.push((struct_layout, i, field.ty));
                 }
@@ -791,7 +804,7 @@ impl Generator {
                     let ty = &self.module.types[type_id.0];
                     match ty {
                         Type::Struct(struct_type) => {
-                            let struct_layout = self.struct_layouts.get(&type_id).unwrap();
+                            let struct_layout = self.struct_mem_layouts.get(&type_id).unwrap();
                             for (i, field) in struct_type.fields.iter().enumerate() {
                                 stack.push((struct_layout, i, field.ty));
                             }
@@ -810,7 +823,7 @@ impl Generator {
                                 wasm::ValType::Num(wasm::NumType::I32),
                             ]);
                             let (temp_val, temp_addr) = (temps[0], temps[1]);
-                            let offset = struct_layout.mem_offset[field_id];
+                            let offset = struct_layout.offset[field_id];
                             result.push(wasm::Instr::LocalSet(temp_addr));
                             result.push(wasm::Instr::LocalSet(temp_val));
                             result.push(wasm::Instr::LocalGet(temp_addr));
@@ -827,7 +840,7 @@ impl Generator {
                                 wasm::ValType::Num(wasm::NumType::I32),
                             ]);
                             let (temp_val, temp_addr) = (temps[0], temps[1]);
-                            let offset = struct_layout.mem_offset[field_id];
+                            let offset = struct_layout.offset[field_id];
                             result.push(wasm::Instr::LocalSet(temp_addr));
                             result.push(wasm::Instr::LocalSet(temp_val));
                             result.push(wasm::Instr::LocalGet(temp_addr));
@@ -847,7 +860,7 @@ impl Generator {
                                 wasm::ValType::Num(wasm::NumType::I32),
                             ]);
                             let (temp_val, temp_addr) = (temps[0], temps[1]);
-                            let offset = struct_layout.mem_offset[field_id];
+                            let offset = struct_layout.offset[field_id];
                             result.push(wasm::Instr::LocalSet(temp_addr));
                             result.push(wasm::Instr::LocalSet(temp_val));
                             result.push(wasm::Instr::LocalGet(temp_addr));
@@ -864,7 +877,7 @@ impl Generator {
                                 wasm::ValType::Num(wasm::NumType::I32),
                             ]);
                             let (temp_val, temp_addr) = (temps[0], temps[1]);
-                            let offset = struct_layout.mem_offset[field_id];
+                            let offset = struct_layout.offset[field_id];
                             result.push(wasm::Instr::LocalSet(temp_addr));
                             result.push(wasm::Instr::LocalSet(temp_val));
                             result.push(wasm::Instr::LocalGet(temp_addr));
@@ -879,7 +892,7 @@ impl Generator {
                                 wasm::ValType::Num(wasm::NumType::I32),
                             ]);
                             let (temp_val, temp_addr) = (temps[0], temps[1]);
-                            let offset = struct_layout.mem_offset[field_id];
+                            let offset = struct_layout.offset[field_id];
                             result.push(wasm::Instr::LocalSet(temp_addr));
                             result.push(wasm::Instr::LocalSet(temp_val));
                             result.push(wasm::Instr::LocalGet(temp_addr));
@@ -893,7 +906,7 @@ impl Generator {
                                 wasm::ValType::Num(wasm::NumType::I32),
                             ]);
                             let (temp_val, temp_addr) = (temps[0], temps[1]);
-                            let offset = struct_layout.mem_offset[field_id];
+                            let offset = struct_layout.offset[field_id];
                             result.push(wasm::Instr::LocalSet(temp_addr));
                             result.push(wasm::Instr::LocalSet(temp_val));
                             result.push(wasm::Instr::LocalGet(temp_addr));
@@ -1004,10 +1017,10 @@ impl Generator {
                 // or dereference field from memory.
 
                 let mut result = self.build_value_expr(struct_expr);
-                let struct_layout = self.struct_layouts.get(&struct_expr.ty).unwrap();
-                let target_offset = struct_layout.idx_offset[*field];
+                let struct_layout = self.struct_stack_layouts.get(&struct_expr.ty).unwrap();
+                let target_offset = struct_layout.offset[*field];
                 // TODO: (optimization) optimize field layout calculation by using cache.
-                let field_layout = build_type_layout(&self.module, &self.module.types[expr.ty.0]);
+                let field_layout = build_stack_layout(&self.module, &self.module.types[expr.ty.0]);
                 let field_size = field_layout.idx_size;
                 let target_size = struct_layout.layout.idx_size;
 
@@ -1038,8 +1051,8 @@ impl Generator {
                 let Type::Ptr(element_type_id) = self.module.types[addr.ty.0] else {
                     unreachable!()
                 };
-                let struct_layout = self.struct_layouts.get(&element_type_id).unwrap();
-                let mem_offset = struct_layout.mem_offset[*field];
+                let struct_layout = self.struct_mem_layouts.get(&element_type_id).unwrap();
+                let mem_offset = struct_layout.offset[*field];
                 result.push(wasm::Instr::I32Const(mem_offset as i32));
                 result.push(wasm::Instr::I32Add);
 
@@ -1053,7 +1066,8 @@ impl Generator {
                     unreachable!()
                 };
                 let element_type = &self.module.types[element_type_id.0];
-                let element_layout = build_type_layout(&self.module, element_type);
+                let element_layout =
+                    build_mem_layout(&self.module, element_type).expect("type has no mem layout");
                 let element_size = element_layout.mem_size;
 
                 result.push(wasm::Instr::I32Const(element_size as i32));
@@ -1082,8 +1096,9 @@ impl Generator {
                     let ty = &self.module.types[element_type_id.0];
                     match ty {
                         Type::Struct(struct_type) => {
-                            let struct_layout = self.struct_layouts.get(&element_type_id).unwrap();
-                            for (i, off) in struct_layout.mem_offset.iter().enumerate().rev() {
+                            let struct_layout =
+                                self.struct_mem_layouts.get(&element_type_id).unwrap();
+                            for (i, off) in struct_layout.offset.iter().enumerate().rev() {
                                 stack.push((offset + off, struct_type.fields[i].ty));
                             }
                         }
@@ -2244,8 +2259,8 @@ impl Generator {
         match ty {
             Type::Struct(struct_type) => {
                 let mut result = Vec::default();
-                let struct_layout = self.struct_layouts.get(&type_id).unwrap();
-                for (i, offset) in struct_layout.idx_offset.iter().enumerate() {
+                let struct_layout = self.struct_stack_layouts.get(&type_id).unwrap();
+                for (i, offset) in struct_layout.offset.iter().enumerate() {
                     result.extend(self.build_value_expr_from_var(
                         idx.with_offset(*offset),
                         struct_type.fields[i].ty,
@@ -2376,10 +2391,15 @@ impl Generator {
     }
 }
 
-struct StructLayout {
-    layout: Layout,
-    idx_offset: Vec<u32>,
-    mem_offset: Vec<u32>,
+struct StructMemLayout {
+    layout: MemLayout,
+    offset: Vec<u32>,
+}
+
+#[derive(Debug)]
+struct StructStackLayout {
+    layout: StackLayout,
+    offset: Vec<u32>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -2400,95 +2420,150 @@ impl Layout {
     }
 }
 
-fn build_type_layout(module: &Package, ty: &Type) -> Layout {
-    match ty {
-        Type::Struct(struct_type) => build_struct_layout(module, struct_type).layout,
-        Type::Func(..) => Layout {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct MemLayout {
+    alignment: u32,
+    mem_size: u32,
+}
+
+impl MemLayout {
+    #[allow(dead_code)]
+    fn new(alignment: u32, mem_size: u32) -> Self {
+        Self {
+            alignment,
+            mem_size,
+        }
+    }
+}
+
+fn build_mem_layout(module: &Package, ty: &Type) -> Option<MemLayout> {
+    Some(match ty {
+        Type::Struct(struct_type) => {
+            let layout = build_struct_mem_layout(module, struct_type)?.layout;
+            MemLayout {
+                alignment: layout.alignment,
+                mem_size: layout.mem_size,
+            }
+        }
+        Type::Func(..) => MemLayout {
             alignment: 4,
             mem_size: 4,
-            idx_size: 1,
         },
-        Type::Void => Layout {
+        Type::Void => MemLayout {
             alignment: 1,
             mem_size: 0,
-            idx_size: 0,
         },
-        Type::Opaque => unreachable!("opaque has no layout"),
-        Type::Bool => Layout {
+        Type::Opaque => return None,
+        Type::Bool => MemLayout {
             alignment: 1,
             mem_size: 1,
-            idx_size: 1,
         },
         Type::Int(IntType {
             sign: _,
             size: BitSize::I8,
-        }) => Layout {
+        }) => MemLayout {
             alignment: 1,
             mem_size: 1,
-            idx_size: 1,
         },
         Type::Int(IntType {
             sign: _,
             size: BitSize::I16,
-        }) => Layout {
+        }) => MemLayout {
             alignment: 2,
             mem_size: 2,
-            idx_size: 1,
         },
         Type::Int(IntType {
             sign: _,
             size: BitSize::I32,
-        }) => Layout {
+        }) => MemLayout {
             alignment: 4,
             mem_size: 4,
-            idx_size: 1,
         },
         Type::Int(IntType {
             sign: _,
             size: BitSize::I64,
-        }) => Layout {
+        }) => MemLayout {
             alignment: 8,
             mem_size: 8,
-            idx_size: 1,
         },
         Type::Int(IntType {
             sign: _,
             size: BitSize::ISize,
-        }) => Layout {
+        }) => MemLayout {
             alignment: 4,
             mem_size: 4,
-            idx_size: 1,
         },
-        Type::Float(FloatType::F32) => Layout {
+        Type::Float(FloatType::F32) => MemLayout {
             alignment: 4,
             mem_size: 4,
-            idx_size: 1,
         },
-        Type::Float(FloatType::F64) => Layout {
+        Type::Float(FloatType::F64) => MemLayout {
             alignment: 8,
             mem_size: 8,
-            idx_size: 1,
         },
-        Type::Ptr(..) | Type::ArrayPtr(..) => Layout {
+        Type::Ptr(..) | Type::ArrayPtr(..) => MemLayout {
             alignment: 4,
             mem_size: 4,
-            idx_size: 1,
         },
+    })
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct StackLayout {
+    idx_size: u32,
+}
+
+impl StackLayout {
+    #[allow(dead_code)]
+    fn new(idx_size: u32) -> Self {
+        Self { idx_size }
     }
 }
 
-fn build_struct_layout(module: &Package, struct_type: &StructType) -> StructLayout {
-    let mut idx_offset = Vec::default();
-    let mut curr_idx = 0;
+fn build_stack_layout(module: &Package, ty: &Type) -> StackLayout {
+    match ty {
+        Type::Struct(struct_type) => StackLayout::new(
+            build_struct_stack_layout(module, struct_type)
+                .layout
+                .idx_size,
+        ),
+        Type::Func(..) => StackLayout { idx_size: 1 },
+        Type::Void => StackLayout { idx_size: 0 },
+        Type::Opaque => StackLayout { idx_size: 1 },
+        Type::Bool => StackLayout { idx_size: 1 },
+        Type::Int(IntType {
+            sign: _,
+            size: BitSize::I8,
+        }) => StackLayout { idx_size: 1 },
+        Type::Int(IntType {
+            sign: _,
+            size: BitSize::I16,
+        }) => StackLayout { idx_size: 1 },
+        Type::Int(IntType {
+            sign: _,
+            size: BitSize::I32,
+        }) => StackLayout { idx_size: 1 },
+        Type::Int(IntType {
+            sign: _,
+            size: BitSize::I64,
+        }) => StackLayout { idx_size: 1 },
+        Type::Int(IntType {
+            sign: _,
+            size: BitSize::ISize,
+        }) => StackLayout { idx_size: 1 },
+        Type::Float(FloatType::F32) => StackLayout { idx_size: 1 },
+        Type::Float(FloatType::F64) => StackLayout { idx_size: 1 },
+        Type::Ptr(..) | Type::ArrayPtr(..) => StackLayout { idx_size: 1 },
+    }
+}
 
+fn build_struct_mem_layout(module: &Package, struct_type: &StructType) -> Option<StructMemLayout> {
     let mut mem_offset = Vec::default();
     let mut curr_mem = 0;
     let mut total_align = 1;
 
     for field in &struct_type.fields {
-        idx_offset.push(curr_idx);
-        let type_layout = build_type_layout(module, &module.types[field.ty.0]);
-        curr_idx += type_layout.idx_size;
+        let type_layout = build_mem_layout(module, &module.types[field.ty.0])?;
 
         let (size, align) = (type_layout.mem_size, type_layout.alignment);
         if align > total_align {
@@ -2507,14 +2582,26 @@ fn build_struct_layout(module: &Package, struct_type: &StructType) -> StructLayo
         mem_size = mem_size + total_align - (mem_size % total_align)
     }
 
-    StructLayout {
-        layout: Layout {
+    Some(StructMemLayout {
+        layout: MemLayout {
             mem_size,
-            idx_size: curr_idx,
             alignment: total_align,
         },
-        idx_offset,
-        mem_offset,
+        offset: mem_offset,
+    })
+}
+
+fn build_struct_stack_layout(module: &Package, struct_type: &StructType) -> StructStackLayout {
+    let mut idx_offset = Vec::default();
+    let mut curr_idx = 0;
+    for field in &struct_type.fields {
+        idx_offset.push(curr_idx);
+        let type_layout = build_stack_layout(module, &module.types[field.ty.0]);
+        curr_idx += type_layout.idx_size;
+    }
+    StructStackLayout {
+        layout: StackLayout { idx_size: curr_idx },
+        offset: idx_offset,
     }
 }
 
@@ -2620,12 +2707,12 @@ impl LocalManagerInternal {
 mod tests {
     use super::*;
 
-    macro_rules! test_layout {
+    macro_rules! test_mem_layout {
         ($name: ident, $package: expr, $type:expr, $expected: expr) => {
             #[test]
             fn $name() {
                 let package = $package;
-                let layout = build_type_layout(&package, &$type);
+                let layout = build_mem_layout(&package, &$type).unwrap();
                 assert_eq!(layout, $expected)
             }
         };
@@ -2633,25 +2720,25 @@ mod tests {
             #[test]
             fn $name() {
                 let package = Package::default();
-                let layout = build_type_layout(&package, &$type);
+                let layout = build_mem_layout(&package, &$type).unwrap();
                 assert_eq!(layout, $expected)
             }
         };
     }
 
-    test_layout! {test_layout_i8, Type::Int(IntType::i8()), Layout::new(1,1,1)}
-    test_layout! {test_layout_i16, Type::Int(IntType::i16()), Layout::new(2,2,1)}
-    test_layout! {test_layout_i32, Type::Int(IntType::i32()), Layout::new(4,4,1)}
-    test_layout! {test_layout_i64, Type::Int(IntType::i64()), Layout::new(8,8,1)}
-    test_layout! {test_layout_isize, Type::Int(IntType::isize()), Layout::new(4,4,1)}
-    test_layout! {test_layout_u8, Type::Int(IntType::u8()), Layout::new(1,1,1)}
-    test_layout! {test_layout_u16, Type::Int(IntType::u16()), Layout::new(2,2,1)}
-    test_layout! {test_layout_u32, Type::Int(IntType::u32()), Layout::new(4,4,1)}
-    test_layout! {test_layout_u64, Type::Int(IntType::u64()), Layout::new(8,8,1)}
-    test_layout! {test_layout_usize, Type::Int(IntType::usize()), Layout::new(4,4,1)}
+    test_mem_layout! {test_mem_layout_i8, Type::Int(IntType::i8()), MemLayout::new(1,1)}
+    test_mem_layout! {test_mem_layout_i16, Type::Int(IntType::i16()), MemLayout::new(2,2)}
+    test_mem_layout! {test_mem_layout_i32, Type::Int(IntType::i32()), MemLayout::new(4,4)}
+    test_mem_layout! {test_mem_layout_i64, Type::Int(IntType::i64()), MemLayout::new(8,8)}
+    test_mem_layout! {test_mem_layout_isize, Type::Int(IntType::isize()), MemLayout::new(4,4)}
+    test_mem_layout! {test_mem_layout_u8, Type::Int(IntType::u8()), MemLayout::new(1,1)}
+    test_mem_layout! {test_mem_layout_u16, Type::Int(IntType::u16()), MemLayout::new(2,2)}
+    test_mem_layout! {test_mem_layout_u32, Type::Int(IntType::u32()), MemLayout::new(4,4)}
+    test_mem_layout! {test_mem_layout_u64, Type::Int(IntType::u64()), MemLayout::new(8,8)}
+    test_mem_layout! {test_mem_layout_usize, Type::Int(IntType::usize()), MemLayout::new(4,4)}
 
-    test_layout! {
-        test_layout_struct_1,
+    test_mem_layout! {
+        test_mem_layout_struct_1,
         Package{
             symbols: vec![],
             types: vec![Type::Int(IntType::i32()), Type::Bool],
@@ -2663,11 +2750,11 @@ mod tests {
             id: ObjectId::Concrete{package_id: SymbolId(0), name_id: SymbolId(0)},
             fields: vec![StructField{name: SymbolId(0), ty: TypeId(0)}, StructField{name: SymbolId(1), ty: TypeId(1)}],
         }),
-        Layout::new(4,8,2)
+        MemLayout::new(4,8)
     }
 
-    test_layout! {
-        test_layout_struct_2,
+    test_mem_layout! {
+        test_mem_layout_struct_2,
         Package{
             symbols: vec![],
             types: vec![Type::Int(IntType::i32()), Type::Bool],
@@ -2679,6 +2766,6 @@ mod tests {
             id: ObjectId::Concrete{package_id: SymbolId(0), name_id: SymbolId(0)},
             fields: vec![StructField{name: SymbolId(0), ty: TypeId(0)}, StructField{name: SymbolId(1), ty: TypeId(1)}],
         }),
-        Layout::new(4,8,2)
+        MemLayout::new(4,8)
     }
 }

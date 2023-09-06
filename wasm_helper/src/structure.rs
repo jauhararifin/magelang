@@ -26,7 +26,7 @@ pub struct FuncType {
     pub returns: ResultType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Limits {
     pub min: u32,
     pub max: Option<u32>,
@@ -34,7 +34,7 @@ pub struct Limits {
 
 pub type MemType = Limits;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableType {
     pub limits: Limits,
     pub ref_type: RefType,
