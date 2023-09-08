@@ -240,23 +240,23 @@ fn get_expr_from_int_lit<E: ErrorReporter>(
             .map(|v| ExprKind::ConstI8(v as u8)),
         (false, BitSize::ISize) => token
             .value
-            .parse::<i64>()
+            .parse::<u64>()
             .map(|v| ExprKind::ConstIsize(v as u64)),
         (false, BitSize::I64) => token
             .value
-            .parse::<i64>()
+            .parse::<u64>()
             .map(|v| ExprKind::ConstI64(v as u64)),
         (false, BitSize::I32) => token
             .value
-            .parse::<i32>()
+            .parse::<u32>()
             .map(|v| ExprKind::ConstI32(v as u32)),
         (false, BitSize::I16) => token
             .value
-            .parse::<i16>()
+            .parse::<u16>()
             .map(|v| ExprKind::ConstI16(v as u16)),
         (false, BitSize::I8) => token
             .value
-            .parse::<i8>()
+            .parse::<u8>()
             .map(|v| ExprKind::ConstI8(v as u8)),
     };
 
