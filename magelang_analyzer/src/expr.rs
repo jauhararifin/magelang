@@ -152,7 +152,10 @@ fn get_expr_from_path<E: ErrorReporter>(
                 let ty = ctx.types.get(type_id);
                 if !ty.is_sized() {
                     // TODO: in the future, support unsized type for type arg.
-                    todo!("report error: can't use unsized type for type arguments");
+                    todo!(
+                        "report error: can't use unsized type for type arguments: {}",
+                        display_type(ctx, &ty)
+                    );
                 }
             }
 

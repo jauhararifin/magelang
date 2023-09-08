@@ -72,6 +72,14 @@ impl Object {
         }
     }
 
+    pub fn as_struct(&self) -> Option<&StructObject> {
+        if let Self::Struct(obj) = self {
+            Some(obj)
+        } else {
+            None
+        }
+    }
+
     pub fn as_generic_func(&self) -> Option<&GenericFuncObject> {
         if let Self::GenericFunc(obj) = self {
             Some(obj)

@@ -65,7 +65,9 @@ pub fn analyze(
         scope: builtin_scope,
     };
     generate_struct_bodies(&typecheck_ctx);
+    // TODO: generate_struct_is_sized(&typecheck_ctx);
     check_circular_types(&typecheck_ctx);
+
     // TODO: check circular global initialization.
 
     generate_object_types(&typecheck_ctx);
@@ -215,7 +217,7 @@ fn init_struct_objects<E: ErrorReporter>(
         let ty = Type::NamedStruct(NamedStructType {
             def_id,
             body: OnceCell::default(),
-            sized: false,
+            sized: true, // TODO: calculate this properly
         });
         let type_id = ctx.types.define(ty);
         Object::Struct(StructObject {
@@ -337,14 +339,14 @@ fn init_native_function_object<E: ErrorReporter>(
 fn build_package_scope(
     builtin_scope: Rc<Scope>,
     symbol_table: IndexMap<DefId, Object>,
-) -> HashMap<SymbolId, Rc<Scope>> {
+) -> IndexMap<SymbolId, Rc<Scope>> {
     let mut package_table = HashMap::<SymbolId, IndexMap<SymbolId, Object>>::default();
     for (def_id, object) in symbol_table {
         let table = package_table.entry(def_id.package).or_default();
         table.insert(def_id.name, object);
     }
 
-    let mut package_scopes = HashMap::<SymbolId, Rc<Scope>>::default();
+    let mut package_scopes = IndexMap::<SymbolId, Rc<Scope>>::default();
     for (package_name, table) in package_table {
         package_scopes.insert(package_name, Rc::new(builtin_scope.new_child(table)));
     }
@@ -359,7 +361,7 @@ pub struct TypeCheckContext<'a, E> {
     pub types: &'a TypeInterner,
     pub typeargs: &'a TypeArgsInterner,
 
-    pub package_scopes: &'a HashMap<SymbolId, Rc<Scope>>,
+    pub package_scopes: &'a IndexMap<SymbolId, Rc<Scope>>,
     pub scope: Rc<Scope>,
 }
 
@@ -385,13 +387,9 @@ fn generate_struct_bodies<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
                     let ctx = ctx.with_scope(scope.clone());
                     let body = get_struct_body_from_node(&ctx, &struct_object.node);
 
-                    ctx.types
-                        .get(struct_object.type_id)
-                        .as_named_struct()
-                        .expect("not a named struct")
-                        .body
-                        .set(body)
-                        .expect("cannot set struct body");
+                    let named_struct = ctx.types.get(struct_object.type_id);
+                    let named_struct = named_struct.as_named_struct().expect("not a named struct");
+                    named_struct.body.set(body).expect("cannot set struct body");
                 }
                 Object::GenericStruct(generic_obj) => {
                     let scope = build_scope_for_typeparam(ctx, &generic_obj.node.type_params);
@@ -432,6 +430,114 @@ fn get_struct_body_from_node<E: ErrorReporter>(
 
     StructBody { fields }
 }
+
+// fn generate_struct_is_sized<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
+//     let type_objects = ctx
+//         .package_scopes
+//         .iter()
+//         .flat_map(|(_, scope)| scope.iter())
+//         .filter_map(|(_, object)| object.type_id())
+//         .collect::<Vec<_>>();
+//
+//     let mut dep_list = IndexMap::<TypeId, IndexSet<TypeId>>::default();
+//     for type_id in &type_objects {
+//         let type_id = *type_id;
+//         let ty = ctx.types.get(type_id);
+//         let field_types = match ty.as_ref() {
+//             Type::NamedStruct(named_struct) => named_struct
+//                 .body
+//                 .get()
+//                 .expect("missing struct body")
+//                 .fields
+//                 .values(),
+//             Type::NamedStructInst(named_struct_inst) => named_struct_inst.body.fields.values(),
+//             _ => continue,
+//         };
+//
+//         let dependencies: IndexSet<TypeId> = field_types
+//             .filter(|type_id| {
+//                 matches!(
+//                     ctx.types.get(**type_id).as_ref(),
+//                     Type::NamedStruct(..) | Type::NamedStructInst(..)
+//                 )
+//             })
+//             .cloned()
+//             .collect();
+//         dep_list.insert(type_id, dependencies);
+//     }
+//
+//     let mut reverse_deps = IndexMap::<TypeId, IndexSet<TypeId>>::default();
+//     for (type_id, dependencies) in &dep_list {
+//         for dep in dependencies {
+//             reverse_deps.entry(*dep).or_default().insert(*type_id);
+//         }
+//     }
+//
+//     // topological sorting
+//     let mut queue = VecDeque::default();
+//     for (type_id, dependents) in &reverse_deps {
+//         if dependents.is_empty() {
+//             queue.push_back(*type_id);
+//         }
+//     }
+//
+//     while let Some(type_id) = queue.pop_front() {
+//         let ty = ctx.types.get(type_id);
+//         match ty.as_ref() {
+//             Type::NamedStruct(struct_ty) => {
+//                 let is_sized = struct_ty
+//                     .body
+//                     .get()
+//                     .expect("missing struct body")
+//                     .fields
+//                     .values()
+//                     .map(|type_id| ctx.types.get(*type_id))
+//                     .all(|ty| ty.is_sized());
+//                 struct_ty.sized.set(is_sized).expect("cannot set sized");
+//                 for d in reverse_deps.get(&type_id).unwrap().iter() {
+//                     let deps = dep_list.get_mut(d).unwrap();
+//                     deps.remove(&type_id);
+//                     if deps.is_empty() {
+//                         queue.push_back(*d);
+//                     }
+//                 }
+//             }
+//             Type::NamedStructInst(struct_type_inst) => {
+//                 let is_sized = struct_type_inst
+//                     .body
+//                     .fields
+//                     .values()
+//                     .map(|type_id| ctx.types.get(*type_id))
+//                     .all(|ty| ty.is_sized());
+//                 struct_type_inst
+//                     .sized
+//                     .set(is_sized)
+//                     .expect("cannot set sized");
+//                 for d in reverse_deps.get(&type_id).unwrap().iter() {
+//                     let deps = dep_list.get_mut(d).unwrap();
+//                     deps.remove(&type_id);
+//                     if deps.is_empty() {
+//                         queue.push_back(*d);
+//                     }
+//                 }
+//             }
+//             _ => continue,
+//         }
+//     }
+//
+//     for type_id in type_objects {
+//         let ty = ctx.types.get(type_id);
+//         match ty.as_ref() {
+//             Type::NamedStruct(named_struct) => {
+//                 named_struct.sized.get_or_init(|| false);
+//             }
+//             Type::NamedStructInst(named_struct_inst) => {
+//                 named_struct_inst.sized.get_or_init(|| false);
+//             }
+//             _ => continue,
+//         };
+//     }
+// }
 
 fn check_circular_types<E: ErrorReporter>(ctx: &TypeCheckContext<'_, E>) {
     let dep_list = build_struct_dependency_list(ctx);

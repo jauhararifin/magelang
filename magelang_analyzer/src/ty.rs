@@ -43,11 +43,11 @@ impl Type {
             Self::Unknown
             | Type::Func(..)
             | Type::Void
-            | Type::Opaque
             | Type::Bool
             | Type::Int(..)
             | Type::Float(..)
             | Type::Ptr(..) => true,
+            Type::Opaque => false,
             Type::NamedStruct(struct_type) => struct_type.sized,
             Type::NamedStructInst(struct_type) => struct_type.sized,
             Type::ArrayPtr(array_ptr) => array_ptr.sized,
@@ -193,9 +193,10 @@ pub fn get_type_from_node<E: ErrorReporter>(
         TypeExprNode::ArrayPtr(node) => {
             let element = get_type_from_node(ctx, &node.ty);
 
-            if !ctx.types.get(element).is_sized() {
-                todo!("report error: cannot use unsized type for array ptr");
-            }
+            // TODO(jauhrarifin): move this check to after all types are generated
+            // if !ctx.types.get(element).is_sized() {
+            //     todo!("report error: cannot use unsized type for array ptr");
+            // }
 
             ctx.types.define(Type::ArrayPtr(ArrayPtrType {
                 element,
@@ -270,10 +271,6 @@ fn get_type_from_path_node<E: ErrorReporter>(
                 instanced_fields.insert(*name, instanced_type);
             }
 
-            let sized = instanced_fields
-                .values()
-                .all(|type_id| ctx.types.get(*type_id).is_sized());
-
             let instanced_struct_body = StructBody {
                 fields: instanced_fields,
             };
@@ -282,7 +279,7 @@ fn get_type_from_path_node<E: ErrorReporter>(
                 def_id: generic_struct.def_id,
                 type_args: ctx.typeargs.define(&type_args),
                 body: instanced_struct_body,
-                sized,
+                sized: true, // TODO: fix this, calculate properly,
             });
             ctx.types.define(ty)
         }
@@ -316,15 +313,12 @@ pub fn substitute_generic_args<E>(
                 .iter()
                 .map(|(name, type_id)| (*name, substitute_generic_args(ctx, args, *type_id)))
                 .collect::<IndexMap<_, _>>();
-            let sized = fields
-                .values()
-                .all(|type_id| ctx.types.get(*type_id).is_sized());
 
             ctx.types.define(Type::NamedStructInst(NamedStructInstType {
                 def_id: named_struct_inst_type.def_id,
                 type_args: ctx.typeargs.define(&typeargs),
                 body: StructBody { fields },
-                sized,
+                sized: true, // TODO: fix this, calculate properly,
             }))
         }
         Type::Func(func_type) => {
