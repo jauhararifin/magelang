@@ -737,7 +737,7 @@ impl Generator {
 
     fn get_variable_loc(&self, expr: &Expr) -> Option<VariableLoc> {
         match &expr.kind {
-            ExprKind::Global(id) => Some(VariableLoc::Global(id.0 as u32)),
+            ExprKind::Global(id) => Some(VariableLoc::Global(self.global_maps[id.0])),
             ExprKind::Local(id) => Some(VariableLoc::Local(self.locals.get_local(*id))),
             ExprKind::GetElement(target, field) => {
                 let mut var_idx = self.get_variable_loc(target)?;
