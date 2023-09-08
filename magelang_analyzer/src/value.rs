@@ -21,8 +21,8 @@ pub fn value_from_string_lit(literal: &str) -> Option<Vec<u8>> {
                 'x' => {
                     let into_u8 = |c: u8| match c as char {
                         '0'..='9' => Some(c - b'0'),
-                        'a'..='f' => Some(c - b'a'),
-                        'A'..='F' => Some(c - b'A'),
+                        'a'..='f' => Some(c - b'a' + 0xa),
+                        'A'..='F' => Some(c - b'A' + 0xa),
                         _ => None,
                     };
                     let b0 = literal.next().and_then(into_u8)?;
