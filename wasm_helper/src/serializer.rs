@@ -1055,6 +1055,17 @@ impl Serializer for Data {
     }
 }
 
+impl Serializer for Bytes {
+    fn serialize<W>(&self, writer: &mut W) -> std::io::Result<()>
+    where
+        W: std::io::Write + ?Sized,
+    {
+        self.0.len().serialize(writer)?;
+        writer.write(&self.0)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

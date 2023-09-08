@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum NumType {
     I32,
@@ -399,8 +401,17 @@ pub enum ElemMode {
 }
 
 #[derive(Debug)]
+pub struct Bytes(pub Rc<[u8]>);
+
+impl From<&str> for Bytes {
+    fn from(value: &str) -> Self {
+        Self(value.as_bytes().into())
+    }
+}
+
+#[derive(Debug)]
 pub struct Data {
-    pub init: Vec<u8>,
+    pub init: Bytes,
     pub mode: DataMode,
 }
 

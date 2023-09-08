@@ -83,7 +83,7 @@ impl Generator {
         let mut datas = Vec::default();
         for (data, offset) in self.data.drain(..) {
             datas.push(wasm::Data {
-                init: data.to_vec(),
+                init: wasm::Bytes(data),
                 mode: wasm::DataMode::Active {
                     memory: 0,
                     offset: wasm::Expr(vec![wasm::Instr::I32Const(offset as i32)]),
