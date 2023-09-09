@@ -278,6 +278,7 @@ impl Generator {
             DataEnd,
             SizeOf,
             AlignOf,
+            Unreachable,
         }
 
         struct MappedFunction<'a> {
@@ -370,6 +371,7 @@ impl Generator {
                             "data.end" => InstrinsicFunc::DataEnd,
                             "size_of" => InstrinsicFunc::SizeOf,
                             "align_of" => InstrinsicFunc::AlignOf,
+                            "unreachable" => InstrinsicFunc::Unreachable,
                             instr_name => todo!("unknwon wasm instr {instr_name}"),
                         };
                         wasm_instr = Some(instr);
@@ -451,6 +453,7 @@ impl Generator {
                             InstrinsicFunc::MemoryGrow => {
                                 vec![wasm::Instr::LocalGet(0), wasm::Instr::MemoryGrow]
                             }
+                            InstrinsicFunc::Unreachable => vec![wasm::Instr::Unreachable],
                             InstrinsicFunc::DataEnd => {
                                 vec![wasm::Instr::I32Const(self.data_end as i32)]
                             }
