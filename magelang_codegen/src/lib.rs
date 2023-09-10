@@ -1246,11 +1246,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Add],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F32Add],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform add on {ty:?}");
                     }
                 };
 
@@ -1308,11 +1304,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Sub],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F32Sub],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform sub on {ty:?}");
                     }
                 };
 
@@ -1370,11 +1362,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Mul],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F32Mul],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform mul on {ty:?}");
                     }
                 };
 
@@ -1432,11 +1420,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F32Div],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform div on {ty:?}");
                     }
                 };
 
@@ -1491,11 +1475,7 @@ impl Generator {
                         size: BitSize::I64,
                     }) => vec![wasm::Instr::I64RemU],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform mod on {ty:?}");
                     }
                 };
 
@@ -1529,11 +1509,7 @@ impl Generator {
                         size: BitSize::I64,
                     }) => vec![wasm::Instr::I64Or],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform or on {ty:?}");
                     }
                 };
 
@@ -1567,11 +1543,7 @@ impl Generator {
                         size: BitSize::I64,
                     }) => vec![wasm::Instr::I64And],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform and on {ty:?}");
                     }
                 };
 
@@ -1605,11 +1577,7 @@ impl Generator {
                         size: BitSize::I64,
                     }) => vec![wasm::Instr::I64Xor],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform xor on {ty:?}");
                     }
                 };
 
@@ -1643,11 +1611,7 @@ impl Generator {
                         size: BitSize::I64,
                     }) => vec![wasm::Instr::I64Shl],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform shl on {ty:?}");
                     }
                 };
 
@@ -1705,11 +1669,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Div],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform div on {ty:?}");
                     }
                 };
 
@@ -1776,11 +1736,7 @@ impl Generator {
                     }
 
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform eq on {ty:?}");
                     }
                 };
 
@@ -1800,6 +1756,7 @@ impl Generator {
                         sign: _,
                         size: BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                     }) => vec![wasm::Instr::I32Eq],
+                    Type::Ptr(..) | Type::ArrayPtr(..) | Type::Func(..) => vec![wasm::Instr::I32Eq],
                     Type::Int(IntType {
                         sign: _,
                         size: BitSize::I64,
@@ -1824,11 +1781,7 @@ impl Generator {
                     }
 
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform neq on {ty:?}");
                     }
                 };
                 let mut result = Vec::default();
@@ -1866,11 +1819,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Gt],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Gt],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform > on {ty:?}");
                     }
                 };
 
@@ -1904,11 +1853,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Ge],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Ge],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform ge on {ty:?}");
                     }
                 };
 
@@ -1942,11 +1887,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Lt],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Lt],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform lt on {ty:?}");
                     }
                 };
 
@@ -1980,11 +1921,7 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Le],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Le],
                     _ => {
-                        vec![
-                            wasm::Instr::Drop,
-                            wasm::Instr::Drop,
-                            wasm::Instr::Unreachable,
-                        ]
+                        todo!("cannot perform le on {ty:?}");
                     }
                 };
 
@@ -2008,11 +1945,9 @@ impl Generator {
                     Type::Float(FloatType::F64) => {
                         vec![wasm::Instr::F64Const(-1.0), wasm::Instr::F64Mul]
                     }
-                    _ => vec![
-                        wasm::Instr::Drop,
-                        wasm::Instr::Drop,
-                        wasm::Instr::Unreachable,
-                    ],
+                    _ => {
+                        todo!("cannot perform neg on {ty:?}");
+                    }
                 };
                 result.extend(instrs);
                 result
@@ -2028,11 +1963,9 @@ impl Generator {
                     Type::Int(IntType { sign: _, size: _ }) => {
                         vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Xor]
                     }
-                    _ => vec![
-                        wasm::Instr::Drop,
-                        wasm::Instr::Drop,
-                        wasm::Instr::Unreachable,
-                    ],
+                    _ => {
+                        todo!("cannot perform bitnot on {ty:?}");
+                    }
                 };
                 result.extend(instrs);
                 result
