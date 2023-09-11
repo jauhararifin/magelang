@@ -280,6 +280,10 @@ impl Generator {
         enum InstrinsicFunc {
             MemorySize,
             MemoryGrow,
+            F32Floor,
+            F64Floor,
+            F32Ceil,
+            F64Ceil,
             DataEnd,
             SizeOf,
             AlignOf,
@@ -373,6 +377,10 @@ impl Generator {
                         let instr = match name.as_str() {
                             "memory.size" => InstrinsicFunc::MemorySize,
                             "memory.grow" => InstrinsicFunc::MemoryGrow,
+                            "f32.floor" => InstrinsicFunc::F32Floor,
+                            "f64.floor" => InstrinsicFunc::F64Floor,
+                            "f32.ceil" => InstrinsicFunc::F32Ceil,
+                            "f64.ceil" => InstrinsicFunc::F64Ceil,
                             "data.end" => InstrinsicFunc::DataEnd,
                             "size_of" => InstrinsicFunc::SizeOf,
                             "align_of" => InstrinsicFunc::AlignOf,
@@ -458,6 +466,10 @@ impl Generator {
                             InstrinsicFunc::MemoryGrow => {
                                 vec![wasm::Instr::LocalGet(0), wasm::Instr::MemoryGrow]
                             }
+                            InstrinsicFunc::F32Floor => vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Floor],
+                            InstrinsicFunc::F64Floor => vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Floor],
+                            InstrinsicFunc::F32Ceil => vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Ceil],
+                            InstrinsicFunc::F64Ceil => vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Ceil],
                             InstrinsicFunc::Unreachable => vec![wasm::Instr::Unreachable],
                             InstrinsicFunc::DataEnd => {
                                 vec![wasm::Instr::I32Const(self.data_end as i32)]
