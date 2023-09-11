@@ -104,11 +104,16 @@ impl Generator {
             ref_type: wasm::RefType::FuncRef,
         };
 
+        let min_mem = (self.data_end + wasm_helper::PAGE_SIZE - 1) / (wasm_helper::PAGE_SIZE);
+
         wasm::Module {
             types: self.func_type_cache.take().into_keys().collect(),
             funcs: std::mem::take(&mut self.functions),
             tables: vec![func_table],
-            mems: vec![wasm::Mem { min: 1, max: None }],
+            mems: vec![wasm::Mem {
+                min: min_mem,
+                max: None,
+            }],
             globals: std::mem::take(&mut self.globals),
             elems: std::mem::take(&mut self.func_elems),
             datas,
@@ -1107,56 +1112,116 @@ impl Generator {
                         }
 
                         Type::Func(..) => {
-                            result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Void => (),
                         Type::Opaque => unreachable!("opaque type can't be dereferenced"),
                         Type::Bool => {
-                            result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Int(IntType {
                             sign: true,
                             size: BitSize::I8,
                         }) => {
-                            result.push(wasm::Instr::I32Load8S(wasm::MemArg { offset, align: 0 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load8S(wasm::MemArg { offset, align: 0 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Int(IntType {
                             sign: false,
                             size: BitSize::I8,
                         }) => {
-                            result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Int(IntType {
                             sign: true,
                             size: BitSize::I16,
                         }) => {
-                            result.push(wasm::Instr::I32Load16S(wasm::MemArg { offset, align: 1 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load16S(wasm::MemArg { offset, align: 1 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Int(IntType {
                             sign: false,
                             size: BitSize::I16,
                         }) => {
-                            result.push(wasm::Instr::I32Load16U(wasm::MemArg { offset, align: 1 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load16U(wasm::MemArg { offset, align: 1 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Int(IntType {
                             sign: _,
                             size: BitSize::I32 | BitSize::ISize,
-                        }) => result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 })),
+                        }) => {
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
+                        }
                         Type::Int(IntType {
                             sign: _,
                             size: BitSize::I64,
-                        }) => result.push(wasm::Instr::I64Load(wasm::MemArg { offset, align: 3 })),
+                        }) => {
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I64Load(wasm::MemArg { offset, align: 3 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
+                        }
                         Type::Float(FloatType::F32) => {
-                            result.push(wasm::Instr::F32Load(wasm::MemArg { offset, align: 2 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::F32Load(wasm::MemArg { offset, align: 2 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Float(FloatType::F64) => {
-                            result.push(wasm::Instr::F64Load(wasm::MemArg { offset, align: 3 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::F64Load(wasm::MemArg { offset, align: 3 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                         Type::Ptr(..) | Type::ArrayPtr(..) => {
-                            result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }))
+                            let temps = self
+                                .locals
+                                .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
+                            result.push(wasm::Instr::LocalTee(temps[0]));
+                            result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }));
+                            result.push(wasm::Instr::LocalGet(temps[0]));
                         }
                     }
                 }
+                result.push(wasm::Instr::Drop);
 
                 result
             }
