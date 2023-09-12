@@ -13,3 +13,8 @@ fn memory_size(): usize;
 @intrinsic("memory.grow")
 fn memory_grow(sz: usize): usize;
 
+@intrinsic("table.get")
+fn table_get(id: usize): opaque;
+
+@intrinsic("table.set")
+fn table_set(id: usize, val: opaque);

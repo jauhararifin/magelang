@@ -103,13 +103,18 @@ impl Generator {
             },
             ref_type: wasm::RefType::FuncRef,
         };
+        let opaque_table = wasm::TableType {
+            limits: wasm::Limits { min: 32, max: None },
+            ref_type: wasm::RefType::ExternRef,
+        };
+        let tables = vec![func_table, opaque_table];
 
         let min_mem = (self.data_end + wasm_helper::PAGE_SIZE - 1) / (wasm_helper::PAGE_SIZE);
 
         wasm::Module {
             types: self.func_type_cache.take().into_keys().collect(),
             funcs: std::mem::take(&mut self.functions),
-            tables: vec![func_table],
+            tables,
             mems: vec![wasm::Mem {
                 min: min_mem,
                 max: None,
@@ -285,6 +290,8 @@ impl Generator {
             F32Ceil,
             F64Ceil,
             DataEnd,
+            TableGet,
+            TableSet,
             SizeOf,
             AlignOf,
             Unreachable,
@@ -382,6 +389,8 @@ impl Generator {
                             "f32.ceil" => InstrinsicFunc::F32Ceil,
                             "f64.ceil" => InstrinsicFunc::F64Ceil,
                             "data.end" => InstrinsicFunc::DataEnd,
+                            "table.get" => InstrinsicFunc::TableGet,
+                            "table.set" => InstrinsicFunc::TableSet,
                             "size_of" => InstrinsicFunc::SizeOf,
                             "align_of" => InstrinsicFunc::AlignOf,
                             "unreachable" => InstrinsicFunc::Unreachable,
@@ -466,13 +475,31 @@ impl Generator {
                             InstrinsicFunc::MemoryGrow => {
                                 vec![wasm::Instr::LocalGet(0), wasm::Instr::MemoryGrow]
                             }
-                            InstrinsicFunc::F32Floor => vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Floor],
-                            InstrinsicFunc::F64Floor => vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Floor],
-                            InstrinsicFunc::F32Ceil => vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Ceil],
-                            InstrinsicFunc::F64Ceil => vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Ceil],
+                            InstrinsicFunc::F32Floor => {
+                                vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Floor]
+                            }
+                            InstrinsicFunc::F64Floor => {
+                                vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Floor]
+                            }
+                            InstrinsicFunc::F32Ceil => {
+                                vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Ceil]
+                            }
+                            InstrinsicFunc::F64Ceil => {
+                                vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Ceil]
+                            }
                             InstrinsicFunc::Unreachable => vec![wasm::Instr::Unreachable],
                             InstrinsicFunc::DataEnd => {
                                 vec![wasm::Instr::I32Const(self.data_end as i32)]
+                            }
+                            InstrinsicFunc::TableGet => {
+                                vec![wasm::Instr::LocalGet(0), wasm::Instr::TableGet(1)]
+                            }
+                            InstrinsicFunc::TableSet => {
+                                vec![
+                                    wasm::Instr::LocalGet(0),
+                                    wasm::Instr::LocalGet(1),
+                                    wasm::Instr::TableSet(1),
+                                ]
                             }
                             InstrinsicFunc::SizeOf => {
                                 let func = &self.module.functions[id];
@@ -2327,7 +2354,6 @@ impl Generator {
             Type::Struct(struct_type) => struct_type
                 .fields
                 .iter()
-                .rev()
                 .flat_map(|field| self.build_zero_type(&self.module.types[field.ty.0]))
                 .collect(),
             Type::Func(..) => vec![wasm::Instr::I32Const(0)],
