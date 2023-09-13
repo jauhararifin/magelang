@@ -1825,6 +1825,8 @@ impl Generator {
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
 
+                    Type::Bool => vec![wasm::Instr::I32Eq],
+
                     Type::Opaque => {
                         let mut result = Vec::default();
                         if !matches!(a.kind, ExprKind::Zero(..)) {
@@ -1868,6 +1870,8 @@ impl Generator {
 
                     Type::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
                     Type::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
+
+                    Type::Bool => vec![wasm::Instr::I32Eq],
 
                     Type::Opaque => {
                         let mut result = Vec::default();
