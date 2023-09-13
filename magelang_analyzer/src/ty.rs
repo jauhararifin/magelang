@@ -265,6 +265,7 @@ fn get_type_from_path_node<E: ErrorReporter>(
             }
 
             let mut instanced_fields = IndexMap::default();
+            // TODO: technically we can't do this since the generic struct itself can be circular.
             let generic_body = generic_struct.body.get().expect("missing struct body");
             for (name, type_id) in &generic_body.fields {
                 let instanced_type = substitute_generic_args(ctx, &type_args, *type_id);
