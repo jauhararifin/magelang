@@ -185,9 +185,20 @@ Magelang uses the current directory as the base path to find the package. In thi
 "fmt" package is located at `./fmt.mg`. If you put the `fmt.mg` at `./a/b/c/d/fmt.mg`,
 then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
 
+## Data Types
+
+TBD.
+
 # TODOs
 
-- [ ] Support externref type for web assembly
+- [ ] Support conditional compilation based on target
+- [ ] Support function pointer
+- [ ] Support comparing pointer to null
+- [ ] Support hexadecimal, octal and binary integer literal
+- [ ] Allow to use integer literal as float type
+- [ ] Perform type inference for generic function call
+- [ ] Importing global variable from host
+- [ ] Support opaque type for webassembly externref and funcref
 - [ ] Char literal
 - [ ] For loops
 - [ ] Public and private modifiers
