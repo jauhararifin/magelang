@@ -73,7 +73,7 @@ cargo install --path magelang
 ## Hello World
 
 ```
-// the main functino should be annotated with @main() annotation.
+// the main function should be annotated with @main() annotation.
 // You can call your main function anything you want, as long as it has
 // @main() annotation, it will be treated as a main function.
 @main()
