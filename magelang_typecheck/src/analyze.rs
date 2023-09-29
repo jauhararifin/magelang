@@ -10,7 +10,7 @@ use crate::{DefId, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use indexmap::IndexMap;
 use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos};
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -54,6 +54,7 @@ pub fn analyze(
     ctx.set_type_scope(type_scopes);
 
     generate_type_body(&ctx);
+    monomorphize_types(&ctx);
 
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
@@ -303,6 +304,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
                 body: OnceCell::default(),
                 sized: OnceCell::default(),
                 node: struct_node,
+                mono_cache: RefCell::default(),
             }));
             let object: TypeObject = ty.into();
 
@@ -399,6 +401,34 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                 .body
                 .set(struct_body)
                 .expect("cannot set struct body");
+        }
+    }
+}
+
+fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+    for scopes in ctx.scopes.values() {
+        for (_, type_object) in scopes.type_scopes.iter() {
+            let ty = type_object.ty;
+            let Type::Struct(struct_type) = ty.as_ref() else {
+                continue;
+            };
+            let is_concrete = struct_type.type_params.is_empty();
+            if !is_concrete {
+                continue;
+            }
+
+            let body = struct_type.body.get().expect("missing struct body");
+            for ty in body.fields.iter().filter_map(|(_, ty)| ty.as_inst()) {
+                let generic_ty = ctx
+                    .scopes
+                    .get(&ty.def_id.package)
+                    .expect("missing package scope")
+                    .type_scopes
+                    .lookup(ty.def_id.name)
+                    .expect("missing type");
+                generic_ty.monomorphize(ctx, ty.type_args);
+                assert!(ty.body.get().is_some());
+            }
         }
     }
 }

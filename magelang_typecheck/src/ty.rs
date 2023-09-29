@@ -4,7 +4,8 @@ use crate::interner::{Interned, Interner};
 use crate::{DefId, Symbol};
 use indexmap::IndexMap;
 use magelang_syntax::{ErrorReporter, PathNode, StructNode, Token, TypeExprNode};
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 
@@ -28,6 +29,37 @@ pub(crate) enum Type<'a> {
     Ptr(InternType<'a>),
     ArrayPtr(InternType<'a>),
     TypeArg(TypeArg<'a>),
+}
+
+impl<'a> Type<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: InternTypeArgs<'a>,
+    ) -> InternType<'a> {
+        match self {
+            Self::Unknown => ctx.define_type(Self::Unknown),
+            Self::Struct(struct_type) => struct_type.monomorphize(ctx, type_args),
+            Self::Inst(inst_type) => inst_type.monomorphize(ctx, type_args),
+            Self::Func(..) => todo!(),
+            Self::Void => ctx.define_type(Self::Void),
+            Self::Opaque => ctx.define_type(Self::Opaque),
+            Self::Bool => ctx.define_type(Self::Bool),
+            Self::Int(sign, size) => ctx.define_type(Type::Int(*sign, *size)),
+            Self::Float(ty) => ctx.define_type(Type::Float(*ty)),
+            Self::Ptr(el) => ctx.define_type(Type::Ptr(el.monomorphize(ctx, type_args))),
+            Self::ArrayPtr(el) => ctx.define_type(Type::ArrayPtr(el.monomorphize(ctx, type_args))),
+            Self::TypeArg(arg) => arg.monomorphize(ctx, type_args),
+        }
+    }
+
+    pub(crate) fn as_inst(&self) -> Option<&InstType<'a>> {
+        if let Self::Inst(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
 }
 
 impl<'a> Display for Type<'a> {
@@ -78,11 +110,52 @@ pub(crate) struct StructType<'a> {
     pub(crate) body: OnceCell<StructBody<'a>>,
     pub(crate) sized: OnceCell<bool>,
     pub(crate) node: &'a StructNode,
+    pub(crate) mono_cache: RefCell<HashMap<InternTypeArgs<'a>, InternType<'a>>>,
 }
 
 impl<'a> Hash for StructType<'a> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.def_id.hash(state);
+    }
+}
+
+impl<'a> StructType<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: InternTypeArgs<'a>,
+    ) -> InternType<'a> {
+        {
+            let mut cache = self.mono_cache.borrow_mut();
+            if let Some(ty) = cache.get(&type_args) {
+                return *ty;
+            } else {
+                let ty = ctx.define_type(Type::Inst(InstType {
+                    def_id: self.def_id,
+                    type_args,
+                    body: OnceCell::default(),
+                }));
+                cache.insert(type_args, ty);
+            }
+        }
+
+        let body = self.body.get().expect("missing struct body");
+        let fields = body
+            .fields
+            .iter()
+            .map(|(name, ty)| (*name, ty.monomorphize(ctx, type_args)))
+            .collect::<IndexMap<_, _>>();
+        let substituted_body = StructBody { fields };
+
+        let cache = self.mono_cache.borrow_mut();
+        let interned_ty = cache.get(&type_args).unwrap();
+        let Type::Inst(ty) = interned_ty.as_ref() else {
+            unreachable!();
+        };
+        ty.body
+            .set(substituted_body)
+            .expect("cannot set instance body");
+        *interned_ty
     }
 }
 
@@ -95,7 +168,31 @@ pub(crate) struct StructBody<'a> {
 pub(crate) struct InstType<'a> {
     pub def_id: DefId<'a>,
     pub type_args: InternTypeArgs<'a>,
-    pub body: OnceCell<InternType<'a>>,
+    pub body: OnceCell<StructBody<'a>>, // only relevant on concrete type
+}
+
+impl<'a> InstType<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: InternTypeArgs<'a>,
+    ) -> InternType<'a> {
+        let ty = ctx
+            .scopes
+            .get(&self.def_id.package)
+            .expect("missing package scope")
+            .type_scopes
+            .lookup(self.def_id.name)
+            .expect("missing type");
+
+        let substituted_type_args = type_args
+            .iter()
+            .map(|ty| ty.monomorphize(ctx, type_args))
+            .collect::<Vec<_>>();
+        let substituted_type_args = ctx.define_typeargs(&substituted_type_args);
+
+        ty.monomorphize(ctx, substituted_type_args)
+    }
 }
 
 impl<'a> Hash for InstType<'a> {
@@ -121,6 +218,25 @@ impl<'a> Display for InstType<'a> {
 pub(crate) struct FuncType<'a> {
     pub params: Vec<InternType<'a>>,
     pub return_type: InternType<'a>,
+}
+
+impl<'a> FuncType<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: InternTypeArgs<'a>,
+    ) -> InternType<'a> {
+        let params = self
+            .params
+            .iter()
+            .map(|ty| ty.monomorphize(ctx, type_args))
+            .collect();
+        let return_type = self.return_type.monomorphize(ctx, type_args);
+        ctx.define_type(Type::Func(FuncType {
+            params,
+            return_type,
+        }))
+    }
 }
 
 impl<'a> Display for FuncType<'a> {
@@ -162,6 +278,16 @@ impl<'a> TypeArg<'a> {
     pub(crate) fn new(index: usize, name: Symbol<'a>) -> Self {
         Self { index, name }
     }
+
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        _: &'b Context<'a, E>,
+        type_args: InternTypeArgs<'a>,
+    ) -> InternType<'a> {
+        *type_args
+            .get(self.index)
+            .expect("missing type arg at the index")
+    }
 }
 
 pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
@@ -181,7 +307,6 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
             ctx.define_type(Type::ArrayPtr(element_ty))
         }
         TypeExprNode::Grouped(node) => get_type_from_node(ctx, scope, &node),
-        _ => todo!(),
     }
 }
 
