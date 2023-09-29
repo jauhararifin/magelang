@@ -340,7 +340,7 @@ fn build_package_scope(
     builtin_scope: Rc<Scope>,
     symbol_table: IndexMap<DefId, Object>,
 ) -> IndexMap<SymbolId, Rc<Scope>> {
-    let mut package_table = HashMap::<SymbolId, IndexMap<SymbolId, Object>>::default();
+    let mut package_table = IndexMap::<SymbolId, IndexMap<SymbolId, Object>>::default();
     for (def_id, object) in symbol_table {
         let table = package_table.entry(def_id.package).or_default();
         table.insert(def_id.name, object);
