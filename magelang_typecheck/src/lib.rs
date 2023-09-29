@@ -1,9 +1,15 @@
+mod analyze;
+mod errors;
 mod interner;
+mod path;
 mod scope;
 mod ty;
+mod value;
 
 use interner::{Interned, Interner};
 use std::fmt::Display;
+
+pub use analyze::analyze;
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
 pub(crate) type Symbol<'a> = Interned<'a, str>;
