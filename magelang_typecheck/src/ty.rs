@@ -31,11 +31,6 @@ pub(crate) enum Type<'a> {
     TypeArg(TypeArg<'a>),
 }
 
-struct Name<'a> {
-    def_id: Symbol<'a>,
-    type_args: InternTypeArgs<'a>,
-}
-
 impl<'a> Type<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
@@ -46,7 +41,7 @@ impl<'a> Type<'a> {
             Self::Unknown => ctx.define_type(Self::Unknown),
             Self::Struct(struct_type) => struct_type.monomorphize(ctx, type_args),
             Self::Inst(inst_type) => inst_type.monomorphize(ctx, type_args),
-            Self::Func(..) => todo!(),
+            Self::Func(func_type) => func_type.monomorphize(ctx, type_args),
             Self::Void => ctx.define_type(Self::Void),
             Self::Opaque => ctx.define_type(Self::Opaque),
             Self::Bool => ctx.define_type(Self::Bool),
