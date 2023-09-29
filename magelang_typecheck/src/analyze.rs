@@ -2,8 +2,9 @@ use crate::errors::SemanticError;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::ty::{
-    check_circular_type, get_type_from_node, BitSize, FloatType, InternType, InternTypeArgs,
-    StructBody, StructType, Type, TypeArg, TypeArgsInterner, TypeInterner,
+    check_circular_type, generate_struct_size_info, get_type_from_node, BitSize, FloatType,
+    InternType, InternTypeArgs, StructBody, StructType, Type, TypeArg, TypeArgsInterner,
+    TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol, SymbolInterner};
@@ -56,6 +57,7 @@ pub fn analyze(
     generate_type_body(&ctx);
     monomorphize_types(&ctx);
     check_circular_type(&ctx);
+    generate_struct_size_info(&ctx);
 
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
@@ -303,7 +305,6 @@ fn build_type_scopes<'a, E: ErrorReporter>(
                 def_id,
                 type_params,
                 body: OnceCell::default(),
-                sized: OnceCell::default(),
                 node: struct_node,
                 mono_cache: RefCell::default(),
             }));
@@ -396,7 +397,10 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                     fields.insert(field_name, ty.into());
                 }
             }
-            let struct_body = StructBody { fields };
+            let struct_body = StructBody {
+                fields,
+                sized: OnceCell::default(),
+            };
 
             struct_type
                 .body
