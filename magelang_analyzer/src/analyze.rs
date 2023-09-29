@@ -15,8 +15,8 @@ use crate::ty::{
 use crate::value::value_from_string_lit;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    parse, BlockStatementNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ImportNode,
-    ItemNode, PackageNode, Pos, SignatureNode, StructNode,
+    parse, AnnotationNode, BlockStatementNode, ErrorReporter, FileManager, FunctionNode,
+    GlobalNode, ImportNode, ItemNode, PackageNode, Pos, SignatureNode, StructNode,
 };
 use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -175,7 +175,7 @@ fn build_symbol_table<E: ErrorReporter>(
         let object = match item_node {
             ItemNode::Import(node) => init_import_object(ctx, node),
             ItemNode::Struct(node) => Some(init_struct_objects(ctx, def_id, node)),
-            ItemNode::Global(global_node) => Some(init_global_object(def_id, global_node)),
+            ItemNode::Global(global_node) => Some(init_global_object(ctx, def_id, global_node)),
             ItemNode::Function(func_node) => Some(init_function_object(ctx, def_id, func_node)),
         };
         let Some(object) = object else { continue };
@@ -234,12 +234,18 @@ fn init_struct_objects<E: ErrorReporter>(
     }
 }
 
-fn init_global_object(def_id: DefId, global_node: GlobalNode) -> Object {
+fn init_global_object<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
+    def_id: DefId,
+    global_node: GlobalNode,
+) -> Object {
+    let annotations = build_annotations_from_node(ctx, &global_node.annotations).into();
     Object::Global(GlobalObject {
         def_id,
         node: global_node,
         ty: OnceCell::default(),
         value: OnceCell::default(),
+        annotations,
     })
 }
 
@@ -252,7 +258,7 @@ fn init_function_object<E: ErrorReporter>(
         return init_native_function_object(ctx, def_id, func_node.signature);
     }
 
-    let annotations = build_annotations_from_node(ctx, &func_node.signature).into();
+    let annotations = build_annotations_from_node(ctx, &func_node.signature.annotations).into();
     if func_node.signature.type_params.is_empty() {
         Object::Func(FuncObject {
             def_id,
@@ -277,10 +283,10 @@ fn init_function_object<E: ErrorReporter>(
 
 fn build_annotations_from_node<E: ErrorReporter>(
     ctx: &Context<'_, E>,
-    signature: &SignatureNode,
+    nodes: &[AnnotationNode],
 ) -> Vec<Annotation> {
     let mut annotations = Vec::default();
-    for annotation_node in &signature.annotations {
+    for annotation_node in nodes {
         let mut arguments = Vec::default();
         let mut valid = true;
         for arg in &annotation_node.arguments {
@@ -313,7 +319,7 @@ fn init_native_function_object<E: ErrorReporter>(
     def_id: DefId,
     signature: SignatureNode,
 ) -> Object {
-    let annotations = build_annotations_from_node(ctx, &signature).into();
+    let annotations = build_annotations_from_node(ctx, &signature.annotations).into();
     if signature.type_params.is_empty() {
         Object::Func(FuncObject {
             def_id,

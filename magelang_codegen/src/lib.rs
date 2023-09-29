@@ -2,6 +2,9 @@ use indexmap::IndexMap;
 use magelang_analyzer::*;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 use std::rc::Rc;
 use wasm_helper as wasm;
 
@@ -13,7 +16,9 @@ pub fn generate_wasm_ir(module: Package) -> wasm::Module {
 struct Generator {
     module: Package,
 
-    data: IndexMap<Rc<[u8]>, u32>,
+    string_lits: IndexMap<Rc<[u8]>, u32>,
+    embedded_files: IndexMap<Rc<Path>, u32>,
+    data: Vec<(Rc<[u8]>, u32)>,
     data_end: u32,
     imports: Vec<wasm::Import>,
     struct_mem_layouts: HashMap<TypeId, StructMemLayout>,
@@ -28,6 +33,13 @@ struct Generator {
     exports: Vec<wasm::Export>,
     starting_point: Option<wasm::FuncIdx>,
     locals: LocalManager,
+}
+
+struct ModuleData {
+    string_lit: IndexMap<Rc<[u8]>, u32>,
+    embedded_files: IndexMap<Rc<Path>, u32>,
+    data_end: u32,
+    data: Vec<(Rc<[u8]>, u32)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -56,7 +68,9 @@ impl Generator {
     fn new(module: Package) -> Self {
         Self {
             module,
-            data: IndexMap::default(),
+            string_lits: IndexMap::default(),
+            embedded_files: IndexMap::default(),
+            data: Vec::default(),
             data_end: 0,
             imports: Vec::default(),
             struct_mem_layouts: HashMap::default(),
@@ -129,52 +143,60 @@ impl Generator {
     }
 
     fn build_data(&mut self) {
-        let mut data_map = IndexMap::<Rc<[u8]>, u32>::default();
+        let mut data = ModuleData {
+            string_lit: IndexMap::default(),
+            embedded_files: IndexMap::default(),
+            data_end: 0,
+            data: Vec::default(),
+        };
+
         for global in &self.module.globals {
-            Self::build_data_from_expr(&mut data_map, &global.value);
+            Self::build_data_from_expr(&mut data, &global.value);
+        }
+        for global in &self.module.globals {
+            Self::build_data_from_annotations(&mut data, &global.annotations);
         }
         for func in &self.module.functions {
-            Self::build_data_from_stmt(&mut data_map, &func.statement);
+            Self::build_data_from_stmt(&mut data, &func.statement);
         }
 
-        self.data_end = data_map
-            .last()
-            .map(|(raw, offset)| raw.len() as u32 + *offset)
-            .unwrap_or(8u32);
-        self.data = data_map;
+        self.data_end = data.data_end;
+        self.string_lits = data.string_lit;
+        self.embedded_files = data.embedded_files;
+        self.data = data.data;
     }
 
-    fn build_data_from_stmt(data_map: &mut IndexMap<Rc<[u8]>, u32>, stmt: &Statement) {
+    fn build_data_from_stmt(data: &mut ModuleData, stmt: &Statement) {
         match stmt {
             Statement::Block(statements) => {
                 for stmt in statements {
-                    Self::build_data_from_stmt(data_map, stmt);
+                    Self::build_data_from_stmt(data, stmt);
                 }
             }
             Statement::If(if_stmt) => {
-                Self::build_data_from_expr(data_map, &if_stmt.cond);
-                Self::build_data_from_stmt(data_map, &if_stmt.body);
+                Self::build_data_from_expr(data, &if_stmt.cond);
+                Self::build_data_from_stmt(data, &if_stmt.body);
                 if let Some(ref else_body) = if_stmt.else_stmt {
-                    Self::build_data_from_stmt(data_map, else_body);
+                    Self::build_data_from_stmt(data, else_body);
                 }
             }
             Statement::While(while_stmt) => {
-                Self::build_data_from_expr(data_map, &while_stmt.cond);
-                Self::build_data_from_stmt(data_map, &while_stmt.body);
+                Self::build_data_from_expr(data, &while_stmt.cond);
+                Self::build_data_from_stmt(data, &while_stmt.body);
             }
             Statement::Return(Some(val)) => {
-                Self::build_data_from_expr(data_map, val);
+                Self::build_data_from_expr(data, val);
             }
-            Statement::Expr(expr) => Self::build_data_from_expr(data_map, expr),
+            Statement::Expr(expr) => Self::build_data_from_expr(data, expr),
             Statement::Assign(target, value) => {
-                Self::build_data_from_expr(data_map, target);
-                Self::build_data_from_expr(data_map, value);
+                Self::build_data_from_expr(data, target);
+                Self::build_data_from_expr(data, value);
             }
             Statement::Native | Statement::Return(..) | Statement::Continue | Statement::Break => {}
         }
     }
 
-    fn build_data_from_expr(data_map: &mut IndexMap<Rc<[u8]>, u32>, expr: &Expr) {
+    fn build_data_from_expr(data: &mut ModuleData, expr: &Expr) {
         match &expr.kind {
             ExprKind::ConstI8(..)
             | ExprKind::ConstI16(..)
@@ -190,16 +212,15 @@ impl Generator {
             | ExprKind::Func(..) => {}
             ExprKind::StructLit(_, values) => {
                 for val in values {
-                    Self::build_data_from_expr(data_map, val);
+                    Self::build_data_from_expr(data, val);
                 }
             }
-            ExprKind::Bytes(data) => {
-                if !data_map.contains_key(data) {
-                    let next_id = data_map
-                        .last()
-                        .map(|(bytes, id)| *id + bytes.len() as u32)
-                        .unwrap_or(8);
-                    data_map.insert(data.clone(), next_id);
+            ExprKind::Bytes(buff) => {
+                if !data.string_lit.contains_key(buff) {
+                    let next_id = data.data_end;
+                    data.data_end += buff.len() as u32;
+                    data.string_lit.insert(buff.clone(), next_id);
+                    data.data.push((buff.clone(), next_id));
                 }
             }
             ExprKind::GetElement(expr, _)
@@ -208,15 +229,15 @@ impl Generator {
             | ExprKind::BitNot(expr)
             | ExprKind::Not(expr)
             | ExprKind::Cast(expr, _)
-            | ExprKind::Deref(expr) => Self::build_data_from_expr(data_map, expr),
+            | ExprKind::Deref(expr) => Self::build_data_from_expr(data, expr),
             ExprKind::GetIndex(expr, index) => {
-                Self::build_data_from_expr(data_map, expr);
-                Self::build_data_from_expr(data_map, index);
+                Self::build_data_from_expr(data, expr);
+                Self::build_data_from_expr(data, index);
             }
             ExprKind::Call(callee, args) => {
-                Self::build_data_from_expr(data_map, callee);
+                Self::build_data_from_expr(data, callee);
                 for arg in args {
-                    Self::build_data_from_expr(data_map, arg);
+                    Self::build_data_from_expr(data, arg);
                 }
             }
             ExprKind::Add(a, b)
@@ -237,10 +258,63 @@ impl Generator {
             | ExprKind::GEq(a, b)
             | ExprKind::Lt(a, b)
             | ExprKind::LEq(a, b) => {
-                Self::build_data_from_expr(data_map, a);
-                Self::build_data_from_expr(data_map, b);
+                Self::build_data_from_expr(data, a);
+                Self::build_data_from_expr(data, b);
             }
         }
+    }
+
+    fn build_data_from_annotations(data: &mut ModuleData, annotations: &[Annotation]) {
+        let Some(filepath) = Self::get_embed_file_annotation(annotations) else {
+            return;
+        };
+
+        let mut f = File::open(filepath).expect("repport error: cannot read file");
+        let mut buff = Vec::default();
+        f.read_to_end(&mut buff)
+            .expect("report error: cannot read file");
+
+        let next_id = data.data_end;
+        data.data_end += buff.len() as u32;
+        data.embedded_files.insert(filepath.into(), next_id);
+        data.data.push((buff.into(), next_id));
+    }
+
+    fn get_embed_file_annotation<'a>(annotations: &'a [Annotation]) -> Option<&'a Path> {
+        let mut found = false;
+        let mut result = None;
+        for annotation in annotations {
+            let name = annotation.name.as_str();
+            if name != "embed_file" {
+                continue;
+            }
+
+            if found {
+                todo!("report error: found duplicated @embed_file annotation");
+            }
+            found = true;
+
+            if annotation.arguments.len() != 1 {
+                todo!(
+                    "expected to have 1 argument in embed_file, but found {}",
+                    annotation.arguments.len()
+                );
+            }
+
+            let filepath = annotation.arguments[0].as_str();
+            let filepath = Path::new(filepath);
+
+            if !filepath.exists() {
+                todo!("report error: {filepath:?} doesn't exist");
+            }
+            if !filepath.is_file() {
+                todo!("report error: {filepath:?} is not a file");
+            }
+
+            result = Some(filepath);
+        }
+
+        result
     }
 
     fn build_struct_layout(&mut self) {
@@ -646,7 +720,35 @@ impl Generator {
 
         let mut init_func_body = Vec::default();
         for (i, global) in self.module.globals.iter().enumerate() {
-            let instrs = self.build_value_expr(&global.value);
+            // TODO: override this. if annotated with `@file_embed()`, load the content from file.
+            let instrs = if let ExprKind::Zero(type_id) = global.value.kind {
+                let ty = &self.module.types[type_id.0];
+                let Type::ArrayPtr(el) = ty else {
+                    continue;
+                };
+                let el = &self.module.types[el.0];
+                let is_bytes = !matches!(
+                    el,
+                    Type::Int(IntType {
+                        sign: true,
+                        size: BitSize::I8,
+                    }),
+                );
+                if !is_bytes {
+                    continue;
+                }
+
+                let Some(filepath) = Self::get_embed_file_annotation(&global.annotations) else {
+                    continue;
+                };
+
+                vec![wasm::Instr::I32Const(
+                    *self.embedded_files.get(filepath).unwrap() as i32,
+                )]
+            } else {
+                self.build_value_expr(&global.value)
+            };
+
             init_func_body.extend(instrs);
             let global_id = self.global_maps[i];
             let instrs =
@@ -1046,7 +1148,9 @@ impl Generator {
                 .flat_map(|expr| self.build_value_expr(expr))
                 .collect(),
             ExprKind::Bytes(bytes) => {
-                vec![wasm::Instr::I32Const(*self.data.get(bytes).unwrap() as i32)]
+                vec![wasm::Instr::I32Const(
+                    *self.string_lits.get(bytes).unwrap() as i32
+                )]
             }
             ExprKind::Local(idx) => self.build_value_expr_from_var(
                 VariableLoc::Local(self.locals.get_local(*idx)),

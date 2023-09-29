@@ -129,6 +129,7 @@ pub struct GlobalObject {
     pub node: GlobalNode,
     pub ty: OnceCell<TypeId>,
     pub value: OnceCell<Expr>,
+    pub annotations: Rc<[tree_ir::Annotation]>,
 }
 
 #[derive(Debug)]

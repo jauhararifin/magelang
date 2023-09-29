@@ -178,6 +178,7 @@ pub struct Global {
     pub id: ObjectId,
     pub type_id: TypeId,
     pub value: Expr,
+    pub annotations: Rc<[Annotation]>,
 }
 
 #[derive(Debug)]
@@ -351,6 +352,7 @@ pub fn build_ir<E>(ctx: &TypeCheckContext<E>) -> Package {
                         id: global_object.def_id.into(),
                         type_id: ir_type_id,
                         value,
+                        annotations: global_object.annotations.clone(),
                     });
                 }
                 _ => continue,
