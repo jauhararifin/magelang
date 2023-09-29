@@ -2,7 +2,7 @@ use crate::analyze::{Context, Scopes, TypeObject};
 use crate::errors::SemanticError;
 use crate::interner::{Interned, Interner};
 use crate::{DefId, Symbol};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{ErrorReporter, PathNode, StructNode, Token, TypeExprNode};
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
@@ -29,6 +29,11 @@ pub(crate) enum Type<'a> {
     Ptr(InternType<'a>),
     ArrayPtr(InternType<'a>),
     TypeArg(TypeArg<'a>),
+}
+
+struct Name<'a> {
+    def_id: Symbol<'a>,
+    type_args: InternTypeArgs<'a>,
 }
 
 impl<'a> Type<'a> {
@@ -391,4 +396,109 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
 
         Some(object)
     }
+}
+
+pub(crate) fn check_circular_type<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+    let dep_list = build_struct_dependency_list(ctx);
+
+    let mut visited = IndexSet::<DefId>::default();
+    let mut in_chain = IndexSet::<DefId>::default();
+    for name in dep_list.keys() {
+        if visited.contains(name) {
+            continue;
+        }
+
+        let mut stack = vec![*name];
+        while let Some(name) = stack.pop() {
+            if in_chain.contains(&name) {
+                in_chain.remove(&name);
+                continue;
+            }
+
+            stack.push(name);
+            visited.insert(name);
+            in_chain.insert(name);
+
+            for dep in dep_list.get(&name).unwrap_or(&IndexSet::default()).iter() {
+                if !visited.contains(dep) {
+                    stack.push(*dep);
+                } else if in_chain.contains(dep) {
+                    report_circular_type(ctx, &in_chain, *dep);
+                }
+            }
+        }
+    }
+}
+
+fn build_struct_dependency_list<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+) -> IndexMap<DefId<'a>, IndexSet<DefId<'a>>> {
+    let mut adjlist = IndexMap::<DefId, IndexSet<DefId>>::default();
+    let type_objects = ctx
+        .scopes
+        .values()
+        .flat_map(|scopes| scopes.type_scopes.iter())
+        .map(|(_, obj)| obj);
+
+    for type_object in type_objects {
+        let Type::Struct(struct_type) = type_object.ty.as_ref() else {
+            continue;
+        };
+
+        let def_id = struct_type.def_id;
+        let dependencies = struct_type
+            .body
+            .get()
+            .expect("missing struct body")
+            .fields
+            .values()
+            .filter_map(|ty| match ty.as_ref() {
+                Type::Struct(ty) => Some(ty.def_id),
+                Type::Inst(ty) => Some(ty.def_id),
+                _ => None,
+            })
+            .collect::<IndexSet<_>>();
+
+        adjlist.insert(def_id, dependencies);
+    }
+
+    adjlist
+}
+
+fn report_circular_type<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    in_chain: &IndexSet<DefId>,
+    start: DefId,
+) {
+    let mut chain = Vec::default();
+    let mut started = false;
+    for name in in_chain {
+        if name == &start {
+            started = true;
+        }
+        if started {
+            chain.push(*name);
+        }
+    }
+
+    let mut chain_str = Vec::default();
+    for name in chain {
+        let display = format!("{name}");
+        chain_str.push(display);
+    }
+
+    let object = ctx
+        .scopes
+        .get(&start.package)
+        .unwrap()
+        .type_scopes
+        .lookup(start.name)
+        .unwrap();
+
+    let Type::Struct(struct_type) = object.as_ref() else {
+        unreachable!();
+    };
+    let pos = struct_type.node.pos;
+
+    ctx.errors.circular_type(pos, &chain_str);
 }
