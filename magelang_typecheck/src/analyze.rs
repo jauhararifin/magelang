@@ -2,8 +2,8 @@ use crate::errors::SemanticError;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::ty::{
-    BitSize, FloatType, InternType, InternTypeArgs, StructType, Type, TypeArg, TypeArgsInterner,
-    TypeInterner,
+    get_type_from_node, BitSize, FloatType, InternType, InternTypeArgs, StructBody, StructType,
+    Type, TypeArg, TypeArgsInterner, TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol, SymbolInterner};
@@ -45,7 +45,6 @@ pub fn analyze(
         errors: error_manager,
         interners,
         scopes: IndexMap::default(),
-        current_scope: Scopes::default(),
     };
 
     let import_scopes = build_imports(&ctx, &package_asts);
@@ -53,27 +52,32 @@ pub fn analyze(
 
     let type_scopes = build_type_scopes(&ctx, &package_asts);
     ctx.set_type_scope(type_scopes);
+
+    generate_type_body(&ctx);
+
+    // TODO: consider blocking circular import since it makes
+    // deciding global initialization harder for incremental
+    // compilation.
 }
 
-struct Context<'a, E> {
-    files: &'a FileManager,
-    errors: &'a E,
+pub(crate) struct Context<'a, E> {
+    pub(crate) files: &'a FileManager,
+    pub(crate) errors: &'a E,
 
-    interners: Interners<'a>,
-    scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
-    current_scope: Scopes<'a>,
+    pub(crate) interners: Interners<'a>,
+    pub(crate) scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
 }
 
 impl<'a, E> Context<'a, E> {
-    fn define_symbol(&self, symbol: &str) -> Symbol<'a> {
+    pub(crate) fn define_symbol(&self, symbol: &str) -> Symbol<'a> {
         self.interners.symbols.define(symbol)
     }
 
-    fn define_type(&self, ty: Type<'a>) -> InternType<'a> {
+    pub(crate) fn define_type(&self, ty: Type<'a>) -> InternType<'a> {
         self.interners.types.define(ty)
     }
 
-    fn define_typeargs(&self, typeargs: &[InternType<'a>]) -> InternTypeArgs<'a> {
+    pub(crate) fn define_typeargs(&self, typeargs: &[InternType<'a>]) -> InternTypeArgs<'a> {
         self.interners.typeargs.define(typeargs)
     }
 
@@ -93,32 +97,37 @@ impl<'a, E> Context<'a, E> {
             s.type_scopes = scope;
         }
     }
-
-    fn checkout_package(&mut self, package: Symbol<'a>) {
-        let scope = self.scopes.get(&package).expect("package is not found");
-        self.current_scope = scope.clone();
-    }
 }
 
-struct Interners<'a> {
+pub(crate) struct Interners<'a> {
     symbols: &'a SymbolInterner<'a>,
     types: &'a TypeInterner<'a>,
     typeargs: &'a TypeArgsInterner<'a>,
 }
 
 #[derive(Default, Clone)]
-struct Scopes<'a> {
-    import_scopes: Scope<'a, ImportObject<'a>>,
-    type_scopes: Scope<'a, TypeObject<'a>>,
-    value_scopes: Scope<'a, ValueObject<'a>>,
+pub(crate) struct Scopes<'a> {
+    pub(crate) import_scopes: Scope<'a, ImportObject<'a>>,
+    pub(crate) type_scopes: Scope<'a, TypeObject<'a>>,
+    pub(crate) value_scopes: Scope<'a, ValueObject<'a>>,
 }
 
-struct ImportObject<'a> {
-    package: Symbol<'a>,
+impl<'a> Scopes<'a> {
+    fn with_type_scope(&self, type_scopes: Scope<'a, TypeObject<'a>>) -> Self {
+        Self {
+            import_scopes: self.import_scopes.clone(),
+            type_scopes,
+            value_scopes: self.value_scopes.clone(),
+        }
+    }
 }
 
-struct TypeObject<'a> {
-    ty: InternType<'a>,
+pub(crate) struct ImportObject<'a> {
+    pub(crate) package: Symbol<'a>,
+}
+
+pub(crate) struct TypeObject<'a> {
+    pub(crate) ty: InternType<'a>,
 }
 
 impl<'a> From<InternType<'a>> for TypeObject<'a> {
@@ -134,13 +143,13 @@ impl<'a> std::ops::Deref for TypeObject<'a> {
     }
 }
 
-enum ValueObject<'a> {
+pub(crate) enum ValueObject<'a> {
     Global(GlobalObject<'a>),
     Func,
     Local,
 }
 
-struct GlobalObject<'a> {
+pub(crate) struct GlobalObject<'a> {
     def_id: DefId<'a>,
     ty: InternType<'a>,
 }
@@ -293,6 +302,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
                 type_params,
                 body: OnceCell::default(),
                 sized: OnceCell::default(),
+                node: struct_node,
             }));
             let object: TypeObject = ty.into();
 
@@ -342,4 +352,53 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, Ty
     ]));
 
     builtin_scope
+}
+
+fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+    for scopes in ctx.scopes.values() {
+        for (_, type_object) in scopes.type_scopes.iter() {
+            let ty = type_object.ty;
+            let Type::Struct(struct_type) = ty.as_ref() else {
+                continue;
+            };
+
+            let mut type_param_table = IndexMap::<Symbol, TypeObject>::default();
+            for type_param in &struct_type.type_params {
+                if !type_param_table.contains_key(&type_param.name) {
+                    let ty = ctx.define_type(Type::TypeArg(*type_param));
+                    type_param_table.insert(type_param.name.clone(), ty.into());
+                }
+            }
+
+            let mut scope = scopes.clone();
+            if !type_param_table.is_empty() {
+                let new_type_scope = scope.type_scopes.new_child(type_param_table);
+                scope = scope.with_type_scope(new_type_scope);
+            }
+
+            let mut field_pos = HashMap::<Symbol, Pos>::default();
+            let mut fields = IndexMap::<Symbol, InternType<'a>>::default();
+            for field_node in &struct_type.node.fields {
+                let field_name = ctx.define_symbol(field_node.name.value.as_str());
+                let pos = field_node.pos;
+                if let Some(defined_at) = field_pos.get(&field_name) {
+                    ctx.errors.redeclared_symbol(
+                        pos,
+                        ctx.files.location(*defined_at),
+                        &field_node.name.value,
+                    );
+                } else {
+                    field_pos.insert(field_name.clone(), pos);
+                    let ty = get_type_from_node(ctx, &scope, &field_node.ty);
+                    fields.insert(field_name, ty.into());
+                }
+            }
+            let struct_body = StructBody { fields };
+
+            struct_type
+                .body
+                .set(struct_body)
+                .expect("cannot set struct body");
+        }
+    }
 }

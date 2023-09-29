@@ -1,6 +1,9 @@
+use crate::analyze::{Context, Scopes, TypeObject};
+use crate::errors::SemanticError;
 use crate::interner::{Interned, Interner};
 use crate::{DefId, Symbol};
 use indexmap::IndexMap;
+use magelang_syntax::{ErrorReporter, PathNode, StructNode, Token, TypeExprNode};
 use std::cell::OnceCell;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -74,6 +77,7 @@ pub(crate) struct StructType<'a> {
     pub(crate) type_params: Vec<TypeArg<'a>>,
     pub(crate) body: OnceCell<StructBody<'a>>,
     pub(crate) sized: OnceCell<bool>,
+    pub(crate) node: &'a StructNode,
 }
 
 impl<'a> Hash for StructType<'a> {
@@ -84,7 +88,7 @@ impl<'a> Hash for StructType<'a> {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct StructBody<'a> {
-    fields: IndexMap<Symbol<'a>, InternType<'a>>,
+    pub(crate) fields: IndexMap<Symbol<'a>, InternType<'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -150,12 +154,116 @@ pub(crate) enum FloatType {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(crate) struct TypeArg<'a> {
-    index: usize,
-    name: Symbol<'a>,
+    pub(crate) index: usize,
+    pub(crate) name: Symbol<'a>,
 }
 
 impl<'a> TypeArg<'a> {
     pub(crate) fn new(index: usize, name: Symbol<'a>) -> Self {
         Self { index, name }
+    }
+}
+
+pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
+    ctx: &'b Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    node: &TypeExprNode,
+) -> InternType<'a> {
+    match node {
+        TypeExprNode::Invalid(..) => ctx.define_type(Type::Unknown),
+        TypeExprNode::Path(node) => get_type_from_path(ctx, scope, node),
+        TypeExprNode::Ptr(node) => {
+            let element_ty = get_type_from_node(ctx, scope, &node.ty);
+            ctx.define_type(Type::Ptr(element_ty))
+        }
+        TypeExprNode::ArrayPtr(node) => {
+            let element_ty = get_type_from_node(ctx, scope, &node.ty);
+            ctx.define_type(Type::ArrayPtr(element_ty))
+        }
+        TypeExprNode::Grouped(node) => get_type_from_node(ctx, scope, &node),
+        _ => todo!(),
+    }
+}
+
+fn get_type_from_path<'a, 'b, E: ErrorReporter>(
+    ctx: &'b Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    node: &PathNode,
+) -> InternType<'a> {
+    let Some(object) = get_type_object_from_path(ctx, scope, &node.names) else {
+        return ctx.define_type(Type::Unknown);
+    };
+
+    let Type::Struct(struct_type) = object.ty.as_ref() else {
+        return object.ty;
+    };
+
+    let is_not_generic = struct_type.type_params.is_empty();
+    if is_not_generic {
+        if !node.args.is_empty() {
+            ctx.errors.non_generic_value(node.pos());
+        }
+        return object.ty;
+    }
+
+    let required_type_param = struct_type.type_params.len();
+    let mut type_args = node
+        .args
+        .iter()
+        .map(|node| get_type_from_node(ctx, scope, node))
+        .collect::<Vec<_>>();
+
+    if type_args.len() != required_type_param {
+        ctx.errors
+            .type_arguments_count_mismatch(node.pos(), required_type_param, type_args.len());
+    }
+
+    while type_args.len() < required_type_param {
+        let unknown_type = ctx.define_type(Type::Unknown);
+        type_args.push(unknown_type.into());
+    }
+    let type_args = ctx.define_typeargs(&type_args);
+
+    ctx.define_type(Type::Inst(InstType {
+        def_id: struct_type.def_id,
+        type_args,
+        body: OnceCell::default(),
+    }))
+}
+
+fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
+    ctx: &'b Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    names: &[Token],
+) -> Option<&'b TypeObject<'a>> {
+    assert!(!names.is_empty());
+
+    let name = names.first().expect("path contains empty names");
+    let name = ctx.define_symbol(name.value.as_str());
+
+    if names.len() == 1 {
+        let Some(object) = scope.type_scopes.lookup(name) else {
+            ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
+            return None;
+        };
+        return Some(object);
+    } else {
+        let Some(import_object) = scope.import_scopes.lookup(name) else {
+            ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
+            return None;
+        };
+
+        let Some(scope) = ctx.scopes.get(&import_object.package) else {
+            ctx.errors.undeclared_symbol(names[1].pos, &names[1].value);
+            return None;
+        };
+
+        let name = ctx.define_symbol(names[1].value.as_ref());
+        let Some(object) = scope.type_scopes.lookup(name) else {
+            ctx.errors.undeclared_symbol(names[1].pos, &names[1].value);
+            return None;
+        };
+
+        Some(object)
     }
 }
