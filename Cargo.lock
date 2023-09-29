@@ -64,6 +64,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4682ae6287fcf752ecaabbfcc7b6f9b72aa33933dc23a554d853aea8eea8635"
 
 [[package]]
+name = "bumpalo"
+version = "3.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
+
+[[package]]
 name = "cc"
 version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -234,6 +240,16 @@ name = "magelang_syntax"
 version = "0.1.0"
 dependencies = [
  "indexmap",
+]
+
+[[package]]
+name = "magelang_typecheck"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "home",
+ "indexmap",
+ "magelang_syntax",
 ]
 
 [[package]]
