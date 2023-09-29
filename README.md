@@ -191,14 +191,9 @@ TBD.
 
 # TODOs
 
-- [ ] Support conditional compilation based on target
-- [ ] Support function pointer
-- [ ] Support comparing pointer to null
-- [ ] Support hexadecimal, octal and binary integer literal
-- [ ] Allow to use integer literal as float type
-- [ ] Perform type inference for generic function call
-- [ ] Importing global variable from host
-- [ ] Support opaque type for webassembly externref and funcref
+- [ ] Support externref & funcref type for web assembly
+- [ ] Support embedding file
+- [ ] Check and block circular global initialization
 - [ ] Char literal
 - [ ] For loops
 - [ ] Public and private modifiers
