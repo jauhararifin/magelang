@@ -70,9 +70,10 @@ impl<'a> Display for Type<'a> {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct StructType<'a> {
-    pub def_id: DefId<'a>,
-    pub body: OnceCell<StructBody<'a>>,
-    pub sized: bool,
+    pub(crate) def_id: DefId<'a>,
+    pub(crate) type_params: Vec<TypeArg<'a>>,
+    pub(crate) body: OnceCell<StructBody<'a>>,
+    pub(crate) sized: OnceCell<bool>,
 }
 
 impl<'a> Hash for StructType<'a> {
@@ -151,4 +152,10 @@ pub(crate) enum FloatType {
 pub(crate) struct TypeArg<'a> {
     index: usize,
     name: Symbol<'a>,
+}
+
+impl<'a> TypeArg<'a> {
+    pub(crate) fn new(index: usize, name: Symbol<'a>) -> Self {
+        Self { index, name }
+    }
 }

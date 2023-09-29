@@ -1,12 +1,16 @@
 use crate::errors::SemanticError;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
-use crate::ty::{InternType, InternTypeArgs, Type, TypeArgsInterner, TypeInterner};
+use crate::ty::{
+    BitSize, FloatType, InternType, InternTypeArgs, StructType, Type, TypeArg, TypeArgsInterner,
+    TypeInterner,
+};
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use indexmap::IndexMap;
 use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos};
+use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -44,8 +48,11 @@ pub fn analyze(
         current_scope: Scopes::default(),
     };
 
-    let import_scope = build_imports(&ctx, &package_asts);
-    ctx.set_import_scope(import_scope);
+    let import_scopes = build_imports(&ctx, &package_asts);
+    ctx.set_import_scope(import_scopes);
+
+    let type_scopes = build_type_scopes(&ctx, &package_asts);
+    ctx.set_type_scope(type_scopes);
 }
 
 struct Context<'a, E> {
@@ -79,6 +86,18 @@ impl<'a, E> Context<'a, E> {
             s.import_scopes = scope;
         }
     }
+
+    fn set_type_scope(&mut self, type_scopes: IndexMap<Symbol<'a>, Scope<'a, TypeObject<'a>>>) {
+        for (package, scope) in type_scopes {
+            let s = self.scopes.entry(package).or_default();
+            s.type_scopes = scope;
+        }
+    }
+
+    fn checkout_package(&mut self, package: Symbol<'a>) {
+        let scope = self.scopes.get(&package).expect("package is not found");
+        self.current_scope = scope.clone();
+    }
 }
 
 struct Interners<'a> {
@@ -87,7 +106,7 @@ struct Interners<'a> {
     typeargs: &'a TypeArgsInterner<'a>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Scopes<'a> {
     import_scopes: Scope<'a, ImportObject<'a>>,
     type_scopes: Scope<'a, TypeObject<'a>>,
@@ -100,6 +119,19 @@ struct ImportObject<'a> {
 
 struct TypeObject<'a> {
     ty: InternType<'a>,
+}
+
+impl<'a> From<InternType<'a>> for TypeObject<'a> {
+    fn from(ty: InternType<'a>) -> Self {
+        Self { ty }
+    }
+}
+
+impl<'a> std::ops::Deref for TypeObject<'a> {
+    type Target = InternType<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.ty
+    }
 }
 
 enum ValueObject<'a> {
@@ -210,4 +242,104 @@ fn build_imports<'a, E: ErrorReporter>(
     }
 
     package_scopes
+}
+
+fn build_type_scopes<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    package_asts: &'a IndexMap<Symbol<'a>, PackageNode>,
+) -> IndexMap<Symbol<'a>, Scope<'a, TypeObject<'a>>> {
+    let mut package_scopes = IndexMap::<Symbol, Scope<TypeObject<'a>>>::default();
+
+    let builtin_scope = get_builtin_scope(ctx);
+    for (package_name, package_ast) in package_asts {
+        let mut table = IndexMap::<Symbol, TypeObject>::default();
+        let mut object_pos = HashMap::<DefId, Pos>::default();
+
+        for item in &package_ast.items {
+            let ItemNode::Struct(struct_node) = item else {
+                continue;
+            };
+
+            let object_name = ctx.define_symbol(item.name());
+            let def_id = DefId {
+                package: *package_name,
+                name: object_name.clone(),
+            };
+
+            let pos = item.pos();
+            if let Some(declared_at) = object_pos.get(&def_id) {
+                let declared_at = ctx.files.location(*declared_at);
+                ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
+                continue;
+            }
+            object_pos.insert(def_id.clone(), pos);
+
+            let mut type_params = Vec::default();
+            let mut param_pos = HashMap::<Symbol, Pos>::default();
+            for (i, type_param) in struct_node.type_params.iter().enumerate() {
+                let name = ctx.define_symbol(type_param.name.value.as_str());
+                type_params.push(TypeArg::new(i, name));
+                if let Some(declared_at) = param_pos.get(&name) {
+                    let declared_at = ctx.files.location(*declared_at);
+                    ctx.errors
+                        .redeclared_symbol(type_param.name.pos, declared_at, &name);
+                } else {
+                    param_pos.insert(name, type_param.name.pos);
+                }
+            }
+
+            let ty = ctx.define_type(Type::Struct(StructType {
+                def_id,
+                type_params,
+                body: OnceCell::default(),
+                sized: OnceCell::default(),
+            }));
+            let object: TypeObject = ty.into();
+
+            table.insert(object_name, object);
+        }
+
+        let scope = builtin_scope.new_child(table);
+        package_scopes.insert(package_name.clone(), scope);
+    }
+
+    package_scopes
+}
+
+fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, TypeObject<'a>> {
+    let i8_type = ctx.define_type(Type::Int(true, BitSize::I8));
+    let i16_type = ctx.define_type(Type::Int(true, BitSize::I16));
+    let i32_type = ctx.define_type(Type::Int(true, BitSize::I32));
+    let i64_type = ctx.define_type(Type::Int(true, BitSize::I64));
+    let isize_type = ctx.define_type(Type::Int(true, BitSize::ISize));
+    let u8_type = ctx.define_type(Type::Int(false, BitSize::I8));
+    let u16_type = ctx.define_type(Type::Int(false, BitSize::I16));
+    let u32_type = ctx.define_type(Type::Int(false, BitSize::I32));
+    let u64_type = ctx.define_type(Type::Int(false, BitSize::I64));
+    let usize_type = ctx.define_type(Type::Int(false, BitSize::ISize));
+    let f32_type = ctx.define_type(Type::Float(FloatType::F32));
+    let f64_type = ctx.define_type(Type::Float(FloatType::F64));
+    let void_type = ctx.define_type(Type::Void);
+    let opaque_type = ctx.define_type(Type::Opaque);
+    let bool_type = ctx.define_type(Type::Bool);
+
+    let builtin_scope = Scope::new(IndexMap::from([
+        (ctx.define_symbol("i8"), i8_type.into()),
+        (ctx.define_symbol("i16"), i16_type.into()),
+        (ctx.define_symbol("i32"), i32_type.into()),
+        (ctx.define_symbol("i64"), i64_type.into()),
+        (ctx.define_symbol("isize"), isize_type.into()),
+        (ctx.define_symbol("u8"), u8_type.into()),
+        (ctx.define_symbol("u16"), u16_type.into()),
+        (ctx.define_symbol("u32"), u32_type.into()),
+        (ctx.define_symbol("u64"), u64_type.into()),
+        (ctx.define_symbol("f32"), f32_type.into()),
+        (ctx.define_symbol("f64"), f64_type.into()),
+        (ctx.define_symbol("usize"), usize_type.into()),
+        (ctx.define_symbol("void"), void_type.into()),
+        (ctx.define_symbol("opaque"), opaque_type.into()),
+        (ctx.define_symbol("bool"), bool_type.into()),
+    ]));
+
+    builtin_scope
 }

@@ -2,7 +2,6 @@ use crate::Symbol;
 use indexmap::IndexMap;
 use std::rc::Rc;
 
-#[derive(Clone)]
 pub(crate) struct Scope<'a, T> {
     internal: Rc<ScopeInternal<'a, T>>,
 }
@@ -19,6 +18,14 @@ impl<'a, T> Default for Scope<'a, T> {
                 table: IndexMap::default(),
                 parent: None,
             }),
+        }
+    }
+}
+
+impl<'a, T> Clone for Scope<'a, T> {
+    fn clone(&self) -> Self {
+        Self {
+            internal: self.internal.clone(),
         }
     }
 }
