@@ -1,4 +1,5 @@
 use crate::errors::SemanticError;
+use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::ty::{
@@ -65,6 +66,11 @@ pub fn analyze(
 
     let value_scopes = build_value_scopes(&ctx, &package_asts);
     ctx.set_value_scope(value_scopes);
+
+    // TODO: consider materialize all steps done above into a Header IR.
+    // This can be useful for incremental compilation.
+
+    generate_global_value(&ctx);
 
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
@@ -164,15 +170,15 @@ impl<'a> std::ops::Deref for TypeObject<'a> {
 pub(crate) enum ValueObject<'a> {
     Global(GlobalObject<'a>),
     Func(FuncObject<'a>),
-    Local,
+    Local(LocalObject<'a>),
 }
 
 pub(crate) struct GlobalObject<'a> {
-    def_id: DefId<'a>,
-    ty: InternType<'a>,
-    node: &'a GlobalNode,
-    value: OnceCell<()>,
-    annotations: Rc<[Annotation]>,
+    pub(crate) def_id: DefId<'a>,
+    pub(crate) ty: InternType<'a>,
+    pub(crate) node: &'a GlobalNode,
+    pub(crate) value: OnceCell<Expr<'a>>,
+    pub(crate) annotations: Rc<[Annotation]>,
 }
 
 pub(crate) struct Annotation {
@@ -181,12 +187,18 @@ pub(crate) struct Annotation {
 }
 
 pub(crate) struct FuncObject<'a> {
-    def_id: DefId<'a>,
-    type_params: Vec<TypeArg<'a>>,
-    ty: InternType<'a>,
-    node: &'a FunctionNode,
-    body: OnceCell<()>,
-    annotations: Rc<[Annotation]>,
+    pub(crate) def_id: DefId<'a>,
+    pub(crate) type_params: Vec<TypeArg<'a>>,
+    pub(crate) ty: InternType<'a>,
+    pub(crate) node: &'a FunctionNode,
+    pub(crate) body: OnceCell<()>,
+    pub(crate) annotations: Rc<[Annotation]>,
+}
+
+pub(crate) struct LocalObject<'a> {
+    pub(crate) id: usize,
+    pub(crate) ty: InternType<'a>,
+    pub(crate) name: Symbol<'a>,
 }
 
 fn get_all_package_asts<'a>(
@@ -558,4 +570,40 @@ fn build_annotations_from_node<'a, E: ErrorReporter>(
         }
     }
     annotations
+}
+
+fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+    for scope in ctx.scopes.values() {
+        for (_, value_object) in scope.value_scopes.iter() {
+            let ValueObject::Global(global_object) = value_object else {
+                continue;
+            };
+
+            let ty = global_object.ty;
+            let value_expr = if let Some(ref expr) = global_object.node.value {
+                get_expr_from_node(ctx, scope, Some(ty), expr)
+            } else {
+                Expr {
+                    ty,
+                    kind: ExprKind::Zero,
+                    assignable: false,
+                }
+            };
+
+            if ty.as_ref().is_assignable_with(value_expr.ty.as_ref()) {
+                let pos = global_object
+                    .node
+                    .value
+                    .as_ref()
+                    .map(|expr| expr.pos())
+                    .unwrap_or(global_object.node.pos);
+                ctx.errors.type_mismatch(pos, ty.as_ref(), value_expr.ty);
+            }
+
+            global_object
+                .value
+                .set(value_expr)
+                .expect("cannot set global value expression");
+        }
+    }
 }

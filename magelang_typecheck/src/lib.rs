@@ -1,5 +1,6 @@
 mod analyze;
 mod errors;
+mod expr;
 mod interner;
 mod path;
 mod scope;

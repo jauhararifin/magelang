@@ -62,6 +62,70 @@ impl<'a> Type<'a> {
             None
         }
     }
+
+    pub(crate) fn is_opaque(&self) -> bool {
+        matches!(self, Self::Opaque)
+    }
+
+    pub(crate) fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    pub(crate) fn is_arithmetic(&self) -> bool {
+        matches!(
+            self,
+            Self::Int(..) | Self::Float(..) | Self::Ptr(..) | Self::ArrayPtr(..)
+        )
+    }
+
+    pub(crate) fn is_integral(&self) -> bool {
+        matches!(self, Self::Int(..) | Self::Ptr(..) | Self::ArrayPtr(..))
+    }
+
+    pub(crate) fn is_float(&self) -> bool {
+        matches!(self, Self::Float(..))
+    }
+
+    pub(crate) fn is_int(&self) -> bool {
+        matches!(self, Self::Int(..))
+    }
+
+    pub(crate) fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
+    }
+
+    pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
+        self.eq(other)
+    }
+
+    pub(crate) fn is_sized(&self) -> bool {
+        match self {
+            Type::Unknown => true,
+            Type::Void => true,
+            Type::Struct(struct_type) => *struct_type
+                .body
+                .get()
+                .expect("missing struct body")
+                .sized
+                .get()
+                .expect("missing size info"),
+            Type::Inst(inst_type) => *inst_type
+                .body
+                .get()
+                .expect("missing struct body")
+                .sized
+                .get()
+                .expect("missing size info"),
+            Type::Func(..) => true,
+            Type::Opaque => false,
+            Type::Bool => true,
+            Type::Int(..) => true,
+            Type::Float(..) => true,
+            Type::Ptr(..) => true,
+            Type::ArrayPtr(..) => true,
+            Type::TypeArg(..) => true,
+        }
+    }
 }
 
 impl<'a> Display for Type<'a> {
