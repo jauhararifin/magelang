@@ -890,7 +890,7 @@ fn get_expr_from_selection_node<'a, 'b, E: ErrorReporter>(
 
     let struct_body = match ty.as_ref() {
         Type::Struct(struct_type) => struct_type.body.get().expect("missing struct body"),
-        Type::Inst(inst_type) => inst_type.body.get().expect("missing strct body"),
+        Type::Inst(inst_type) => inst_type.body.get().expect("missing struct body"),
         _ => {
             ctx.errors
                 .non_field_type(node.selection.pos, &node.selection.value);

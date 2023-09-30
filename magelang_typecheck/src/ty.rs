@@ -7,8 +7,8 @@ use magelang_syntax::{
     ErrorReporter, PathNode, Pos, SignatureNode, StructNode, Token, TypeExprNode, TypeParameterNode,
 };
 use std::cell::{OnceCell, RefCell};
-use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::collections::HashMap;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 pub(crate) type TypeInterner<'a> = Interner<'a, Type<'a>>;
@@ -110,20 +110,8 @@ impl<'a> Type<'a> {
         match self {
             Type::Unknown => true,
             Type::Void => true,
-            Type::Struct(struct_type) => *struct_type
-                .body
-                .get()
-                .expect("missing struct body")
-                .sized
-                .get()
-                .expect("missing size info"),
-            Type::Inst(inst_type) => *inst_type
-                .body
-                .get()
-                .expect("missing struct body")
-                .sized
-                .get()
-                .expect("missing size info"),
+            Type::Struct(struct_type) => struct_type.body.get().expect("missing struct body").sized,
+            Type::Inst(inst_type) => inst_type.body.get().expect("missing struct body").sized,
             Type::Func(..) => true,
             Type::Opaque => false,
             Type::Bool => true,
@@ -140,8 +128,8 @@ impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Unknown => write!(f, "{{unknown}}"),
-            Type::Struct(ty) => ty.def_id.fmt(f),
-            Type::Inst(ty) => ty.fmt(f),
+            Type::Struct(ty) => write!(f, "{}", ty.def_id),
+            Type::Inst(ty) => write!(f, "{}", ty),
             Type::Func(func_type) => write!(f, "{}", func_type),
             Type::Void => write!(f, "void"),
             Type::Opaque => write!(f, "opaque"),
@@ -177,13 +165,19 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub(crate) struct StructType<'a> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
     pub(crate) body: OnceCell<StructBody<'a>>,
     pub(crate) node: &'a StructNode,
     pub(crate) mono_cache: RefCell<HashMap<InternTypeArgs<'a>, InternType<'a>>>,
+}
+
+impl<'a> Debug for StructType<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.def_id, f)
+    }
 }
 
 impl<'a> Hash for StructType<'a> {
@@ -212,16 +206,43 @@ impl<'a> StructType<'a> {
             }
         }
 
-        let body = self.body.get().expect("missing struct body");
+        let body = self.body.get_or_init(|| {
+            let scope = ctx
+                .scopes
+                .get(&self.def_id.package)
+                .expect("missing package scope");
+            let scope = get_typeparam_scope(ctx, scope, &self.type_params);
+
+            let mut field_pos = HashMap::<Symbol, Pos>::default();
+            let mut fields = IndexMap::<Symbol, InternType<'a>>::default();
+            for field_node in &self.node.fields {
+                let field_name = ctx.define_symbol(field_node.name.value.as_str());
+                let pos = field_node.pos;
+                if let Some(defined_at) = field_pos.get(&field_name) {
+                    ctx.errors.redeclared_symbol(
+                        pos,
+                        ctx.files.location(*defined_at),
+                        &field_node.name.value,
+                    );
+                } else {
+                    field_pos.insert(field_name.clone(), pos);
+                    let ty = get_type_from_node(ctx, &scope, &field_node.ty);
+                    fields.insert(field_name, ty.into());
+                }
+            }
+
+            let sized = true; // TODO: set this value properly.
+            StructBody { fields, sized }
+        });
+
         let fields = body
             .fields
             .iter()
             .map(|(name, ty)| (*name, ty.monomorphize(ctx, type_args)))
             .collect::<IndexMap<_, _>>();
-        let substituted_body = StructBody {
-            fields,
-            sized: OnceCell::default(),
-        };
+
+        let sized = true; // TODO: set this value properly.
+        let substituted_body = StructBody { fields, sized };
 
         let cache = self.mono_cache.borrow_mut();
         let interned_ty = cache.get(&type_args).unwrap();
@@ -231,6 +252,7 @@ impl<'a> StructType<'a> {
         ty.body
             .set(substituted_body)
             .expect("cannot set instance body");
+
         *interned_ty
     }
 }
@@ -238,14 +260,14 @@ impl<'a> StructType<'a> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct StructBody<'a> {
     pub(crate) fields: IndexMap<Symbol<'a>, InternType<'a>>,
-    pub(crate) sized: OnceCell<bool>,
+    pub(crate) sized: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub(crate) struct InstType<'a> {
     pub def_id: DefId<'a>,
     pub type_args: InternTypeArgs<'a>,
-    pub body: OnceCell<StructBody<'a>>, // only relevant on concrete type
+    pub body: OnceCell<StructBody<'a>>,
 }
 
 impl<'a> InstType<'a> {
@@ -262,7 +284,8 @@ impl<'a> InstType<'a> {
             .lookup(self.def_id.name)
             .expect("missing type");
 
-        let substituted_type_args = type_args
+        let substituted_type_args = self
+            .type_args
             .iter()
             .map(|ty| ty.monomorphize(ctx, type_args))
             .collect::<Vec<_>>();
@@ -281,13 +304,19 @@ impl<'a> Hash for InstType<'a> {
 
 impl<'a> Display for InstType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.def_id.fmt(f)?;
+        Display::fmt(&self.def_id, f)?;
         write!(f, "::<")?;
         for ty in self.type_args.iter() {
-            ty.fmt(f)?;
+            Display::fmt(ty, f)?;
             write!(f, ",")?;
         }
         write!(f, ">")
+    }
+}
+
+impl<'a> Debug for InstType<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -320,11 +349,11 @@ impl<'a> Display for FuncType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "fn(")?;
         for ty in &self.params {
-            ty.fmt(f)?;
+            Display::fmt(ty, f)?;
             write!(f, ",")?;
         }
         write!(f, "):")?;
-        self.return_type.fmt(f)
+        Display::fmt(&self.return_type, f)
     }
 }
 
@@ -426,11 +455,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     }
     let type_args = ctx.define_typeargs(&type_args);
 
-    ctx.define_type(Type::Inst(InstType {
-        def_id: struct_type.def_id,
-        type_args,
-        body: OnceCell::default(),
-    }))
+    struct_type.monomorphize(ctx, type_args)
 }
 
 fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
@@ -654,75 +679,4 @@ fn report_circular_type<'a, E: ErrorReporter>(
     let pos = struct_type.node.pos;
 
     ctx.errors.circular_type(pos, &chain_str);
-}
-
-pub(crate) fn generate_struct_size_info<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
-    for scope in ctx.scopes.values() {
-        for (_, type_object) in scope.type_scopes.iter() {
-            let Type::Struct(struct_type) = type_object.as_ref() else { continue };
-            let sized = get_type_is_sized(ctx, &mut HashSet::default(), type_object.ty);
-            let _ = struct_type
-                .body
-                .get()
-                .expect("missing struct body")
-                .sized
-                .set(sized);
-        }
-    }
-}
-
-fn get_type_is_sized<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    in_chain: &mut HashSet<InternType<'a>>,
-    ty: InternType<'a>,
-) -> bool {
-    if in_chain.contains(&ty) {
-        return true;
-    }
-
-    in_chain.insert(ty);
-    match ty.as_ref() {
-        Type::Unknown => true,
-        Type::Void => true,
-        Type::Struct(struct_type) => {
-            let body = struct_type.body.get().expect("missing struct body");
-            if let Some(sized) = body.sized.get() {
-                return *sized;
-            }
-
-            for ty in body.fields.values() {
-                if !get_type_is_sized(ctx, in_chain, *ty) {
-                    body.sized.set(false).expect("sized already set");
-                    return false;
-                }
-            }
-
-            body.sized.set(true).expect("sized already set");
-            true
-        }
-        Type::Inst(inst_type) => {
-            let body = inst_type.body.get().expect("missing struct body");
-            if let Some(sized) = body.sized.get() {
-                return *sized;
-            }
-
-            for ty in body.fields.values() {
-                if !get_type_is_sized(ctx, in_chain, *ty) {
-                    body.sized.set(false).expect("sized already set");
-                    return false;
-                }
-            }
-
-            body.sized.set(true).expect("sized already set");
-            true
-        }
-        Type::Func(..) => true,
-        Type::Opaque => false,
-        Type::Bool => true,
-        Type::Int(..) => true,
-        Type::Float(..) => true,
-        Type::Ptr(..) => true,
-        Type::ArrayPtr(..) => true,
-        Type::TypeArg(..) => true,
-    }
 }

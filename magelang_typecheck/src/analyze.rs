@@ -4,9 +4,9 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::statement::{get_statement_from_block, Statement, StatementContext};
 use crate::ty::{
-    check_circular_type, generate_struct_size_info, get_func_type_from_signature,
-    get_type_from_node, get_typeparam_scope, get_typeparams, BitSize, FloatType, InternType,
-    InternTypeArgs, StructBody, StructType, Type, TypeArg, TypeArgsInterner, TypeInterner,
+    check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
+    get_typeparams, BitSize, FloatType, InternType, InternTypeArgs, StructType, Type, TypeArg,
+    TypeArgsInterner, TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol, SymbolInterner};
@@ -63,7 +63,6 @@ pub fn analyze(
     generate_type_body(&ctx);
     monomorphize_types(&ctx);
     check_circular_type(&ctx);
-    generate_struct_size_info(&ctx);
 
     let value_scopes = build_value_scopes(&ctx, &package_asts);
     ctx.set_value_scope(value_scopes);
@@ -414,34 +413,17 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                 continue;
             };
 
-            let scope = get_typeparam_scope(ctx, scopes, &struct_type.type_params);
-
-            let mut field_pos = HashMap::<Symbol, Pos>::default();
-            let mut fields = IndexMap::<Symbol, InternType<'a>>::default();
-            for field_node in &struct_type.node.fields {
-                let field_name = ctx.define_symbol(field_node.name.value.as_str());
-                let pos = field_node.pos;
-                if let Some(defined_at) = field_pos.get(&field_name) {
-                    ctx.errors.redeclared_symbol(
-                        pos,
-                        ctx.files.location(*defined_at),
-                        &field_node.name.value,
-                    );
-                } else {
-                    field_pos.insert(field_name.clone(), pos);
-                    let ty = get_type_from_node(ctx, &scope, &field_node.ty);
-                    fields.insert(field_name, ty.into());
-                }
-            }
-            let struct_body = StructBody {
-                fields,
-                sized: OnceCell::default(),
-            };
-
-            struct_type
-                .body
-                .set(struct_body)
-                .expect("cannot set struct body");
+            let typeargs = ctx.define_typeargs(
+                struct_type
+                    .type_params
+                    .iter()
+                    .cloned()
+                    .map(Type::TypeArg)
+                    .map(|ty| ctx.define_type(ty))
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            );
+            struct_type.monomorphize(ctx, typeargs);
         }
     }
 }
@@ -453,10 +435,6 @@ fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
             let Type::Struct(struct_type) = ty.as_ref() else {
                 continue;
             };
-            let is_concrete = struct_type.type_params.is_empty();
-            if !is_concrete {
-                continue;
-            }
 
             let body = struct_type.body.get().expect("missing struct body");
             for ty in body.fields.iter().filter_map(|(_, ty)| ty.as_inst()) {
@@ -608,7 +586,7 @@ fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                 }
             };
 
-            if ty.as_ref().is_assignable_with(value_expr.ty.as_ref()) {
+            if !ty.as_ref().is_assignable_with(value_expr.ty.as_ref()) {
                 let pos = global_object
                     .node
                     .value

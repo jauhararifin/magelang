@@ -328,7 +328,16 @@ pub(crate) fn get_statement_from_while<'a, 'b, E: ErrorReporter>(
             .type_mismatch(node.condition.pos(), Type::Bool, condition.ty);
     }
 
-    let body_stmt = get_statement_from_block(ctx, &node.body);
+    let body_stmt = get_statement_from_block(
+        &StatementContext {
+            ctx: ctx.ctx,
+            scope: ctx.scope,
+            last_unused_local: ctx.last_unused_local,
+            return_type: ctx.return_type,
+            is_inside_loop: true,
+        },
+        &node.body,
+    );
 
     StatementResult {
         statement: Statement::While(WhileStatement {
