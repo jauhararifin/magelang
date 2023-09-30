@@ -12,13 +12,13 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 pub(crate) type TypeInterner<'a> = Interner<'a, Type<'a>>;
-pub(crate) type InternType<'a> = Interned<'a, Type<'a>>;
+pub type InternType<'a> = Interned<'a, Type<'a>>;
 
 pub(crate) type TypeArgsInterner<'a> = Interner<'a, [InternType<'a>]>;
-pub(crate) type InternTypeArgs<'a> = Interned<'a, [InternType<'a>]>;
+pub type InternTypeArgs<'a> = Interned<'a, [InternType<'a>]>;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) enum Type<'a> {
+pub enum Type<'a> {
     Unknown,
     Struct(StructType<'a>),
     Inst(InstType<'a>),
@@ -166,7 +166,7 @@ impl<'a> Display for Type<'a> {
 }
 
 #[derive(PartialEq, Eq, Clone)]
-pub(crate) struct StructType<'a> {
+pub struct StructType<'a> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
     pub(crate) body: OnceCell<StructBody<'a>>,
@@ -264,10 +264,10 @@ pub(crate) struct StructBody<'a> {
 }
 
 #[derive(PartialEq, Eq, Clone)]
-pub(crate) struct InstType<'a> {
-    pub def_id: DefId<'a>,
-    pub type_args: InternTypeArgs<'a>,
-    pub body: OnceCell<StructBody<'a>>,
+pub struct InstType<'a> {
+    pub(crate) def_id: DefId<'a>,
+    pub(crate) type_args: InternTypeArgs<'a>,
+    pub(crate) body: OnceCell<StructBody<'a>>,
 }
 
 impl<'a> InstType<'a> {
@@ -321,9 +321,9 @@ impl<'a> Debug for InstType<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) struct FuncType<'a> {
-    pub params: Vec<InternType<'a>>,
-    pub return_type: InternType<'a>,
+pub struct FuncType<'a> {
+    pub(crate) params: Vec<InternType<'a>>,
+    pub(crate) return_type: InternType<'a>,
 }
 
 impl<'a> FuncType<'a> {
@@ -357,10 +357,10 @@ impl<'a> Display for FuncType<'a> {
     }
 }
 
-type IntSign = bool;
+pub type IntSign = bool;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(crate) enum BitSize {
+pub enum BitSize {
     I8,
     I16,
     I32,
@@ -369,13 +369,13 @@ pub(crate) enum BitSize {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(crate) enum FloatType {
+pub enum FloatType {
     F32,
     F64,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(crate) struct TypeArg<'a> {
+pub struct TypeArg<'a> {
     pub(crate) index: usize,
     pub(crate) name: Symbol<'a>,
 }

@@ -79,7 +79,7 @@ pub fn analyze(
     // compilation.
 }
 
-pub(crate) struct Context<'a, E> {
+pub struct Context<'a, E> {
     pub(crate) files: &'a FileManager,
     pub(crate) errors: &'a E,
 
@@ -156,11 +156,11 @@ impl<'a> Scopes<'a> {
     }
 }
 
-pub(crate) struct ImportObject<'a> {
+pub struct ImportObject<'a> {
     pub(crate) package: Symbol<'a>,
 }
 
-pub(crate) struct TypeObject<'a> {
+pub struct TypeObject<'a> {
     pub(crate) ty: InternType<'a>,
 }
 
@@ -178,43 +178,43 @@ impl<'a> std::ops::Deref for TypeObject<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ValueObject<'a> {
+pub enum ValueObject<'a> {
     Global(GlobalObject<'a>),
     Func(FuncObject<'a>),
     Local(LocalObject<'a>),
 }
 
 #[derive(Debug)]
-pub(crate) struct GlobalObject<'a> {
+pub struct GlobalObject<'a> {
     pub(crate) def_id: DefId<'a>,
-    pub(crate) ty: InternType<'a>,
+    pub ty: InternType<'a>,
     pub(crate) node: &'a GlobalNode,
-    pub(crate) value: OnceCell<Expr<'a>>,
-    pub(crate) annotations: Rc<[Annotation]>,
+    pub value: OnceCell<Expr<'a>>,
+    pub annotations: Rc<[Annotation]>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Annotation {
-    pub(crate) name: String,
-    pub(crate) arguments: Vec<String>,
+pub struct Annotation {
+    pub name: String,
+    pub arguments: Vec<String>,
 }
 
 #[derive(Debug)]
-pub(crate) struct FuncObject<'a> {
+pub struct FuncObject<'a> {
     pub(crate) def_id: DefId<'a>,
-    pub(crate) type_params: Vec<TypeArg<'a>>,
-    pub(crate) ty: InternType<'a>,
+    pub type_params: Vec<TypeArg<'a>>,
+    pub ty: InternType<'a>,
     pub(crate) node: &'a FunctionNode,
-    pub(crate) body: OnceCell<Statement<'a>>,
-    pub(crate) annotations: Rc<[Annotation]>,
-    pub(crate) monomorphized: OnceCell<Vec<(InternTypeArgs<'a>, InternType<'a>, Statement<'a>)>>,
+    pub body: OnceCell<Statement<'a>>,
+    pub annotations: Rc<[Annotation]>,
+    pub monomorphized: OnceCell<Vec<(InternTypeArgs<'a>, InternType<'a>, Statement<'a>)>>,
 }
 
 #[derive(Debug)]
-pub(crate) struct LocalObject<'a> {
-    pub(crate) id: usize,
-    pub(crate) ty: InternType<'a>,
-    pub(crate) name: Symbol<'a>,
+pub struct LocalObject<'a> {
+    pub id: usize,
+    pub ty: InternType<'a>,
+    pub name: Symbol<'a>,
 }
 
 fn get_all_package_asts<'a>(

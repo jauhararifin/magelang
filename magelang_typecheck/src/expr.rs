@@ -12,7 +12,7 @@ use std::iter::zip;
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub(crate) struct Expr<'a> {
+pub struct Expr<'a> {
     pub(crate) ty: InternType<'a>,
     pub(crate) kind: ExprKind<'a>,
     pub(crate) assignable: bool,
@@ -169,7 +169,7 @@ impl<'a> Expr<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ExprKind<'a> {
+pub enum ExprKind<'a> {
     Invalid,
 
     ConstI8(u8),

@@ -9,7 +9,7 @@ use magelang_syntax::{
 };
 
 #[derive(Debug)]
-pub(crate) enum Statement<'a> {
+pub enum Statement<'a> {
     Native,
     NewLocal(Expr<'a>),
     Block(Vec<Statement<'a>>),
@@ -85,14 +85,14 @@ impl<'a> Statement<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct IfStatement<'a> {
+pub struct IfStatement<'a> {
     pub(crate) cond: Expr<'a>,
     pub(crate) body: Box<Statement<'a>>,
     pub(crate) else_stmt: Option<Box<Statement<'a>>>,
 }
 
 #[derive(Debug)]
-pub(crate) struct WhileStatement<'a> {
+pub struct WhileStatement<'a> {
     pub(crate) cond: Expr<'a>,
     pub(crate) body: Box<Statement<'a>>,
 }
