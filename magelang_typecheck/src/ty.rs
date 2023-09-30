@@ -3,7 +3,9 @@ use crate::errors::SemanticError;
 use crate::interner::{Interned, Interner};
 use crate::{DefId, Symbol};
 use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{ErrorReporter, PathNode, StructNode, Token, TypeExprNode};
+use magelang_syntax::{
+    ErrorReporter, PathNode, Pos, SignatureNode, StructNode, Token, TypeExprNode, TypeParameterNode,
+};
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
@@ -394,6 +396,87 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
 
         Some(object)
     }
+}
+
+pub(crate) fn get_func_type_from_signature<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    type_params: &[TypeArg<'a>],
+    signature: &SignatureNode,
+) -> FuncType<'a> {
+    let scope = get_typeparam_scope(ctx, scope, type_params);
+
+    let mut param_pos = HashMap::<Symbol, Pos>::default();
+    let mut params = Vec::default();
+    for param_node in &signature.parameters {
+        let name = ctx.define_symbol(&param_node.name.value);
+        let pos = param_node.name.pos;
+        if let Some(defined_at) = param_pos.get(&name) {
+            ctx.errors.redeclared_symbol(
+                pos,
+                ctx.files.location(*defined_at),
+                &param_node.name.value,
+            );
+        } else {
+            param_pos.insert(name, pos);
+        }
+
+        let ty = get_type_from_node(ctx, &scope, &param_node.ty);
+        params.push(ty);
+    }
+
+    let return_type = if let Some(expr) = &signature.return_type {
+        get_type_from_node(ctx, &scope, &expr)
+    } else {
+        ctx.define_type(Type::Void)
+    };
+
+    FuncType {
+        params,
+        return_type,
+    }
+}
+
+pub(crate) fn get_typeparams<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    nodes: &[TypeParameterNode],
+) -> Vec<TypeArg<'a>> {
+    let mut type_params = Vec::default();
+    let mut param_pos = HashMap::<Symbol, Pos>::default();
+    for (i, type_param) in nodes.iter().enumerate() {
+        let name = ctx.define_symbol(type_param.name.value.as_str());
+        type_params.push(TypeArg::new(i, name));
+        if let Some(declared_at) = param_pos.get(&name) {
+            let declared_at = ctx.files.location(*declared_at);
+            ctx.errors
+                .redeclared_symbol(type_param.name.pos, declared_at, &name);
+        } else {
+            param_pos.insert(name, type_param.name.pos);
+        }
+    }
+    type_params
+}
+
+pub(crate) fn get_typeparam_scope<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    type_params: &[TypeArg<'a>],
+) -> Scopes<'a> {
+    let mut type_param_table = IndexMap::<Symbol, TypeObject>::default();
+    for type_param in type_params {
+        if !type_param_table.contains_key(&type_param.name) {
+            let ty = ctx.define_type(Type::TypeArg(*type_param));
+            type_param_table.insert(type_param.name.clone(), ty.into());
+        }
+    }
+
+    let mut scope = scope.clone();
+    if !type_param_table.is_empty() {
+        let new_type_scope = scope.type_scopes.new_child(type_param_table);
+        scope = scope.with_type_scope(new_type_scope);
+    }
+
+    scope
 }
 
 pub(crate) fn check_circular_type<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {

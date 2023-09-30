@@ -2,18 +2,22 @@ use crate::errors::SemanticError;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::ty::{
-    check_circular_type, generate_struct_size_info, get_type_from_node, BitSize, FloatType,
-    InternType, InternTypeArgs, StructBody, StructType, Type, TypeArg, TypeArgsInterner,
-    TypeInterner,
+    check_circular_type, generate_struct_size_info, get_func_type_from_signature,
+    get_type_from_node, get_typeparam_scope, get_typeparams, BitSize, FloatType, InternType,
+    InternTypeArgs, StructBody, StructType, Type, TypeArg, TypeArgsInterner, TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use indexmap::IndexMap;
-use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos};
+use magelang_syntax::{
+    parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
+    PackageNode, Pos,
+};
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::rc::Rc;
 
 pub fn analyze(
     file_manager: &mut FileManager,
@@ -59,6 +63,9 @@ pub fn analyze(
     check_circular_type(&ctx);
     generate_struct_size_info(&ctx);
 
+    let value_scopes = build_value_scopes(&ctx, &package_asts);
+    ctx.set_value_scope(value_scopes);
+
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
     // compilation.
@@ -101,6 +108,13 @@ impl<'a, E> Context<'a, E> {
             s.type_scopes = scope;
         }
     }
+
+    fn set_value_scope(&mut self, value_scopes: IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a>>>) {
+        for (package, scope) in value_scopes {
+            let s = self.scopes.entry(package).or_default();
+            s.value_scopes = scope;
+        }
+    }
 }
 
 pub(crate) struct Interners<'a> {
@@ -117,7 +131,7 @@ pub(crate) struct Scopes<'a> {
 }
 
 impl<'a> Scopes<'a> {
-    fn with_type_scope(&self, type_scopes: Scope<'a, TypeObject<'a>>) -> Self {
+    pub(crate) fn with_type_scope(&self, type_scopes: Scope<'a, TypeObject<'a>>) -> Self {
         Self {
             import_scopes: self.import_scopes.clone(),
             type_scopes,
@@ -149,13 +163,30 @@ impl<'a> std::ops::Deref for TypeObject<'a> {
 
 pub(crate) enum ValueObject<'a> {
     Global(GlobalObject<'a>),
-    Func,
+    Func(FuncObject<'a>),
     Local,
 }
 
 pub(crate) struct GlobalObject<'a> {
     def_id: DefId<'a>,
     ty: InternType<'a>,
+    node: &'a GlobalNode,
+    value: OnceCell<()>,
+    annotations: Rc<[Annotation]>,
+}
+
+pub(crate) struct Annotation {
+    name: String,
+    arguments: Vec<String>,
+}
+
+pub(crate) struct FuncObject<'a> {
+    def_id: DefId<'a>,
+    type_params: Vec<TypeArg<'a>>,
+    ty: InternType<'a>,
+    node: &'a FunctionNode,
+    body: OnceCell<()>,
+    annotations: Rc<[Annotation]>,
 }
 
 fn get_all_package_asts<'a>(
@@ -287,19 +318,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
             }
             object_pos.insert(def_id.clone(), pos);
 
-            let mut type_params = Vec::default();
-            let mut param_pos = HashMap::<Symbol, Pos>::default();
-            for (i, type_param) in struct_node.type_params.iter().enumerate() {
-                let name = ctx.define_symbol(type_param.name.value.as_str());
-                type_params.push(TypeArg::new(i, name));
-                if let Some(declared_at) = param_pos.get(&name) {
-                    let declared_at = ctx.files.location(*declared_at);
-                    ctx.errors
-                        .redeclared_symbol(type_param.name.pos, declared_at, &name);
-                } else {
-                    param_pos.insert(name, type_param.name.pos);
-                }
-            }
+            let type_params = get_typeparams(ctx, &struct_node.type_params);
 
             let ty = ctx.define_type(Type::Struct(StructType {
                 def_id,
@@ -366,19 +385,7 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                 continue;
             };
 
-            let mut type_param_table = IndexMap::<Symbol, TypeObject>::default();
-            for type_param in &struct_type.type_params {
-                if !type_param_table.contains_key(&type_param.name) {
-                    let ty = ctx.define_type(Type::TypeArg(*type_param));
-                    type_param_table.insert(type_param.name.clone(), ty.into());
-                }
-            }
-
-            let mut scope = scopes.clone();
-            if !type_param_table.is_empty() {
-                let new_type_scope = scope.type_scopes.new_child(type_param_table);
-                scope = scope.with_type_scope(new_type_scope);
-            }
+            let scope = get_typeparam_scope(ctx, scopes, &struct_type.type_params);
 
             let mut field_pos = HashMap::<Symbol, Pos>::default();
             let mut fields = IndexMap::<Symbol, InternType<'a>>::default();
@@ -436,4 +443,119 @@ fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
             }
         }
     }
+}
+
+fn build_value_scopes<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    package_asts: &'a IndexMap<Symbol<'a>, PackageNode>,
+) -> IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a>>> {
+    let mut package_scopes = IndexMap::<Symbol, Scope<ValueObject<'a>>>::default();
+
+    for (package_name, package_ast) in package_asts {
+        let mut table = IndexMap::<Symbol, ValueObject>::default();
+        let mut object_pos = HashMap::<DefId, Pos>::default();
+
+        let scopes = ctx.scopes.get(package_name).expect("missing package scope");
+
+        for item in &package_ast.items {
+            match item {
+                ItemNode::Global(..) | ItemNode::Function(..) => (),
+                _ => continue,
+            };
+
+            let object_name = ctx.define_symbol(item.name());
+            let def_id = DefId {
+                package: *package_name,
+                name: object_name.clone(),
+            };
+
+            let pos = item.pos();
+            if let Some(declared_at) = object_pos.get(&def_id) {
+                let declared_at = ctx.files.location(*declared_at);
+                ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
+                continue;
+            }
+            object_pos.insert(def_id.clone(), pos);
+
+            let object = match item {
+                ItemNode::Global(node) => {
+                    let annotations: Rc<[Annotation]> =
+                        build_annotations_from_node(ctx, &node.annotations).into();
+
+                    let ty = get_type_from_node(ctx, scopes, &node.ty);
+                    ValueObject::Global(GlobalObject {
+                        def_id,
+                        ty,
+                        node,
+                        value: OnceCell::default(),
+                        annotations,
+                    })
+                }
+                ItemNode::Function(func_node) => {
+                    let annotations: Rc<[Annotation]> =
+                        build_annotations_from_node(ctx, &func_node.signature.annotations).into();
+
+                    let type_params = get_typeparams(ctx, &func_node.signature.type_params);
+
+                    let func_type = get_func_type_from_signature(
+                        ctx,
+                        &scopes,
+                        &type_params,
+                        &func_node.signature,
+                    );
+                    let ty = ctx.define_type(Type::Func(func_type));
+
+                    ValueObject::Func(FuncObject {
+                        def_id,
+                        type_params,
+                        ty,
+                        node: &func_node,
+                        body: OnceCell::default(),
+                        annotations,
+                    })
+                }
+                _ => unreachable!(),
+            };
+
+            table.insert(object_name, object);
+        }
+
+        let scope = Scope::new(table);
+        package_scopes.insert(package_name.clone(), scope);
+    }
+
+    package_scopes
+}
+
+fn build_annotations_from_node<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    nodes: &[AnnotationNode],
+) -> Vec<Annotation> {
+    let mut annotations = Vec::default();
+    for annotation_node in nodes {
+        let mut arguments = Vec::default();
+        let mut valid = true;
+        for arg in &annotation_node.arguments {
+            let Some(arg_value) = value_from_string_lit(&arg.value) else {
+                ctx.errors.invalid_utf8_string(arg.pos);
+                valid = false;
+                continue;
+            };
+
+            let Ok(arg_value) = String::from_utf8(arg_value) else {
+                ctx.errors.invalid_utf8_string(arg.pos);
+                valid = false;
+                continue;
+            };
+
+            arguments.push(arg_value);
+        }
+        if valid {
+            annotations.push(Annotation {
+                name: annotation_node.name.value.clone(),
+                arguments,
+            })
+        }
+    }
+    annotations
 }
