@@ -65,6 +65,8 @@ pub(crate) fn get_package_path(stdlib_path: &Path, package_name: &str) -> PathBu
     for segment in package_name.split('/') {
         path.push(segment);
     }
+    // TODO: this is wrong, we should add the extension not changing it. Supposed we want to
+    // compile package `a.b.c`. The correct file of this package should be `a.b.c.mg`, not `a.b.mg`.
     path.set_extension(CODE_EXTENSION);
     path
 }
