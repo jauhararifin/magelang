@@ -63,6 +63,14 @@ impl<'a> Type<'a> {
         }
     }
 
+    pub(crate) fn as_func(&self) -> Option<&FuncType<'a>> {
+        if let Self::Func(t) = self {
+            Some(t)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn is_opaque(&self) -> bool {
         matches!(self, Self::Opaque)
     }

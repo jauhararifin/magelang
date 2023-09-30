@@ -4,6 +4,7 @@ mod expr;
 mod interner;
 mod path;
 mod scope;
+mod statement;
 mod ty;
 mod value;
 

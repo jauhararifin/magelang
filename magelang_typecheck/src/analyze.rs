@@ -2,6 +2,7 @@ use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
+use crate::statement::{get_statement_from_block, Statement, StatementContext};
 use crate::ty::{
     check_circular_type, generate_struct_size_info, get_func_type_from_signature,
     get_type_from_node, get_typeparam_scope, get_typeparams, BitSize, FloatType, InternType,
@@ -71,6 +72,7 @@ pub fn analyze(
     // This can be useful for incremental compilation.
 
     generate_global_value(&ctx);
+    generate_func_bodies(&ctx);
 
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
@@ -144,6 +146,14 @@ impl<'a> Scopes<'a> {
             value_scopes: self.value_scopes.clone(),
         }
     }
+
+    pub(crate) fn with_value_scope(&self, value_scopes: Scope<'a, ValueObject<'a>>) -> Self {
+        Self {
+            import_scopes: self.import_scopes.clone(),
+            type_scopes: self.type_scopes.clone(),
+            value_scopes,
+        }
+    }
 }
 
 pub(crate) struct ImportObject<'a> {
@@ -191,7 +201,7 @@ pub(crate) struct FuncObject<'a> {
     pub(crate) type_params: Vec<TypeArg<'a>>,
     pub(crate) ty: InternType<'a>,
     pub(crate) node: &'a FunctionNode,
-    pub(crate) body: OnceCell<()>,
+    pub(crate) body: OnceCell<Statement<'a>>,
     pub(crate) annotations: Rc<[Annotation]>,
 }
 
@@ -606,4 +616,63 @@ fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                 .expect("cannot set global value expression");
         }
     }
+}
+
+fn generate_func_bodies<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+    for scope in ctx.scopes.values() {
+        for (_, value_object) in scope.value_scopes.iter() {
+            let ValueObject::Func(func_object) = value_object else {
+                continue;
+            };
+
+            let body = get_func_body(ctx, scope, func_object);
+            func_object.body.set(body).expect("cannot set func body");
+        }
+    }
+}
+
+fn get_func_body<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    func_object: &FuncObject<'a>,
+) -> Statement<'a> {
+    let Some(ref body) = func_object.node.body else {
+        return Statement::Native;
+    };
+
+    let func_type = func_object.ty.as_func().expect("not a function");
+
+    let scope = get_typeparam_scope(ctx, scope, &func_object.type_params);
+
+    let mut symbol_table = IndexMap::default();
+    let mut last_unused_local = 0;
+    for (i, param) in func_object.node.signature.parameters.iter().enumerate() {
+        let name = ctx.define_symbol(&param.name.value);
+        if symbol_table.contains_key(&name) {
+            continue;
+        }
+        let ty = func_type.params[i];
+        symbol_table.insert(
+            name,
+            ValueObject::Local(LocalObject {
+                id: last_unused_local,
+                ty,
+                name,
+            }),
+        );
+        last_unused_local += 1;
+    }
+    let new_scope = scope.value_scopes.new_child(symbol_table);
+    let scope = scope.with_value_scope(new_scope);
+
+    let return_type = func_type.return_type;
+    let stmt_ctx = StatementContext::new(ctx, &scope, return_type);
+    let result = get_statement_from_block(&stmt_ctx, body);
+
+    let should_return = return_type != ctx.define_type(Type::Void);
+    if should_return && !result.is_returning {
+        ctx.errors.missing_return(func_object.node.pos);
+    }
+
+    result.statement
 }
