@@ -714,8 +714,6 @@ fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
             .set(monomorphized)
             .expect("cannot set monomorphized functions");
     }
-
-    todo!();
 }
 
 fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
