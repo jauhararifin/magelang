@@ -577,7 +577,7 @@ fn get_expr_from_binary_node<'a, 'b, E: ErrorReporter>(
                 let a_is_null = matches!(a.kind, ExprKind::Zero);
                 let b_is_null = matches!(b.kind, ExprKind::Zero);
                 if !a_is_null && !b_is_null {
-                    todo!("report error: cannot compare non null opaque type");
+                    ctx.errors.compare_opaque(node.a.pos());
                 }
             }
 
@@ -667,7 +667,7 @@ fn get_expr_from_deref_node<'a, 'b, E: ErrorReporter>(
     };
 
     if !element_ty.is_sized() {
-        todo!("report error: the element type cannot be dereferenced");
+        ctx.errors.deref_unsized(node.pos);
     }
 
     Expr {
