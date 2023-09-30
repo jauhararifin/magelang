@@ -1,7 +1,7 @@
 use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
 use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprKind};
-use crate::ty::{get_type_from_node, InternType, Type};
+use crate::ty::{get_type_from_node, InternType, InternTypeArgs, Type};
 use indexmap::IndexMap;
 use magelang_syntax::{
     AssignStatementNode, BlockStatementNode, ErrorReporter, IfStatementNode, LetKind,
@@ -20,6 +20,68 @@ pub(crate) enum Statement<'a> {
     Assign(Expr<'a>, Expr<'a>),
     Continue,
     Break,
+}
+
+impl<'a> Statement<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: InternTypeArgs<'a>,
+    ) -> Statement<'a> {
+        match self {
+            Statement::Native => Statement::Native,
+            Statement::Continue => Statement::Continue,
+            Statement::Break => Statement::Break,
+            Statement::NewLocal(value) => {
+                let value = value.monomorphize(ctx, type_args);
+                Statement::NewLocal(value)
+            }
+            Statement::Block(statements) => {
+                let statements = statements
+                    .iter()
+                    .map(|stmt| stmt.monomorphize(ctx, type_args))
+                    .collect();
+                Statement::Block(statements)
+            }
+            Statement::If(if_stmt) => {
+                let cond = if_stmt.cond.monomorphize(ctx, type_args);
+                let body = if_stmt.body.monomorphize(ctx, type_args);
+                let else_stmt = if_stmt
+                    .else_stmt
+                    .as_ref()
+                    .map(|stmt| stmt.monomorphize(ctx, type_args))
+                    .map(Box::new);
+                Statement::If(IfStatement {
+                    cond,
+                    body: Box::new(body),
+                    else_stmt,
+                })
+            }
+            Statement::While(while_stmt) => {
+                let cond = while_stmt.cond.monomorphize(ctx, type_args);
+                let body = while_stmt.body.monomorphize(ctx, type_args);
+                Statement::While(WhileStatement {
+                    cond,
+                    body: Box::new(body),
+                })
+            }
+            Statement::Return(value) => {
+                let value = value
+                    .as_ref()
+                    .map(|value| value.monomorphize(ctx, type_args));
+                Statement::Return(value)
+            }
+            Statement::Expr(value) => {
+                let value = value.monomorphize(ctx, type_args);
+                Statement::Expr(value)
+            }
+            Statement::Assign(target, value) => {
+                let target = target.monomorphize(ctx, type_args);
+                let value = value.monomorphize(ctx, type_args);
+                Statement::Assign(target, value)
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

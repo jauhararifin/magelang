@@ -17,7 +17,7 @@ use magelang_syntax::{
     PackageNode, Pos,
 };
 use std::cell::{OnceCell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -73,6 +73,7 @@ pub fn analyze(
 
     generate_global_value(&ctx);
     generate_func_bodies(&ctx);
+    monomorphize_statements(&ctx);
 
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
@@ -177,12 +178,14 @@ impl<'a> std::ops::Deref for TypeObject<'a> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum ValueObject<'a> {
     Global(GlobalObject<'a>),
     Func(FuncObject<'a>),
     Local(LocalObject<'a>),
 }
 
+#[derive(Debug)]
 pub(crate) struct GlobalObject<'a> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) ty: InternType<'a>,
@@ -191,11 +194,13 @@ pub(crate) struct GlobalObject<'a> {
     pub(crate) annotations: Rc<[Annotation]>,
 }
 
+#[derive(Debug)]
 pub(crate) struct Annotation {
-    name: String,
-    arguments: Vec<String>,
+    pub(crate) name: String,
+    pub(crate) arguments: Vec<String>,
 }
 
+#[derive(Debug)]
 pub(crate) struct FuncObject<'a> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
@@ -203,8 +208,10 @@ pub(crate) struct FuncObject<'a> {
     pub(crate) node: &'a FunctionNode,
     pub(crate) body: OnceCell<Statement<'a>>,
     pub(crate) annotations: Rc<[Annotation]>,
+    pub(crate) monomorphized: OnceCell<Vec<(InternTypeArgs<'a>, InternType<'a>, Statement<'a>)>>,
 }
 
+#[derive(Debug)]
 pub(crate) struct LocalObject<'a> {
     pub(crate) id: usize,
     pub(crate) ty: InternType<'a>,
@@ -534,6 +541,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                         node: &func_node,
                         body: OnceCell::default(),
                         annotations,
+                        monomorphized: OnceCell::default(),
                     })
                 }
                 _ => unreachable!(),
@@ -675,4 +683,211 @@ fn get_func_body<'a, 'b, E: ErrorReporter>(
     }
 
     result.statement
+}
+
+fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+    let monomorphized_funcs = get_all_monomorphized_funcs(ctx);
+
+    for (def_id, all_typeargs) in monomorphized_funcs {
+        let generic_func = ctx
+            .scopes
+            .get(&def_id.package)
+            .expect("package scope not found")
+            .value_scopes
+            .lookup(def_id.name)
+            .expect("missing object");
+        let ValueObject::Func(generic_func) = generic_func else {
+            unreachable!("not a generic func");
+        };
+        assert!(!generic_func.type_params.is_empty());
+
+        let mut monomorphized = Vec::<(InternTypeArgs, InternType, Statement)>::default();
+        for typeargs in all_typeargs {
+            let body = generic_func.body.get().expect("missing func body");
+            let ty = generic_func.ty.monomorphize(ctx, typeargs);
+            let monomorphized_body = body.monomorphize(ctx, typeargs);
+            monomorphized.push((typeargs, ty, monomorphized_body));
+        }
+
+        generic_func
+            .monomorphized
+            .set(monomorphized)
+            .expect("cannot set monomorphized functions");
+    }
+
+    todo!();
+}
+
+fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+) -> Vec<(DefId<'a>, Vec<InternTypeArgs<'a>>)> {
+    #[derive(Debug)]
+    enum Source<'a, 'b> {
+        Expr(&'b Expr<'a>, InternTypeArgs<'a>),
+        Statement(&'b Statement<'a>, InternTypeArgs<'a>),
+        FuncInst(DefId<'a>, InternTypeArgs<'a>),
+    }
+
+    let empty_typeargs = ctx.define_typeargs(&[]);
+
+    let mut queue = VecDeque::<Source>::default();
+    for scope in ctx.scopes.values() {
+        for (_, value_object) in scope.value_scopes.iter() {
+            match value_object {
+                ValueObject::Func(func_object) => {
+                    if func_object.type_params.is_empty() {
+                        let body = func_object.body.get().expect("missing func body");
+                        queue.push_back(Source::Statement(body, empty_typeargs));
+                    }
+                }
+                ValueObject::Global(global_object) => {
+                    let value = global_object
+                        .value
+                        .get()
+                        .expect("missing global value expr");
+                    queue.push_back(Source::Expr(value, empty_typeargs));
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    let empty_scope = Scopes::default();
+    let mut monomorphized_funcs = IndexMap::<DefId, Vec<InternTypeArgs>>::default();
+    let mut func_insts = HashSet::<(DefId, InternTypeArgs)>::default();
+    while let Some(item) = queue.pop_front() {
+        match item {
+            Source::Expr(expr, type_args) => match &expr.kind {
+                ExprKind::Invalid
+                | ExprKind::ConstI8(..)
+                | ExprKind::ConstI16(..)
+                | ExprKind::ConstI32(..)
+                | ExprKind::ConstI64(..)
+                | ExprKind::ConstIsize(..)
+                | ExprKind::ConstF32(..)
+                | ExprKind::ConstF64(..)
+                | ExprKind::ConstBool(..)
+                | ExprKind::Zero
+                | ExprKind::Bytes(..)
+                | ExprKind::Local(..)
+                | ExprKind::Global(..)
+                | ExprKind::Func(..) => (),
+                ExprKind::StructLit(_, values) => {
+                    for val in values {
+                        queue.push_back(Source::Expr(val, type_args))
+                    }
+                }
+                ExprKind::FuncInst(def_id, inner_typeargs) => {
+                    let substituted_typeargs = inner_typeargs
+                        .iter()
+                        .map(|ty| ty.monomorphize(ctx, type_args))
+                        .collect::<Vec<_>>();
+                    let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
+                    queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));
+                }
+                ExprKind::GetElement(expr, _) => queue.push_back(Source::Expr(expr, type_args)),
+                ExprKind::GetElementAddr(expr, _) => queue.push_back(Source::Expr(expr, type_args)),
+                ExprKind::GetIndex(arr, index) => {
+                    queue.push_back(Source::Expr(arr, type_args));
+                    queue.push_back(Source::Expr(index, type_args));
+                }
+                ExprKind::Deref(value) => {
+                    queue.push_back(Source::Expr(value, type_args));
+                }
+                ExprKind::Call(callee, args) => {
+                    queue.push_back(Source::Expr(callee, type_args));
+                    for arg in args {
+                        queue.push_back(Source::Expr(arg, type_args));
+                    }
+                }
+                ExprKind::Add(a, b)
+                | ExprKind::Sub(a, b)
+                | ExprKind::Mul(a, b)
+                | ExprKind::Div(a, b)
+                | ExprKind::Mod(a, b)
+                | ExprKind::BitOr(a, b)
+                | ExprKind::BitAnd(a, b)
+                | ExprKind::BitXor(a, b)
+                | ExprKind::ShiftLeft(a, b)
+                | ExprKind::ShiftRight(a, b)
+                | ExprKind::And(a, b)
+                | ExprKind::Or(a, b)
+                | ExprKind::Eq(a, b)
+                | ExprKind::NEq(a, b)
+                | ExprKind::Gt(a, b)
+                | ExprKind::GEq(a, b)
+                | ExprKind::Lt(a, b)
+                | ExprKind::LEq(a, b) => {
+                    queue.push_back(Source::Expr(a, type_args));
+                    queue.push_back(Source::Expr(b, type_args));
+                }
+                ExprKind::Neg(value)
+                | ExprKind::BitNot(value)
+                | ExprKind::Not(value)
+                | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, type_args)),
+            },
+            Source::Statement(stmt, type_args) => match stmt {
+                Statement::NewLocal(expr) => queue.push_back(Source::Expr(expr, type_args)),
+                Statement::Block(stmts) => {
+                    for stmt in stmts {
+                        queue.push_back(Source::Statement(stmt, type_args));
+                    }
+                }
+                Statement::If(if_stmt) => {
+                    queue.push_back(Source::Expr(&if_stmt.cond, type_args));
+                    queue.push_back(Source::Statement(&if_stmt.body, type_args));
+                    if let Some(else_stmt) = &if_stmt.else_stmt {
+                        queue.push_back(Source::Statement(else_stmt.as_ref(), type_args));
+                    }
+                }
+                Statement::While(while_stmt) => {
+                    queue.push_back(Source::Expr(&while_stmt.cond, type_args));
+                    queue.push_back(Source::Statement(&while_stmt.body, type_args));
+                }
+                Statement::Return(value) => {
+                    if let Some(value) = value {
+                        queue.push_back(Source::Expr(value, type_args));
+                    }
+                }
+                Statement::Expr(expr) => {
+                    queue.push_back(Source::Expr(expr, type_args));
+                }
+                Statement::Assign(target, value) => {
+                    queue.push_back(Source::Expr(target, type_args));
+                    queue.push_back(Source::Expr(value, type_args));
+                }
+                Statement::Native | Statement::Continue | Statement::Break => continue,
+            },
+            Source::FuncInst(def_id, typeargs) => {
+                if func_insts.contains(&(def_id, typeargs)) {
+                    continue;
+                }
+                func_insts.insert((def_id, typeargs));
+
+                let generic_func = ctx
+                    .scopes
+                    .get(&def_id.package)
+                    .unwrap_or(&empty_scope)
+                    .value_scopes
+                    .lookup(def_id.name)
+                    .expect("missing object");
+                let ValueObject::Func(generic_func) = generic_func else {
+                    unreachable!("not a generic func");
+                };
+                assert!(!generic_func.type_params.is_empty());
+
+                queue.push_back(Source::Statement(
+                    generic_func.body.get().expect("missing body"),
+                    typeargs,
+                ));
+
+                monomorphized_funcs
+                    .entry(def_id)
+                    .or_default()
+                    .push(typeargs);
+            }
+        }
+    }
+
+    monomorphized_funcs.into_iter().collect()
 }
