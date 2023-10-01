@@ -24,9 +24,9 @@ pub struct Expr<'a> {
 }
 
 impl<'a> Expr<'a> {
-    pub(crate) fn monomorphize<'b, 'ast, E: ErrorReporter>(
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, 'ast, E>,
+        ctx: &'b Context<'a, E>,
         type_args: InternTypeArgs<'a>,
     ) -> Expr<'a> {
         let ty = self.ty.monomorphize(ctx, type_args);
@@ -258,11 +258,11 @@ pub enum ExprKind<'a> {
     Cast(Box<Expr<'a>>, InternType<'a>),
 }
 
-pub(crate) fn get_expr_from_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+pub(crate) fn get_expr_from_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast ExprNode,
+    node: &ExprNode,
 ) -> Expr<'a> {
     match node {
         ExprNode::Path(node) => get_expr_from_path(ctx, scope, expected_type, node),
@@ -291,11 +291,11 @@ pub(crate) fn get_expr_from_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_path<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_path<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast PathNode,
+    node: &PathNode,
 ) -> Expr<'a> {
     let Some(object) = get_value_object_from_path(ctx, scope, &node.names) else {
         return Expr {
@@ -372,11 +372,11 @@ fn get_expr_from_path<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_value_object_from_path<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &'b Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
-    names: &'ast [Token],
-) -> Option<&'b ValueObject<'a, 'ast>> {
+fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
+    ctx: &'b Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    names: &[Token],
+) -> Option<&'b ValueObject<'a>> {
     let name = names.first().expect("path contains empty names");
     let name = ctx.define_symbol(name.value.as_str());
 
@@ -407,10 +407,10 @@ fn get_value_object_from_path<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_int_lit<'a, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
+fn get_expr_from_int_lit<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
     expected_type: Option<InternType<'a>>,
-    token: &'ast Token,
+    token: &Token,
 ) -> Expr<'a> {
     let (sign, bit_size) = if let Some(ty) = expected_type {
         match ty.as_ref() {
@@ -481,10 +481,10 @@ fn get_expr_from_int_lit<'a, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_float_lit<'a, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
+fn get_expr_from_float_lit<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
     expected_type: Option<InternType<'a>>,
-    token: &'ast Token,
+    token: &Token,
 ) -> Expr<'a> {
     let float_type = if let Some(ty) = expected_type {
         match ty.as_ref() {
@@ -522,10 +522,7 @@ fn get_expr_from_float_lit<'a, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_bool_lit<'a, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    token: &'ast Token,
-) -> Expr<'a> {
+fn get_expr_from_bool_lit<'a, E: ErrorReporter>(ctx: &Context<'a, E>, token: &Token) -> Expr<'a> {
     let kind = match token.kind {
         TokenKind::True => ExprKind::ConstBool(true),
         TokenKind::False => ExprKind::ConstBool(false),
@@ -538,10 +535,7 @@ fn get_expr_from_bool_lit<'a, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_string_lit<'a, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    token: &Token,
-) -> Expr<'a> {
+fn get_expr_from_string_lit<'a, E: ErrorReporter>(ctx: &Context<'a, E>, token: &Token) -> Expr<'a> {
     let u8_ty = ctx.define_type(Type::Int(false, BitSize::I8));
     let ty = ctx.define_type(Type::ArrayPtr(u8_ty));
 
@@ -561,11 +555,11 @@ fn get_expr_from_string_lit<'a, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_binary_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_binary_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast BinaryExprNode,
+    node: &BinaryExprNode,
 ) -> Expr<'a> {
     let a = get_expr_from_node(ctx, scope, expected_type, &node.a);
     let b = get_expr_from_node(ctx, scope, Some(a.ty), &node.b);
@@ -699,11 +693,11 @@ fn get_expr_from_binary_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_deref_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_deref_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast DerefExprNode,
+    node: &DerefExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
@@ -727,11 +721,11 @@ fn get_expr_from_deref_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_unary_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_unary_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast UnaryExprNode,
+    node: &UnaryExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
@@ -774,11 +768,11 @@ fn get_expr_from_unary_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_call_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_call_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast CallExprNode,
+    node: &CallExprNode,
 ) -> Expr<'a> {
     let func_expr = get_expr_from_node(ctx, scope, expected_type, &node.callee);
     let func_type = func_expr.ty;
@@ -822,11 +816,11 @@ fn get_expr_from_call_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_cast_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_cast_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast CastExprNode,
+    node: &CastExprNode,
 ) -> Expr<'a> {
     let target_type = get_type_from_node(ctx, scope, &node.target);
 
@@ -855,10 +849,10 @@ fn get_expr_from_cast_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_struct_lit_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
-    node: &'ast StructExprNode,
+fn get_expr_from_struct_lit_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    node: &StructExprNode,
 ) -> Expr<'a> {
     let ty = get_type_from_node(ctx, scope, &node.target);
 
@@ -923,10 +917,10 @@ fn get_expr_from_struct_lit_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_selection_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
-    node: &'ast SelectionExprNode,
+fn get_expr_from_selection_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
+    node: &SelectionExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, None, &node.value);
 
@@ -981,11 +975,11 @@ fn get_expr_from_selection_node<'a, 'b, 'ast, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_index_node<'a, 'b, 'ast, E: ErrorReporter>(
-    ctx: &Context<'a, 'ast, E>,
-    scope: &'b Scopes<'a, 'ast>,
+fn get_expr_from_index_node<'a, 'b, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    scope: &'b Scopes<'a>,
     expected_type: Option<InternType<'a>>,
-    node: &'ast IndexExprNode,
+    node: &IndexExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
