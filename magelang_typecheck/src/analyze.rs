@@ -99,7 +99,8 @@ pub fn analyze<'a, 'b: 'a>(
     // deciding global initialization harder for incremental
     // compilation.
 
-    build_module(&ctx)
+    let is_valid = error_manager.has_errors();
+    build_module(&ctx, is_valid)
 }
 
 pub struct Context<'a, E> {
@@ -902,7 +903,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     monomorphized_funcs.into_iter().collect()
 }
 
-fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>) -> Module<'a> {
+fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>, is_valid: bool) -> Module<'a> {
     let mut packages = Vec::default();
     for (name, scope) in ctx.scopes.iter() {
         let mut globals = Vec::default();
@@ -951,5 +952,5 @@ fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>) -> Module<'a> {
         })
     }
 
-    Module { packages }
+    Module { packages, is_valid }
 }

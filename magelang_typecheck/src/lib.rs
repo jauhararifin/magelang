@@ -32,11 +32,12 @@ impl<'a> Display for DefId<'a> {
 pub use expr::{Expr, ExprKind, InternExpr};
 pub use statement::{IfStatement, InternStatement, Statement, WhileStatement};
 pub use ty::{
-    BitSize, FloatType, FuncType, InstType, IntSign, InternType, InternTypeArgs, StructType, Type,
-    TypeArg,
+    BitSize, FloatType, FuncType, InstType, IntSign, InternType, InternTypeArgs, StructBody,
+    StructType, Type, TypeArg, 
 };
 
 pub struct Module<'a> {
+    pub is_valid: bool,
     pub packages: Vec<Package<'a>>,
 }
 

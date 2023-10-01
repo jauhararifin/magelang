@@ -1,13 +1,6 @@
-use magelang_typecheck::Module;
-use wasm_helper as wasm;
-
 mod data;
+mod gen;
+mod layout;
 
-use data::Data;
-
-pub fn generate_wasm_ir<'ctx>(module: Module<'ctx>) -> wasm::Module {
-    let data = Data::build(&module);
-
-    todo!();
-}
+pub use gen::generate;
 

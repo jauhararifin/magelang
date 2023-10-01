@@ -169,7 +169,7 @@ impl<'a> Display for Type<'a> {
 pub struct StructType<'a> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
-    pub(crate) body: OnceCell<StructBody<'a>>,
+    pub body: OnceCell<StructBody<'a>>,
     pub(crate) node: StructNode,
     pub(crate) mono_cache: RefCell<HashMap<InternTypeArgs<'a>, InternType<'a>>>,
 }
@@ -258,16 +258,16 @@ impl<'a> StructType<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct StructBody<'a> {
-    pub(crate) fields: IndexMap<Symbol<'a>, InternType<'a>>,
-    pub(crate) sized: bool,
+pub struct StructBody<'a> {
+    pub fields: IndexMap<Symbol<'a>, InternType<'a>>,
+    pub sized: bool,
 }
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct InstType<'a> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) type_args: InternTypeArgs<'a>,
-    pub(crate) body: OnceCell<StructBody<'a>>,
+    pub body: OnceCell<StructBody<'a>>,
 }
 
 impl<'a> InstType<'a> {
