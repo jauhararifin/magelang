@@ -23,60 +23,35 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 
-pub struct AnalyzeContext<'a> {
-    symbols: SymbolInterner<'a>,
-    types: TypeInterner<'a>,
-    typeargs: TypeArgsInterner<'a>,
-    exprs: ExprInterner<'a>,
-    statements: StatementInterner<'a>,
-}
-
-impl<'a> AnalyzeContext<'a> {
-    pub fn new(arena: &'a Bump) -> Self {
-        let symbols = SymbolInterner::new(&arena);
-        let types = TypeInterner::new(&arena);
-        let typeargs = TypeArgsInterner::new(&arena);
-        let exprs = ExprInterner::new(&arena);
-        let statements = StatementInterner::new(&arena);
-        Self {
-            symbols,
-            types,
-            typeargs,
-            exprs,
-            statements,
-        }
-    }
-}
-
 pub fn analyze<'a, 'b: 'a>(
-    context: &'a AnalyzeContext<'a>,
+    arena: &'a Bump,
     file_manager: &'b mut FileManager,
     error_manager: &'b impl ErrorReporter,
     main_package: &'b str,
 ) -> Module<'a> {
-    let symbols = &context.symbols;
-    let types = &context.types;
-    let typeargs = &context.typeargs;
-    let exprs = &context.exprs;
-    let statements = &context.statements;
+    let symbols = SymbolInterner::new(&arena);
+    let types = TypeInterner::new(&arena);
+    let typeargs = TypeArgsInterner::new(&arena);
+    let exprs = ExprInterner::new(&arena);
+    let statements = StatementInterner::new(&arena);
+    let interners = Interners {
+        symbols,
+        types,
+        typeargs,
+        exprs,
+        statements,
+    };
 
     let stdlib_path = get_stdlib_path();
-    let main_package = symbols.define(main_package);
+    let main_package = interners.symbols.define(main_package);
     let package_asts = get_all_package_asts(
         file_manager,
         error_manager,
-        &symbols,
+        &interners.symbols,
         &stdlib_path,
         main_package,
     );
 
-    let interners = Interners {
-        symbols: &symbols,
-        types: &types,
-        typeargs: &typeargs,
-        exprs: &exprs,
-        statements: &statements,
-    };
     let mut ctx = Context {
         files: file_manager,
         errors: error_manager,
@@ -182,11 +157,11 @@ impl<'a, E> Context<'a, E> {
 }
 
 pub struct Interners<'a> {
-    symbols: &'a SymbolInterner<'a>,
-    types: &'a TypeInterner<'a>,
-    typeargs: &'a TypeArgsInterner<'a>,
-    exprs: &'a ExprInterner<'a>,
-    statements: &'a StatementInterner<'a>,
+    symbols: SymbolInterner<'a>,
+    types: TypeInterner<'a>,
+    typeargs: TypeArgsInterner<'a>,
+    exprs: ExprInterner<'a>,
+    statements: StatementInterner<'a>,
 }
 
 #[derive(Default, Clone)]
@@ -278,7 +253,7 @@ pub struct LocalObject<'a> {
 fn get_all_package_asts<'a>(
     files: &mut FileManager,
     errors: &impl ErrorReporter,
-    symbols: &'a SymbolInterner,
+    symbols: &SymbolInterner<'a>,
     stdlib_path: &Path,
     main_package: Symbol<'a>,
 ) -> IndexMap<Symbol<'a>, PackageNode> {

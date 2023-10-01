@@ -11,7 +11,7 @@ mod value;
 use interner::{Interned, Interner};
 use std::fmt::Display;
 
-pub use analyze::{analyze, AnalyzeContext, FuncObject, GlobalObject, ValueObject};
+pub use analyze::{analyze, FuncObject, GlobalObject, ValueObject};
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
 pub type Symbol<'a> = Interned<'a, str>;
