@@ -90,15 +90,15 @@ impl<'a> Statement<'a> {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct IfStatement<'a> {
-    pub(crate) cond: Expr<'a>,
-    pub(crate) body: Box<Statement<'a>>,
-    pub(crate) else_stmt: Option<Box<Statement<'a>>>,
+    pub cond: Expr<'a>,
+    pub body: Box<Statement<'a>>,
+    pub else_stmt: Option<Box<Statement<'a>>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct WhileStatement<'a> {
-    pub(crate) cond: Expr<'a>,
-    pub(crate) body: Box<Statement<'a>>,
+    pub cond: Expr<'a>,
+    pub body: Box<Statement<'a>>,
 }
 
 pub(crate) struct StatementResult<'a> {

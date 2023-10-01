@@ -916,6 +916,7 @@ fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>) -> Module<'a> {
                         .value
                         .get()
                         .expect("missing global value expr"),
+                    annotations: global_object.annotations.clone(),
                 }),
                 ValueObject::Func(func_object) => {
                     if func_object.type_params.is_empty() {

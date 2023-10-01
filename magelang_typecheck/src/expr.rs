@@ -18,8 +18,8 @@ pub type InternExpr<'a> = Interned<'a, Expr<'a>>;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Expr<'a> {
-    pub(crate) ty: InternType<'a>,
-    pub(crate) kind: ExprKind<'a>,
+    pub ty: InternType<'a>,
+    pub kind: ExprKind<'a>,
     pub(crate) assignable: bool,
 }
 

@@ -10,8 +10,9 @@ mod value;
 
 use interner::{Interned, Interner};
 use std::fmt::Display;
+use std::rc::Rc;
 
-pub use analyze::{analyze, FuncObject, GlobalObject, ValueObject};
+pub use analyze::{analyze, Annotation, FuncObject, GlobalObject, ValueObject};
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
 pub type Symbol<'a> = Interned<'a, str>;
@@ -49,6 +50,7 @@ pub struct Global<'a> {
     pub name: DefId<'a>,
     pub ty: InternType<'a>,
     pub value: InternExpr<'a>,
+    pub annotations: Rc<[Annotation]>,
 }
 
 pub struct Func<'a> {
