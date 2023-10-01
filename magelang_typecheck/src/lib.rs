@@ -59,4 +59,5 @@ pub struct Func<'a> {
     pub typeargs: Option<InternTypeArgs<'a>>,
     pub ty: InternType<'a>,
     pub statement: InternStatement<'a>,
+    pub annotations: Rc<[Annotation]>,
 }

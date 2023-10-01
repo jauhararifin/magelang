@@ -926,6 +926,7 @@ fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>, is_valid: bool) -> Module<'a
                             typeargs: None,
                             ty: func_object.ty,
                             statement: *func_object.body.get().expect("missing function body"),
+                            annotations: func_object.annotations.clone(),
                         });
                     } else {
                         let monomorphized = func_object
@@ -938,6 +939,7 @@ fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>, is_valid: bool) -> Module<'a
                                 typeargs: Some(*typeargs),
                                 ty: *ty,
                                 statement: *body,
+                                annotations: func_object.annotations.clone(),
                             });
                         }
                     }

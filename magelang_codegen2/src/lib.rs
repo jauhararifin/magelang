@@ -1,8 +1,8 @@
 mod data;
+mod func;
 mod gen;
 mod layout;
-mod var;
 mod ty;
+mod var;
 
 pub use gen::generate;
-

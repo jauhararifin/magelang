@@ -10,8 +10,8 @@ pub(crate) struct LayoutManager<'ctx> {
 
 #[derive(Default)]
 struct LayoutManagerInternal<'ctx> {
-    struct_mem_layouts: HashMap<InternType<'ctx>, Rc<MemLayout>>,
-    struct_stack_layouts: HashMap<InternType<'ctx>, Rc<StackLayout>>,
+    mems: HashMap<InternType<'ctx>, Rc<MemLayout>>,
+    stacks: HashMap<InternType<'ctx>, Rc<StackLayout>>,
 }
 
 impl<'ctx> LayoutManager<'ctx> {
@@ -25,7 +25,7 @@ impl<'ctx> LayoutManager<'ctx> {
             Type::Struct(struct_type) => {
                 {
                     let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.struct_stack_layouts.get(&ty) {
+                    if let Some(val) = internal.stacks.get(&ty) {
                         return val.clone();
                     }
                 }
@@ -34,13 +34,13 @@ impl<'ctx> LayoutManager<'ctx> {
                     .get_struct_stack_layout(struct_type.body.get().expect("missing struct body"));
 
                 let mut internal = self.internal.borrow_mut();
-                internal.struct_stack_layouts.insert(ty, layout.clone());
+                internal.stacks.insert(ty, layout.clone());
                 layout
             }
             Type::Inst(inst_type) => {
                 {
                     let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.struct_stack_layouts.get(&ty) {
+                    if let Some(val) = internal.stacks.get(&ty) {
                         return val.clone();
                     }
                 }
@@ -49,7 +49,7 @@ impl<'ctx> LayoutManager<'ctx> {
                     .get_struct_stack_layout(inst_type.body.get().expect("missing struct body"));
 
                 let mut internal = self.internal.borrow_mut();
-                internal.struct_stack_layouts.insert(ty, layout.clone());
+                internal.stacks.insert(ty, layout.clone());
                 layout
             }
             Type::Func(..) => Rc::new(1u32.into()),
@@ -92,7 +92,7 @@ impl<'ctx> LayoutManager<'ctx> {
             Type::Struct(struct_type) => {
                 {
                     let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.struct_mem_layouts.get(&ty) {
+                    if let Some(val) = internal.mems.get(&ty) {
                         return val.clone();
                     }
                 }
@@ -101,13 +101,13 @@ impl<'ctx> LayoutManager<'ctx> {
                     .get_struct_mem_layout(struct_type.body.get().expect("missing struct body"));
 
                 let mut internal = self.internal.borrow_mut();
-                internal.struct_mem_layouts.insert(ty, layout.clone());
+                internal.mems.insert(ty, layout.clone());
                 layout
             }
             Type::Inst(inst_type) => {
                 {
                     let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.struct_mem_layouts.get(&ty) {
+                    if let Some(val) = internal.mems.get(&ty) {
                         return val.clone();
                     }
                 }
@@ -116,7 +116,7 @@ impl<'ctx> LayoutManager<'ctx> {
                     self.get_struct_mem_layout(inst_type.body.get().expect("missing struct body"));
 
                 let mut internal = self.internal.borrow_mut();
-                internal.struct_mem_layouts.insert(ty, layout.clone());
+                internal.mems.insert(ty, layout.clone());
                 layout
             }
             Type::Func(..) => Rc::new(MemLayout::primitive(4, 4)),

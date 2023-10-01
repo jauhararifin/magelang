@@ -63,7 +63,7 @@ impl<'a> Type<'a> {
         }
     }
 
-    pub(crate) fn as_func(&self) -> Option<&FuncType<'a>> {
+    pub fn as_func(&self) -> Option<&FuncType<'a>> {
         if let Self::Func(t) = self {
             Some(t)
         } else {
@@ -167,7 +167,7 @@ impl<'a> Display for Type<'a> {
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct StructType<'a> {
-    pub(crate) def_id: DefId<'a>,
+    pub def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
     pub body: OnceCell<StructBody<'a>>,
     pub(crate) node: StructNode,
@@ -265,8 +265,8 @@ pub struct StructBody<'a> {
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct InstType<'a> {
-    pub(crate) def_id: DefId<'a>,
-    pub(crate) type_args: InternTypeArgs<'a>,
+    pub def_id: DefId<'a>,
+    pub type_args: InternTypeArgs<'a>,
     pub body: OnceCell<StructBody<'a>>,
 }
 
@@ -322,8 +322,8 @@ impl<'a> Debug for InstType<'a> {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct FuncType<'a> {
-    pub(crate) params: Vec<InternType<'a>>,
-    pub(crate) return_type: InternType<'a>,
+    pub params: Vec<InternType<'a>>,
+    pub return_type: InternType<'a>,
 }
 
 impl<'a> FuncType<'a> {

@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::rc::Rc;
+use wasm_helper as wasm;
 
 #[derive(Default)]
 pub(crate) struct Data {
@@ -31,6 +32,10 @@ impl Data {
         }
 
         s
+    }
+
+    pub(crate) fn data_end(&self) -> u32 {
+        self.next_offset
     }
 
     fn init_from_expr<'ctx>(&mut self, expr: &Expr) {
@@ -187,5 +192,24 @@ impl Data {
             }
             Statement::Native | Statement::Return(..) | Statement::Continue | Statement::Break => {}
         }
+    }
+
+    pub(crate) fn get_min_page(&self) -> u32 {
+        (self.next_offset + wasm_helper::PAGE_SIZE - 1) / (wasm_helper::PAGE_SIZE)
+    }
+
+    pub(crate) fn take<'ctx>(self) -> Vec<wasm::Data> {
+        let mut datas = Vec::default();
+        for (data, offset) in self.data {
+            datas.push(wasm::Data {
+                init: wasm::Bytes(data),
+                mode: wasm::DataMode::Active {
+                    memory: 0,
+                    offset: wasm::Expr(vec![wasm::Instr::I32Const(offset as i32)]),
+                },
+            });
+        }
+
+        datas
     }
 }
