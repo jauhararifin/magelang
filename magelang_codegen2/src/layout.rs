@@ -3,10 +3,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+#[derive(Default)]
 pub(crate) struct LayoutManager<'ctx> {
     internal: RefCell<LayoutManagerInternal<'ctx>>,
 }
 
+#[derive(Default)]
 struct LayoutManagerInternal<'ctx> {
     struct_mem_layouts: HashMap<InternType<'ctx>, Rc<MemLayout>>,
     struct_stack_layouts: HashMap<InternType<'ctx>, Rc<StackLayout>>,
