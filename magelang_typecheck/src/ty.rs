@@ -11,34 +11,34 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-pub(crate) type TypeInterner<'a> = Interner<'a, Type<'a>>;
-pub type InternType<'a> = Interned<'a, Type<'a>>;
+pub(crate) type TypeInterner<'a, 'ast> = Interner<'a, Type<'a, 'ast>>;
+pub type InternType<'a, 'ast> = Interned<'a, Type<'a, 'ast>>;
 
-pub(crate) type TypeArgsInterner<'a> = Interner<'a, [InternType<'a>]>;
-pub type InternTypeArgs<'a> = Interned<'a, [InternType<'a>]>;
+pub(crate) type TypeArgsInterner<'a, 'ast> = Interner<'a, [InternType<'a, 'ast>]>;
+pub type InternTypeArgs<'a, 'ast> = Interned<'a, [InternType<'a, 'ast>]>;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Type<'a> {
+pub enum Type<'a, 'ast> {
     Unknown,
-    Struct(StructType<'a>),
-    Inst(InstType<'a>),
-    Func(FuncType<'a>),
+    Struct(StructType<'a, 'ast>),
+    Inst(InstType<'a, 'ast>),
+    Func(FuncType<'a, 'ast>),
     Void,
     Opaque,
     Bool,
     Int(IntSign, BitSize),
     Float(FloatType),
-    Ptr(InternType<'a>),
-    ArrayPtr(InternType<'a>),
+    Ptr(InternType<'a, 'ast>),
+    ArrayPtr(InternType<'a, 'ast>),
     TypeArg(TypeArg<'a>),
 }
 
-impl<'a> Type<'a> {
+impl<'a, 'ast> Type<'a, 'ast> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        ctx: &'b Context<'a, 'ast, E>,
+        type_args: InternTypeArgs<'a, 'ast>,
+    ) -> InternType<'a, 'ast> {
         match self {
             Self::Unknown => ctx.define_type(Self::Unknown),
             Self::Struct(struct_type) => struct_type.monomorphize(ctx, type_args),
@@ -55,7 +55,7 @@ impl<'a> Type<'a> {
         }
     }
 
-    pub(crate) fn as_inst(&self) -> Option<&InstType<'a>> {
+    pub(crate) fn as_inst(&self) -> Option<&InstType<'a, 'ast>> {
         if let Self::Inst(t) = self {
             Some(t)
         } else {
@@ -63,7 +63,7 @@ impl<'a> Type<'a> {
         }
     }
 
-    pub(crate) fn as_func(&self) -> Option<&FuncType<'a>> {
+    pub(crate) fn as_func(&self) -> Option<&FuncType<'a, 'ast>> {
         if let Self::Func(t) = self {
             Some(t)
         } else {
@@ -124,7 +124,7 @@ impl<'a> Type<'a> {
     }
 }
 
-impl<'a> Display for Type<'a> {
+impl<'a, 'ast> Display for Type<'a, 'ast> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Unknown => write!(f, "{{unknown}}"),
@@ -166,32 +166,32 @@ impl<'a> Display for Type<'a> {
 }
 
 #[derive(PartialEq, Eq, Clone)]
-pub struct StructType<'a> {
+pub struct StructType<'a, 'ast> {
     pub(crate) def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
-    pub(crate) body: OnceCell<StructBody<'a>>,
-    pub(crate) node: &'a StructNode,
-    pub(crate) mono_cache: RefCell<HashMap<InternTypeArgs<'a>, InternType<'a>>>,
+    pub(crate) body: OnceCell<StructBody<'a, 'ast>>,
+    pub(crate) node: &'ast StructNode,
+    pub(crate) mono_cache: RefCell<HashMap<InternTypeArgs<'a, 'ast>, InternType<'a, 'ast>>>,
 }
 
-impl<'a> Debug for StructType<'a> {
+impl<'a, 'ast> Debug for StructType<'a, 'ast> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(&self.def_id, f)
     }
 }
 
-impl<'a> Hash for StructType<'a> {
+impl<'a, 'ast> Hash for StructType<'a, 'ast> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.def_id.hash(state);
     }
 }
 
-impl<'a> StructType<'a> {
+impl<'a, 'ast> StructType<'a, 'ast> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        ctx: &'b Context<'a, 'ast, E>,
+        type_args: InternTypeArgs<'a, 'ast>,
+    ) -> InternType<'a, 'ast> {
         {
             let mut cache = self.mono_cache.borrow_mut();
             if let Some(ty) = cache.get(&type_args) {
@@ -258,24 +258,24 @@ impl<'a> StructType<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct StructBody<'a> {
-    pub(crate) fields: IndexMap<Symbol<'a>, InternType<'a>>,
+pub(crate) struct StructBody<'a, 'ast> {
+    pub(crate) fields: IndexMap<Symbol<'a>, InternType<'a, 'ast>>,
     pub(crate) sized: bool,
 }
 
 #[derive(PartialEq, Eq, Clone)]
-pub struct InstType<'a> {
+pub struct InstType<'a, 'ast> {
     pub(crate) def_id: DefId<'a>,
-    pub(crate) type_args: InternTypeArgs<'a>,
-    pub(crate) body: OnceCell<StructBody<'a>>,
+    pub(crate) type_args: InternTypeArgs<'a, 'ast>,
+    pub(crate) body: OnceCell<StructBody<'a, 'ast>>,
 }
 
-impl<'a> InstType<'a> {
+impl<'a, 'ast> InstType<'a, 'ast> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        ctx: &'b Context<'a, 'ast, E>,
+        type_args: InternTypeArgs<'a, 'ast>,
+    ) -> InternType<'a, 'ast> {
         let ty = ctx
             .scopes
             .get(&self.def_id.package)
@@ -295,14 +295,14 @@ impl<'a> InstType<'a> {
     }
 }
 
-impl<'a> Hash for InstType<'a> {
+impl<'a, 'ast> Hash for InstType<'a, 'ast> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.def_id.hash(state);
         self.type_args.hash(state);
     }
 }
 
-impl<'a> Display for InstType<'a> {
+impl<'a, 'ast> Display for InstType<'a, 'ast> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.def_id, f)?;
         write!(f, "::<")?;
@@ -314,24 +314,24 @@ impl<'a> Display for InstType<'a> {
     }
 }
 
-impl<'a> Debug for InstType<'a> {
+impl<'a, 'ast> Debug for InstType<'a, 'ast> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct FuncType<'a> {
-    pub(crate) params: Vec<InternType<'a>>,
-    pub(crate) return_type: InternType<'a>,
+pub struct FuncType<'a, 'ast> {
+    pub(crate) params: Vec<InternType<'a, 'ast>>,
+    pub(crate) return_type: InternType<'a, 'ast>,
 }
 
-impl<'a> FuncType<'a> {
+impl<'a, 'ast> FuncType<'a, 'ast> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        ctx: &'b Context<'a, 'ast, E>,
+        type_args: InternTypeArgs<'a, 'ast>,
+    ) -> InternType<'a, 'ast> {
         let params = self
             .params
             .iter()
@@ -345,7 +345,7 @@ impl<'a> FuncType<'a> {
     }
 }
 
-impl<'a> Display for FuncType<'a> {
+impl<'a, 'ast> Display for FuncType<'a, 'ast> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "fn(")?;
         for ty in &self.params {
@@ -385,22 +385,22 @@ impl<'a> TypeArg<'a> {
         Self { index, name }
     }
 
-    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+    pub(crate) fn monomorphize<'b, 'ast, E: ErrorReporter>(
         &self,
-        _: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        _: &'b Context<'a, 'ast, E>,
+        type_args: InternTypeArgs<'a, 'ast>,
+    ) -> InternType<'a, 'ast> {
         *type_args
             .get(self.index)
             .expect("missing type arg at the index")
     }
 }
 
-pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, E>,
-    scope: &'b Scopes<'a>,
-    node: &TypeExprNode,
-) -> InternType<'a> {
+pub(crate) fn get_type_from_node<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &'b Context<'a, 'ast, E>,
+    scope: &'b Scopes<'a, 'ast>,
+    node: &'ast TypeExprNode,
+) -> InternType<'a, 'ast> {
     match node {
         TypeExprNode::Invalid(..) => ctx.define_type(Type::Unknown),
         TypeExprNode::Path(node) => get_type_from_path(ctx, scope, node),
@@ -416,11 +416,11 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_type_from_path<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, E>,
-    scope: &'b Scopes<'a>,
-    node: &PathNode,
-) -> InternType<'a> {
+fn get_type_from_path<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &'b Context<'a, 'ast, E>,
+    scope: &'b Scopes<'a, 'ast>,
+    node: &'ast PathNode,
+) -> InternType<'a, 'ast> {
     let Some(object) = get_type_object_from_path(ctx, scope, &node.names) else {
         return ctx.define_type(Type::Unknown);
     };
@@ -458,10 +458,10 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     struct_type.monomorphize(ctx, type_args)
 }
 
-fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, E>,
-    scope: &'b Scopes<'a>,
-    names: &[Token],
+fn get_type_object_from_path<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &'b Context<'a, 'ast, E>,
+    scope: &'b Scopes<'a, 'ast>,
+    names: &'ast [Token],
 ) -> Option<&'b TypeObject<'a>> {
     assert!(!names.is_empty());
 
@@ -495,12 +495,12 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_func_type_from_signature<'a, 'b, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+pub(crate) fn get_func_type_from_signature<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    scope: &'b Scopes<'a, 'ast>,
     type_params: &[TypeArg<'a>],
-    signature: &SignatureNode,
-) -> FuncType<'a> {
+    signature: &'ast SignatureNode,
+) -> FuncType<'a, 'ast> {
     let scope = get_typeparam_scope(ctx, scope, type_params);
 
     let mut param_pos = HashMap::<Symbol, Pos>::default();
@@ -534,9 +534,9 @@ pub(crate) fn get_func_type_from_signature<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_typeparams<'a, 'b, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    nodes: &[TypeParameterNode],
+pub(crate) fn get_typeparams<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    nodes: &'ast [TypeParameterNode],
 ) -> Vec<TypeArg<'a>> {
     let mut type_params = Vec::default();
     let mut param_pos = HashMap::<Symbol, Pos>::default();
@@ -554,11 +554,11 @@ pub(crate) fn get_typeparams<'a, 'b, E: ErrorReporter>(
     type_params
 }
 
-pub(crate) fn get_typeparam_scope<'a, 'b, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
-    type_params: &[TypeArg<'a>],
-) -> Scopes<'a> {
+pub(crate) fn get_typeparam_scope<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    scope: &'b Scopes<'a, 'ast>,
+    type_params: &'ast [TypeArg<'a>],
+) -> Scopes<'a, 'ast> {
     let mut type_param_table = IndexMap::<Symbol, TypeObject>::default();
     for type_param in type_params {
         if !type_param_table.contains_key(&type_param.name) {
@@ -576,7 +576,7 @@ pub(crate) fn get_typeparam_scope<'a, 'b, E: ErrorReporter>(
     scope
 }
 
-pub(crate) fn check_circular_type<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+pub(crate) fn check_circular_type<'a, 'ast, E: ErrorReporter>(ctx: &Context<'a, 'ast, E>) {
     let dep_list = build_struct_dependency_list(ctx);
 
     let mut visited = IndexSet::<DefId>::default();
@@ -608,8 +608,8 @@ pub(crate) fn check_circular_type<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn build_struct_dependency_list<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn build_struct_dependency_list<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
 ) -> IndexMap<DefId<'a>, IndexSet<DefId<'a>>> {
     let mut adjlist = IndexMap::<DefId, IndexSet<DefId>>::default();
     let type_objects = ctx
@@ -643,8 +643,8 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
     adjlist
 }
 
-fn report_circular_type<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn report_circular_type<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
     in_chain: &IndexSet<DefId>,
     start: DefId,
 ) {

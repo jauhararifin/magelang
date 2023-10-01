@@ -11,7 +11,7 @@ mod value;
 use interner::{Interned, Interner};
 use std::fmt::Display;
 
-pub use analyze::analyze;
+pub use analyze::{analyze, FuncObject, GlobalObject, ValueObject};
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
 pub type Symbol<'a> = Interned<'a, str>;
@@ -28,9 +28,32 @@ impl<'a> Display for DefId<'a> {
     }
 }
 
-pub use expr::{Expr, ExprKind};
-pub use statement::{IfStatement, Statement, WhileStatement};
+pub use expr::{Expr, ExprKind, InternExpr};
+pub use statement::{IfStatement, InternStatement, Statement, WhileStatement};
 pub use ty::{
     BitSize, FloatType, FuncType, InstType, IntSign, InternType, InternTypeArgs, StructType, Type,
     TypeArg,
 };
+
+pub struct Module<'a> {
+    pub packages: Vec<Package<'a>>,
+}
+
+pub struct Package<'a> {
+    pub name: Symbol<'a>,
+    pub globals: Vec<Global<'a>>,
+    pub functions: Vec<Func<'a>>,
+}
+
+pub struct Global<'a, 'ast> {
+    pub name: DefId<'a>,
+    pub ty: InternType<'a>,
+    pub value: InternExpr<'a>,
+}
+
+pub struct Func<'a> {
+    pub name: DefId<'a>,
+    pub typeargs: Option<InternTypeArgs<'a>>,
+    pub ty: InternType<'a>,
+    pub statement: InternStatement<'a>,
+}

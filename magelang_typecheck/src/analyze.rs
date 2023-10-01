@@ -1,15 +1,17 @@
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprKind};
+use crate::expr::{get_expr_from_node, Expr, ExprInterner, ExprKind, InternExpr};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
-use crate::statement::{get_statement_from_block, Statement, StatementContext};
+use crate::statement::{
+    get_statement_from_block, InternStatement, Statement, StatementContext, StatementInterner,
+};
 use crate::ty::{
     check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
     get_typeparams, BitSize, FloatType, InternType, InternTypeArgs, StructType, Type, TypeArg,
     TypeArgsInterner, TypeInterner,
 };
 use crate::value::value_from_string_lit;
-use crate::{DefId, Symbol, SymbolInterner};
+use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use indexmap::IndexMap;
 use magelang_syntax::{
@@ -21,16 +23,17 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 
-pub fn analyze(
-    file_manager: &mut FileManager,
-    error_manager: &impl ErrorReporter,
-    main_package: &str,
-) {
-    let arena = Bump::default();
-
+pub fn analyze<'a, 'b: 'a>(
+    arena: &'a Bump,
+    file_manager: &'b mut FileManager,
+    error_manager: &'b impl ErrorReporter,
+    main_package: &'b str,
+) -> Module<'a> {
     let symbols = SymbolInterner::new(&arena);
     let types = TypeInterner::new(&arena);
     let typeargs = TypeArgsInterner::new(&arena);
+    let exprs = ExprInterner::new(&arena);
+    let statements = StatementInterner::new(&arena);
 
     let stdlib_path = get_stdlib_path();
     let main_package = symbols.define(main_package);
@@ -46,6 +49,8 @@ pub fn analyze(
         symbols: &symbols,
         types: &types,
         typeargs: &typeargs,
+        exprs: &exprs,
+        statements: &statements,
     };
     let mut ctx = Context {
         files: file_manager,
@@ -77,18 +82,20 @@ pub fn analyze(
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
     // compilation.
+
+    build_module(&ctx)
 }
 
-pub struct Context<'a, E> {
+pub struct Context<'a, 'ast, E> {
     pub(crate) files: &'a FileManager,
     pub(crate) errors: &'a E,
 
     pub(crate) interners: Interners<'a>,
-    pub(crate) scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
+    pub(crate) scopes: IndexMap<Symbol<'a>, Scopes<'a, 'ast>>,
 }
 
-impl<'a, E> Context<'a, E> {
-    pub(crate) fn define_symbol(&self, symbol: &str) -> Symbol<'a> {
+impl<'a, 'ast, E> Context<'a, 'ast, E> {
+    pub(crate) fn define_symbol<'b>(&self, symbol: &'b str) -> Symbol<'a> {
         self.interners.symbols.define(symbol)
     }
 
@@ -98,6 +105,14 @@ impl<'a, E> Context<'a, E> {
 
     pub(crate) fn define_typeargs(&self, typeargs: &[InternType<'a>]) -> InternTypeArgs<'a> {
         self.interners.typeargs.define(typeargs)
+    }
+
+    pub(crate) fn define_expr(&self, expr: Expr<'a>) -> InternExpr<'a> {
+        self.interners.exprs.define(expr)
+    }
+
+    pub(crate) fn define_statement(&self, stmt: Statement<'a>) -> InternStatement<'a> {
+        self.interners.statements.define(stmt)
     }
 
     fn set_import_scope(
@@ -117,7 +132,10 @@ impl<'a, E> Context<'a, E> {
         }
     }
 
-    fn set_value_scope(&mut self, value_scopes: IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a>>>) {
+    fn set_value_scope(
+        &mut self,
+        value_scopes: IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a, 'ast>>>,
+    ) {
         for (package, scope) in value_scopes {
             let s = self.scopes.entry(package).or_default();
             s.value_scopes = scope;
@@ -129,16 +147,18 @@ pub(crate) struct Interners<'a> {
     symbols: &'a SymbolInterner<'a>,
     types: &'a TypeInterner<'a>,
     typeargs: &'a TypeArgsInterner<'a>,
+    exprs: &'a ExprInterner<'a>,
+    statements: &'a StatementInterner<'a>,
 }
 
 #[derive(Default, Clone)]
-pub(crate) struct Scopes<'a> {
+pub(crate) struct Scopes<'a, 'ast> {
     pub(crate) import_scopes: Scope<'a, ImportObject<'a>>,
     pub(crate) type_scopes: Scope<'a, TypeObject<'a>>,
-    pub(crate) value_scopes: Scope<'a, ValueObject<'a>>,
+    pub(crate) value_scopes: Scope<'a, ValueObject<'a, 'ast>>,
 }
 
-impl<'a> Scopes<'a> {
+impl<'a, 'ast> Scopes<'a, 'ast> {
     pub(crate) fn with_type_scope(&self, type_scopes: Scope<'a, TypeObject<'a>>) -> Self {
         Self {
             import_scopes: self.import_scopes.clone(),
@@ -147,7 +167,7 @@ impl<'a> Scopes<'a> {
         }
     }
 
-    pub(crate) fn with_value_scope(&self, value_scopes: Scope<'a, ValueObject<'a>>) -> Self {
+    pub(crate) fn with_value_scope(&self, value_scopes: Scope<'a, ValueObject<'a, 'ast>>) -> Self {
         Self {
             import_scopes: self.import_scopes.clone(),
             type_scopes: self.type_scopes.clone(),
@@ -178,18 +198,18 @@ impl<'a> std::ops::Deref for TypeObject<'a> {
 }
 
 #[derive(Debug)]
-pub enum ValueObject<'a> {
-    Global(GlobalObject<'a>),
-    Func(FuncObject<'a>),
+pub enum ValueObject<'a, 'ast> {
+    Global(GlobalObject<'a, 'ast>),
+    Func(FuncObject<'a, 'ast>),
     Local(LocalObject<'a>),
 }
 
 #[derive(Debug)]
-pub struct GlobalObject<'a> {
+pub struct GlobalObject<'a, 'ast> {
     pub(crate) def_id: DefId<'a>,
     pub ty: InternType<'a>,
-    pub(crate) node: &'a GlobalNode,
-    pub value: OnceCell<Expr<'a>>,
+    pub(crate) node: &'ast GlobalNode,
+    pub value: OnceCell<InternExpr<'a>>,
     pub annotations: Rc<[Annotation]>,
 }
 
@@ -200,14 +220,14 @@ pub struct Annotation {
 }
 
 #[derive(Debug)]
-pub struct FuncObject<'a> {
+pub struct FuncObject<'a, 'ast> {
     pub(crate) def_id: DefId<'a>,
     pub type_params: Vec<TypeArg<'a>>,
     pub ty: InternType<'a>,
-    pub(crate) node: &'a FunctionNode,
-    pub body: OnceCell<Statement<'a>>,
+    pub(crate) node: &'ast FunctionNode,
+    pub body: OnceCell<InternStatement<'a>>,
     pub annotations: Rc<[Annotation]>,
-    pub monomorphized: OnceCell<Vec<(InternTypeArgs<'a>, InternType<'a>, Statement<'a>)>>,
+    pub monomorphized: OnceCell<Vec<(InternTypeArgs<'a>, InternType<'a>, InternStatement<'a>)>>,
 }
 
 #[derive(Debug)]
@@ -263,9 +283,9 @@ fn get_all_package_asts<'a>(
     package_asts
 }
 
-fn build_imports<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    package_asts: &IndexMap<Symbol<'a>, PackageNode>,
+fn build_imports<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    package_asts: &'ast IndexMap<Symbol<'a>, PackageNode>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, ImportObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<ImportObject>>::default();
 
@@ -316,9 +336,9 @@ fn build_imports<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn build_type_scopes<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    package_asts: &'a IndexMap<Symbol<'a>, PackageNode>,
+fn build_type_scopes<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    package_asts: &'ast IndexMap<Symbol<'a>, PackageNode>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, TypeObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<TypeObject<'a>>>::default();
 
@@ -367,7 +387,9 @@ fn build_type_scopes<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, TypeObject<'a>> {
+fn get_builtin_scope<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+) -> Scope<'a, TypeObject<'a>> {
     let i8_type = ctx.define_type(Type::Int(true, BitSize::I8));
     let i16_type = ctx.define_type(Type::Int(true, BitSize::I16));
     let i32_type = ctx.define_type(Type::Int(true, BitSize::I32));
@@ -405,7 +427,7 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, Ty
     builtin_scope
 }
 
-fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn generate_type_body<'a, 'ast, E: ErrorReporter>(ctx: &Context<'a, 'ast, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             let ty = type_object.ty;
@@ -428,7 +450,7 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn monomorphize_types<'a, 'ast, E: ErrorReporter>(ctx: &Context<'a, 'ast, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             let ty = type_object.ty;
@@ -452,11 +474,11 @@ fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn build_value_scopes<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    package_asts: &'a IndexMap<Symbol<'a>, PackageNode>,
-) -> IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a>>> {
-    let mut package_scopes = IndexMap::<Symbol, Scope<ValueObject<'a>>>::default();
+fn build_value_scopes<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    package_asts: &'ast IndexMap<Symbol<'a>, PackageNode>,
+) -> IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a, 'ast>>> {
+    let mut package_scopes = IndexMap::<Symbol, Scope<ValueObject<'a, 'ast>>>::default();
 
     for (package_name, package_ast) in package_asts {
         let mut table = IndexMap::<Symbol, ValueObject>::default();
@@ -529,15 +551,15 @@ fn build_value_scopes<'a, E: ErrorReporter>(
         }
 
         let scope = Scope::new(table);
-        package_scopes.insert(package_name.clone(), scope);
+        package_scopes.insert(*package_name, scope);
     }
 
     package_scopes
 }
 
-fn build_annotations_from_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    nodes: &[AnnotationNode],
+fn build_annotations_from_node<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    nodes: &'ast [AnnotationNode],
 ) -> Vec<Annotation> {
     let mut annotations = Vec::default();
     for annotation_node in nodes {
@@ -568,7 +590,7 @@ fn build_annotations_from_node<'a, E: ErrorReporter>(
     annotations
 }
 
-fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn generate_global_value<'a, 'ast, E: ErrorReporter>(ctx: &Context<'a, 'ast, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Global(global_object) = value_object else {
@@ -596,15 +618,16 @@ fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                 ctx.errors.type_mismatch(pos, ty.as_ref(), value_expr.ty);
             }
 
+            let value = ctx.define_expr(value_expr);
             global_object
                 .value
-                .set(value_expr)
+                .set(value)
                 .expect("cannot set global value expression");
         }
     }
 }
 
-fn generate_func_bodies<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn generate_func_bodies<'a, 'ast, E: ErrorReporter>(ctx: &Context<'a, 'ast, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Func(func_object) = value_object else {
@@ -612,15 +635,16 @@ fn generate_func_bodies<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
             };
 
             let body = get_func_body(ctx, scope, func_object);
+            let body = ctx.define_statement(body);
             func_object.body.set(body).expect("cannot set func body");
         }
     }
 }
 
-fn get_func_body<'a, 'b, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
-    func_object: &FuncObject<'a>,
+fn get_func_body<'a, 'b, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
+    scope: &'b Scopes<'a, 'ast>,
+    func_object: &FuncObject<'a, 'ast>,
 ) -> Statement<'a> {
     let Some(ref body) = func_object.node.body else {
         return Statement::Native;
@@ -663,7 +687,7 @@ fn get_func_body<'a, 'b, E: ErrorReporter>(
     result.statement
 }
 
-fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn monomorphize_statements<'a, 'ast, E: ErrorReporter>(ctx: &Context<'a, 'ast, E>) {
     let monomorphized_funcs = get_all_monomorphized_funcs(ctx);
 
     for (def_id, all_typeargs) in monomorphized_funcs {
@@ -679,11 +703,12 @@ fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
         };
         assert!(!generic_func.type_params.is_empty());
 
-        let mut monomorphized = Vec::<(InternTypeArgs, InternType, Statement)>::default();
+        let mut monomorphized = Vec::<(InternTypeArgs, InternType, InternStatement)>::default();
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
             let ty = generic_func.ty.monomorphize(ctx, typeargs);
             let monomorphized_body = body.monomorphize(ctx, typeargs);
+            let monomorphized_body = ctx.define_statement(monomorphized_body);
             monomorphized.push((typeargs, ty, monomorphized_body));
         }
 
@@ -694,8 +719,8 @@ fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn get_all_monomorphized_funcs<'a, 'ast, E: ErrorReporter>(
+    ctx: &Context<'a, 'ast, E>,
 ) -> Vec<(DefId<'a>, Vec<InternTypeArgs<'a>>)> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
@@ -866,4 +891,55 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     }
 
     monomorphized_funcs.into_iter().collect()
+}
+
+fn build_module<'a, 'ast, E>(ctx: &Context<'a, 'ast, E>) -> Module<'a> {
+    let mut packages = Vec::default();
+    for (name, scope) in ctx.scopes.iter() {
+        let mut globals = Vec::default();
+        let mut functions = Vec::default();
+        for (_, value_object) in scope.value_scopes.iter() {
+            match value_object {
+                ValueObject::Global(global_object) => globals.push(Global {
+                    name: global_object.def_id,
+                    ty: global_object.ty,
+                    value: *global_object
+                        .value
+                        .get()
+                        .expect("missing global value expr"),
+                }),
+                ValueObject::Func(func_object) => {
+                    if func_object.type_params.is_empty() {
+                        functions.push(Func {
+                            name: func_object.def_id,
+                            typeargs: None,
+                            ty: func_object.ty,
+                            statement: *func_object.body.get().expect("missing function body"),
+                        });
+                    } else {
+                        let monomorphized = func_object
+                            .monomorphized
+                            .get()
+                            .expect("missing monomorphized funcs");
+                        for (typeargs, ty, body) in monomorphized {
+                            functions.push(Func {
+                                name: func_object.def_id,
+                                typeargs: Some(*typeargs),
+                                ty: *ty,
+                                statement: *body,
+                            });
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+        packages.push(Package {
+            name: *name,
+            globals,
+            functions,
+        })
+    }
+
+    Module { packages }
 }
