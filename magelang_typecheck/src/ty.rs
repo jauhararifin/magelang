@@ -37,11 +37,12 @@ impl<'a> Type<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
+        interned: InternType<'a>,
         type_args: InternTypeArgs<'a>,
     ) -> InternType<'a> {
         match self {
             Self::Unknown => ctx.define_type(Self::Unknown),
-            Self::Struct(struct_type) => struct_type.monomorphize(ctx, type_args),
+            Self::Struct(struct_type) => struct_type.monomorphize(ctx, interned, type_args),
             Self::Inst(inst_type) => inst_type.monomorphize(ctx, type_args),
             Self::Func(func_type) => func_type.monomorphize(ctx, type_args),
             Self::Void => ctx.define_type(Self::Void),
@@ -49,8 +50,10 @@ impl<'a> Type<'a> {
             Self::Bool => ctx.define_type(Self::Bool),
             Self::Int(sign, size) => ctx.define_type(Type::Int(*sign, *size)),
             Self::Float(ty) => ctx.define_type(Type::Float(*ty)),
-            Self::Ptr(el) => ctx.define_type(Type::Ptr(el.monomorphize(ctx, type_args))),
-            Self::ArrayPtr(el) => ctx.define_type(Type::ArrayPtr(el.monomorphize(ctx, type_args))),
+            Self::Ptr(el) => ctx.define_type(Type::Ptr(el.monomorphize(ctx, *el, type_args))),
+            Self::ArrayPtr(el) => {
+                ctx.define_type(Type::ArrayPtr(el.monomorphize(ctx, *el, type_args)))
+            }
             Self::TypeArg(arg) => arg.monomorphize(ctx, type_args),
         }
     }
@@ -190,12 +193,15 @@ impl<'a> StructType<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
+        interned: InternType<'a>,
         type_args: InternTypeArgs<'a>,
     ) -> InternType<'a> {
         {
             let mut cache = self.mono_cache.borrow_mut();
             if let Some(ty) = cache.get(&type_args) {
                 return *ty;
+            } else if self.type_params.is_empty() {
+                cache.insert(type_args, interned);
             } else {
                 let ty = ctx.define_type(Type::Inst(InstType {
                     def_id: self.def_id,
@@ -238,7 +244,7 @@ impl<'a> StructType<'a> {
         let fields = body
             .fields
             .iter()
-            .map(|(name, ty)| (*name, ty.monomorphize(ctx, type_args)))
+            .map(|(name, ty)| (*name, ty.monomorphize(ctx, *ty, type_args)))
             .collect::<IndexMap<_, _>>();
 
         let sized = true; // TODO: set this value properly.
@@ -246,12 +252,11 @@ impl<'a> StructType<'a> {
 
         let cache = self.mono_cache.borrow_mut();
         let interned_ty = cache.get(&type_args).unwrap();
-        let Type::Inst(ty) = interned_ty.as_ref() else {
-            unreachable!();
+        if let Type::Inst(ty) = interned_ty.as_ref() {
+            ty.body
+                .set(substituted_body)
+                .expect("cannot set instance body");
         };
-        ty.body
-            .set(substituted_body)
-            .expect("cannot set instance body");
 
         *interned_ty
     }
@@ -287,11 +292,11 @@ impl<'a> InstType<'a> {
         let substituted_type_args = self
             .type_args
             .iter()
-            .map(|ty| ty.monomorphize(ctx, type_args))
+            .map(|ty| ty.monomorphize(ctx, *ty, type_args))
             .collect::<Vec<_>>();
         let substituted_type_args = ctx.define_typeargs(&substituted_type_args);
 
-        ty.monomorphize(ctx, substituted_type_args)
+        ty.monomorphize(ctx, ty.ty, substituted_type_args)
     }
 }
 
@@ -335,9 +340,11 @@ impl<'a> FuncType<'a> {
         let params = self
             .params
             .iter()
-            .map(|ty| ty.monomorphize(ctx, type_args))
+            .map(|ty| ty.monomorphize(ctx, *ty, type_args))
             .collect();
-        let return_type = self.return_type.monomorphize(ctx, type_args);
+        let return_type = self
+            .return_type
+            .monomorphize(ctx, self.return_type, type_args);
         ctx.define_type(Type::Func(FuncType {
             params,
             return_type,
@@ -455,7 +462,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     }
     let type_args = ctx.define_typeargs(&type_args);
 
-    struct_type.monomorphize(ctx, type_args)
+    struct_type.monomorphize(ctx, object.ty, type_args)
 }
 
 fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(

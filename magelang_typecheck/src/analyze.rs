@@ -99,7 +99,7 @@ pub fn analyze<'a, 'b: 'a>(
     // deciding global initialization harder for incremental
     // compilation.
 
-    let is_valid = error_manager.has_errors();
+    let is_valid = !error_manager.has_errors();
     build_module(&ctx, is_valid)
 }
 
@@ -457,7 +457,7 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                     .collect::<Vec<_>>()
                     .as_slice(),
             );
-            struct_type.monomorphize(ctx, typeargs);
+            struct_type.monomorphize(ctx, ty, typeargs);
         }
     }
 }
@@ -479,7 +479,7 @@ fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
                     .type_scopes
                     .lookup(ty.def_id.name)
                     .expect("missing type");
-                generic_ty.monomorphize(ctx, ty.type_args);
+                generic_ty.monomorphize(ctx, generic_ty.ty, ty.type_args);
                 assert!(ty.body.get().is_some());
             }
         }
@@ -686,7 +686,7 @@ fn get_func_body<'a, 'b, E: ErrorReporter>(
     let scope = scope.with_value_scope(new_scope);
 
     let return_type = func_type.return_type;
-    let stmt_ctx = StatementContext::new(ctx, &scope, return_type);
+    let stmt_ctx = StatementContext::new(ctx, &scope, last_unused_local, return_type);
     let result = get_statement_from_block(&stmt_ctx, body);
 
     let should_return = return_type != ctx.define_type(Type::Void);
@@ -716,7 +716,7 @@ fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
         let mut monomorphized = Vec::<(InternTypeArgs, InternType, InternStatement)>::default();
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
-            let ty = generic_func.ty.monomorphize(ctx, typeargs);
+            let ty = generic_func.ty.monomorphize(ctx, generic_func.ty, typeargs);
             let monomorphized_body = body.monomorphize(ctx, typeargs);
             let monomorphized_body = ctx.define_statement(monomorphized_body);
             monomorphized.push((typeargs, ty, monomorphized_body));
@@ -791,7 +791,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 ExprKind::FuncInst(def_id, inner_typeargs) => {
                     let substituted_typeargs = inner_typeargs
                         .iter()
-                        .map(|ty| ty.monomorphize(ctx, type_args))
+                        .map(|ty| ty.monomorphize(ctx, *ty, type_args))
                         .collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
                     queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));
@@ -838,7 +838,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, type_args)),
             },
             Source::Statement(stmt, type_args) => match stmt {
-                Statement::NewLocal(expr) => queue.push_back(Source::Expr(expr, type_args)),
+                Statement::NewLocal(_, expr) => queue.push_back(Source::Expr(expr, type_args)),
                 Statement::Block(stmts) => {
                     for stmt in stmts {
                         queue.push_back(Source::Statement(stmt, type_args));
@@ -929,10 +929,8 @@ fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>, is_valid: bool) -> Module<'a
                             annotations: func_object.annotations.clone(),
                         });
                     } else {
-                        let monomorphized = func_object
-                            .monomorphized
-                            .get()
-                            .expect("missing monomorphized funcs");
+                        let empty = &Vec::default();
+                        let monomorphized = func_object.monomorphized.get().unwrap_or(empty);
                         for (typeargs, ty, body) in monomorphized {
                             functions.push(Func {
                                 name: func_object.def_id,

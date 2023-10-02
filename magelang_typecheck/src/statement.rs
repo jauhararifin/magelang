@@ -15,7 +15,7 @@ pub type InternStatement<'a> = Interned<'a, Statement<'a>>;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Statement<'a> {
     Native,
-    NewLocal(Expr<'a>),
+    NewLocal(usize, Expr<'a>),
     Block(Vec<Statement<'a>>),
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
@@ -36,9 +36,9 @@ impl<'a> Statement<'a> {
             Statement::Native => Statement::Native,
             Statement::Continue => Statement::Continue,
             Statement::Break => Statement::Break,
-            Statement::NewLocal(value) => {
+            Statement::NewLocal(id, value) => {
                 let value = value.monomorphize(ctx, type_args);
-                Statement::NewLocal(value)
+                Statement::NewLocal(*id, value)
             }
             Statement::Block(statements) => {
                 let statements = statements
@@ -120,12 +120,13 @@ impl<'a, 'b, E: ErrorReporter> StatementContext<'a, 'b, E> {
     pub(crate) fn new(
         ctx: &'b Context<'a, E>,
         scope: &'b Scopes<'a>,
+        last_unused_local: usize,
         return_type: InternType<'a>,
     ) -> Self {
         Self {
             ctx,
             scope,
-            last_unused_local: 0,
+            last_unused_local,
             return_type,
             is_inside_loop: false,
         }
@@ -182,10 +183,11 @@ pub(crate) fn get_statement_from_let<'a, 'b, E: ErrorReporter>(
 
     let name = ctx.ctx.define_symbol(&node.name.value);
     let mut new_table = IndexMap::default();
+    let id = ctx.last_unused_local;
     new_table.insert(
         name,
         ValueObject::Local(LocalObject {
-            id: ctx.last_unused_local,
+            id,
             ty: expr.ty,
             name,
         }),
@@ -194,7 +196,7 @@ pub(crate) fn get_statement_from_let<'a, 'b, E: ErrorReporter>(
     let new_scope = ctx.scope.with_value_scope(new_scope);
 
     StatementResult {
-        statement: Statement::NewLocal(expr),
+        statement: Statement::NewLocal(id, expr),
         new_scope: Some(new_scope),
         is_returning: false,
         last_unused_local: ctx.last_unused_local + 1,

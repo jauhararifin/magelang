@@ -29,7 +29,7 @@ impl<'a> Expr<'a> {
         ctx: &'b Context<'a, E>,
         type_args: InternTypeArgs<'a>,
     ) -> Expr<'a> {
-        let ty = self.ty.monomorphize(ctx, type_args);
+        let ty = self.ty.monomorphize(ctx, self.ty, type_args);
 
         let kind = match &self.kind {
             ExprKind::Invalid => ExprKind::Invalid,
@@ -43,7 +43,7 @@ impl<'a> Expr<'a> {
             ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
             ExprKind::Zero => ExprKind::Zero,
             ExprKind::StructLit(ty, values) => {
-                let ty = ty.monomorphize(ctx, type_args);
+                let ty = ty.monomorphize(ctx, *ty, type_args);
                 let values = values
                     .iter()
                     .map(|val| val.monomorphize(ctx, type_args))
@@ -57,7 +57,7 @@ impl<'a> Expr<'a> {
             ExprKind::FuncInst(def_id, inner_typeargs) => {
                 let typeargs = inner_typeargs
                     .iter()
-                    .map(|ty| ty.monomorphize(ctx, type_args))
+                    .map(|ty| ty.monomorphize(ctx, *ty, type_args))
                     .collect::<Vec<_>>();
                 let typeargs = ctx.define_typeargs(&typeargs);
                 ExprKind::FuncInst(*def_id, typeargs)
@@ -161,7 +161,7 @@ impl<'a> Expr<'a> {
             ExprKind::Not(value) => ExprKind::Not(Box::new(value.monomorphize(ctx, type_args))),
             ExprKind::Cast(value, into_type) => ExprKind::Cast(
                 Box::new(value.monomorphize(ctx, type_args)),
-                into_type.monomorphize(ctx, type_args),
+                into_type.monomorphize(ctx, *into_type, type_args),
             ),
         };
 
@@ -340,7 +340,7 @@ fn get_expr_from_path<'a, 'b, E: ErrorReporter>(
                 }
                 let type_args = ctx.define_typeargs(&type_args);
 
-                let instance_ty = func_obj.ty.monomorphize(ctx, type_args);
+                let instance_ty = func_obj.ty.monomorphize(ctx, func_obj.ty, type_args);
 
                 Expr {
                     ty: instance_ty,

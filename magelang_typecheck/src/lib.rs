@@ -33,20 +33,23 @@ pub use expr::{Expr, ExprKind, InternExpr};
 pub use statement::{IfStatement, InternStatement, Statement, WhileStatement};
 pub use ty::{
     BitSize, FloatType, FuncType, InstType, IntSign, InternType, InternTypeArgs, StructBody,
-    StructType, Type, TypeArg, 
+    StructType, Type, TypeArg,
 };
 
+#[derive(Debug)]
 pub struct Module<'a> {
     pub is_valid: bool,
     pub packages: Vec<Package<'a>>,
 }
 
+#[derive(Debug)]
 pub struct Package<'a> {
     pub name: Symbol<'a>,
     pub globals: Vec<Global<'a>>,
     pub functions: Vec<Func<'a>>,
 }
 
+#[derive(Debug)]
 pub struct Global<'a> {
     pub name: DefId<'a>,
     pub ty: InternType<'a>,
@@ -54,6 +57,7 @@ pub struct Global<'a> {
     pub annotations: Rc<[Annotation]>,
 }
 
+#[derive(Debug)]
 pub struct Func<'a> {
     pub name: DefId<'a>,
     pub typeargs: Option<InternTypeArgs<'a>>,
