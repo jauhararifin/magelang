@@ -1,7 +1,8 @@
+use bumpalo::Bump;
 use clap::{Parser, Subcommand};
-use magelang_analyzer::analyze;
-use magelang_codegen::generate_wasm_ir;
+use magelang_codegen::generate;
 use magelang_syntax::{parse, ErrorManager, FileManager};
+use magelang_typecheck::analyze;
 use wasm_helper::Serializer;
 
 #[derive(Parser)]
@@ -84,7 +85,8 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
 fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
-    let package = analyze(&mut file_manager, &error_manager, &package_name);
+    let arena = Bump::default();
+    let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
 
     if !error_manager.is_empty() {
         for error in error_manager.take() {
@@ -95,21 +97,22 @@ fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
         return;
     }
 
-    let Some(package) = package else { return };
     let mut writer: Box<dyn std::io::Write> = if let Some(path) = output {
         let file = std::fs::File::create(path).unwrap();
         Box::new(file)
     } else {
         Box::new(std::io::stdout().lock())
     };
-    let _ = write!(writer, "{package:#?}");
+    let _ = write!(writer, "{module:#?}");
 }
 
 fn compile(package_name: String, output: std::path::PathBuf) {
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
 
-    let Some(package) = analyze(&mut file_manager, &error_manager, &package_name) else {
+    let arena = Bump::default();
+    let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
+    if !module.is_valid {
         for error in error_manager.take() {
             let location = file_manager.location(error.pos);
             let message = error.message;
@@ -119,7 +122,7 @@ fn compile(package_name: String, output: std::path::PathBuf) {
     };
 
     let mut f = std::fs::File::create(output).expect("cannot create output file");
-    let wasm_module = generate_wasm_ir(package);
+    let wasm_module = generate(module);
     wasm_module
         .serialize(&mut f)
         .expect("cannot write wasm to target file");

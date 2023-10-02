@@ -210,20 +210,12 @@ checksum = "57bcfdad1b858c2db7c38303a6d2ad4dfaf5eb53dfeb0910128b2c26d6158503"
 name = "magelang"
 version = "0.0.1"
 dependencies = [
+ "bumpalo",
  "clap",
- "magelang_analyzer",
  "magelang_codegen",
  "magelang_syntax",
+ "magelang_typecheck",
  "wasm_helper",
-]
-
-[[package]]
-name = "magelang_analyzer"
-version = "0.1.0"
-dependencies = [
- "home",
- "indexmap",
- "magelang_syntax",
 ]
 
 [[package]]
@@ -231,7 +223,7 @@ name = "magelang_codegen"
 version = "0.1.0"
 dependencies = [
  "indexmap",
- "magelang_analyzer",
+ "magelang_typecheck",
  "wasm_helper",
 ]
 

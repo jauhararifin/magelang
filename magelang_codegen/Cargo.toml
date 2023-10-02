@@ -1,5 +1,5 @@
 [package]
-name = "magelang_codegen2"
+name = "magelang_codegen"
 version = "0.1.0"
 edition = "2021"
 
