@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 const STDLIB_PATH_KEY: &str = "MAGELANG_ROOT";
 const CODE_EXTENSION: &str = "mg";
 
-pub fn get_stdlib_path() -> PathBuf {
+pub(crate) fn get_stdlib_path() -> PathBuf {
     get_stdlib_path_from_cargo()
         .or_else(get_stdlib_path_from_env)
         .or_else(get_stdlib_path_from_current_exe)
@@ -57,7 +57,7 @@ fn get_stdlib_path_from_current_home() -> PathBuf {
     pathbuf.join("lib/")
 }
 
-pub fn get_package_path(stdlib_path: &Path, package_name: &str) -> PathBuf {
+pub(crate) fn get_package_path(stdlib_path: &Path, package_name: &str) -> PathBuf {
     if let Some(path) = get_stdlib_package_path(stdlib_path, package_name) {
         return path;
     };
@@ -65,6 +65,8 @@ pub fn get_package_path(stdlib_path: &Path, package_name: &str) -> PathBuf {
     for segment in package_name.split('/') {
         path.push(segment);
     }
+    // TODO: this is wrong, we should add the extension not changing it. Supposed we want to
+    // compile package `a.b.c`. The correct file of this package should be `a.b.c.mg`, not `a.b.mg`.
     path.set_extension(CODE_EXTENSION);
     path
 }

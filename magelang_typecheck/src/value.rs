@@ -1,5 +1,5 @@
 // The input string literal is assumed to be a valid string literal.
-pub fn value_from_string_lit(literal: &str) -> Option<Vec<u8>> {
+pub(crate) fn value_from_string_lit(literal: &str) -> Option<Vec<u8>> {
     let mut result = vec![];
     let mut literal = literal.bytes();
 

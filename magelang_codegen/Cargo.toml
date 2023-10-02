@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-magelang_analyzer = { path = "../magelang_analyzer" }
+magelang_typecheck = { path = "../magelang_typecheck" }
 wasm_helper = { path = "../wasm_helper" }
 indexmap = "1.9.3"

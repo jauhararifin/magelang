@@ -3,7 +3,7 @@ resolver = "2"
 members = [
   "magelang",
   "magelang_syntax",
-  "magelang_analyzer",
+  "magelang_typecheck",
   "wasm_helper",
   "magelang_codegen",
 ]

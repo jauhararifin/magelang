@@ -1,5 +1,5 @@
 [package]
-name = "magelang_analyzer"
+name = "magelang_typecheck"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,4 +9,5 @@ edition = "2021"
 magelang_syntax = { path = "../magelang_syntax" }
 indexmap = "1.9.3"
 home = "0.5.5"
+bumpalo = "3.14.0"
 

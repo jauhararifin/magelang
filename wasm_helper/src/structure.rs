@@ -22,7 +22,7 @@ pub enum ValType {
 
 pub type ResultType = Vec<ValType>;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct FuncType {
     pub parameters: ResultType,
     pub returns: ResultType,

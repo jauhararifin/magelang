@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bumpalo = "3.14.0"
 magelang_syntax = { path = "../magelang_syntax" }
-magelang_analyzer = { path = "../magelang_analyzer" }
+magelang_typecheck = { path = "../magelang_typecheck" }
 magelang_codegen = { path = "../magelang_codegen" }
 wasm_helper = { path = "../wasm_helper" }
 clap = { version = "4.0", features = ["derive"] }

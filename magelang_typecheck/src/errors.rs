@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
 
-pub trait SemanticError: ErrorReporter {
+pub(crate) trait SemanticError: ErrorReporter {
     fn cannot_open_file(&self, pos: Pos, path: &Path, err: std::io::Error) {
         self.report(pos, format!("Cannot open file {path:?}: {}", err));
     }
@@ -91,6 +91,13 @@ pub trait SemanticError: ErrorReporter {
         );
     }
 
+    fn deref_unsized(&self, pos: Pos) {
+        self.report(
+            pos,
+            String::from("Cannot dereference type with no size information"),
+        );
+    }
+
     fn unop_type_unsupported(&self, pos: Pos, op: impl Display, ty: impl Display) {
         self.report(pos, format!("Cannot perform {op} operation on {ty}"));
     }
@@ -111,6 +118,13 @@ pub trait SemanticError: ErrorReporter {
 
     fn binop_type_unsupported(&self, pos: Pos, op: impl Display, ty: impl Display) {
         self.report(pos, format!("Cannot perform {op} binary operation on {ty}"));
+    }
+
+    fn compare_opaque(&self, pos: Pos) {
+        self.report(
+            pos,
+            format!("The opaque type might not be null, non-null opaque can't be compared"),
+        )
     }
 
     fn not_callable(&self, pos: Pos) {
