@@ -6,13 +6,13 @@ use std::collections::{HashMap, VecDeque};
 use wasm_helper as wasm;
 
 #[derive(Default)]
-pub(crate) struct VarMapper<'ctx> {
+pub(crate) struct GlobalMapper<'ctx> {
     globals: Vec<wasm::Global>,
     ids: HashMap<DefId<'ctx>, u32>,
     last_unused: u32,
 }
 
-impl<'ctx> VarMapper<'ctx> {
+impl<'ctx> GlobalMapper<'ctx> {
     pub(crate) fn build(module: &Module<'ctx>) -> Self {
         let mut s = Self::default();
 
@@ -37,6 +37,14 @@ impl<'ctx> VarMapper<'ctx> {
 
         s
     }
+
+    pub(crate) fn get(&self, def_id: DefId<'ctx>) -> wasm::GlobalIdx {
+        *self.ids.get(&def_id).unwrap()
+    }
+
+    pub(crate) fn take(self) -> Vec<wasm::Global> {
+        self.globals
+    }
 }
 
 #[derive(Default)]
@@ -53,8 +61,8 @@ impl LocalManager {
         self.internal.borrow_mut().set_params(parameters)
     }
 
-    pub(crate) fn set_locals(&self, locals: impl Iterator<Item = Vec<wasm::Local>>) {
-        self.internal.borrow_mut().set_locals(locals)
+    pub(crate) fn new_local(&self, local_id: usize, ty: &[wasm::ValType]) -> u32 {
+        self.internal.borrow_mut().new_local(local_id, ty)
     }
 
     pub(crate) fn get_local(&self, local_id: usize) -> u32 {
@@ -70,7 +78,7 @@ impl LocalManager {
 struct LocalManagerInternal {
     locals: Vec<wasm::Local>,
     last_used_local: u32,
-    local_maps: Vec<u32>,
+    local_maps: HashMap<usize, u32>,
     temps: HashMap<wasm::ValType, Vec<u32>>,
 }
 
@@ -78,30 +86,32 @@ impl LocalManagerInternal {
     fn take(&mut self) -> Vec<wasm::Local> {
         let locals = std::mem::take(&mut self.locals);
         self.last_used_local = 0;
-        self.local_maps = Vec::default();
+        self.local_maps = HashMap::default();
         self.temps = HashMap::default();
         locals
     }
 
     fn set_params(&mut self, parameters: impl Iterator<Item = Vec<wasm::Local>>) {
-        for locals in parameters {
+        for (i, locals) in parameters.enumerate() {
             let local_id = self.last_used_local;
-            self.local_maps.push(local_id);
+            self.local_maps.insert(i, local_id);
             self.last_used_local += locals.len() as u32;
         }
     }
 
-    fn set_locals(&mut self, locals: impl Iterator<Item = Vec<wasm::Local>>) {
-        for locals in locals {
-            let local_id = self.last_used_local;
-            self.local_maps.push(local_id);
-            self.last_used_local += locals.len() as u32;
-            self.locals.extend(locals);
-        }
+    fn new_local(&mut self, local_id: usize, ty: &[wasm::ValType]) -> u32 {
+        let wasm_local_id = self.last_used_local;
+        self.local_maps.insert(local_id, wasm_local_id);
+        self.last_used_local += ty.len() as u32;
+        self.locals.extend(ty.iter().map(|ty| wasm::Local {
+            name: "!local".into(),
+            ty: *ty,
+        }));
+        wasm_local_id
     }
 
     fn get_local(&self, local_id: usize) -> u32 {
-        self.local_maps[local_id]
+        *self.local_maps.get(&local_id).unwrap()
     }
 
     fn get_temporary_locals(&mut self, spec: Vec<wasm::ValType>) -> Vec<u32> {

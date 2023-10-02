@@ -18,6 +18,9 @@ impl Data {
     pub(crate) fn build<'ctx>(module: &Module<'ctx>) -> Self {
         let mut s = Self::default();
 
+        // some runtime doesn't allow address 0 to be used.
+        s.next_offset = 8;
+
         let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
         for global in globals.clone() {
             s.init_from_expr(&global.value);
@@ -124,7 +127,7 @@ impl Data {
         self.data.push((buff.into(), next_offset));
     }
 
-    fn get_embed_file_annotation<'a>(annotations: &'a [Annotation]) -> Option<&'a Path> {
+    pub(crate) fn get_embed_file_annotation<'a>(annotations: &'a [Annotation]) -> Option<&'a Path> {
         let mut found = false;
         let mut result = None;
         for annotation in annotations {
@@ -168,7 +171,7 @@ impl Data {
                     self.init_from_stmt(stmt);
                 }
             }
-            Statement::NewLocal(expr) => {
+            Statement::NewLocal(_, expr) => {
                 self.init_from_expr(&expr);
             }
             Statement::If(if_stmt) => {
@@ -196,6 +199,14 @@ impl Data {
 
     pub(crate) fn get_min_page(&self) -> u32 {
         (self.next_offset + wasm_helper::PAGE_SIZE - 1) / (wasm_helper::PAGE_SIZE)
+    }
+
+    pub(crate) fn get_bytes(&self, bytes: &Rc<[u8]>) -> Option<u32> {
+        self.bytes.get(bytes).cloned()
+    }
+
+    pub(crate) fn get_file(&self, path: &Path) -> Option<u32> {
+        self.files.get(path).cloned()
     }
 
     pub(crate) fn take<'ctx>(self) -> Vec<wasm::Data> {
