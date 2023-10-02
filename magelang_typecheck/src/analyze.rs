@@ -10,6 +10,7 @@ use crate::ty::{
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
+use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
@@ -51,6 +52,7 @@ pub fn analyze<'a, 'b: 'a>(
     );
 
     let mut ctx = Context {
+        arena,
         files: file_manager,
         errors: error_manager,
         interners,
@@ -102,6 +104,7 @@ pub fn analyze<'a, 'b: 'a>(
 }
 
 pub struct Context<'a, E> {
+    pub(crate) arena: &'a Bump,
     pub(crate) files: &'a FileManager,
     pub(crate) errors: &'a E,
 
@@ -234,12 +237,12 @@ pub struct Annotation {
 #[derive(Debug)]
 pub struct FuncObject<'a> {
     pub(crate) def_id: DefId<'a>,
-    pub type_params: Vec<TypeArg<'a>>,
+    pub type_params: &'a [TypeArg<'a>],
     pub ty: &'a Type<'a>,
     pub(crate) node: FunctionNode,
     pub body: OnceCell<&'a Statement<'a>>,
     pub annotations: Rc<[Annotation]>,
-    pub monomorphized: OnceCell<Vec<(&'a TypeArgs<'a>, &'a Type<'a>, &'a Statement<'a>)>>,
+    pub monomorphized: OnceCell<&'a [(&'a TypeArgs<'a>, &'a Type<'a>, &'a Statement<'a>)]>,
 }
 
 #[derive(Debug)]
@@ -537,7 +540,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                     let func_type = get_func_type_from_signature(
                         ctx,
                         scopes,
-                        &type_params,
+                        type_params,
                         &func_node.signature,
                     );
                     let ty = ctx.define_type(Type::Func(func_type));
@@ -660,7 +663,7 @@ fn get_func_body<'a, E: ErrorReporter>(
 
     let func_type = func_object.ty.as_func().expect("not a function");
 
-    let scope = get_typeparam_scope(ctx, scope, &func_object.type_params);
+    let scope = get_typeparam_scope(ctx, scope, func_object.type_params);
 
     let mut symbol_table = IndexMap::default();
     let mut last_unused_local = 0;
@@ -711,7 +714,10 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
         };
         assert!(!generic_func.type_params.is_empty());
 
-        let mut monomorphized = Vec::<(&TypeArgs, &Type, &Statement)>::default();
+        let mut monomorphized = BumpVec::<(&TypeArgs, &Type, &Statement)>::with_capacity_in(
+            all_typeargs.len(),
+            ctx.arena,
+        );
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
             let ty = generic_func.ty.monomorphize(ctx, generic_func.ty, typeargs);
@@ -722,7 +728,7 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
 
         generic_func
             .monomorphized
-            .set(monomorphized)
+            .set(monomorphized.into_bump_slice())
             .expect("cannot set monomorphized functions");
     }
 }
@@ -927,8 +933,7 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
                             annotations: func_object.annotations.clone(),
                         });
                     } else {
-                        let empty = &Vec::default();
-                        let monomorphized = func_object.monomorphized.get().unwrap_or(empty);
+                        let monomorphized = func_object.monomorphized.get().cloned().unwrap_or(&[]);
                         for (typeargs, ty, body) in monomorphized {
                             functions.push(Func {
                                 name: func_object.def_id,

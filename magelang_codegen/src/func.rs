@@ -112,7 +112,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             let func_type = func.ty.as_func().expect("func type is not a function");
 
             let mut parameters = Vec::default();
-            for param in &func_type.params {
+            for param in func_type.params {
                 let val_types = build_val_type(param);
                 parameters.extend(val_types);
             }
@@ -386,7 +386,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             let func_type = func.ty.as_func().expect("not a func type");
 
             let mut locals = Vec::default();
-            for ty in &func_type.params {
+            for ty in func_type.params {
                 let val_types = build_val_type(ty);
                 locals.push(
                     val_types

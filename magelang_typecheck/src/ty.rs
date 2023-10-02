@@ -2,6 +2,7 @@ use crate::analyze::{Context, Scopes, TypeObject};
 use crate::errors::SemanticError;
 use crate::interner::Interner;
 use crate::{DefId, Symbol};
+use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     ErrorReporter, PathNode, Pos, SignatureNode, StructNode, Token, TypeExprNode, TypeParameterNode,
@@ -172,7 +173,7 @@ impl<'a> Display for Type<'a> {
 #[derive(Clone)]
 pub struct StructType<'a> {
     pub def_id: DefId<'a>,
-    pub(crate) type_params: Vec<TypeArg<'a>>,
+    pub(crate) type_params: &'a [TypeArg<'a>],
     pub body: OnceCell<StructBody<'a>>,
     pub(crate) node: StructNode,
     pub(crate) mono_cache: RefCell<HashMap<&'a TypeArgs<'a>, &'a Type<'a>>>,
@@ -226,7 +227,7 @@ impl<'a> StructType<'a> {
                 .scopes
                 .get(&self.def_id.package)
                 .expect("missing package scope");
-            let scope = get_typeparam_scope(ctx, scope, &self.type_params);
+            let scope = get_typeparam_scope(ctx, scope, self.type_params);
 
             let mut field_pos = HashMap::<Symbol, Pos>::default();
             let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
@@ -346,7 +347,7 @@ impl<'a> Debug for InstType<'a> {
 pub struct FuncType<'a> {
     // TODO: using the arena to allocate vec, or use slice
     // alltogeher
-    pub params: Vec<&'a Type<'a>>,
+    pub params: &'a [&'a Type<'a>],
     pub return_type: &'a Type<'a>,
 }
 
@@ -356,16 +357,15 @@ impl<'a> FuncType<'a> {
         ctx: &'b Context<'a, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
-        let params = self
-            .params
-            .iter()
-            .map(|ty| ty.monomorphize(ctx, ty, type_args))
-            .collect();
+        let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
+        for ty in self.params {
+            params.push(ty.monomorphize(ctx, ty, type_args));
+        }
         let return_type = self
             .return_type
             .monomorphize(ctx, self.return_type, type_args);
         ctx.define_type(Type::Func(FuncType {
-            params,
+            params: params.into_bump_slice(),
             return_type,
         }))
     }
@@ -374,7 +374,7 @@ impl<'a> FuncType<'a> {
 impl<'a> Display for FuncType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "fn(")?;
-        for ty in &self.params {
+        for ty in self.params {
             Display::fmt(ty, f)?;
             write!(f, ",")?;
         }
@@ -530,7 +530,7 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
     let scope = get_typeparam_scope(ctx, scope, type_params);
 
     let mut param_pos = HashMap::<Symbol, Pos>::default();
-    let mut params = Vec::default();
+    let mut params = BumpVec::with_capacity_in(signature.parameters.len(), ctx.arena);
     for param_node in &signature.parameters {
         let name = ctx.define_symbol(&param_node.name.value);
         let pos = param_node.name.pos;
@@ -555,7 +555,7 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
     };
 
     FuncType {
-        params,
+        params: params.into_bump_slice(),
         return_type,
     }
 }
@@ -563,8 +563,8 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
 pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     nodes: &[TypeParameterNode],
-) -> Vec<TypeArg<'a>> {
-    let mut type_params = Vec::default();
+) -> &'a [TypeArg<'a>] {
+    let mut type_params = BumpVec::with_capacity_in(nodes.len(), ctx.arena);
     let mut param_pos = HashMap::<Symbol, Pos>::default();
     for (i, type_param) in nodes.iter().enumerate() {
         let name = ctx.define_symbol(type_param.name.value.as_str());
@@ -577,7 +577,7 @@ pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
             param_pos.insert(name, type_param.name.pos);
         }
     }
-    type_params
+    type_params.into_bump_slice()
 }
 
 pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(

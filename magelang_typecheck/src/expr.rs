@@ -786,7 +786,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
         arguments.push(arg_expr);
     }
 
-    for (i, (arg, param)) in zip(&arguments, &func_type.params).enumerate() {
+    for (i, (arg, param)) in zip(&arguments, func_type.params).enumerate() {
         if !param.is_assignable_with(arg.ty) {
             ctx.errors
                 .type_mismatch(node.arguments[i].pos(), param, arg.ty);
