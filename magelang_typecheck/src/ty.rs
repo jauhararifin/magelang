@@ -541,7 +541,7 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_typeparams<'a, 'b, E: ErrorReporter>(
+pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     nodes: &[TypeParameterNode],
 ) -> Vec<TypeArg<'a>> {

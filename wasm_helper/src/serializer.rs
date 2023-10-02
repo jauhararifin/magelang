@@ -1061,7 +1061,7 @@ impl Serializer for Bytes {
         W: std::io::Write + ?Sized,
     {
         self.0.len().serialize(writer)?;
-        writer.write(&self.0)?;
+        writer.write_all(&self.0)?;
         Ok(())
     }
 }

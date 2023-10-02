@@ -50,7 +50,7 @@ pub(crate) fn build_val_type(ty: InternType<'_>) -> Vec<wasm::ValType> {
     }
 }
 
-pub(crate) fn build_zero_wasm_type<'ctx>(ty: &wasm::ValType) -> Vec<wasm::Instr> {
+pub(crate) fn build_zero_wasm_type(ty: &wasm::ValType) -> Vec<wasm::Instr> {
     match ty {
         wasm::ValType::Num(wasm::NumType::I32) => vec![wasm::Instr::I32Const(0)],
         wasm::ValType::Num(wasm::NumType::I64) => vec![wasm::Instr::I64Const(0)],

@@ -73,7 +73,7 @@ pub struct Interned<'a, T: ?Sized>(&'a T);
 
 impl<'a, T: ?Sized> Clone for Interned<'a, T> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 

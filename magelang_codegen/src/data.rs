@@ -6,7 +6,6 @@ use std::path::Path;
 use std::rc::Rc;
 use wasm_helper as wasm;
 
-#[derive(Default)]
 pub(crate) struct Data {
     bytes: HashMap<Rc<[u8]>, u32>,
     files: HashMap<Rc<Path>, u32>,
@@ -14,12 +13,21 @@ pub(crate) struct Data {
     data: Vec<(Rc<[u8]>, u32)>,
 }
 
+impl Default for Data {
+    fn default() -> Self {
+        Self {
+            bytes: HashMap::default(),
+            files: HashMap::default(),
+            // next offset starts at 8 because some runtime don't allow address zero to be used.
+            next_offset: 8,
+            data: Vec::default(),
+        }
+    }
+}
+
 impl Data {
     pub(crate) fn build(module: &Module<'_>) -> Self {
         let mut s = Self::default();
-
-        // some runtime doesn't allow address 0 to be used.
-        s.next_offset = 8;
 
         let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
         for global in globals.clone() {
@@ -41,7 +49,7 @@ impl Data {
         self.next_offset
     }
 
-    fn init_from_expr<'ctx>(&mut self, expr: &Expr) {
+    fn init_from_expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Bytes(buff) => {
                 if !self.bytes.contains_key(buff) {
@@ -111,7 +119,7 @@ impl Data {
         }
     }
 
-    fn init_from_annotations<'ctx>(&mut self, annotations: &[Annotation]) {
+    fn init_from_annotations(&mut self, annotations: &[Annotation]) {
         let Some(filepath) = Self::get_embed_file_annotation(annotations) else {
             return;
         };
@@ -164,7 +172,7 @@ impl Data {
         result
     }
 
-    fn init_from_stmt<'ctx>(&mut self, stmt: &Statement) {
+    fn init_from_stmt(&mut self, stmt: &Statement) {
         match stmt {
             Statement::Block(statements) => {
                 for stmt in statements {
@@ -209,7 +217,7 @@ impl Data {
         self.files.get(path).cloned()
     }
 
-    pub(crate) fn take<'ctx>(self) -> Vec<wasm::Data> {
+    pub(crate) fn take(self) -> Vec<wasm::Data> {
         let mut datas = Vec::default();
         for (data, offset) in self.data {
             datas.push(wasm::Data {
