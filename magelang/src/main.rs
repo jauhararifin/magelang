@@ -122,7 +122,7 @@ fn compile(package_name: String, output: std::path::PathBuf) {
     };
 
     let mut f = std::fs::File::create(output).expect("cannot create output file");
-    let wasm_module = generate(module);
+    let wasm_module = generate(&arena, module);
     wasm_module
         .serialize(&mut f)
         .expect("cannot write wasm to target file");

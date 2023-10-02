@@ -9,3 +9,4 @@ edition = "2021"
 magelang_typecheck = { path = "../magelang_typecheck" }
 wasm_helper = { path = "../wasm_helper" }
 indexmap = "1.9.3"
+bumpalo = "3.14.0"

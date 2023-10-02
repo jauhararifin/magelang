@@ -788,7 +788,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 | ExprKind::Global(..)
                 | ExprKind::Func(..) => (),
                 ExprKind::StructLit(_, values) => {
-                    for val in values {
+                    for val in values.iter() {
                         queue.push_back(Source::Expr(val, type_args))
                     }
                 }
@@ -811,7 +811,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 }
                 ExprKind::Call(callee, args) => {
                     queue.push_back(Source::Expr(callee, type_args));
-                    for arg in args {
+                    for arg in args.iter() {
                         queue.push_back(Source::Expr(arg, type_args));
                     }
                 }

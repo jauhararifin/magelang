@@ -17,7 +17,7 @@ impl<T: std::io::Write + ?Sized> WriterExt for &mut T {}
 static MAGIC_NUMBER: &[u8] = &[0x00, 0x61, 0x73, 0x6d];
 static VERSION: &[u8] = &[0x01, 0x00, 0x00, 0x00];
 
-impl Serializer for Module {
+impl<'a> Serializer for Module<'a> {
     fn serialize<W>(&self, writer: &mut W) -> std::io::Result<()>
     where
         W: std::io::Write + ?Sized,
@@ -1030,7 +1030,7 @@ impl<'a> Serializer for NameSection<'a> {
     }
 }
 
-impl Serializer for Data {
+impl<'a> Serializer for Data<'a> {
     fn serialize<W>(&self, writer: &mut W) -> std::io::Result<()>
     where
         W: std::io::Write + ?Sized,
@@ -1055,13 +1055,13 @@ impl Serializer for Data {
     }
 }
 
-impl Serializer for Bytes {
+impl<'a> Serializer for Bytes<'a> {
     fn serialize<W>(&self, writer: &mut W) -> std::io::Result<()>
     where
         W: std::io::Write + ?Sized,
     {
         self.0.len().serialize(writer)?;
-        writer.write_all(&self.0)?;
+        writer.write_all(self.0)?;
         Ok(())
     }
 }

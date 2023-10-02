@@ -222,6 +222,7 @@ dependencies = [
 name = "magelang_codegen"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "indexmap",
  "magelang_typecheck",
  "wasm_helper",

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use wasm_helper as wasm;
 
 pub(crate) struct FuncManager<'a, 'ctx> {
-    data: &'a Data,
+    data: &'a Data<'ctx>,
     layouts: &'a LayoutManager<'ctx>,
     locals: &'a LocalManager,
     globals: &'a GlobalMapper<'ctx>,
@@ -68,7 +68,7 @@ pub(crate) enum Intrinsic {
 
 impl<'a, 'ctx> FuncManager<'a, 'ctx> {
     pub(crate) fn build(
-        data: &'a Data,
+        data: &'a Data<'ctx>,
         layouts: &'a LayoutManager<'ctx>,
         locals: &'a LocalManager,
         globals: &'a GlobalMapper<'ctx>,

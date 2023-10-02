@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum NumType {
     I32,
@@ -340,14 +338,14 @@ pub enum BlockType {
 }
 
 #[derive(Debug)]
-pub struct Module {
+pub struct Module<'a> {
     pub types: Vec<FuncType>,
     pub funcs: Vec<Func>,
     pub tables: Vec<Table>,
     pub mems: Vec<Mem>,
     pub globals: Vec<Global>,
     pub elems: Vec<Elem>,
-    pub datas: Vec<Data>,
+    pub datas: Vec<Data<'a>>,
     pub start: Option<FuncIdx>,
     pub imports: Vec<Import>,
     pub exports: Vec<Export>,
@@ -401,17 +399,17 @@ pub enum ElemMode {
 }
 
 #[derive(Debug)]
-pub struct Bytes(pub Rc<[u8]>);
+pub struct Bytes<'a>(pub &'a [u8]);
 
-impl From<&str> for Bytes {
-    fn from(value: &str) -> Self {
-        Self(value.as_bytes().into())
+impl<'a> From<&'a str> for Bytes<'a> {
+    fn from(value: &'a str) -> Self {
+        Self(value.as_bytes())
     }
 }
 
 #[derive(Debug)]
-pub struct Data {
-    pub init: Bytes,
+pub struct Data<'a> {
+    pub init: Bytes<'a>,
     pub mode: DataMode,
 }
 

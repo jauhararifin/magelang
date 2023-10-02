@@ -4,6 +4,7 @@ use crate::interner::Interner;
 use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs};
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol};
+use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ErrorReporter, ExprNode,
     IndexExprNode, PathNode, SelectionExprNode, StructExprNode, Token, TokenKind, UnaryExprNode,
@@ -11,7 +12,6 @@ use magelang_syntax::{
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::zip;
-use std::rc::Rc;
 
 pub(crate) type ExprInterner<'a> = Interner<'a, Expr<'a>>;
 
@@ -43,13 +43,13 @@ impl<'a> Expr<'a> {
             ExprKind::Zero => ExprKind::Zero,
             ExprKind::StructLit(ty, values) => {
                 let ty = ty.monomorphize(ctx, ty, type_args);
-                let values = values
-                    .iter()
-                    .map(|val| val.monomorphize(ctx, type_args))
-                    .collect();
-                ExprKind::StructLit(ty, values)
+                let mut fields = BumpVec::with_capacity_in(values.len(), ctx.arena);
+                for val in values.iter() {
+                    fields.push(val.monomorphize(ctx, type_args));
+                }
+                ExprKind::StructLit(ty, fields.into_bump_slice())
             }
-            ExprKind::Bytes(val) => ExprKind::Bytes(val.clone()),
+            ExprKind::Bytes(val) => ExprKind::Bytes(val),
             ExprKind::Local(idx) => ExprKind::Local(*idx),
             ExprKind::Global(def_id) => ExprKind::Global(*def_id),
             ExprKind::Func(def_id) => ExprKind::Func(*def_id),
@@ -62,104 +62,111 @@ impl<'a> Expr<'a> {
                 ExprKind::FuncInst(*def_id, typeargs)
             }
             ExprKind::GetElement(expr, idx) => {
-                ExprKind::GetElement(Box::new(expr.monomorphize(ctx, type_args)), *idx)
+                ExprKind::GetElement(ctx.arena.alloc(expr.monomorphize(ctx, type_args)), *idx)
             }
             ExprKind::GetElementAddr(expr, idx) => {
-                ExprKind::GetElementAddr(Box::new(expr.monomorphize(ctx, type_args)), *idx)
+                ExprKind::GetElementAddr(ctx.arena.alloc(expr.monomorphize(ctx, type_args)), *idx)
             }
             ExprKind::GetIndex(target, idx_value) => ExprKind::GetIndex(
-                Box::new(target.monomorphize(ctx, type_args)),
-                Box::new(idx_value.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(target.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(idx_value.monomorphize(ctx, type_args)),
             ),
             ExprKind::Deref(target) => {
-                ExprKind::Deref(Box::new(target.monomorphize(ctx, type_args)))
+                ExprKind::Deref(ctx.arena.alloc(target.monomorphize(ctx, type_args)))
             }
-            ExprKind::Call(target, arguments) => ExprKind::Call(
-                Box::new(target.monomorphize(ctx, type_args)),
-                arguments
-                    .iter()
-                    .map(|arg| arg.monomorphize(ctx, type_args))
-                    .collect(),
-            ),
+            ExprKind::Call(target, arguments) => {
+                let mut args = BumpVec::with_capacity_in(arguments.len(), ctx.arena);
+                for arg in arguments.iter() {
+                    args.push(arg.monomorphize(ctx, type_args));
+                }
+                ExprKind::Call(
+                    ctx.arena.alloc(target.monomorphize(ctx, type_args)),
+                    args.into_bump_slice(),
+                )
+            }
             ExprKind::Add(a, b) => ExprKind::Add(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Sub(a, b) => ExprKind::Sub(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Mul(a, b) => ExprKind::Mul(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Div(a, b) => ExprKind::Div(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Mod(a, b) => ExprKind::Mod(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::BitOr(a, b) => ExprKind::BitOr(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::BitAnd(a, b) => ExprKind::BitAnd(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::BitXor(a, b) => ExprKind::BitXor(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::ShiftLeft(a, b) => ExprKind::ShiftLeft(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::ShiftRight(a, b) => ExprKind::ShiftRight(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::And(a, b) => ExprKind::And(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Or(a, b) => ExprKind::Or(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Eq(a, b) => ExprKind::Eq(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::NEq(a, b) => ExprKind::NEq(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Gt(a, b) => ExprKind::Gt(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::GEq(a, b) => ExprKind::GEq(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::Lt(a, b) => ExprKind::Lt(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
             ExprKind::LEq(a, b) => ExprKind::LEq(
-                Box::new(a.monomorphize(ctx, type_args)),
-                Box::new(b.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(a.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(b.monomorphize(ctx, type_args)),
             ),
-            ExprKind::Neg(value) => ExprKind::Neg(Box::new(value.monomorphize(ctx, type_args))),
-            ExprKind::BitNot(value) => {
-                ExprKind::BitNot(Box::new(value.monomorphize(ctx, type_args)))
+            ExprKind::Neg(value) => {
+                ExprKind::Neg(ctx.arena.alloc(value.monomorphize(ctx, type_args)))
             }
-            ExprKind::Not(value) => ExprKind::Not(Box::new(value.monomorphize(ctx, type_args))),
+            ExprKind::BitNot(value) => {
+                ExprKind::BitNot(ctx.arena.alloc(value.monomorphize(ctx, type_args)))
+            }
+            ExprKind::Not(value) => {
+                ExprKind::Not(ctx.arena.alloc(value.monomorphize(ctx, type_args)))
+            }
             ExprKind::Cast(value, into_type) => ExprKind::Cast(
-                Box::new(value.monomorphize(ctx, type_args)),
+                ctx.arena.alloc(value.monomorphize(ctx, type_args)),
                 into_type.monomorphize(ctx, into_type, type_args),
             ),
         };
@@ -218,43 +225,43 @@ pub enum ExprKind<'a> {
     ConstF64(Float<'a, f64>),
     ConstBool(bool),
     Zero,
-    StructLit(&'a Type<'a>, Vec<Expr<'a>>),
-    Bytes(Rc<[u8]>),
+    StructLit(&'a Type<'a>, &'a [Expr<'a>]),
+    Bytes(&'a [u8]),
 
     Local(usize),
     Global(DefId<'a>),
     Func(DefId<'a>),
     FuncInst(DefId<'a>, &'a TypeArgs<'a>),
 
-    GetElement(Box<Expr<'a>>, usize),
-    GetElementAddr(Box<Expr<'a>>, usize),
-    GetIndex(Box<Expr<'a>>, Box<Expr<'a>>),
-    Deref(Box<Expr<'a>>),
+    GetElement(&'a Expr<'a>, usize),
+    GetElementAddr(&'a Expr<'a>, usize),
+    GetIndex(&'a Expr<'a>, &'a Expr<'a>),
+    Deref(&'a Expr<'a>),
 
-    Call(Box<Expr<'a>>, Vec<Expr<'a>>),
+    Call(&'a Expr<'a>, &'a [Expr<'a>]),
 
-    Add(Box<Expr<'a>>, Box<Expr<'a>>),
-    Sub(Box<Expr<'a>>, Box<Expr<'a>>),
-    Mul(Box<Expr<'a>>, Box<Expr<'a>>),
-    Div(Box<Expr<'a>>, Box<Expr<'a>>),
-    Mod(Box<Expr<'a>>, Box<Expr<'a>>),
-    BitOr(Box<Expr<'a>>, Box<Expr<'a>>),
-    BitAnd(Box<Expr<'a>>, Box<Expr<'a>>),
-    BitXor(Box<Expr<'a>>, Box<Expr<'a>>),
-    ShiftLeft(Box<Expr<'a>>, Box<Expr<'a>>),
-    ShiftRight(Box<Expr<'a>>, Box<Expr<'a>>),
-    And(Box<Expr<'a>>, Box<Expr<'a>>),
-    Or(Box<Expr<'a>>, Box<Expr<'a>>),
-    Eq(Box<Expr<'a>>, Box<Expr<'a>>),
-    NEq(Box<Expr<'a>>, Box<Expr<'a>>),
-    Gt(Box<Expr<'a>>, Box<Expr<'a>>),
-    GEq(Box<Expr<'a>>, Box<Expr<'a>>),
-    Lt(Box<Expr<'a>>, Box<Expr<'a>>),
-    LEq(Box<Expr<'a>>, Box<Expr<'a>>),
-    Neg(Box<Expr<'a>>),
-    BitNot(Box<Expr<'a>>),
-    Not(Box<Expr<'a>>),
-    Cast(Box<Expr<'a>>, &'a Type<'a>),
+    Add(&'a Expr<'a>, &'a Expr<'a>),
+    Sub(&'a Expr<'a>, &'a Expr<'a>),
+    Mul(&'a Expr<'a>, &'a Expr<'a>),
+    Div(&'a Expr<'a>, &'a Expr<'a>),
+    Mod(&'a Expr<'a>, &'a Expr<'a>),
+    BitOr(&'a Expr<'a>, &'a Expr<'a>),
+    BitAnd(&'a Expr<'a>, &'a Expr<'a>),
+    BitXor(&'a Expr<'a>, &'a Expr<'a>),
+    ShiftLeft(&'a Expr<'a>, &'a Expr<'a>),
+    ShiftRight(&'a Expr<'a>, &'a Expr<'a>),
+    And(&'a Expr<'a>, &'a Expr<'a>),
+    Or(&'a Expr<'a>, &'a Expr<'a>),
+    Eq(&'a Expr<'a>, &'a Expr<'a>),
+    NEq(&'a Expr<'a>, &'a Expr<'a>),
+    Gt(&'a Expr<'a>, &'a Expr<'a>),
+    GEq(&'a Expr<'a>, &'a Expr<'a>),
+    Lt(&'a Expr<'a>, &'a Expr<'a>),
+    LEq(&'a Expr<'a>, &'a Expr<'a>),
+    Neg(&'a Expr<'a>),
+    BitNot(&'a Expr<'a>),
+    Not(&'a Expr<'a>),
+    Cast(&'a Expr<'a>, &'a Type<'a>),
 }
 
 pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
@@ -532,9 +539,10 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(ctx: &Context<'a, E>, token: &
     };
     bytes.push(0);
 
+    let bytes = ctx.arena.alloc_slice_copy(&bytes);
     Expr {
         ty,
-        kind: ExprKind::Bytes(bytes.into()),
+        kind: ExprKind::Bytes(bytes),
         assignable: false,
     }
 }
@@ -646,8 +654,8 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         op => unreachable!("token {op} is not a binary operator"),
     };
 
-    let a = Box::new(a);
-    let b = Box::new(b);
+    let a = ctx.arena.alloc(a);
+    let b = ctx.arena.alloc(b);
     let expr_kind = match node.op.kind {
         TokenKind::Add => ExprKind::Add(a, b),
         TokenKind::Sub => ExprKind::Sub(a, b),
@@ -700,7 +708,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
 
     Expr {
         ty: element_ty,
-        kind: ExprKind::Deref(Box::new(value)),
+        kind: ExprKind::Deref(ctx.arena.alloc(value)),
         assignable: true,
     }
 }
@@ -726,13 +734,12 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     let is_arithmetic = ty.is_arithmetic();
     let is_int = ty.is_int();
 
-    let value = Box::new(value);
     let type_id = value.ty;
     let (kind, is_valid) = match node.op.kind {
-        TokenKind::BitNot => (ExprKind::BitNot(value), is_int),
-        TokenKind::Sub => (ExprKind::Neg(value), is_arithmetic),
+        TokenKind::BitNot => (ExprKind::BitNot(ctx.arena.alloc(value)), is_int),
+        TokenKind::Sub => (ExprKind::Neg(ctx.arena.alloc(value)), is_arithmetic),
         TokenKind::Add => (value.kind, is_arithmetic),
-        TokenKind::Not => (ExprKind::Not(value), is_bool),
+        TokenKind::Not => (ExprKind::Not(ctx.arena.alloc(value)), is_bool),
         op => unreachable!("token {op} is not a unary operator"),
     };
 
@@ -780,7 +787,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
         );
     }
 
-    let mut arguments = Vec::default();
+    let mut arguments = BumpVec::with_capacity_in(node.arguments.len(), ctx.arena);
     for (i, arg) in node.arguments.iter().enumerate() {
         let arg_expr = get_expr_from_node(ctx, scope, func_type.params.get(i).cloned(), arg);
         arguments.push(arg_expr);
@@ -795,7 +802,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
 
     Expr {
         ty: func_type.return_type,
-        kind: ExprKind::Call(Box::new(func_expr), arguments),
+        kind: ExprKind::Call(ctx.arena.alloc(func_expr), arguments.into_bump_slice()),
         assignable: false,
     }
 }
@@ -819,7 +826,7 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
         || target_type.is_unknown();
 
     let kind = if valid_casting {
-        ExprKind::Cast(Box::new(value), target_type)
+        ExprKind::Cast(ctx.arena.alloc(value), target_type)
     } else {
         ctx.errors
             .casting_unsupported(node.value.pos(), value_type, target_type);
@@ -881,7 +888,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
         values.insert(field_name, value);
     }
 
-    let mut full_values = Vec::default();
+    let mut full_values = BumpVec::with_capacity_in(struct_body.fields.len(), ctx.arena);
     for (field_name, type_id) in &struct_body.fields {
         if let Some(value) = values.remove(field_name) {
             full_values.push(value)
@@ -896,7 +903,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
 
     Expr {
         ty,
-        kind: ExprKind::StructLit(ty, full_values),
+        kind: ExprKind::StructLit(ty, full_values.into_bump_slice()),
         assignable: false,
     }
 }
@@ -945,13 +952,13 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     if is_ptr {
         Expr {
             ty: ctx.define_type(Type::Ptr(field_type_id)),
-            kind: ExprKind::GetElementAddr(Box::new(value), idx),
+            kind: ExprKind::GetElementAddr(ctx.arena.alloc(value), idx),
             assignable,
         }
     } else {
         Expr {
             ty: field_type_id,
-            kind: ExprKind::GetElement(Box::new(value), idx),
+            kind: ExprKind::GetElement(ctx.arena.alloc(value), idx),
             assignable,
         }
     }
@@ -982,7 +989,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
 
             Expr {
                 ty: ctx.define_type(Type::Ptr(element)),
-                kind: ExprKind::GetIndex(Box::new(value), Box::new(index)),
+                kind: ExprKind::GetIndex(ctx.arena.alloc(value), ctx.arena.alloc(index)),
                 assignable: false,
             }
         }

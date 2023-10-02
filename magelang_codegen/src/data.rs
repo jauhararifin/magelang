@@ -1,3 +1,4 @@
+use bumpalo::Bump;
 use magelang_typecheck::{Annotation, Expr, ExprKind, Module, Statement};
 use std::collections::HashMap;
 use std::fs::File;
@@ -6,16 +7,18 @@ use std::path::Path;
 use std::rc::Rc;
 use wasm_helper as wasm;
 
-pub(crate) struct Data {
-    bytes: HashMap<Rc<[u8]>, u32>,
+pub(crate) struct Data<'ctx> {
+    arena: &'ctx Bump,
+    bytes: HashMap<&'ctx [u8], u32>,
     files: HashMap<Rc<Path>, u32>,
     next_offset: u32,
-    data: Vec<(Rc<[u8]>, u32)>,
+    data: Vec<(&'ctx [u8], u32)>,
 }
 
-impl Default for Data {
-    fn default() -> Self {
+impl<'ctx> Data<'ctx> {
+    fn new(arena: &'ctx Bump) -> Self {
         Self {
+            arena,
             bytes: HashMap::default(),
             files: HashMap::default(),
             // next offset starts at 8 because some runtime don't allow address zero to be used.
@@ -25,9 +28,9 @@ impl Default for Data {
     }
 }
 
-impl Data {
-    pub(crate) fn build(module: &Module<'_>) -> Self {
-        let mut s = Self::default();
+impl<'ctx> Data<'ctx> {
+    pub(crate) fn build(arena: &'ctx Bump, module: &Module<'ctx>) -> Self {
+        let mut s = Self::new(arena);
 
         let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
         for global in globals.clone() {
@@ -49,14 +52,14 @@ impl Data {
         self.next_offset
     }
 
-    fn init_from_expr(&mut self, expr: &Expr) {
+    fn init_from_expr(&mut self, expr: &Expr<'ctx>) {
         match &expr.kind {
             ExprKind::Bytes(buff) => {
                 if !self.bytes.contains_key(buff) {
                     let next_offset = self.next_offset;
                     self.next_offset += buff.len() as u32;
-                    self.bytes.insert(buff.clone(), next_offset);
-                    self.data.push((buff.clone(), next_offset));
+                    self.bytes.insert(buff, next_offset);
+                    self.data.push((*buff, next_offset));
                 }
             }
             ExprKind::Invalid
@@ -74,7 +77,7 @@ impl Data {
             | ExprKind::Func(..)
             | ExprKind::FuncInst(..) => {}
             ExprKind::StructLit(_, values) => {
-                for val in values {
+                for val in values.iter() {
                     self.init_from_expr(val);
                 }
             }
@@ -91,7 +94,7 @@ impl Data {
             }
             ExprKind::Call(callee, args) => {
                 self.init_from_expr(callee);
-                for arg in args {
+                for arg in args.iter() {
                     self.init_from_expr(arg);
                 }
             }
@@ -128,11 +131,12 @@ impl Data {
         let mut buff = Vec::default();
         f.read_to_end(&mut buff)
             .expect("todo: report error: cannot read file");
+        let buff = self.arena.alloc_slice_copy(&buff);
 
         let next_offset = self.next_offset;
         self.next_offset += buff.len() as u32;
         self.files.insert(filepath.into(), next_offset);
-        self.data.push((buff.into(), next_offset));
+        self.data.push((buff, next_offset));
     }
 
     pub(crate) fn get_embed_file_annotation(annotations: &[Annotation]) -> Option<&Path> {
@@ -172,7 +176,7 @@ impl Data {
         result
     }
 
-    fn init_from_stmt(&mut self, stmt: &Statement) {
+    fn init_from_stmt(&mut self, stmt: &Statement<'ctx>) {
         match stmt {
             Statement::Block(statements) => {
                 for stmt in statements.iter() {
@@ -209,7 +213,7 @@ impl Data {
         (self.next_offset + wasm_helper::PAGE_SIZE - 1) / (wasm_helper::PAGE_SIZE)
     }
 
-    pub(crate) fn get_bytes(&self, bytes: &Rc<[u8]>) -> Option<u32> {
+    pub(crate) fn get_bytes(&self, bytes: &[u8]) -> Option<u32> {
         self.bytes.get(bytes).cloned()
     }
 
@@ -217,7 +221,7 @@ impl Data {
         self.files.get(path).cloned()
     }
 
-    pub(crate) fn take(self) -> Vec<wasm::Data> {
+    pub(crate) fn take(self) -> Vec<wasm::Data<'ctx>> {
         let mut datas = Vec::default();
         for (data, offset) in self.data {
             datas.push(wasm::Data {

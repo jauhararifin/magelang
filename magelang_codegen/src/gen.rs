@@ -2,11 +2,12 @@ use crate::data::Data;
 use crate::func::FuncManager;
 use crate::layout::LayoutManager;
 use crate::var::{GlobalMapper, LocalManager};
+use bumpalo::Bump;
 use magelang_typecheck::Module;
 use wasm_helper as wasm;
 
-pub fn generate(module: Module<'_>) -> wasm::Module {
-    let data = Data::build(&module);
+pub fn generate<'ctx>(arena: &'ctx Bump, module: Module<'ctx>) -> wasm::Module<'ctx> {
+    let data = Data::build(arena, &module);
     let layout_manager = LayoutManager::default();
     let locals = LocalManager::default();
     let globals = GlobalMapper::build(&module);
