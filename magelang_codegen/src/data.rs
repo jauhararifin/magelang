@@ -175,7 +175,7 @@ impl Data {
     fn init_from_stmt(&mut self, stmt: &Statement) {
         match stmt {
             Statement::Block(statements) => {
-                for stmt in statements {
+                for stmt in statements.iter() {
                     self.init_from_stmt(stmt);
                 }
             }

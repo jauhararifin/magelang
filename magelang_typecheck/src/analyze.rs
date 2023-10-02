@@ -844,7 +844,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
             Source::Statement(stmt, type_args) => match stmt {
                 Statement::NewLocal(_, expr) => queue.push_back(Source::Expr(expr, type_args)),
                 Statement::Block(stmts) => {
-                    for stmt in stmts {
+                    for stmt in stmts.iter() {
                         queue.push_back(Source::Statement(stmt, type_args));
                     }
                 }

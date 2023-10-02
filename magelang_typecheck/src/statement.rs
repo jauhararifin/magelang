@@ -3,6 +3,7 @@ use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::interner::Interner;
 use crate::ty::{get_type_from_node, Type, TypeArgs};
+use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
     AssignStatementNode, BlockStatementNode, ErrorReporter, IfStatementNode, LetKind,
@@ -15,7 +16,7 @@ pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
 pub enum Statement<'a> {
     Native,
     NewLocal(usize, Expr<'a>),
-    Block(Vec<Statement<'a>>),
+    Block(&'a [Statement<'a>]),
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
     Return(Option<Expr<'a>>),
@@ -40,11 +41,11 @@ impl<'a> Statement<'a> {
                 Statement::NewLocal(*id, value)
             }
             Statement::Block(statements) => {
-                let statements = statements
-                    .iter()
-                    .map(|stmt| stmt.monomorphize(ctx, type_args))
-                    .collect();
-                Statement::Block(statements)
+                let mut result = BumpVec::with_capacity_in(statements.len(), ctx.arena);
+                for stmt in statements.iter() {
+                    result.push(stmt.monomorphize(ctx, type_args));
+                }
+                Statement::Block(result.into_bump_slice())
             }
             Statement::If(if_stmt) => {
                 let cond = if_stmt.cond.monomorphize(ctx, type_args);
@@ -231,7 +232,7 @@ pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
     node: &BlockStatementNode,
 ) -> StatementResult<'a> {
     let mut scope = ctx.scope.clone();
-    let mut statements = Vec::default();
+    let mut statements = BumpVec::with_capacity_in(node.statements.len(), ctx.ctx.arena);
     let mut last_unused_local = ctx.last_unused_local;
     let mut is_returning = false;
     let mut unreachable_error = false;
@@ -262,7 +263,7 @@ pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
         }
     }
     StatementResult {
-        statement: Statement::Block(statements),
+        statement: Statement::Block(statements.into_bump_slice()),
         new_scope: None,
         is_returning,
         last_unused_local,
