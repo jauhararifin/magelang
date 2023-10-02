@@ -1,8 +1,8 @@
-use magelang_typecheck::{BitSize, FloatType, InternType, Type};
+use magelang_typecheck::{BitSize, FloatType, Type};
 use wasm_helper as wasm;
 
-pub(crate) fn build_val_type(ty: InternType<'_>) -> Vec<wasm::ValType> {
-    match ty.as_ref() {
+pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<wasm::ValType> {
+    match ty {
         Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
         Type::Struct(struct_type) => {
             let mut fields = vec![];
@@ -13,7 +13,7 @@ pub(crate) fn build_val_type(ty: InternType<'_>) -> Vec<wasm::ValType> {
                 .fields
                 .values()
             {
-                fields.extend(build_val_type(*field_ty));
+                fields.extend(build_val_type(field_ty));
             }
             fields
         }
@@ -26,7 +26,7 @@ pub(crate) fn build_val_type(ty: InternType<'_>) -> Vec<wasm::ValType> {
                 .fields
                 .values()
             {
-                fields.extend(build_val_type(*field_ty));
+                fields.extend(build_val_type(field_ty));
             }
             fields
         }
@@ -65,8 +65,8 @@ pub(crate) fn build_zero_wasm_type(ty: &wasm::ValType) -> Vec<wasm::Instr> {
     }
 }
 
-pub(crate) fn build_zero_type(ty: InternType<'_>) -> Vec<wasm::Instr> {
-    match ty.as_ref() {
+pub(crate) fn build_zero_type(ty: &Type<'_>) -> Vec<wasm::Instr> {
+    match ty {
         Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
         Type::Inst(inst_type) => inst_type
             .body
@@ -74,7 +74,7 @@ pub(crate) fn build_zero_type(ty: InternType<'_>) -> Vec<wasm::Instr> {
             .expect("missing struct body")
             .fields
             .values()
-            .flat_map(|ty| build_zero_type(*ty))
+            .flat_map(|ty| build_zero_type(ty))
             .collect(),
         Type::Struct(struct_type) => struct_type
             .body
@@ -82,7 +82,7 @@ pub(crate) fn build_zero_type(ty: InternType<'_>) -> Vec<wasm::Instr> {
             .expect("missing struct body")
             .fields
             .values()
-            .flat_map(|ty| build_zero_type(*ty))
+            .flat_map(|ty| build_zero_type(ty))
             .collect(),
         Type::Func(..) => vec![wasm::Instr::I32Const(0)],
         Type::Void => vec![],

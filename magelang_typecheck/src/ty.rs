@@ -1,6 +1,6 @@
 use crate::analyze::{Context, Scopes, TypeObject};
 use crate::errors::SemanticError;
-use crate::interner::{Interned, Interner};
+use crate::interner::Interner;
 use crate::{DefId, Symbol};
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
@@ -12,10 +12,11 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 pub(crate) type TypeInterner<'a> = Interner<'a, Type<'a>>;
-pub type InternType<'a> = Interned<'a, Type<'a>>;
 
-pub(crate) type TypeArgsInterner<'a> = Interner<'a, [InternType<'a>]>;
-pub type InternTypeArgs<'a> = Interned<'a, [InternType<'a>]>;
+// TODO: consider creating a new-type for type-args to implement hash, eq, and partial-eq
+// to improve performance.
+pub type TypeArgs<'a> = [&'a Type<'a>];
+pub(crate) type TypeArgsInterner<'a> = Interner<'a, TypeArgs<'a>>;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Type<'a> {
@@ -28,8 +29,8 @@ pub enum Type<'a> {
     Bool,
     Int(IntSign, BitSize),
     Float(FloatType),
-    Ptr(InternType<'a>),
-    ArrayPtr(InternType<'a>),
+    Ptr(&'a Type<'a>),
+    ArrayPtr(&'a Type<'a>),
     TypeArg(TypeArg<'a>),
 }
 
@@ -37,9 +38,9 @@ impl<'a> Type<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
-        interned: InternType<'a>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        interned: &'a Type<'a>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
         match self {
             Self::Unknown => ctx.define_type(Self::Unknown),
             Self::Struct(struct_type) => struct_type.monomorphize(ctx, interned, type_args),
@@ -50,9 +51,9 @@ impl<'a> Type<'a> {
             Self::Bool => ctx.define_type(Self::Bool),
             Self::Int(sign, size) => ctx.define_type(Type::Int(*sign, *size)),
             Self::Float(ty) => ctx.define_type(Type::Float(*ty)),
-            Self::Ptr(el) => ctx.define_type(Type::Ptr(el.monomorphize(ctx, *el, type_args))),
+            Self::Ptr(el) => ctx.define_type(Type::Ptr(el.monomorphize(ctx, el, type_args))),
             Self::ArrayPtr(el) => {
-                ctx.define_type(Type::ArrayPtr(el.monomorphize(ctx, *el, type_args)))
+                ctx.define_type(Type::ArrayPtr(el.monomorphize(ctx, el, type_args)))
             }
             Self::TypeArg(arg) => arg.monomorphize(ctx, type_args),
         }
@@ -168,14 +169,22 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Clone)]
 pub struct StructType<'a> {
     pub def_id: DefId<'a>,
     pub(crate) type_params: Vec<TypeArg<'a>>,
     pub body: OnceCell<StructBody<'a>>,
     pub(crate) node: StructNode,
-    pub(crate) mono_cache: RefCell<HashMap<InternTypeArgs<'a>, InternType<'a>>>,
+    pub(crate) mono_cache: RefCell<HashMap<&'a TypeArgs<'a>, &'a Type<'a>>>,
 }
+
+impl<'a> PartialEq for StructType<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.def_id.eq(&other.def_id)
+    }
+}
+
+impl<'a> Eq for StructType<'a> {}
 
 impl<'a> Debug for StructType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -193,13 +202,13 @@ impl<'a> StructType<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
-        interned: InternType<'a>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        interned: &'a Type<'a>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
         {
             let mut cache = self.mono_cache.borrow_mut();
             if let Some(ty) = cache.get(&type_args) {
-                return *ty;
+                return ty;
             } else if self.type_params.is_empty() {
                 cache.insert(type_args, interned);
             } else {
@@ -220,7 +229,7 @@ impl<'a> StructType<'a> {
             let scope = get_typeparam_scope(ctx, scope, &self.type_params);
 
             let mut field_pos = HashMap::<Symbol, Pos>::default();
-            let mut fields = IndexMap::<Symbol, InternType<'a>>::default();
+            let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
             for field_node in &self.node.fields {
                 let field_name = ctx.define_symbol(field_node.name.value.as_str());
                 let pos = field_node.pos;
@@ -244,7 +253,7 @@ impl<'a> StructType<'a> {
         let fields = body
             .fields
             .iter()
-            .map(|(name, ty)| (*name, ty.monomorphize(ctx, *ty, type_args)))
+            .map(|(name, ty)| (*name, ty.monomorphize(ctx, ty, type_args)))
             .collect::<IndexMap<_, _>>();
 
         let sized = true; // TODO: set this value properly.
@@ -252,26 +261,26 @@ impl<'a> StructType<'a> {
 
         let cache = self.mono_cache.borrow_mut();
         let interned_ty = cache.get(&type_args).unwrap();
-        if let Type::Inst(ty) = interned_ty.as_ref() {
+        if let Type::Inst(ty) = interned_ty {
             ty.body
                 .set(substituted_body)
                 .expect("cannot set instance body");
         };
 
-        *interned_ty
+        interned_ty
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructBody<'a> {
-    pub fields: IndexMap<Symbol<'a>, InternType<'a>>,
+    pub fields: IndexMap<Symbol<'a>, &'a Type<'a>>,
     pub sized: bool,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Clone)]
 pub struct InstType<'a> {
     pub def_id: DefId<'a>,
-    pub type_args: InternTypeArgs<'a>,
+    pub type_args: &'a TypeArgs<'a>,
     pub body: OnceCell<StructBody<'a>>,
 }
 
@@ -279,8 +288,8 @@ impl<'a> InstType<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
         let ty = ctx
             .scopes
             .get(&self.def_id.package)
@@ -292,13 +301,21 @@ impl<'a> InstType<'a> {
         let substituted_type_args = self
             .type_args
             .iter()
-            .map(|ty| ty.monomorphize(ctx, *ty, type_args))
+            .map(|ty| ty.monomorphize(ctx, ty, type_args))
             .collect::<Vec<_>>();
         let substituted_type_args = ctx.define_typeargs(&substituted_type_args);
 
         ty.monomorphize(ctx, ty.ty, substituted_type_args)
     }
 }
+
+impl<'a> PartialEq for InstType<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.def_id.eq(&other.def_id) && self.type_args.eq(other.type_args)
+    }
+}
+
+impl<'a> Eq for InstType<'a> {}
 
 impl<'a> Hash for InstType<'a> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -327,20 +344,22 @@ impl<'a> Debug for InstType<'a> {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct FuncType<'a> {
-    pub params: Vec<InternType<'a>>,
-    pub return_type: InternType<'a>,
+    // TODO: using the arena to allocate vec, or use slice
+    // alltogeher
+    pub params: Vec<&'a Type<'a>>,
+    pub return_type: &'a Type<'a>,
 }
 
 impl<'a> FuncType<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
         let params = self
             .params
             .iter()
-            .map(|ty| ty.monomorphize(ctx, *ty, type_args))
+            .map(|ty| ty.monomorphize(ctx, ty, type_args))
             .collect();
         let return_type = self
             .return_type
@@ -395,9 +414,9 @@ impl<'a> TypeArg<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         _: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
-    ) -> InternType<'a> {
-        *type_args
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
+        type_args
             .get(self.index)
             .expect("missing type arg at the index")
     }
@@ -407,7 +426,7 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, E>,
     scope: &'b Scopes<'a>,
     node: &TypeExprNode,
-) -> InternType<'a> {
+) -> &'a Type<'a> {
     match node {
         TypeExprNode::Invalid(..) => ctx.define_type(Type::Unknown),
         TypeExprNode::Path(node) => get_type_from_path(ctx, scope, node),
@@ -427,12 +446,12 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, E>,
     scope: &'b Scopes<'a>,
     node: &PathNode,
-) -> InternType<'a> {
+) -> &'a Type<'a> {
     let Some(object) = get_type_object_from_path(ctx, scope, &node.names) else {
         return ctx.define_type(Type::Unknown);
     };
 
-    let Type::Struct(struct_type) = object.ty.as_ref() else {
+    let Type::Struct(struct_type) = object.ty else {
         return object.ty;
     };
 
@@ -553,7 +572,7 @@ pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
         if let Some(declared_at) = param_pos.get(&name) {
             let declared_at = ctx.files.location(*declared_at);
             ctx.errors
-                .redeclared_symbol(type_param.name.pos, declared_at, &name);
+                .redeclared_symbol(type_param.name.pos, declared_at, name);
         } else {
             param_pos.insert(name, type_param.name.pos);
         }
@@ -626,7 +645,7 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
         .map(|(_, obj)| obj);
 
     for type_object in type_objects {
-        let Type::Struct(struct_type) = type_object.ty.as_ref() else {
+        let Type::Struct(struct_type) = type_object.ty else {
             continue;
         };
 
@@ -637,7 +656,7 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
             .expect("missing struct body")
             .fields
             .values()
-            .filter_map(|ty| match ty.as_ref() {
+            .filter_map(|ty| match ty {
                 Type::Struct(ty) => Some(ty.def_id),
                 Type::Inst(ty) => Some(ty.def_id),
                 _ => None,
@@ -680,7 +699,7 @@ fn report_circular_type<E: ErrorReporter>(
         .lookup(start.name)
         .unwrap();
 
-    let Type::Struct(struct_type) = object.as_ref() else {
+    let Type::Struct(struct_type) = object.ty else {
         unreachable!();
     };
     let pos = struct_type.node.pos;

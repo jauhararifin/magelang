@@ -8,14 +8,14 @@ mod statement;
 mod ty;
 mod value;
 
-use interner::{Interned, Interner};
+use interner::Interner;
 use std::fmt::Display;
 use std::rc::Rc;
 
 pub use analyze::{analyze, Annotation, FuncObject, GlobalObject, ValueObject};
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
-pub type Symbol<'a> = Interned<'a, str>;
+pub type Symbol<'a> = &'a str;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct DefId<'a> {
@@ -29,11 +29,11 @@ impl<'a> Display for DefId<'a> {
     }
 }
 
-pub use expr::{Expr, ExprKind, InternExpr};
-pub use statement::{IfStatement, InternStatement, Statement, WhileStatement};
+pub use expr::{Expr, ExprKind};
+pub use statement::{IfStatement, Statement, WhileStatement};
 pub use ty::{
-    BitSize, FloatType, FuncType, InstType, IntSign, InternType, InternTypeArgs, StructBody,
-    StructType, Type, TypeArg,
+    BitSize, FloatType, FuncType, InstType, IntSign, StructBody, StructType, Type, TypeArg,
+    TypeArgs,
 };
 
 #[derive(Debug)]
@@ -52,16 +52,16 @@ pub struct Package<'a> {
 #[derive(Debug)]
 pub struct Global<'a> {
     pub name: DefId<'a>,
-    pub ty: InternType<'a>,
-    pub value: InternExpr<'a>,
+    pub ty: &'a Type<'a>,
+    pub value: &'a Expr<'a>,
     pub annotations: Rc<[Annotation]>,
 }
 
 #[derive(Debug)]
 pub struct Func<'a> {
     pub name: DefId<'a>,
-    pub typeargs: Option<InternTypeArgs<'a>>,
-    pub ty: InternType<'a>,
-    pub statement: InternStatement<'a>,
+    pub typeargs: Option<&'a TypeArgs<'a>>,
+    pub ty: &'a Type<'a>,
+    pub statement: &'a Statement<'a>,
     pub annotations: Rc<[Annotation]>,
 }

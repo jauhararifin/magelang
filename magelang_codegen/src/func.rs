@@ -4,8 +4,7 @@ use crate::ty::{build_val_type, build_zero_type};
 use crate::var::{GlobalMapper, LocalManager};
 use indexmap::IndexMap;
 use magelang_typecheck::{
-    BitSize, DefId, Expr, ExprKind, FloatType, Func, InternType, InternTypeArgs, Module, Statement,
-    Type,
+    BitSize, DefId, Expr, ExprKind, FloatType, Func, Module, Statement, Type, TypeArgs,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -31,7 +30,7 @@ pub(crate) struct FuncManager<'a, 'ctx> {
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 struct FuncRef<'ctx> {
     name: DefId<'ctx>,
-    typeargs: Option<InternTypeArgs<'ctx>>,
+    typeargs: Option<&'ctx TypeArgs<'ctx>>,
 }
 
 impl<'ctx> From<DefId<'ctx>> for FuncRef<'ctx> {
@@ -114,7 +113,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
 
             let mut parameters = Vec::default();
             for param in &func_type.params {
-                let val_types = build_val_type(*param);
+                let val_types = build_val_type(param);
                 parameters.extend(val_types);
             }
 
@@ -125,7 +124,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             });
 
             let func_name = func.get_mangled_name();
-            let is_native = matches!(func.statement.as_ref(), Statement::Native);
+            let is_native = matches!(func.statement, Statement::Native);
 
             let mut import = None;
             let mut export = None;
@@ -388,7 +387,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
 
             let mut locals = Vec::default();
             for ty in &func_type.params {
-                let val_types = build_val_type(*ty);
+                let val_types = build_val_type(ty);
                 locals.push(
                     val_types
                         .iter()
@@ -401,7 +400,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             }
             s.locals.set_params(locals.into_iter());
 
-            let body = s.build_statement(0, 0, &func.statement);
+            let body = s.build_statement(0, 0, func.statement);
 
             s.functions[wasm_idx].body = wasm::Expr(body);
             s.functions[wasm_idx].locals = s.locals.take();
@@ -423,11 +422,10 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
         for global in globals {
             // TODO: override this. if annotated with `@file_embed()`, load the content from file.
             let instrs = if let ExprKind::Zero = global.value.kind {
-                let ty = global.ty.as_ref();
+                let ty = global.ty;
                 let Type::ArrayPtr(el) = ty else {
                     continue;
                 };
-                let el = el.as_ref();
                 let is_bytes = !matches!(el, Type::Int(true, BitSize::I8));
                 if !is_bytes {
                     continue;
@@ -441,7 +439,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                     s.data.get_file(filepath).unwrap() as i32
                 )]
             } else {
-                s.build_value_expr(&global.value)
+                s.build_value_expr(global.value)
             };
 
             init_func_body.extend(instrs);
@@ -614,13 +612,13 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
         }
     }
 
-    fn build_variable_set_instr(&self, idx: VariableLoc, ty: InternType<'ctx>) -> Vec<wasm::Instr> {
-        match ty.as_ref() {
+    fn build_variable_set_instr(&self, idx: VariableLoc, ty: &'ctx Type<'ctx>) -> Vec<wasm::Instr> {
+        match ty {
             Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
 
             Type::Struct(..) | Type::Inst(..) => {
                 let struct_layout = &self.layouts.get_stack_layout(ty);
-                let body = match ty.as_ref() {
+                let body = match ty {
                     Type::Struct(struct_type) => {
                         struct_type.body.get().expect("missing struct body")
                     }
@@ -634,7 +632,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                     .rev()
                     .flat_map(|(i, (_, field_ty))| {
                         let offset = struct_layout.offset[i];
-                        self.build_variable_set_instr(idx.with_offset(offset), *field_ty)
+                        self.build_variable_set_instr(idx.with_offset(offset), field_ty)
                     })
                     .collect()
             }
@@ -659,11 +657,11 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
         pointer_expr: &Expr<'ctx>,
         value: &Expr<'ctx>,
     ) -> Vec<wasm::Instr> {
-        match value.ty.as_ref() {
+        match value.ty {
             Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
 
             Type::Struct(..) | Type::Inst(..) => {
-                let body = match value.ty.as_ref() {
+                let body = match value.ty {
                     Type::Struct(struct_type) => {
                         struct_type.body.get().expect("missing struct body")
                     }
@@ -684,19 +682,19 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 }
 
                 while let Some((struct_layout, field_id, ty)) = stack.pop() {
-                    match ty.as_ref() {
+                    match ty {
                         Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
 
                         Type::Struct(struct_type) => {
                             let body = struct_type.body.get().expect("missing struct body");
-                            let struct_layout = self.layouts.get_mem_layout(*ty);
+                            let struct_layout = self.layouts.get_mem_layout(ty);
                             for (i, (_, field_ty)) in body.fields.iter().enumerate() {
                                 stack.push((struct_layout.clone(), i, field_ty));
                             }
                         }
                         Type::Inst(inst_type) => {
                             let body = inst_type.body.get().expect("missing struct body");
-                            let struct_layout = self.layouts.get_mem_layout(*ty);
+                            let struct_layout = self.layouts.get_mem_layout(ty);
                             for (i, (_, field_ty)) in body.fields.iter().enumerate() {
                                 stack.push((struct_layout.clone(), i, field_ty));
                             }
@@ -928,10 +926,10 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::GetElementAddr(addr, field) => {
                 let mut result = self.build_value_expr(addr);
 
-                let Type::Ptr(element_type) = addr.ty.as_ref() else {
+                let Type::Ptr(element_type) = addr.ty else {
                     unreachable!()
                 };
-                let struct_layout = self.layouts.get_mem_layout(*element_type);
+                let struct_layout = self.layouts.get_mem_layout(element_type);
                 let mem_offset = struct_layout.offset[*field];
                 result.push(wasm::Instr::I32Const(mem_offset as i32));
                 result.push(wasm::Instr::I32Add);
@@ -942,16 +940,16 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(arr);
 
                 // TODO: (optimization) optimize field layout calculation by using cache.
-                let Type::ArrayPtr(element_type) = arr.ty.as_ref() else {
+                let Type::ArrayPtr(element_type) = arr.ty else {
                     unreachable!()
                 };
-                let element_layout = self.layouts.get_mem_layout(*element_type);
+                let element_layout = self.layouts.get_mem_layout(element_type);
                 let element_size = element_layout.size;
 
                 result.push(wasm::Instr::I32Const(element_size as i32));
                 result.extend(self.build_value_expr(index));
 
-                if let Type::Int(_, bit_size) = index.ty.as_ref() {
+                if let Type::Int(_, bit_size) = index.ty {
                     if *bit_size == BitSize::I64 {
                         result.push(wasm::Instr::I32WrapI64);
                     }
@@ -965,12 +963,12 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::Deref(addr) => {
                 let mut result = self.build_value_expr(addr);
 
-                let Type::Ptr(element_type) = addr.ty.as_ref() else {
+                let Type::Ptr(element_type) = addr.ty else {
                     unreachable!()
                 };
                 let mut stack = vec![(0u32, *element_type)];
                 while let Some((offset, element_type)) = stack.pop() {
-                    let ty = element_type.as_ref();
+                    let ty = element_type;
                     match ty {
                         Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
 
@@ -1107,7 +1105,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.extend(self.build_value_expr(arg));
                         }
 
-                        let ty = callee.ty.as_ref();
+                        let ty = callee.ty;
                         let Type::Func(func_type) = ty else {
                             unreachable!("cannot call non-function expression")
                         };
@@ -1115,7 +1113,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                         let parameters: Vec<wasm::ValType> = func_type
                             .params
                             .iter()
-                            .flat_map(|ty| build_val_type(*ty))
+                            .flat_map(|ty| build_val_type(ty))
                             .collect();
                         let returns: Vec<wasm::ValType> = build_val_type(func_type.return_type);
                         let wasm_type_id = self.get_func_type(wasm::FuncType {
@@ -1131,7 +1129,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32Add, wasm::Instr::I32Extend8S]
@@ -1163,7 +1161,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32Sub, wasm::Instr::I32Extend8S]
@@ -1195,7 +1193,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32Mul, wasm::Instr::I32Extend8S]
@@ -1227,7 +1225,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32DivS, wasm::Instr::I32Extend8S]
@@ -1259,7 +1257,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32RemS, wasm::Instr::I32Extend8S]
@@ -1288,7 +1286,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32Or],
                     Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32Or],
@@ -1307,7 +1305,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32And],
                     Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32And],
@@ -1326,7 +1324,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32Xor],
                     Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32Xor],
@@ -1345,7 +1343,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32Shl],
                     Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32Shl],
@@ -1364,7 +1362,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8) => vec![wasm::Instr::I32ShrS],
                     Type::Int(true, BitSize::I16) => vec![wasm::Instr::I32ShrS],
@@ -1416,7 +1414,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let a_instr = self.build_value_expr(a);
                 let b_instr = self.build_value_expr(b);
 
-                let ty = a.ty.as_ref();
+                let ty = a.ty;
                 let op_instr = match ty {
                     Type::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize)
                     | Type::Ptr(..)
@@ -1458,7 +1456,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let a_instr = self.build_value_expr(a);
                 let b_instr = self.build_value_expr(b);
 
-                let ty = a.ty.as_ref();
+                let ty = a.ty;
                 let op_instr = match ty {
                     Type::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32Eq]
@@ -1502,7 +1500,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = a.ty.as_ref();
+                let ty = a.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32GtS]
@@ -1529,7 +1527,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = a.ty.as_ref();
+                let ty = a.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32GeS]
@@ -1556,7 +1554,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = a.ty.as_ref();
+                let ty = a.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32LtS]
@@ -1585,7 +1583,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(a);
                 result.extend(self.build_value_expr(b));
 
-                let ty = a.ty.as_ref();
+                let ty = a.ty;
                 let instrs = match ty {
                     Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32LeS]
@@ -1610,7 +1608,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             }
             ExprKind::Neg(value) => {
                 let mut result = self.build_value_expr(value);
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(_, BitSize::I64) => {
                         vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Mul]
@@ -1633,7 +1631,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             }
             ExprKind::BitNot(value) => {
                 let mut result = self.build_value_expr(value);
-                let ty = expr.ty.as_ref();
+                let ty = expr.ty;
                 let instrs = match ty {
                     Type::Int(_, BitSize::I64) => {
                         vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Xor]
@@ -1656,8 +1654,8 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::Cast(value, ty) => {
                 let mut result = self.build_value_expr(value);
 
-                let source_type = value.ty.as_ref();
-                let target_type = ty.as_ref();
+                let source_type = value.ty;
+                let target_type = ty;
 
                 let instrs = match source_type {
                     Type::Ptr(..) | Type::ArrayPtr(..) => match target_type {
@@ -1785,9 +1783,9 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
     fn build_value_expr_from_var(
         &self,
         idx: VariableLoc,
-        ty: InternType<'ctx>,
+        ty: &'ctx Type<'ctx>,
     ) -> Vec<wasm::Instr> {
-        match ty.as_ref() {
+        match ty {
             Type::Struct(struct_type) => {
                 let body = struct_type.body.get().expect("missing struct body");
                 let mut result = Vec::default();
@@ -1795,7 +1793,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 for (i, offset) in struct_layout.offset.iter().enumerate() {
                     result.extend(self.build_value_expr_from_var(
                         idx.with_offset(*offset),
-                        *body.fields.get_index(i).unwrap().1,
+                        body.fields.get_index(i).unwrap().1,
                     ));
                 }
                 result
@@ -1861,7 +1859,7 @@ impl<'ctx> Mangle for Func<'ctx> {
     fn get_mangled_name(&self) -> String {
         let mut result = format!("{}", self.name);
 
-        if let Some(ref typeargs) = self.typeargs {
+        if let Some(typeargs) = self.typeargs {
             result.push('<');
             for (i, arg) in typeargs.iter().enumerate() {
                 if i > 0 {

@@ -1,19 +1,17 @@
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprInterner, ExprKind, InternExpr};
+use crate::expr::{get_expr_from_node, Expr, ExprInterner, ExprKind};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
-use crate::statement::{
-    get_statement_from_block, InternStatement, Statement, StatementContext, StatementInterner,
-};
+use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
 use crate::ty::{
     check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
-    get_typeparams, BitSize, FloatType, InternType, InternTypeArgs, StructType, Type, TypeArg,
-    TypeArgsInterner, TypeInterner,
+    get_typeparams, BitSize, FloatType, StructType, Type, TypeArg, TypeArgs, TypeArgsInterner,
+    TypeInterner,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
 use bumpalo::Bump;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
     PackageNode, Pos,
@@ -116,19 +114,19 @@ impl<'a, E> Context<'a, E> {
         self.interners.symbols.define(symbol)
     }
 
-    pub(crate) fn define_type(&self, ty: Type<'a>) -> InternType<'a> {
+    pub(crate) fn define_type(&self, ty: Type<'a>) -> &'a Type<'a> {
         self.interners.types.define(ty)
     }
 
-    pub(crate) fn define_typeargs(&self, typeargs: &[InternType<'a>]) -> InternTypeArgs<'a> {
+    pub(crate) fn define_typeargs(&self, typeargs: &TypeArgs<'a>) -> &'a TypeArgs<'a> {
         self.interners.typeargs.define(typeargs)
     }
 
-    pub(crate) fn define_expr(&self, expr: Expr<'a>) -> InternExpr<'a> {
+    pub(crate) fn define_expr(&self, expr: Expr<'a>) -> &'a Expr<'a> {
         self.interners.exprs.define(expr)
     }
 
-    pub(crate) fn define_statement(&self, stmt: Statement<'a>) -> InternStatement<'a> {
+    pub(crate) fn define_statement(&self, stmt: Statement<'a>) -> &'a Statement<'a> {
         self.interners.statements.define(stmt)
     }
 
@@ -195,17 +193,17 @@ pub struct ImportObject<'a> {
 }
 
 pub struct TypeObject<'a> {
-    pub(crate) ty: InternType<'a>,
+    pub(crate) ty: &'a Type<'a>,
 }
 
-impl<'a> From<InternType<'a>> for TypeObject<'a> {
-    fn from(ty: InternType<'a>) -> Self {
+impl<'a> From<&'a Type<'a>> for TypeObject<'a> {
+    fn from(ty: &'a Type<'a>) -> Self {
         Self { ty }
     }
 }
 
 impl<'a> std::ops::Deref for TypeObject<'a> {
-    type Target = InternType<'a>;
+    type Target = &'a Type<'a>;
     fn deref(&self) -> &Self::Target {
         &self.ty
     }
@@ -221,9 +219,9 @@ pub enum ValueObject<'a> {
 #[derive(Debug)]
 pub struct GlobalObject<'a> {
     pub(crate) def_id: DefId<'a>,
-    pub ty: InternType<'a>,
+    pub ty: &'a Type<'a>,
     pub(crate) node: GlobalNode,
-    pub value: OnceCell<InternExpr<'a>>,
+    pub value: OnceCell<&'a Expr<'a>>,
     pub annotations: Rc<[Annotation]>,
 }
 
@@ -237,17 +235,17 @@ pub struct Annotation {
 pub struct FuncObject<'a> {
     pub(crate) def_id: DefId<'a>,
     pub type_params: Vec<TypeArg<'a>>,
-    pub ty: InternType<'a>,
+    pub ty: &'a Type<'a>,
     pub(crate) node: FunctionNode,
-    pub body: OnceCell<InternStatement<'a>>,
+    pub body: OnceCell<&'a Statement<'a>>,
     pub annotations: Rc<[Annotation]>,
-    pub monomorphized: OnceCell<Vec<(InternTypeArgs<'a>, InternType<'a>, InternStatement<'a>)>>,
+    pub monomorphized: OnceCell<Vec<(&'a TypeArgs<'a>, &'a Type<'a>, &'a Statement<'a>)>>,
 }
 
 #[derive(Debug)]
 pub struct LocalObject<'a> {
     pub id: usize,
-    pub ty: InternType<'a>,
+    pub ty: &'a Type<'a>,
     pub name: Symbol<'a>,
 }
 
@@ -266,7 +264,7 @@ fn get_all_package_asts<'a>(
             continue;
         }
 
-        let path = get_package_path(stdlib_path, &package_name);
+        let path = get_package_path(stdlib_path, package_name);
         let file = match files.open(path.clone()) {
             Ok(file) => file,
             Err(err) => {
@@ -335,7 +333,7 @@ fn build_imports<'a, E: ErrorReporter>(
             let pos = item.pos();
             if let Some(declared_at) = object_pos.get(&object_id) {
                 let declared_at = ctx.files.location(*declared_at);
-                ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
+                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
                 continue;
             }
             object_pos.insert(object_id, pos);
@@ -375,7 +373,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
             let pos = struct_node.pos;
             if let Some(declared_at) = object_pos.get(&def_id) {
                 let declared_at = ctx.files.location(*declared_at);
-                ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
+                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
                 continue;
             }
             object_pos.insert(def_id, pos);
@@ -443,7 +441,7 @@ fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             let ty = type_object.ty;
-            let Type::Struct(struct_type) = ty.as_ref() else {
+            let Type::Struct(struct_type) = ty else {
                 continue;
             };
 
@@ -466,7 +464,7 @@ fn monomorphize_types<E: ErrorReporter>(ctx: &Context<'_, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             let ty = type_object.ty;
-            let Type::Struct(struct_type) = ty.as_ref() else {
+            let Type::Struct(struct_type) = ty else {
                 continue;
             };
 
@@ -511,7 +509,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
             let pos = item.pos();
             if let Some(declared_at) = object_pos.get(&def_id) {
                 let declared_at = ctx.files.location(*declared_at);
-                ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
+                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
                 continue;
             }
             object_pos.insert(def_id, pos);
@@ -618,14 +616,14 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, E>) {
                 }
             };
 
-            if !ty.as_ref().is_assignable_with(value_expr.ty.as_ref()) {
+            if !ty.is_assignable_with(value_expr.ty) {
                 let pos = global_object
                     .node
                     .value
                     .as_ref()
                     .map(|expr| expr.pos())
                     .unwrap_or(global_object.node.pos);
-                ctx.errors.type_mismatch(pos, ty.as_ref(), value_expr.ty);
+                ctx.errors.type_mismatch(pos, ty, value_expr.ty);
             }
 
             let value = ctx.define_expr(value_expr);
@@ -713,7 +711,7 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
         };
         assert!(!generic_func.type_params.is_empty());
 
-        let mut monomorphized = Vec::<(InternTypeArgs, InternType, InternStatement)>::default();
+        let mut monomorphized = Vec::<(&TypeArgs, &Type, &Statement)>::default();
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
             let ty = generic_func.ty.monomorphize(ctx, generic_func.ty, typeargs);
@@ -731,12 +729,12 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
 
 fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-) -> Vec<(DefId<'a>, Vec<InternTypeArgs<'a>>)> {
+) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
-        Expr(&'b Expr<'a>, InternTypeArgs<'a>),
-        Statement(&'b Statement<'a>, InternTypeArgs<'a>),
-        FuncInst(DefId<'a>, InternTypeArgs<'a>),
+        Expr(&'b Expr<'a>, &'a TypeArgs<'a>),
+        Statement(&'b Statement<'a>, &'a TypeArgs<'a>),
+        FuncInst(DefId<'a>, &'a TypeArgs<'a>),
     }
 
     let empty_typeargs = ctx.define_typeargs(&[]);
@@ -764,8 +762,8 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     }
 
     let empty_scope = Scopes::default();
-    let mut monomorphized_funcs = IndexMap::<DefId, Vec<InternTypeArgs>>::default();
-    let mut func_insts = HashSet::<(DefId, InternTypeArgs)>::default();
+    let mut monomorphized_funcs = IndexMap::<DefId, Vec<&TypeArgs>>::default();
+    let mut func_insts = IndexSet::<(DefId, &TypeArgs)>::default();
     while let Some(item) = queue.pop_front() {
         match item {
             Source::Expr(expr, type_args) => match &expr.kind {
@@ -791,7 +789,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 ExprKind::FuncInst(def_id, inner_typeargs) => {
                     let substituted_typeargs = inner_typeargs
                         .iter()
-                        .map(|ty| ty.monomorphize(ctx, *ty, type_args))
+                        .map(|ty| ty.monomorphize(ctx, ty, type_args))
                         .collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
                     queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));
@@ -913,7 +911,7 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
                 ValueObject::Global(global_object) => globals.push(Global {
                     name: global_object.def_id,
                     ty: global_object.ty,
-                    value: *global_object
+                    value: global_object
                         .value
                         .get()
                         .expect("missing global value expr"),
@@ -925,7 +923,7 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
                             name: func_object.def_id,
                             typeargs: None,
                             ty: func_object.ty,
-                            statement: *func_object.body.get().expect("missing function body"),
+                            statement: func_object.body.get().expect("missing function body"),
                             annotations: func_object.annotations.clone(),
                         });
                     } else {
@@ -935,8 +933,8 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
                             functions.push(Func {
                                 name: func_object.def_id,
                                 typeargs: Some(*typeargs),
-                                ty: *ty,
-                                statement: *body,
+                                ty,
+                                statement: body,
                                 annotations: func_object.annotations.clone(),
                             });
                         }
@@ -946,7 +944,7 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
             }
         }
         packages.push(Package {
-            name: *name,
+            name,
             globals,
             functions,
         })

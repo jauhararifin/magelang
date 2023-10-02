@@ -31,7 +31,7 @@ impl Data {
 
         let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
         for global in globals.clone() {
-            s.init_from_expr(&global.value);
+            s.init_from_expr(global.value);
         }
         for global in globals {
             s.init_from_annotations(&global.annotations);
@@ -39,7 +39,7 @@ impl Data {
 
         let functions = module.packages.iter().flat_map(|pkg| &pkg.functions);
         for func in functions {
-            s.init_from_stmt(&func.statement);
+            s.init_from_stmt(func.statement);
         }
 
         s

@@ -1,7 +1,7 @@
 use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::interner::{Interned, Interner};
-use crate::ty::{get_type_from_node, BitSize, FloatType, InternType, InternTypeArgs, Type};
+use crate::interner::Interner;
+use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs};
 use crate::value::value_from_string_lit;
 use crate::{DefId, Symbol};
 use magelang_syntax::{
@@ -14,11 +14,10 @@ use std::iter::zip;
 use std::rc::Rc;
 
 pub(crate) type ExprInterner<'a> = Interner<'a, Expr<'a>>;
-pub type InternExpr<'a> = Interned<'a, Expr<'a>>;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Expr<'a> {
-    pub ty: InternType<'a>,
+    pub ty: &'a Type<'a>,
     pub kind: ExprKind<'a>,
     pub(crate) assignable: bool,
 }
@@ -27,7 +26,7 @@ impl<'a> Expr<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
+        type_args: &'a TypeArgs<'a>,
     ) -> Expr<'a> {
         let ty = self.ty.monomorphize(ctx, self.ty, type_args);
 
@@ -43,7 +42,7 @@ impl<'a> Expr<'a> {
             ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
             ExprKind::Zero => ExprKind::Zero,
             ExprKind::StructLit(ty, values) => {
-                let ty = ty.monomorphize(ctx, *ty, type_args);
+                let ty = ty.monomorphize(ctx, ty, type_args);
                 let values = values
                     .iter()
                     .map(|val| val.monomorphize(ctx, type_args))
@@ -57,7 +56,7 @@ impl<'a> Expr<'a> {
             ExprKind::FuncInst(def_id, inner_typeargs) => {
                 let typeargs = inner_typeargs
                     .iter()
-                    .map(|ty| ty.monomorphize(ctx, *ty, type_args))
+                    .map(|ty| ty.monomorphize(ctx, ty, type_args))
                     .collect::<Vec<_>>();
                 let typeargs = ctx.define_typeargs(&typeargs);
                 ExprKind::FuncInst(*def_id, typeargs)
@@ -161,7 +160,7 @@ impl<'a> Expr<'a> {
             ExprKind::Not(value) => ExprKind::Not(Box::new(value.monomorphize(ctx, type_args))),
             ExprKind::Cast(value, into_type) => ExprKind::Cast(
                 Box::new(value.monomorphize(ctx, type_args)),
-                into_type.monomorphize(ctx, *into_type, type_args),
+                into_type.monomorphize(ctx, into_type, type_args),
             ),
         };
 
@@ -193,7 +192,7 @@ impl<'a, T> Hash for Float<'a, T> {
 
 impl<'a, T> PartialEq for Float<'a, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.source.eq(&other.source)
+        self.source.eq(other.source)
     }
 }
 
@@ -219,13 +218,13 @@ pub enum ExprKind<'a> {
     ConstF64(Float<'a, f64>),
     ConstBool(bool),
     Zero,
-    StructLit(InternType<'a>, Vec<Expr<'a>>),
+    StructLit(&'a Type<'a>, Vec<Expr<'a>>),
     Bytes(Rc<[u8]>),
 
     Local(usize),
     Global(DefId<'a>),
     Func(DefId<'a>),
-    FuncInst(DefId<'a>, InternTypeArgs<'a>),
+    FuncInst(DefId<'a>, &'a TypeArgs<'a>),
 
     GetElement(Box<Expr<'a>>, usize),
     GetElementAddr(Box<Expr<'a>>, usize),
@@ -255,13 +254,13 @@ pub enum ExprKind<'a> {
     Neg(Box<Expr<'a>>),
     BitNot(Box<Expr<'a>>),
     Not(Box<Expr<'a>>),
-    Cast(Box<Expr<'a>>, InternType<'a>),
+    Cast(Box<Expr<'a>>, &'a Type<'a>),
 }
 
 pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &ExprNode,
 ) -> Expr<'a> {
     match node {
@@ -294,7 +293,7 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
 fn get_expr_from_path<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &PathNode,
 ) -> Expr<'a> {
     let Some(object) = get_value_object_from_path(ctx, scope, &node.names) else {
@@ -329,7 +328,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                     );
                 }
 
-                let mut type_args = Vec::<InternType>::default();
+                let mut type_args = Vec::<&Type>::default();
                 for type_expr in &node.args {
                     let ty = get_type_from_node(ctx, scope, type_expr);
                     type_args.push(ty);
@@ -409,11 +408,11 @@ fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
 
 fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     token: &Token,
 ) -> Expr<'a> {
     let (sign, bit_size) = if let Some(ty) = expected_type {
-        match ty.as_ref() {
+        match ty {
             Type::Int(sign, bit_size) => (*sign, *bit_size),
             Type::Ptr(..) | Type::ArrayPtr(..) => (false, BitSize::ISize),
             _ => (true, BitSize::ISize),
@@ -468,11 +467,11 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
 
 fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     token: &Token,
 ) -> Expr<'a> {
     let float_type = if let Some(ty) = expected_type {
-        match ty.as_ref() {
+        match ty {
             Type::Float(float_ty) => *float_ty,
             _ => FloatType::F64,
         }
@@ -543,7 +542,7 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(ctx: &Context<'a, E>, token: &
 fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &BinaryExprNode,
 ) -> Expr<'a> {
     let a = get_expr_from_node(ctx, scope, expected_type, &node.a);
@@ -681,12 +680,12 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
 fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &DerefExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
-    let Type::Ptr(element_ty) = ty.as_ref() else {
+    let Type::Ptr(element_ty) = ty else {
         ctx.errors.deref_non_pointer(node.pos);
         return Expr {
             ty: ctx.define_type(Type::Unknown),
@@ -700,7 +699,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     }
 
     Expr {
-        ty: *element_ty,
+        ty: element_ty,
         kind: ExprKind::Deref(Box::new(value)),
         assignable: true,
     }
@@ -709,7 +708,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
 fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &UnaryExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
@@ -756,13 +755,13 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
 fn get_expr_from_call_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &CallExprNode,
 ) -> Expr<'a> {
     let func_expr = get_expr_from_node(ctx, scope, expected_type, &node.callee);
     let func_type = func_expr.ty;
 
-    let Type::Func(func_type) = func_type.as_ref() else {
+    let Type::Func(func_type) = func_type else {
         if !func_type.is_unknown() {
             ctx.errors.not_callable(node.callee.pos());
         }
@@ -788,7 +787,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
     }
 
     for (i, (arg, param)) in zip(&arguments, &func_type.params).enumerate() {
-        if !param.is_assignable_with(&arg.ty) {
+        if !param.is_assignable_with(arg.ty) {
             ctx.errors
                 .type_mismatch(node.arguments[i].pos(), param, arg.ty);
         }
@@ -804,7 +803,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
 fn get_expr_from_cast_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &CastExprNode,
 ) -> Expr<'a> {
     let target_type = get_type_from_node(ctx, scope, &node.target);
@@ -841,7 +840,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
 ) -> Expr<'a> {
     let ty = get_type_from_node(ctx, scope, &node.target);
 
-    let struct_body = match ty.as_ref() {
+    let struct_body = match ty {
         Type::Struct(struct_type) => struct_type.body.get().expect("missing struct body"),
         Type::Inst(inst_type) => inst_type.body.get().expect("missing struct body"),
         _ => {
@@ -868,7 +867,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
             });
         let value = get_expr_from_node(ctx, scope, Some(ty), &element.value);
 
-        let value = if !ty.is_assignable_with(value.ty.as_ref()) {
+        let value = if !ty.is_assignable_with(value.ty) {
             ctx.errors.type_mismatch(element.value.pos(), ty, value.ty);
             Expr {
                 ty: ctx.define_type(Type::Unknown),
@@ -888,7 +887,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
             full_values.push(value)
         } else {
             full_values.push(Expr {
-                ty: *type_id,
+                ty: type_id,
                 kind: ExprKind::Zero,
                 assignable: false,
             })
@@ -912,12 +911,12 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     let mut ty = value.ty;
     let mut is_ptr = false;
 
-    if let Type::Ptr(element_ty) = ty.as_ref() {
+    if let Type::Ptr(element_ty) = ty {
         is_ptr = true;
-        ty = *element_ty;
+        ty = element_ty;
     }
 
-    let struct_body = match ty.as_ref() {
+    let struct_body = match ty {
         Type::Struct(struct_type) => struct_type.body.get().expect("missing struct body"),
         Type::Inst(inst_type) => inst_type.body.get().expect("missing struct body"),
         _ => {
@@ -945,13 +944,13 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     let assignable = value.assignable;
     if is_ptr {
         Expr {
-            ty: ctx.define_type(Type::Ptr(*field_type_id)),
+            ty: ctx.define_type(Type::Ptr(field_type_id)),
             kind: ExprKind::GetElementAddr(Box::new(value), idx),
             assignable,
         }
     } else {
         Expr {
-            ty: *field_type_id,
+            ty: field_type_id,
             kind: ExprKind::GetElement(Box::new(value), idx),
             assignable,
         }
@@ -961,13 +960,13 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
 fn get_expr_from_index_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<InternType<'a>>,
+    expected_type: Option<&'a Type<'a>>,
     node: &IndexExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
 
-    match ty.as_ref() {
+    match ty {
         Type::ArrayPtr(element) => {
             let index = get_expr_from_node(ctx, scope, expected_type, &node.index);
             let index_type = index.ty;
@@ -975,14 +974,14 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
             if !index_type.is_int() {
                 ctx.errors.non_int_index(node.index.pos());
                 return Expr {
-                    ty: *element,
+                    ty: element,
                     kind: ExprKind::Invalid,
                     assignable: false,
                 };
             }
 
             Expr {
-                ty: ctx.define_type(Type::Ptr(*element)),
+                ty: ctx.define_type(Type::Ptr(element)),
                 kind: ExprKind::GetIndex(Box::new(value), Box::new(index)),
                 assignable: false,
             }

@@ -1,8 +1,8 @@
 use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
 use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprKind};
-use crate::interner::{Interned, Interner};
-use crate::ty::{get_type_from_node, InternType, InternTypeArgs, Type};
+use crate::interner::Interner;
+use crate::ty::{get_type_from_node, Type, TypeArgs};
 use indexmap::IndexMap;
 use magelang_syntax::{
     AssignStatementNode, BlockStatementNode, ErrorReporter, IfStatementNode, LetKind,
@@ -10,7 +10,6 @@ use magelang_syntax::{
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
-pub type InternStatement<'a> = Interned<'a, Statement<'a>>;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Statement<'a> {
@@ -30,7 +29,7 @@ impl<'a> Statement<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, E>,
-        type_args: InternTypeArgs<'a>,
+        type_args: &'a TypeArgs<'a>,
     ) -> Statement<'a> {
         match self {
             Statement::Native => Statement::Native,
@@ -112,7 +111,7 @@ pub(crate) struct StatementContext<'a, 'b, E: ErrorReporter> {
     ctx: &'b Context<'a, E>,
     scope: &'b Scopes<'a>,
     last_unused_local: usize,
-    return_type: InternType<'a>,
+    return_type: &'a Type<'a>,
     is_inside_loop: bool,
 }
 
@@ -121,7 +120,7 @@ impl<'a, 'b, E: ErrorReporter> StatementContext<'a, 'b, E> {
         ctx: &'b Context<'a, E>,
         scope: &'b Scopes<'a>,
         last_unused_local: usize,
-        return_type: InternType<'a>,
+        return_type: &'a Type<'a>,
     ) -> Self {
         Self {
             ctx,
@@ -172,7 +171,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
         LetKind::TypeValue { ty, value } => {
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
             let mut value_expr = get_expr_from_node(ctx.ctx, ctx.scope, Some(ty), value);
-            if !ty.is_assignable_with(&value_expr.ty) {
+            if !ty.is_assignable_with(value_expr.ty) {
                 ctx.ctx.errors.type_mismatch(value.pos(), ty, value_expr.ty);
                 value_expr.kind = ExprKind::Invalid
             }
@@ -213,10 +212,10 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
     }
 
     let value = get_expr_from_node(ctx.ctx, ctx.scope, Some(receiver.ty), &node.value);
-    if !receiver.ty.is_assignable_with(&value.ty) {
+    if !receiver.ty.is_assignable_with(value.ty) {
         ctx.ctx
             .errors
-            .type_mismatch(node.value.pos(), receiver.ty.as_ref(), value.ty.as_ref());
+            .type_mismatch(node.value.pos(), receiver.ty, value.ty);
     }
 
     StatementResult {
@@ -403,7 +402,7 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
         .map(|expr| expr.ty)
         .unwrap_or(ctx.ctx.define_type(Type::Void));
 
-    if !return_type.is_assignable_with(&value_ty) {
+    if !return_type.is_assignable_with(value_ty) {
         ctx.ctx
             .errors
             .type_mismatch(node.pos, return_type, value_ty);

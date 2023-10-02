@@ -1,4 +1,4 @@
-use magelang_typecheck::{BitSize, FloatType, InternType, StructBody, Type};
+use magelang_typecheck::{BitSize, FloatType, StructBody, Type};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -10,16 +10,16 @@ pub(crate) struct LayoutManager<'ctx> {
 
 #[derive(Default)]
 struct LayoutManagerInternal<'ctx> {
-    mems: HashMap<InternType<'ctx>, Rc<MemLayout>>,
-    stacks: HashMap<InternType<'ctx>, Rc<StackLayout>>,
+    mems: HashMap<&'ctx Type<'ctx>, Rc<MemLayout>>,
+    stacks: HashMap<&'ctx Type<'ctx>, Rc<StackLayout>>,
 }
 
 impl<'ctx> LayoutManager<'ctx> {
-    pub(crate) fn get_stack_layout(&self, ty: InternType<'ctx>) -> Rc<StackLayout> {
+    pub(crate) fn get_stack_layout(&self, ty: &'ctx Type<'ctx>) -> Rc<StackLayout> {
         // Note: it is ok to recursively calculate the layout since it's guaranteed that there is no
         // cycle in the struct definition
 
-        match ty.as_ref() {
+        match ty {
             Type::Unknown => unreachable!("found unknown type"),
             Type::TypeArg(..) => unreachable!("found typearg type"),
             Type::Struct(struct_type) => {
@@ -72,7 +72,7 @@ impl<'ctx> LayoutManager<'ctx> {
         let mut curr_idx = 0;
         for ty in body.fields.values() {
             idx_offset.push(curr_idx);
-            let type_layout = self.get_stack_layout(*ty);
+            let type_layout = self.get_stack_layout(ty);
             curr_idx += type_layout.size;
         }
         Rc::new(StackLayout {
@@ -81,11 +81,11 @@ impl<'ctx> LayoutManager<'ctx> {
         })
     }
 
-    pub(crate) fn get_mem_layout(&self, ty: InternType<'ctx>) -> Rc<MemLayout> {
+    pub(crate) fn get_mem_layout(&self, ty: &'ctx Type<'ctx>) -> Rc<MemLayout> {
         // it is ok to recursively calculate the layout since it's guaranteed that there is no
         // cycle in the struct definition
 
-        match ty.as_ref() {
+        match ty {
             Type::Unknown => unreachable!("found unknown type"),
             Type::TypeArg(..) => unreachable!("found typearg type"),
             Type::Opaque => unreachable!("opaque doesn't have memory representation"),
@@ -139,7 +139,7 @@ impl<'ctx> LayoutManager<'ctx> {
         let mut total_align = 1;
 
         for ty in body.fields.values() {
-            let type_layout = self.get_mem_layout(*ty);
+            let type_layout = self.get_mem_layout(ty);
 
             let (size, align) = (type_layout.size, type_layout.align);
             if align > total_align {
