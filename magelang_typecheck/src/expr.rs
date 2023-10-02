@@ -948,10 +948,8 @@ fn get_expr_from_selection_node<'a, 'b, E: ErrorReporter>(
 
     let selection_name = ctx.define_symbol(&node.selection.value);
     let Some((idx, _, field_type_id)) = struct_body.fields.get_full(&selection_name) else {
-        ctx.errors.undeclared_field(
-            node.selection.pos,
-            &node.selection.value,
-        );
+        ctx.errors
+            .undeclared_field(node.selection.pos, &node.selection.value);
         return Expr {
             ty: ctx.define_type(Type::Unknown),
             kind: ExprKind::Invalid,
