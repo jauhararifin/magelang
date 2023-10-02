@@ -490,8 +490,15 @@ fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementN
     let if_tok = f.take(TokenKind::If)?;
     let pos = if_tok.pos;
 
-    let condition = parse_expr(f, false)?;
-    let body = parse_block_stmt(f)?;
+    let Some(condition) = parse_expr(f, false) else {
+        f.errors.missing(if_tok.pos, "if condition");
+        return None;
+    };
+
+    let Some(body) = parse_block_stmt(f) else {
+        f.errors.missing(if_tok.pos, "if body");
+        return None;
+    };
 
     let else_node = f.take_if(TokenKind::Else).and_then(|_| {
         let stmt = if f.kind() == TokenKind::If {
@@ -516,7 +523,11 @@ fn parse_while_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhileStat
     let while_tok = f.take(TokenKind::While)?;
     let pos = while_tok.pos;
 
-    let condition = parse_expr(f, false)?;
+    let Some(condition) = parse_expr(f, false) else {
+        f.errors.missing(while_tok.pos, "while condition");
+        return None;
+    };
+
     let Some(body) = parse_block_stmt(f) else {
         f.errors.missing(while_tok.pos, "while body");
         return None;
