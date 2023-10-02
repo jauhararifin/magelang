@@ -231,9 +231,9 @@ impl<'a> StructType<'a> {
                         &field_node.name.value,
                     );
                 } else {
-                    field_pos.insert(field_name.clone(), pos);
+                    field_pos.insert(field_name, pos);
                     let ty = get_type_from_node(ctx, &scope, &field_node.ty);
-                    fields.insert(field_name, ty.into());
+                    fields.insert(field_name, ty);
                 }
             }
 
@@ -419,7 +419,7 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
             let element_ty = get_type_from_node(ctx, scope, &node.ty);
             ctx.define_type(Type::ArrayPtr(element_ty))
         }
-        TypeExprNode::Grouped(node) => get_type_from_node(ctx, scope, &node),
+        TypeExprNode::Grouped(node) => get_type_from_node(ctx, scope, node),
     }
 }
 
@@ -458,7 +458,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
 
     while type_args.len() < required_type_param {
         let unknown_type = ctx.define_type(Type::Unknown);
-        type_args.push(unknown_type.into());
+        type_args.push(unknown_type);
     }
     let type_args = ctx.define_typeargs(&type_args);
 
@@ -480,7 +480,7 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
             ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
             return None;
         };
-        return Some(object);
+        Some(object)
     } else {
         let Some(import_object) = scope.import_scopes.lookup(name) else {
             ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
@@ -502,9 +502,9 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_func_type_from_signature<'a, 'b, E: ErrorReporter>(
+pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     type_params: &[TypeArg<'a>],
     signature: &SignatureNode,
 ) -> FuncType<'a> {
@@ -530,7 +530,7 @@ pub(crate) fn get_func_type_from_signature<'a, 'b, E: ErrorReporter>(
     }
 
     let return_type = if let Some(expr) = &signature.return_type {
-        get_type_from_node(ctx, &scope, &expr)
+        get_type_from_node(ctx, &scope, expr)
     } else {
         ctx.define_type(Type::Void)
     };
@@ -561,16 +561,16 @@ pub(crate) fn get_typeparams<'a, 'b, E: ErrorReporter>(
     type_params
 }
 
-pub(crate) fn get_typeparam_scope<'a, 'b, E: ErrorReporter>(
+pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     type_params: &[TypeArg<'a>],
 ) -> Scopes<'a> {
     let mut type_param_table = IndexMap::<Symbol, TypeObject>::default();
     for type_param in type_params {
         if !type_param_table.contains_key(&type_param.name) {
             let ty = ctx.define_type(Type::TypeArg(*type_param));
-            type_param_table.insert(type_param.name.clone(), ty.into());
+            type_param_table.insert(type_param.name, ty.into());
         }
     }
 
@@ -583,7 +583,7 @@ pub(crate) fn get_typeparam_scope<'a, 'b, E: ErrorReporter>(
     scope
 }
 
-pub(crate) fn check_circular_type<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, E>) {
     let dep_list = build_struct_dependency_list(ctx);
 
     let mut visited = IndexSet::<DefId>::default();
@@ -650,8 +650,8 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
     adjlist
 }
 
-fn report_circular_type<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn report_circular_type<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     in_chain: &IndexSet<DefId>,
     start: DefId,
 ) {

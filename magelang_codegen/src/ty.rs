@@ -1,7 +1,7 @@
 use magelang_typecheck::{BitSize, FloatType, InternType, Type};
 use wasm_helper as wasm;
 
-pub(crate) fn build_val_type<'ctx>(ty: InternType<'ctx>) -> Vec<wasm::ValType> {
+pub(crate) fn build_val_type(ty: InternType<'_>) -> Vec<wasm::ValType> {
     match ty.as_ref() {
         Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
         Type::Struct(struct_type) => {
@@ -65,7 +65,7 @@ pub(crate) fn build_zero_wasm_type<'ctx>(ty: &wasm::ValType) -> Vec<wasm::Instr>
     }
 }
 
-pub(crate) fn build_zero_type<'ctx>(ty: InternType<'ctx>) -> Vec<wasm::Instr> {
+pub(crate) fn build_zero_type(ty: InternType<'_>) -> Vec<wasm::Instr> {
     match ty.as_ref() {
         Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
         Type::Inst(inst_type) => inst_type

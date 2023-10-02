@@ -123,7 +123,7 @@ pub(crate) trait SemanticError: ErrorReporter {
     fn compare_opaque(&self, pos: Pos) {
         self.report(
             pos,
-            format!("The opaque type might not be null, non-null opaque can't be compared"),
+            "The opaque type might not be null, non-null opaque can't be compared".to_string(),
         )
     }
 

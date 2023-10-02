@@ -15,7 +15,7 @@ pub(crate) struct Data {
 }
 
 impl Data {
-    pub(crate) fn build<'ctx>(module: &Module<'ctx>) -> Self {
+    pub(crate) fn build(module: &Module<'_>) -> Self {
         let mut s = Self::default();
 
         // some runtime doesn't allow address 0 to be used.
@@ -127,7 +127,7 @@ impl Data {
         self.data.push((buff.into(), next_offset));
     }
 
-    pub(crate) fn get_embed_file_annotation<'a>(annotations: &'a [Annotation]) -> Option<&'a Path> {
+    pub(crate) fn get_embed_file_annotation(annotations: &[Annotation]) -> Option<&Path> {
         let mut found = false;
         let mut result = None;
         for annotation in annotations {
@@ -172,7 +172,7 @@ impl Data {
                 }
             }
             Statement::NewLocal(_, expr) => {
-                self.init_from_expr(&expr);
+                self.init_from_expr(expr);
             }
             Statement::If(if_stmt) => {
                 self.init_from_expr(&if_stmt.cond);

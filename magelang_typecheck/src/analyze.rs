@@ -29,11 +29,11 @@ pub fn analyze<'a, 'b: 'a>(
     error_manager: &'b impl ErrorReporter,
     main_package: &'b str,
 ) -> Module<'a> {
-    let symbols = SymbolInterner::new(&arena);
-    let types = TypeInterner::new(&arena);
-    let typeargs = TypeArgsInterner::new(&arena);
-    let exprs = ExprInterner::new(&arena);
-    let statements = StatementInterner::new(&arena);
+    let symbols = SymbolInterner::new(arena);
+    let types = TypeInterner::new(arena);
+    let typeargs = TypeArgsInterner::new(arena);
+    let exprs = ExprInterner::new(arena);
+    let statements = StatementInterner::new(arena);
     let interners = Interners {
         symbols,
         types,
@@ -288,7 +288,7 @@ fn get_all_package_asts<'a>(
         for import_path in import_paths {
             let package_path = symbols.define(&import_path);
             if !in_stack.contains(&package_path) {
-                stack.push(package_path.clone());
+                stack.push(package_path);
                 in_stack.insert(package_path);
             }
         }
@@ -314,8 +314,8 @@ fn build_imports<'a, E: ErrorReporter>(
 
             let object_name = ctx.define_symbol(item.name());
             let object_id = DefId {
-                package: package_name.clone(),
-                name: object_name.clone(),
+                package: package_name,
+                name: object_name,
             };
 
             let Some(package_path) = value_from_string_lit(&import_node.path.value) else {
@@ -344,7 +344,7 @@ fn build_imports<'a, E: ErrorReporter>(
         }
 
         let scope = Scope::<ImportObject>::new(table);
-        package_scopes.insert(package_name.clone(), scope);
+        package_scopes.insert(package_name, scope);
     }
 
     package_scopes
@@ -369,7 +369,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
             let object_name = ctx.define_symbol(&struct_node.name.value);
             let def_id = DefId {
                 package: package_name,
-                name: object_name.clone(),
+                name: object_name,
             };
 
             let pos = struct_node.pos;
@@ -378,7 +378,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
                 ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
                 continue;
             }
-            object_pos.insert(def_id.clone(), pos);
+            object_pos.insert(def_id, pos);
 
             let type_params = get_typeparams(ctx, &struct_node.type_params);
 
@@ -395,7 +395,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
         }
 
         let scope = builtin_scope.new_child(table);
-        package_scopes.insert(package_name.clone(), scope);
+        package_scopes.insert(package_name, scope);
     }
 
     package_scopes
@@ -439,7 +439,7 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, Ty
     builtin_scope
 }
 
-fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             let ty = type_object.ty;
@@ -462,7 +462,7 @@ fn generate_type_body<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn monomorphize_types<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn monomorphize_types<E: ErrorReporter>(ctx: &Context<'_, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             let ty = type_object.ty;
@@ -505,7 +505,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
             let object_name = ctx.define_symbol(item.name());
             let def_id = DefId {
                 package: package_name,
-                name: object_name.clone(),
+                name: object_name,
             };
 
             let pos = item.pos();
@@ -514,7 +514,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                 ctx.errors.redeclared_symbol(pos, declared_at, &object_name);
                 continue;
             }
-            object_pos.insert(def_id.clone(), pos);
+            object_pos.insert(def_id, pos);
 
             let object = match item {
                 ItemNode::Global(node) => {
@@ -538,7 +538,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
 
                     let func_type = get_func_type_from_signature(
                         ctx,
-                        &scopes,
+                        scopes,
                         &type_params,
                         &func_node.signature,
                     );
@@ -567,8 +567,8 @@ fn build_value_scopes<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn build_annotations_from_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn build_annotations_from_node<E: ErrorReporter>(
+    ctx: &Context<'_, E>,
     nodes: &[AnnotationNode],
 ) -> Vec<Annotation> {
     let mut annotations = Vec::default();
@@ -600,7 +600,7 @@ fn build_annotations_from_node<'a, E: ErrorReporter>(
     annotations
 }
 
-fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Global(global_object) = value_object else {
@@ -637,7 +637,7 @@ fn generate_global_value<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn generate_func_bodies<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Func(func_object) = value_object else {
@@ -651,9 +651,9 @@ fn generate_func_bodies<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
     }
 }
 
-fn get_func_body<'a, 'b, E: ErrorReporter>(
+fn get_func_body<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     func_object: &FuncObject<'a>,
 ) -> Statement<'a> {
     let Some(ref body) = func_object.node.body else {
@@ -697,7 +697,7 @@ fn get_func_body<'a, 'b, E: ErrorReporter>(
     result.statement
 }
 
-fn monomorphize_statements<'a, E: ErrorReporter>(ctx: &Context<'a, E>) {
+fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
     let monomorphized_funcs = get_all_monomorphized_funcs(ctx);
 
     for (def_id, all_typeargs) in monomorphized_funcs {
@@ -903,7 +903,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     monomorphized_funcs.into_iter().collect()
 }
 
-fn build_module<'a, 'b, E>(ctx: &'b Context<'a, E>, is_valid: bool) -> Module<'a> {
+fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
     let mut packages = Vec::default();
     for (name, scope) in ctx.scopes.iter() {
         let mut globals = Vec::default();

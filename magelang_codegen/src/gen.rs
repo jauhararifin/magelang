@@ -5,7 +5,7 @@ use crate::var::{GlobalMapper, LocalManager};
 use magelang_typecheck::Module;
 use wasm_helper as wasm;
 
-pub fn generate<'ctx>(module: Module<'ctx>) -> wasm::Module {
+pub fn generate(module: Module<'_>) -> wasm::Module {
     let data = Data::build(&module);
     let layout_manager = LayoutManager::default();
     let locals = LocalManager::default();

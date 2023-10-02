@@ -133,8 +133,8 @@ impl<'a, 'b, E: ErrorReporter> StatementContext<'a, 'b, E> {
     }
 }
 
-pub(crate) fn get_statement_from_node<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &StatementNode,
 ) -> StatementResult<'a> {
     match node {
@@ -156,8 +156,8 @@ pub(crate) fn get_statement_from_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_let<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &LetStatementNode,
 ) -> StatementResult<'a> {
     let expr = match &node.kind {
@@ -203,8 +203,8 @@ pub(crate) fn get_statement_from_let<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_assign<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &AssignStatementNode,
 ) -> StatementResult<'a> {
     let receiver = get_expr_from_node(ctx.ctx, ctx.scope, None, &node.receiver);
@@ -227,8 +227,8 @@ pub(crate) fn get_statement_from_assign<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_block<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &BlockStatementNode,
 ) -> StatementResult<'a> {
     let mut scope = ctx.scope.clone();
@@ -270,8 +270,8 @@ pub(crate) fn get_statement_from_block<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_if<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &IfStatementNode,
 ) -> StatementResult<'a> {
     let bool_type = ctx.ctx.define_type(Type::Bool);
@@ -321,8 +321,8 @@ pub(crate) fn get_statement_from_if<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_while<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &WhileStatementNode,
 ) -> StatementResult<'a> {
     let bool_type = ctx.ctx.define_type(Type::Bool);
@@ -356,8 +356,8 @@ pub(crate) fn get_statement_from_while<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_keyword<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_keyword<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     token: &Token,
 ) -> StatementResult<'a> {
     match token.kind {
@@ -387,8 +387,8 @@ pub(crate) fn get_statement_from_keyword<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_return<'a, 'b, E: ErrorReporter>(
-    ctx: &StatementContext<'a, 'b, E>,
+pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, E>,
     node: &ReturnStatementNode,
 ) -> StatementResult<'a> {
     let return_type = ctx.return_type;
@@ -406,7 +406,7 @@ pub(crate) fn get_statement_from_return<'a, 'b, E: ErrorReporter>(
     if !return_type.is_assignable_with(&value_ty) {
         ctx.ctx
             .errors
-            .type_mismatch(node.pos, &return_type, &value_ty);
+            .type_mismatch(node.pos, return_type, value_ty);
     };
 
     StatementResult {

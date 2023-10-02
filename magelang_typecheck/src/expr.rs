@@ -258,9 +258,9 @@ pub enum ExprKind<'a> {
     Cast(Box<Expr<'a>>, InternType<'a>),
 }
 
-pub(crate) fn get_expr_from_node<'a, 'b, E: ErrorReporter>(
+pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &ExprNode,
 ) -> Expr<'a> {
@@ -291,9 +291,9 @@ pub(crate) fn get_expr_from_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_path<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_path<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &PathNode,
 ) -> Expr<'a> {
@@ -336,7 +336,7 @@ fn get_expr_from_path<'a, 'b, E: ErrorReporter>(
                 }
                 while type_args.len() < expected_type_param {
                     let unknown_type = ctx.define_type(Type::Unknown);
-                    type_args.push(unknown_type.into());
+                    type_args.push(unknown_type);
                 }
                 let type_args = ctx.define_typeargs(&type_args);
 
@@ -385,7 +385,7 @@ fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
             ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
             return None;
         };
-        return Some(object);
+        Some(object)
     } else {
         let Some(import_object) = scope.import_scopes.lookup(name) else {
             ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
@@ -443,26 +443,11 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
             .value
             .parse::<i8>()
             .map(|v| ExprKind::ConstI8(v as u8)),
-        (false, BitSize::ISize) => token
-            .value
-            .parse::<u64>()
-            .map(|v| ExprKind::ConstIsize(v as u64)),
-        (false, BitSize::I64) => token
-            .value
-            .parse::<u64>()
-            .map(|v| ExprKind::ConstI64(v as u64)),
-        (false, BitSize::I32) => token
-            .value
-            .parse::<u32>()
-            .map(|v| ExprKind::ConstI32(v as u32)),
-        (false, BitSize::I16) => token
-            .value
-            .parse::<u16>()
-            .map(|v| ExprKind::ConstI16(v as u16)),
-        (false, BitSize::I8) => token
-            .value
-            .parse::<u8>()
-            .map(|v| ExprKind::ConstI8(v as u8)),
+        (false, BitSize::ISize) => token.value.parse::<u64>().map(ExprKind::ConstIsize),
+        (false, BitSize::I64) => token.value.parse::<u64>().map(ExprKind::ConstI64),
+        (false, BitSize::I32) => token.value.parse::<u32>().map(ExprKind::ConstI32),
+        (false, BitSize::I16) => token.value.parse::<u16>().map(ExprKind::ConstI16),
+        (false, BitSize::I8) => token.value.parse::<u8>().map(ExprKind::ConstI8),
     };
 
     let kind = match kind {
@@ -555,9 +540,9 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(ctx: &Context<'a, E>, token: &
     }
 }
 
-fn get_expr_from_binary_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &BinaryExprNode,
 ) -> Expr<'a> {
@@ -598,7 +583,7 @@ fn get_expr_from_binary_node<'a, 'b, E: ErrorReporter>(
 
     if a.ty != b.ty {
         ctx.errors
-            .binop_type_mismatch(node.a.pos(), op_name, &a.ty, &b.ty);
+            .binop_type_mismatch(node.a.pos(), op_name, a.ty, b.ty);
         return Expr {
             ty: estimated_type,
             kind: ExprKind::Invalid,
@@ -693,9 +678,9 @@ fn get_expr_from_binary_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_deref_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &DerefExprNode,
 ) -> Expr<'a> {
@@ -721,9 +706,9 @@ fn get_expr_from_deref_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_unary_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &UnaryExprNode,
 ) -> Expr<'a> {
@@ -768,9 +753,9 @@ fn get_expr_from_unary_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_call_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_call_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &CallExprNode,
 ) -> Expr<'a> {
@@ -816,9 +801,9 @@ fn get_expr_from_call_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_cast_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_cast_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &CastExprNode,
 ) -> Expr<'a> {
@@ -849,9 +834,9 @@ fn get_expr_from_cast_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_struct_lit_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     node: &StructExprNode,
 ) -> Expr<'a> {
     let ty = get_type_from_node(ctx, scope, &node.target);
@@ -917,9 +902,9 @@ fn get_expr_from_struct_lit_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_selection_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     node: &SelectionExprNode,
 ) -> Expr<'a> {
     let value = get_expr_from_node(ctx, scope, None, &node.value);
@@ -973,9 +958,9 @@ fn get_expr_from_selection_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_index_node<'a, 'b, E: ErrorReporter>(
+fn get_expr_from_index_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, E>,
-    scope: &'b Scopes<'a>,
+    scope: &Scopes<'a>,
     expected_type: Option<InternType<'a>>,
     node: &IndexExprNode,
 ) -> Expr<'a> {

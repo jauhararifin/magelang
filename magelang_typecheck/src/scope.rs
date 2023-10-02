@@ -61,9 +61,6 @@ impl<'a, T> Scope<'a, T> {
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &T)> {
-        self.internal
-            .table
-            .iter()
-            .map(|(sym, item)| (sym.clone(), item))
+        self.internal.table.iter().map(|(sym, item)| (*sym, item))
     }
 }
