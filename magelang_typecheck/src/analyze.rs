@@ -5,8 +5,8 @@ use crate::scope::Scope;
 use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
 use crate::ty::{
     check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
-    get_typeparams, BitSize, FloatType, StructType, Type, TypeArg, TypeArgs, TypeArgsInterner,
-    TypeInterner,
+    get_typeparams, BitSize, BuiltinType, FloatType, GenericType, StructType, Type, TypeArg,
+    TypeArgs, TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
@@ -82,7 +82,6 @@ pub fn analyze<'a, 'b: 'a>(
     ctx.set_type_scope(type_scopes);
 
     generate_type_body(&ctx);
-    monomorphize_types(&ctx);
     check_circular_type(&ctx);
 
     let value_scopes = build_value_scopes(&ctx, value_items);
@@ -383,13 +382,23 @@ fn build_type_scopes<'a, E: ErrorReporter>(
 
             let type_params = get_typeparams(ctx, &struct_node.type_params);
 
-            let ty = ctx.define_type(Type::Struct(StructType {
-                def_id,
-                type_params,
-                body: OnceCell::default(),
-                node: struct_node,
-                mono_cache: RefCell::default(),
-            }));
+            let kind = if type_params.is_empty() {
+                TypeKind::User(UserType { def_id })
+            } else {
+                TypeKind::Generic(GenericType {
+                    def_id,
+                    type_params,
+                    mono_cache: RefCell::default(),
+                })
+            };
+
+            let ty = ctx.define_type(Type {
+                kind,
+                repr: TypeRepr::Struct(StructType {
+                    body: OnceCell::default(),
+                    node: struct_node,
+                }),
+            });
             let object: TypeObject = ty.into();
 
             table.insert(object_name, object);
@@ -403,21 +412,96 @@ fn build_type_scopes<'a, E: ErrorReporter>(
 }
 
 fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, TypeObject<'a>> {
-    let i8_type = ctx.define_type(Type::Int(true, BitSize::I8));
-    let i16_type = ctx.define_type(Type::Int(true, BitSize::I16));
-    let i32_type = ctx.define_type(Type::Int(true, BitSize::I32));
-    let i64_type = ctx.define_type(Type::Int(true, BitSize::I64));
-    let isize_type = ctx.define_type(Type::Int(true, BitSize::ISize));
-    let u8_type = ctx.define_type(Type::Int(false, BitSize::I8));
-    let u16_type = ctx.define_type(Type::Int(false, BitSize::I16));
-    let u32_type = ctx.define_type(Type::Int(false, BitSize::I32));
-    let u64_type = ctx.define_type(Type::Int(false, BitSize::I64));
-    let usize_type = ctx.define_type(Type::Int(false, BitSize::ISize));
-    let f32_type = ctx.define_type(Type::Float(FloatType::F32));
-    let f64_type = ctx.define_type(Type::Float(FloatType::F64));
-    let void_type = ctx.define_type(Type::Void);
-    let opaque_type = ctx.define_type(Type::Opaque);
-    let bool_type = ctx.define_type(Type::Bool);
+    let i8_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("i8"),
+        }),
+        repr: TypeRepr::Int(true, BitSize::I8),
+    });
+    let i16_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("i16"),
+        }),
+        repr: TypeRepr::Int(true, BitSize::I16),
+    });
+    let i32_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("i32"),
+        }),
+        repr: TypeRepr::Int(true, BitSize::I32),
+    });
+    let i64_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("i64"),
+        }),
+        repr: TypeRepr::Int(true, BitSize::I64),
+    });
+    let isize_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("isize"),
+        }),
+        repr: TypeRepr::Int(true, BitSize::ISize),
+    });
+    let u8_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("u8"),
+        }),
+        repr: TypeRepr::Int(false, BitSize::I8),
+    });
+    let u16_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("u16"),
+        }),
+        repr: TypeRepr::Int(false, BitSize::I16),
+    });
+    let u32_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("u32"),
+        }),
+        repr: TypeRepr::Int(false, BitSize::I32),
+    });
+    let u64_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("u64"),
+        }),
+        repr: TypeRepr::Int(false, BitSize::I64),
+    });
+    let usize_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("usize"),
+        }),
+        repr: TypeRepr::Int(false, BitSize::ISize),
+    });
+    let f32_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("f32"),
+        }),
+        repr: TypeRepr::Float(FloatType::F32),
+    });
+    let f64_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("f64"),
+        }),
+        repr: TypeRepr::Float(FloatType::F64),
+    });
+    let void_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("void"),
+        }),
+        repr: TypeRepr::Void,
+    });
+    let opaque_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("opaque"),
+        }),
+        repr: TypeRepr::Opaque,
+    });
+    let bool_type = ctx.define_type(Type {
+        kind: TypeKind::Builtin(BuiltinType {
+            name: ctx.define_symbol("bool"),
+        }),
+        repr: TypeRepr::Bool,
+    });
 
     let builtin_scope = Scope::new(IndexMap::from([
         (ctx.define_symbol("i8"), i8_type.into()),
@@ -440,49 +524,10 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, Ty
     builtin_scope
 }
 
-fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, E>) {
+fn generate_type_body<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
-            let ty = type_object.ty;
-            let Type::Struct(struct_type) = ty else {
-                continue;
-            };
-
-            let typeargs = ctx.define_typeargs(
-                struct_type
-                    .type_params
-                    .iter()
-                    .cloned()
-                    .map(Type::TypeArg)
-                    .map(|ty| ctx.define_type(ty))
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            );
-            struct_type.monomorphize(ctx, ty, typeargs);
-        }
-    }
-}
-
-fn monomorphize_types<E: ErrorReporter>(ctx: &Context<'_, E>) {
-    for scopes in ctx.scopes.values() {
-        for (_, type_object) in scopes.type_scopes.iter() {
-            let ty = type_object.ty;
-            let Type::Struct(struct_type) = ty else {
-                continue;
-            };
-
-            let body = struct_type.body.get().expect("missing struct body");
-            for ty in body.fields.iter().filter_map(|(_, ty)| ty.as_inst()) {
-                let generic_ty = ctx
-                    .scopes
-                    .get(&ty.def_id.package)
-                    .expect("missing package scope")
-                    .type_scopes
-                    .lookup(ty.def_id.name)
-                    .expect("missing type");
-                generic_ty.monomorphize(ctx, generic_ty.ty, ty.type_args);
-                assert!(ty.body.get().is_some());
-            }
+            type_object.init_body(ctx);
         }
     }
 }
@@ -543,7 +588,10 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                         type_params,
                         &func_node.signature,
                     );
-                    let ty = ctx.define_type(Type::Func(func_type));
+                    let ty = ctx.define_type(Type {
+                        kind: TypeKind::Anonymous,
+                        repr: TypeRepr::Func(func_type),
+                    });
 
                     ValueObject::Func(FuncObject {
                         def_id,
@@ -690,7 +738,7 @@ fn get_func_body<'a, E: ErrorReporter>(
     let stmt_ctx = StatementContext::new(ctx, &scope, last_unused_local, return_type);
     let result = get_statement_from_block(&stmt_ctx, body);
 
-    let should_return = return_type != ctx.define_type(Type::Void);
+    let should_return = !return_type.is_void();
     if should_return && !result.is_returning {
         ctx.errors.missing_return(func_object.node.pos);
     }
@@ -720,7 +768,7 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
         );
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
-            let ty = generic_func.ty.monomorphize(ctx, generic_func.ty, typeargs);
+            let ty = generic_func.ty.monomorphize(ctx, typeargs);
             let monomorphized_body = body.monomorphize(ctx, typeargs);
             let monomorphized_body = ctx.define_statement(monomorphized_body);
             monomorphized.push((typeargs, ty, monomorphized_body));
@@ -795,7 +843,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 ExprKind::FuncInst(def_id, inner_typeargs) => {
                     let substituted_typeargs = inner_typeargs
                         .iter()
-                        .map(|ty| ty.monomorphize(ctx, ty, type_args))
+                        .map(|ty| ty.monomorphize(ctx, type_args))
                         .collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
                     queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));

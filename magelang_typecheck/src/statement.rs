@@ -2,7 +2,7 @@ use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
 use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::interner::Interner;
-use crate::ty::{get_type_from_node, Type, TypeArgs};
+use crate::ty::{get_type_from_node, Type, TypeArgs, TypeKind, TypeRepr};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
@@ -274,13 +274,16 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
     ctx: &StatementContext<'a, '_, E>,
     node: &IfStatementNode,
 ) -> StatementResult<'a> {
-    let bool_type = ctx.ctx.define_type(Type::Bool);
+    let bool_type = ctx.ctx.define_type(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Bool,
+    });
     let cond = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !cond.ty.is_bool() {
         ctx.ctx
             .errors
-            .type_mismatch(node.condition.pos(), Type::Bool, cond.ty);
+            .type_mismatch(node.condition.pos(), TypeRepr::Bool, cond.ty);
     }
 
     let result = get_statement_from_block(ctx, &node.body);
@@ -325,13 +328,16 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     ctx: &StatementContext<'a, '_, E>,
     node: &WhileStatementNode,
 ) -> StatementResult<'a> {
-    let bool_type = ctx.ctx.define_type(Type::Bool);
+    let bool_type = ctx.ctx.define_type(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Bool,
+    });
     let condition = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !condition.ty.is_bool() {
         ctx.ctx
             .errors
-            .type_mismatch(node.condition.pos(), Type::Bool, condition.ty);
+            .type_mismatch(node.condition.pos(), TypeRepr::Bool, condition.ty);
     }
 
     let body_stmt = get_statement_from_block(
@@ -401,7 +407,10 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
     let value_ty = value
         .as_ref()
         .map(|expr| expr.ty)
-        .unwrap_or(ctx.ctx.define_type(Type::Void));
+        .unwrap_or(ctx.ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Void,
+        }));
 
     if !return_type.is_assignable_with(value_ty) {
         ctx.ctx
