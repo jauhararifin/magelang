@@ -218,6 +218,48 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 ty: Box::new(ty),
             }))
         }
+        TokenKind::Fn => {
+            let tok = f.pop();
+
+            let param_result = parse_sequence(
+                f,
+                TokenKind::OpenBrac,
+                TokenKind::Comma,
+                TokenKind::CloseBrac,
+                parse_type_expr,
+            );
+            if param_result.is_none() {
+                f.errors.missing(tok.pos, "function parameter list");
+            }
+
+            let return_type = if let Some(colon_tok) = f.take_if(TokenKind::Colon) {
+                if let Some(expr) = parse_type_expr(f) {
+                    Some(expr)
+                } else {
+                    f.errors.missing(colon_tok.pos, "return type");
+                    None
+                }
+            } else {
+                None
+            };
+
+            let end_pos = return_type
+                .as_ref()
+                .map(|expr| expr.pos())
+                .or(param_result.as_ref().map(|(_, _, close_tok)| close_tok.pos))
+                .unwrap_or(tok.pos);
+
+            let parameters = param_result
+                .map(|(_, params, _)| params)
+                .unwrap_or_default();
+
+            Some(TypeExprNode::Func(FuncTypeNode {
+                pos: tok.pos,
+                params: parameters,
+                return_type: return_type.map(Box::new),
+                end_pos,
+            }))
+        }
         TokenKind::OpenBrac => {
             f.pop();
             let inner_ty = parse_type_expr(f);

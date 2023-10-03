@@ -124,6 +124,7 @@ pub enum TypeExprNode {
     Path(PathNode),
     Ptr(PtrTypeNode),
     ArrayPtr(ArrayPtrTypeNode),
+    Func(FuncTypeNode),
     Grouped(Box<TypeExprNode>),
 }
 
@@ -134,6 +135,7 @@ impl TypeExprNode {
             Self::Path(node) => node.pos(),
             Self::Ptr(node) => node.pos,
             Self::ArrayPtr(node) => node.pos,
+            Self::Func(node) => node.pos,
             Self::Grouped(node) => node.pos(),
         }
     }
@@ -162,6 +164,14 @@ pub struct PtrTypeNode {
 pub struct ArrayPtrTypeNode {
     pub pos: Pos,
     pub ty: Box<TypeExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FuncTypeNode {
+    pub pos: Pos,
+    pub params: Vec<TypeExprNode>,
+    pub return_type: Option<Box<TypeExprNode>>,
+    pub end_pos: Pos,
 }
 
 #[derive(Debug, PartialEq, Eq)]

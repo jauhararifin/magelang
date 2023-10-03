@@ -438,6 +438,23 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
             let element_ty = get_type_from_node(ctx, scope, &node.ty);
             ctx.define_type(Type::ArrayPtr(element_ty))
         }
+        TypeExprNode::Func(node) => {
+            let mut params = BumpVec::with_capacity_in(node.params.len(), ctx.arena);
+            for param_node in &node.params {
+                params.push(get_type_from_node(ctx, scope, param_node));
+            }
+
+            let return_type = if let Some(expr) = &node.return_type {
+                get_type_from_node(ctx, &scope, expr)
+            } else {
+                ctx.define_type(Type::Void)
+            };
+
+            ctx.define_type(Type::Func(FuncType {
+                params: params.into_bump_slice(),
+                return_type,
+            }))
+        }
         TypeExprNode::Grouped(node) => get_type_from_node(ctx, scope, node),
     }
 }

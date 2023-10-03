@@ -34,6 +34,10 @@ pub fn generate<'ctx>(arena: &'ctx Bump, module: Module<'ctx>) -> wasm::Module<'
     let start = func_manager.starting_point;
 
     exports.extend(func_exports);
+    exports.push(wasm::Export {
+        name: "func_table".into(),
+        desc: wasm::ExportDesc::Table(0),
+    });
 
     let opaque_table = wasm::TableType {
         limits: wasm::Limits { min: 32, max: None },

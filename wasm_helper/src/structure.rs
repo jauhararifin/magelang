@@ -428,9 +428,9 @@ pub struct Export {
 #[derive(Debug)]
 pub enum ExportDesc {
     Func(FuncIdx),
-    Table(TableType),
+    Table(TableIdx),
     Mem(MemIdx),
-    Global(GlobalType),
+    Global(GlobalIdx),
 }
 
 #[derive(Debug)]
