@@ -231,6 +231,7 @@ pub struct GlobalObject<'a> {
 
 #[derive(Debug)]
 pub struct Annotation {
+    pub pos: Pos,
     pub name: String,
     pub arguments: Vec<String>,
 }
@@ -616,6 +617,7 @@ fn build_annotations_from_node<E: ErrorReporter>(
         }
         if valid {
             annotations.push(Annotation {
+                pos: annotation_node.pos,
                 name: annotation_node.name.value.clone(),
                 arguments,
             })

@@ -1,0 +1,13 @@
+[package]
+name = "magelang_wasmgen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+magelang_typecheck = { path = "../magelang_typecheck" }
+magelang_syntax = { path = "../magelang_syntax" }
+wasm_helper = { path = "../wasm_helper" }
+indexmap = "1.9.3"
+bumpalo = "3.14.0"
