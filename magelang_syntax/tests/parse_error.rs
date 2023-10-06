@@ -108,24 +108,24 @@ testcase!(test_imports, TEST_IMPORTS_SOURCE, TEST_IMPORTS_ERRORS);
 
 const TEST_TYPE_EXPRS_SOURCE: &str = r#"
 let _: package::sometype = 10;
-let _: package::sometype::<int> = 10;
-let _: package::sometype::<int,int> = 10;
+let _: package::sometype<int> = 10;
+let _: package::sometype<int,int> = 10;
 let _: sometype = 10;
 let _: *sometype = 10;
 let _: *package::sometype = 10;
-let _: *package::sometype::<i32,package::package::<i32>> = 10;
-let _: *package::sometype::<i32,(package::package::<i32>)> = 10;
+let _: *package::sometype<i32,package::package<i32>> = 10;
+let _: *package::sometype<i32,(package::package<i32>)> = 10;
 let _: [*]sometype = 10;
 let _: [*]package::sometype = 10;
-let _: [*]package::sometype::<i32,package::package::<i32>> = 10;
-let _: [*]package::sometype::<i32,(package::package::<i32>)> = 10;
+let _: [*]package::sometype<i32,package::package<i32>> = 10;
+let _: [*]package::sometype<i32,(package::package<i32>)> = 10;
 let _: * = 10;
 let _: *package = 10;
 let _: *package:: = 10;
 let _: *package::sometype = 10;
-let _: *package::sometype::< = 10;
-let _: *package::sometype::<i32 = 10;
-let _: *package::sometype::<i32> = 10;
+let _: *package::sometype< = 10;
+let _: *package::sometype<i32 = 10;
+let _: *package::sometype<i32> = 10;
 let _: [package = 10;
 let _: [*package = 10;
 let _: [*]package = 10;
@@ -134,9 +134,9 @@ let _: i32;
 "#;
 const TEST_TYPE_EXPRS_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:14:8", "Missing pointee type"),
-    ("testcase.mg:16:19", "Missing ident or generic args"),
-    ("testcase.mg:18:28", "Missing closing '>'"),
-    ("testcase.mg:19:28", "Missing closing '>'"),
+    ("testcase.mg:16:19", "Expected IDENT, but found '='"),
+    ("testcase.mg:18:26", "Missing closing '>'"),
+    ("testcase.mg:19:26", "Missing closing '>'"),
     ("testcase.mg:21:9", "Expected '*', but found IDENT"),
     ("testcase.mg:22:10", "Expected ']', but found IDENT"),
     ("testcase.mg:24:10", "Missing pointee type"),

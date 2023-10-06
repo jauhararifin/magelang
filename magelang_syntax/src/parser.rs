@@ -267,8 +267,12 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             inner_ty.map(Box::new).map(TypeExprNode::Grouped)
         }
         TokenKind::Ident => {
-            let path = parse_path_for_type(f)?;
-            Some(TypeExprNode::Path(path))
+            let pos = tok.pos;
+            if let Some(path) = parse_path_for_type(f) {
+                Some(TypeExprNode::Path(path))
+            } else {
+                Some(TypeExprNode::Invalid(pos))
+            }
         }
         _ => None,
     }
