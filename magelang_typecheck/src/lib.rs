@@ -33,7 +33,7 @@ pub use expr::{Expr, ExprKind};
 pub use statement::{IfStatement, Statement, WhileStatement};
 pub use ty::{
     BitSize, FloatType, FuncType, InstType, IntSign, StructBody, StructType, Type, TypeArg,
-    TypeArgs, TypeRepr,
+    TypeArgs, TypeKind, TypeRepr,
 };
 
 #[derive(Debug)]

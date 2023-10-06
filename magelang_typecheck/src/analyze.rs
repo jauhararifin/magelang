@@ -5,8 +5,8 @@ use crate::scope::Scope;
 use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
 use crate::ty::{
     check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
-    get_typeparams, BitSize, BuiltinType, FloatType, GenericType, StructType, Type, TypeArg,
-    TypeArgs, TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
+    get_typeparams, BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs,
+    TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
 };
 use crate::value::value_from_string_lit;
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
@@ -15,7 +15,7 @@ use bumpalo::Bump;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
-    PackageNode, Pos,
+    PackageNode, Pos, StructNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -87,11 +87,12 @@ pub fn analyze<'a, 'b: 'a>(
     let value_scopes = build_value_scopes(&ctx, value_items);
     ctx.set_value_scope(value_scopes);
 
+    generate_func_bodies(&ctx);
+
     // TODO: consider materialize all steps done above into a Header IR.
     // This can be useful for incremental compilation.
 
     generate_global_value(&ctx);
-    generate_func_bodies(&ctx);
     monomorphize_statements(&ctx);
 
     // TODO: consider blocking circular import since it makes
@@ -196,11 +197,12 @@ pub struct ImportObject<'a> {
 
 pub struct TypeObject<'a> {
     pub(crate) ty: &'a Type<'a>,
+    pub(crate) node: Option<StructNode>,
 }
 
 impl<'a> From<&'a Type<'a>> for TypeObject<'a> {
     fn from(ty: &'a Type<'a>) -> Self {
-        Self { ty }
+        Self { ty, node: None }
     }
 }
 
@@ -396,10 +398,12 @@ fn build_type_scopes<'a, E: ErrorReporter>(
                 kind,
                 repr: TypeRepr::Struct(StructType {
                     body: OnceCell::default(),
-                    node: struct_node,
                 }),
             });
-            let object: TypeObject = ty.into();
+            let object = TypeObject {
+                ty,
+                node: Some(struct_node),
+            };
 
             table.insert(object_name, object);
         }
@@ -413,93 +417,63 @@ fn build_type_scopes<'a, E: ErrorReporter>(
 
 fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, TypeObject<'a>> {
     let i8_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("i8"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::I8),
     });
     let i16_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("i16"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::I16),
     });
     let i32_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("i32"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::I32),
     });
     let i64_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("i64"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::I64),
     });
     let isize_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("isize"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::ISize),
     });
     let u8_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("u8"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I8),
     });
     let u16_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("u16"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I16),
     });
     let u32_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("u32"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I32),
     });
     let u64_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("u64"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I64),
     });
     let usize_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("usize"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::ISize),
     });
     let f32_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("f32"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Float(FloatType::F32),
     });
     let f64_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("f64"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Float(FloatType::F64),
     });
     let void_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("void"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Void,
     });
     let opaque_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("opaque"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Opaque,
     });
     let bool_type = ctx.define_type(Type {
-        kind: TypeKind::Builtin(BuiltinType {
-            name: ctx.define_symbol("bool"),
-        }),
+        kind: TypeKind::Anonymous,
         repr: TypeRepr::Bool,
     });
 
@@ -528,6 +502,7 @@ fn generate_type_body<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             type_object.init_body(ctx);
+            assert!(type_object.as_struct().unwrap().body.get().is_some());
         }
     }
 }

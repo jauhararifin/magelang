@@ -5,7 +5,7 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    ErrorReporter, PathNode, Pos, SignatureNode, StructNode, Token, TypeExprNode, TypeParameterNode,
+    ErrorReporter, PathNode, Pos, SignatureNode, Token, TypeExprNode, TypeParameterNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
@@ -19,7 +19,6 @@ pub(crate) type TypeInterner<'a> = Interner<'a, Type<'a>>;
 pub type TypeArgs<'a> = [&'a Type<'a>];
 pub(crate) type TypeArgsInterner<'a> = Interner<'a, TypeArgs<'a>>;
 
-#[derive(Debug)]
 pub struct Type<'a> {
     pub kind: TypeKind<'a>,
     pub repr: TypeRepr<'a>,
@@ -28,7 +27,6 @@ pub struct Type<'a> {
 impl<'a> PartialEq for Type<'a> {
     fn eq(&self, other: &Self) -> bool {
         match (&self.kind, &other.kind) {
-            (TypeKind::Builtin(a), TypeKind::Builtin(b)) => a.eq(&b),
             (TypeKind::User(a), TypeKind::User(b)) => a.eq(&b),
             (TypeKind::Inst(a), TypeKind::Inst(b)) => a.eq(&b),
             (TypeKind::Generic(a), TypeKind::Generic(b)) => a.eq(&b),
@@ -49,7 +47,6 @@ impl<'a> Hash for Type<'a> {
 impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
-            TypeKind::Builtin(ty) => Display::fmt(ty.name, f),
             TypeKind::User(ty) => Display::fmt(&ty.def_id, f),
             TypeKind::Inst(ty) => Display::fmt(&ty, f),
             TypeKind::Generic(ty) => Display::fmt(&ty, f),
@@ -58,15 +55,22 @@ impl<'a> Display for Type<'a> {
     }
 }
 
+impl<'a> Debug for Type<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
 impl<'a> Type<'a> {
-    pub(crate) fn init_body<E: ErrorReporter>(&self, ctx: &Context<'a, E>) {
+    pub(crate) fn init_body<E: ErrorReporter>(&'a self, ctx: &Context<'a, E>) {
         let TypeRepr::Struct(struct_type) = &self.repr else {
             return;
         };
 
         let Some(def_id) = self.kind.get_def_id() else {
-            return
+            return;
         };
+
         let package = def_id.package;
         let package_scope = ctx.scopes.get(package).expect("missing package scope");
 
@@ -77,9 +81,20 @@ impl<'a> Type<'a> {
         };
         let scope = scope.as_ref().unwrap_or(package_scope);
 
+        let struct_node = ctx
+            .scopes
+            .get(def_id.package)
+            .expect("missing package scope")
+            .type_scopes
+            .lookup(def_id.name)
+            .expect("missing object")
+            .node
+            .as_ref()
+            .expect("missing object node");
+
         let mut field_pos = HashMap::<Symbol, Pos>::default();
         let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
-        for field_node in &struct_type.node.fields {
+        for field_node in &struct_node.fields {
             let field_name = ctx.define_symbol(field_node.name.value.as_str());
             let pos = field_node.pos;
             if let Some(defined_at) = field_pos.get(&field_name) {
@@ -99,15 +114,95 @@ impl<'a> Type<'a> {
         let body = StructBody { fields, sized };
 
         struct_type.body.set(body).expect("cannot set struct body");
+
+        if let TypeKind::Generic(kind) = &self.kind {
+            for ty in kind.mono_cache.borrow().values() {
+                let TypeKind::Inst(instanced_type) =&ty.kind else {
+                    continue;
+                };
+                self.monomorphize_repr(ctx, instanced_type.type_args);
+            }
+        };
     }
 
     pub(crate) fn monomorphize<E: ErrorReporter>(
-        &self,
+        &'a self,
         ctx: &Context<'a, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
-        // TODO: use cache to avoid cycle
-        todo!();
+        if let TypeKind::Generic(generic_type) = &self.kind {
+            let mut cache = generic_type.mono_cache.borrow_mut();
+            if let Some(ty) = cache.get(type_args) {
+                return ty;
+            } else {
+                let ty = ctx.define_type(Type {
+                    kind: TypeKind::Inst(InstType {
+                        def_id: generic_type.def_id,
+                        type_args,
+                    }),
+                    repr: TypeRepr::Struct(StructType {
+                        body: OnceCell::default(),
+                    }),
+                });
+                cache.insert(type_args, ty);
+            }
+        }
+
+        self.monomorphize_repr(ctx, type_args)
+    }
+
+    fn monomorphize_repr<E: ErrorReporter>(
+        &'a self,
+        ctx: &Context<'a, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
+        match &self.repr {
+            TypeRepr::Unknown => self,
+            TypeRepr::Struct(struct_type) => {
+                let TypeKind::Generic(generic_type) = &self.kind else {
+                    return self;
+                };
+
+                let ty = ctx.define_type(Type {
+                    kind: TypeKind::Inst(InstType {
+                        def_id: generic_type.def_id,
+                        type_args,
+                    }),
+                    repr: TypeRepr::Struct(StructType {
+                        body: OnceCell::default(),
+                    }),
+                });
+
+                if let Some(body) = struct_type.monomorphize(ctx, type_args) {
+                    ty.repr
+                        .as_struct()
+                        .unwrap()
+                        .body
+                        .set(body)
+                        .expect("cannot set struct body");
+                }
+
+                ty
+            }
+            TypeRepr::Func(func_type) => ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Func(func_type.monomorphize(ctx, type_args)),
+            }),
+            TypeRepr::Void => self,
+            TypeRepr::Opaque => self,
+            TypeRepr::Bool => self,
+            TypeRepr::Int(..) => self,
+            TypeRepr::Float(..) => self,
+            TypeRepr::Ptr(el) => ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Ptr(el.monomorphize(ctx, type_args)),
+            }),
+            TypeRepr::ArrayPtr(el) => ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::ArrayPtr(el.monomorphize(ctx, type_args)),
+            }),
+            TypeRepr::TypeArg(arg) => arg.monomorphize(ctx, type_args),
+        }
     }
 
     pub fn as_func(&self) -> Option<&FuncType<'a>> {
@@ -119,31 +214,31 @@ impl<'a> Type<'a> {
     }
 
     pub fn is_void(&self) -> bool {
-        self.repr.is_void()
+        self.repr.is_unknown() || self.repr.is_void()
     }
 
     pub fn is_integral(&self) -> bool {
-        self.repr.is_integral()
+        self.repr.is_unknown() || self.repr.is_integral()
     }
 
     pub fn is_float(&self) -> bool {
-        self.repr.is_float()
+        self.repr.is_unknown() || self.repr.is_float()
     }
 
     pub fn is_int(&self) -> bool {
-        self.repr.is_int()
+        self.repr.is_unknown() || self.repr.is_int()
     }
 
     pub fn is_bool(&self) -> bool {
-        self.repr.is_bool()
+        self.repr.is_unknown() || self.repr.is_bool()
     }
 
     pub fn is_opaque(&self) -> bool {
-        self.repr.is_opaque()
+        self.repr.is_unknown() || self.repr.is_opaque()
     }
 
     pub fn is_sized(&self) -> bool {
-        self.repr.is_sized()
+        self.repr.is_unknown() || self.repr.is_sized()
     }
 
     pub fn is_unknown(&self) -> bool {
@@ -155,13 +250,15 @@ impl<'a> Type<'a> {
     }
 
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
-        self.kind.eq(&other.kind) || self.repr.eq(&other.repr)
+        if self.is_unknown() || other.is_unknown() {
+            return true;
+        }
+        self.kind.eq(&other.kind) || self.repr.is_assignable_with(&other.repr)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TypeKind<'a> {
-    Builtin(BuiltinType<'a>), // TODO: maybe builtin and anonymous are the same
     User(UserType<'a>),
     Inst(InstType<'a>),
     Generic(GenericType<'a>),
@@ -169,20 +266,14 @@ pub enum TypeKind<'a> {
 }
 
 impl<'a> TypeKind<'a> {
-    fn get_def_id(&self) -> Option<DefId<'a>> {
+    pub(crate) fn get_def_id(&self) -> Option<DefId<'a>> {
         match self {
-            TypeKind::Builtin(..) => None,
             TypeKind::User(ty) => Some(ty.def_id),
             TypeKind::Inst(ty) => Some(ty.def_id),
             TypeKind::Generic(ty) => Some(ty.def_id),
             TypeKind::Anonymous => None,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BuiltinType<'a> {
-    pub name: Symbol<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -208,7 +299,6 @@ impl<'a> Display for InstType<'a> {
     }
 }
 
-#[derive(Debug)]
 pub struct GenericType<'a> {
     pub def_id: DefId<'a>,
     pub type_params: &'a [TypeArg<'a>],
@@ -224,6 +314,12 @@ impl<'a> Display for GenericType<'a> {
             write!(f, ",")?;
         }
         write!(f, ">")
+    }
+}
+
+impl<'a> Debug for GenericType<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
     }
 }
 
@@ -385,7 +481,26 @@ impl<'a> Display for TypeRepr<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct StructType<'a> {
     pub body: OnceCell<StructBody<'a>>,
-    pub(crate) node: StructNode, // TODO: remove this node.
+}
+
+impl<'a> StructType<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> Option<StructBody<'a>> {
+        let fields = self
+            .body
+            .get()?
+            .fields
+            .iter()
+            .map(|(name, ty)| (*name, ty.monomorphize(ctx, type_args)))
+            .collect::<IndexMap<_, _>>();
+        Some(StructBody {
+            fields,
+            sized: true, // TODO: calculate this properly.
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -400,6 +515,24 @@ pub struct FuncType<'a> {
     // alltogeher
     pub params: &'a [&'a Type<'a>],
     pub return_type: &'a Type<'a>,
+}
+
+impl<'a> FuncType<'a> {
+    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+        &self,
+        ctx: &'b Context<'a, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> FuncType<'a> {
+        let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
+        for ty in self.params {
+            params.push(ty.monomorphize(ctx, type_args));
+        }
+        let return_type = self.return_type.monomorphize(ctx, type_args);
+        FuncType {
+            params: params.into_bump_slice(),
+            return_type,
+        }
+    }
 }
 
 impl<'a> Display for FuncType<'a> {
@@ -442,7 +575,7 @@ impl<'a> TypeArg<'a> {
         Self { index, name }
     }
 
-    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+    pub(crate) fn monomorphize<'b, E>(
         &self,
         _: &'b Context<'a, E>,
         type_args: &'a TypeArgs<'a>,
@@ -511,7 +644,10 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     node: &PathNode,
 ) -> &'a Type<'a> {
     let Some(object) = get_type_object_from_path(ctx, scope, &node.names) else {
-        return ctx.define_type(Type{kind: TypeKind::Anonymous, repr: TypeRepr::Unknown});
+        return ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Unknown,
+        });
     };
 
     let TypeKind::Generic(generic_type) = &object.kind else {
@@ -716,7 +852,7 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
             continue;
         };
 
-        let Some(def_id) = type_object.kind.get_def_id() else { 
+        let Some(def_id) = type_object.kind.get_def_id() else {
             continue;
         };
 
@@ -765,10 +901,10 @@ fn report_circular_type<E: ErrorReporter>(
         .lookup(start.name)
         .unwrap();
 
-    let TypeRepr::Struct(struct_type) = &object.ty.repr else {
-        unreachable!();
-    };
-    let pos = struct_type.node.pos;
-
+    let pos = object
+        .node
+        .as_ref()
+        .expect("missing strut node in type object")
+        .pos;
     ctx.errors.circular_type(pos, &chain_str);
 }

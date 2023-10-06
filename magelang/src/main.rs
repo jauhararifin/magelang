@@ -88,15 +88,6 @@ fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
     let arena = Bump::default();
     let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
 
-    if !error_manager.is_empty() {
-        for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
-        }
-        return;
-    }
-
     let mut writer: Box<dyn std::io::Write> = if let Some(path) = output {
         let file = std::fs::File::create(path).unwrap();
         Box::new(file)
@@ -104,6 +95,14 @@ fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
         Box::new(std::io::stdout().lock())
     };
     let _ = write!(writer, "{module:#?}");
+
+    if !error_manager.is_empty() {
+        for error in error_manager.take() {
+            let location = file_manager.location(error.pos);
+            let message = error.message;
+            eprintln!("{location}: {message}");
+        }
+    }
 }
 
 fn compile(package_name: String, output: std::path::PathBuf) {

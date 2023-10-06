@@ -308,7 +308,10 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
 ) -> Expr<'a> {
     let Some(object) = get_value_object_from_path(ctx, scope, &node.names) else {
         return Expr {
-            ty: expected_type.unwrap_or(ctx.define_type(Type{kind:TypeKind::Anonymous, repr: TypeRepr::Unknown})),
+            ty: expected_type.unwrap_or(ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            })),
             kind: ExprKind::Invalid,
             assignable: false,
         };
@@ -612,7 +615,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         _ => a.ty,
     };
 
-    if a.ty != b.ty {
+    if !a.ty.is_unknown() && !b.ty.is_unknown() && a.ty != b.ty {
         ctx.errors
             .binop_type_mismatch(node.a.pos(), op_name, a.ty, b.ty);
         return Expr {
@@ -741,7 +744,10 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     let TypeRepr::Ptr(element_ty) = ty.repr else {
         ctx.errors.deref_non_pointer(node.pos);
         return Expr {
-            ty: ctx.define_type(Type{kind:TypeKind::Anonymous,repr:TypeRepr::Unknown}),
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
             kind: ExprKind::Invalid,
             assignable: false,
         };
@@ -821,7 +827,10 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
             ctx.errors.not_callable(node.callee.pos());
         }
         return Expr {
-            ty: ctx.define_type(Type{kind:TypeKind::Anonymous,repr:TypeRepr::Unknown}),
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
             kind: ExprKind::Invalid,
             assignable: false,
         };
@@ -898,7 +907,10 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     let Some(struct_type) = ty.as_struct() else {
         ctx.errors.non_struct_type(node.target.pos());
         return Expr {
-            ty: ctx.define_type(Type{kind:TypeKind::Anonymous,repr:TypeRepr::Unknown}),
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
             kind: ExprKind::Invalid,
             assignable: false,
         };
@@ -975,13 +987,16 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     }
 
     let Some(struct_type) = ty.as_struct() else {
-            ctx.errors
-                .non_field_type(node.selection.pos, &node.selection.value);
-            return Expr {
-                ty: ctx.define_type(Type{kind:TypeKind::Anonymous,repr:TypeRepr::Unknown}),
-                kind: ExprKind::Invalid,
-                assignable: false,
-            };
+        ctx.errors
+            .non_field_type(node.selection.pos, &node.selection.value);
+        return Expr {
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
+            kind: ExprKind::Invalid,
+            assignable: false,
+        };
     };
     let struct_body = struct_type.body.get().expect("missing struct body");
 
@@ -990,7 +1005,10 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
         ctx.errors
             .undeclared_field(node.selection.pos, &node.selection.value);
         return Expr {
-            ty: ctx.define_type(Type{kind:TypeKind::Anonymous,repr:TypeRepr::Unknown}),
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
             kind: ExprKind::Invalid,
             assignable: false,
         };

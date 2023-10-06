@@ -4,7 +4,8 @@ use crate::ty::{build_val_type, build_zero_type};
 use crate::var::{GlobalMapper, LocalManager};
 use indexmap::IndexMap;
 use magelang_typecheck::{
-    BitSize, DefId, Expr, ExprKind, FloatType, Func, Module, Statement, Type, TypeArgs,
+    BitSize, DefId, Expr, ExprKind, FloatType, Func, Module, Statement, Type, TypeArgs, TypeKind,
+    TypeRepr,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -423,10 +424,10 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             // TODO: override this. if annotated with `@file_embed()`, load the content from file.
             let instrs = if let ExprKind::Zero = global.value.kind {
                 let ty = global.ty;
-                let Type::ArrayPtr(el) = ty else {
+                let TypeRepr::ArrayPtr(el) = ty.repr else {
                     continue;
                 };
-                let is_bytes = !matches!(el, Type::Int(true, BitSize::I8));
+                let is_bytes = !matches!(el.repr, TypeRepr::Int(true, BitSize::I8));
                 if !is_bytes {
                     continue;
                 }
@@ -613,16 +614,15 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
     }
 
     fn build_variable_set_instr(&self, idx: VariableLoc, ty: &'ctx Type<'ctx>) -> Vec<wasm::Instr> {
-        match ty {
-            Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
+        match ty.repr {
+            TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type"),
 
-            Type::Struct(..) | Type::Inst(..) => {
+            TypeRepr::Struct(..) => {
                 let struct_layout = &self.layouts.get_stack_layout(ty);
-                let body = match ty {
-                    Type::Struct(struct_type) => {
+                let body = match &ty.repr {
+                    TypeRepr::Struct(struct_type) => {
                         struct_type.body.get().expect("missing struct body")
                     }
-                    Type::Inst(inst_type) => inst_type.body.get().expect("missing struct body"),
                     _ => unreachable!(),
                 };
 
@@ -637,14 +637,14 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                     .collect()
             }
 
-            Type::Void => vec![],
-            Type::Opaque
-            | Type::Func(..)
-            | Type::Bool
-            | Type::Int(..)
-            | Type::Float(..)
-            | Type::Ptr(..)
-            | Type::ArrayPtr(..) => match idx {
+            TypeRepr::Void => vec![],
+            TypeRepr::Opaque
+            | TypeRepr::Func(..)
+            | TypeRepr::Bool
+            | TypeRepr::Int(..)
+            | TypeRepr::Float(..)
+            | TypeRepr::Ptr(..)
+            | TypeRepr::ArrayPtr(..) => match idx {
                 VariableLoc::Global(id) => vec![wasm::Instr::GlobalSet(id)],
                 VariableLoc::Local(id) => vec![wasm::Instr::LocalSet(id)],
             },
@@ -657,15 +657,14 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
         pointer_expr: &Expr<'ctx>,
         value: &Expr<'ctx>,
     ) -> Vec<wasm::Instr> {
-        match value.ty {
-            Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
+        match value.ty.repr {
+            TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type"),
 
-            Type::Struct(..) | Type::Inst(..) => {
-                let body = match value.ty {
-                    Type::Struct(struct_type) => {
+            TypeRepr::Struct(..) => {
+                let body = match &value.ty.repr {
+                    TypeRepr::Struct(struct_type) => {
                         struct_type.body.get().expect("missing struct body")
                     }
-                    Type::Inst(inst_type) => inst_type.body.get().expect("missing struct body"),
                     _ => unreachable!(),
                 };
 
@@ -682,28 +681,23 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 }
 
                 while let Some((struct_layout, field_id, ty)) = stack.pop() {
-                    match ty {
-                        Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
+                    match &ty.repr {
+                        TypeRepr::Unknown | TypeRepr::TypeArg(..) => {
+                            unreachable!("found invalid type")
+                        }
 
-                        Type::Struct(struct_type) => {
+                        TypeRepr::Struct(struct_type) => {
                             let body = struct_type.body.get().expect("missing struct body");
                             let struct_layout = self.layouts.get_mem_layout(ty);
                             for (i, (_, field_ty)) in body.fields.iter().enumerate() {
                                 stack.push((struct_layout.clone(), i, field_ty));
                             }
                         }
-                        Type::Inst(inst_type) => {
-                            let body = inst_type.body.get().expect("missing struct body");
-                            let struct_layout = self.layouts.get_mem_layout(ty);
-                            for (i, (_, field_ty)) in body.fields.iter().enumerate() {
-                                stack.push((struct_layout.clone(), i, field_ty));
-                            }
-                        }
 
-                        Type::Void => (),
-                        Type::Opaque => unreachable!("opaque type can't be loaded from memory"),
+                        TypeRepr::Void => (),
+                        TypeRepr::Opaque => unreachable!("opaque type can't be loaded from memory"),
 
-                        Type::Int(_, BitSize::I8) | Type::Bool => {
+                        TypeRepr::Int(_, BitSize::I8) | TypeRepr::Bool => {
                             let temps = self.locals.get_temporary_locals(vec![
                                 wasm::ValType::Num(wasm::NumType::I32),
                                 wasm::ValType::Num(wasm::NumType::I32),
@@ -717,7 +711,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Store8(wasm::MemArg { offset, align: 0 }));
                             result.push(wasm::Instr::LocalGet(temp_addr));
                         }
-                        Type::Int(_, BitSize::I16) => {
+                        TypeRepr::Int(_, BitSize::I16) => {
                             let temps = self.locals.get_temporary_locals(vec![
                                 wasm::ValType::Num(wasm::NumType::I32),
                                 wasm::ValType::Num(wasm::NumType::I32),
@@ -731,10 +725,10 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Store16(wasm::MemArg { offset, align: 1 }));
                             result.push(wasm::Instr::LocalGet(temp_addr));
                         }
-                        Type::Int(_, BitSize::I32 | BitSize::ISize)
-                        | Type::Ptr(..)
-                        | Type::ArrayPtr(..)
-                        | Type::Func(..) => {
+                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
+                        | TypeRepr::Ptr(..)
+                        | TypeRepr::ArrayPtr(..)
+                        | TypeRepr::Func(..) => {
                             let temps = self.locals.get_temporary_locals(vec![
                                 wasm::ValType::Num(wasm::NumType::I32),
                                 wasm::ValType::Num(wasm::NumType::I32),
@@ -748,7 +742,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Store(wasm::MemArg { offset, align: 2 }));
                             result.push(wasm::Instr::LocalGet(temp_addr));
                         }
-                        Type::Int(_, BitSize::I64) => {
+                        TypeRepr::Int(_, BitSize::I64) => {
                             let temps = self.locals.get_temporary_locals(vec![
                                 wasm::ValType::Num(wasm::NumType::I64),
                                 wasm::ValType::Num(wasm::NumType::I32),
@@ -763,7 +757,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::LocalGet(temp_addr));
                         }
 
-                        Type::Float(FloatType::F32) => {
+                        TypeRepr::Float(FloatType::F32) => {
                             let temps = self.locals.get_temporary_locals(vec![
                                 wasm::ValType::Num(wasm::NumType::F32),
                                 wasm::ValType::Num(wasm::NumType::I32),
@@ -777,7 +771,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::F32Store(wasm::MemArg { offset, align: 2 }));
                             result.push(wasm::Instr::LocalGet(temp_addr));
                         }
-                        Type::Float(FloatType::F64) => {
+                        TypeRepr::Float(FloatType::F64) => {
                             let temps = self.locals.get_temporary_locals(vec![
                                 wasm::ValType::Num(wasm::NumType::F64),
                                 wasm::ValType::Num(wasm::NumType::I32),
@@ -798,25 +792,25 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result
             }
 
-            Type::Void => self.build_value_expr(value),
-            Type::Opaque => unreachable!("opaque type can't be store in memory"),
+            TypeRepr::Void => self.build_value_expr(value),
+            TypeRepr::Opaque => unreachable!("opaque type can't be store in memory"),
 
-            Type::Int(_, BitSize::I8) | Type::Bool => {
+            TypeRepr::Int(_, BitSize::I8) | TypeRepr::Bool => {
                 let mut result = self.build_value_expr(pointer_expr);
                 result.extend(self.build_value_expr(value));
                 result.push(wasm::Instr::I32Store8(wasm::MemArg { offset, align: 0 }));
                 result
             }
-            Type::Int(_, BitSize::I16) => {
+            TypeRepr::Int(_, BitSize::I16) => {
                 let mut result = self.build_value_expr(pointer_expr);
                 result.extend(self.build_value_expr(value));
                 result.push(wasm::Instr::I32Store16(wasm::MemArg { offset, align: 1 }));
                 result
             }
-            Type::Int(_, BitSize::I32 | BitSize::ISize)
-            | Type::Ptr(..)
-            | Type::ArrayPtr(..)
-            | Type::Func(..) => {
+            TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
+            | TypeRepr::Ptr(..)
+            | TypeRepr::ArrayPtr(..)
+            | TypeRepr::Func(..) => {
                 let mut result = self.build_value_expr(pointer_expr);
 
                 let value_instr = self.build_value_expr(value);
@@ -825,20 +819,20 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.push(wasm::Instr::I32Store(wasm::MemArg { offset, align: 2 }));
                 result
             }
-            Type::Int(_, BitSize::I64) => {
+            TypeRepr::Int(_, BitSize::I64) => {
                 let mut result = self.build_value_expr(pointer_expr);
                 result.extend(self.build_value_expr(value));
                 result.push(wasm::Instr::I64Store(wasm::MemArg { offset, align: 3 }));
                 result
             }
 
-            Type::Float(FloatType::F32) => {
+            TypeRepr::Float(FloatType::F32) => {
                 let mut result = self.build_value_expr(pointer_expr);
                 result.extend(self.build_value_expr(value));
                 result.push(wasm::Instr::F32Store(wasm::MemArg { offset, align: 2 }));
                 result
             }
-            Type::Float(FloatType::F64) => {
+            TypeRepr::Float(FloatType::F64) => {
                 let mut result = self.build_value_expr(pointer_expr);
                 result.extend(self.build_value_expr(value));
                 result.push(wasm::Instr::F64Store(wasm::MemArg { offset, align: 3 }));
@@ -926,7 +920,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::GetElementAddr(addr, field) => {
                 let mut result = self.build_value_expr(addr);
 
-                let Type::Ptr(element_type) = addr.ty else {
+                let TypeRepr::Ptr(element_type) = addr.ty.repr else {
                     unreachable!()
                 };
                 let struct_layout = self.layouts.get_mem_layout(element_type);
@@ -940,7 +934,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let mut result = self.build_value_expr(arr);
 
                 // TODO: (optimization) optimize field layout calculation by using cache.
-                let Type::ArrayPtr(element_type) = arr.ty else {
+                let TypeRepr::ArrayPtr(element_type) = arr.ty.repr else {
                     unreachable!()
                 };
                 let element_layout = self.layouts.get_mem_layout(element_type);
@@ -949,8 +943,8 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.push(wasm::Instr::I32Const(element_size as i32));
                 result.extend(self.build_value_expr(index));
 
-                if let Type::Int(_, bit_size) = index.ty {
-                    if *bit_size == BitSize::I64 {
+                if let TypeRepr::Int(_, bit_size) = index.ty.repr {
+                    if bit_size == BitSize::I64 {
                         result.push(wasm::Instr::I32WrapI64);
                     }
                 }
@@ -963,31 +957,26 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::Deref(addr) => {
                 let mut result = self.build_value_expr(addr);
 
-                let Type::Ptr(element_type) = addr.ty else {
+                let TypeRepr::Ptr(element_type) = &addr.ty.repr else {
                     unreachable!()
                 };
                 let mut stack = vec![(0u32, *element_type)];
                 while let Some((offset, element_type)) = stack.pop() {
                     let ty = element_type;
-                    match ty {
-                        Type::Unknown | Type::TypeArg(..) => unreachable!("found invalid type"),
+                    match &ty.repr {
+                        TypeRepr::Unknown | TypeRepr::TypeArg(..) => {
+                            unreachable!("found invalid type")
+                        }
 
-                        Type::Struct(struct_type) => {
+                        TypeRepr::Struct(struct_type) => {
                             let body = struct_type.body.get().expect("missing struct body");
                             let struct_layout = self.layouts.get_mem_layout(element_type);
                             for (i, off) in struct_layout.offset.iter().enumerate().rev() {
                                 stack.push((offset + off, *body.fields.get_index(i).unwrap().1));
                             }
                         }
-                        Type::Inst(inst_type) => {
-                            let body = inst_type.body.get().expect("missing struct body");
-                            let struct_layout = self.layouts.get_mem_layout(element_type);
-                            for (i, off) in struct_layout.offset.iter().enumerate().rev() {
-                                stack.push((offset + off, *body.fields.get_index(i).unwrap().1));
-                            }
-                        }
 
-                        Type::Func(..) => {
+                        TypeRepr::Func(..) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -995,9 +984,9 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Void => (),
-                        Type::Opaque => unreachable!("opaque type can't be dereferenced"),
-                        Type::Bool => {
+                        TypeRepr::Void => (),
+                        TypeRepr::Opaque => unreachable!("opaque type can't be dereferenced"),
+                        TypeRepr::Bool => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1005,7 +994,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Int(true, BitSize::I8) => {
+                        TypeRepr::Int(true, BitSize::I8) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1013,7 +1002,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load8S(wasm::MemArg { offset, align: 0 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Int(false, BitSize::I8) => {
+                        TypeRepr::Int(false, BitSize::I8) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1021,7 +1010,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load8U(wasm::MemArg { offset, align: 0 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Int(true, BitSize::I16) => {
+                        TypeRepr::Int(true, BitSize::I16) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1029,7 +1018,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load16S(wasm::MemArg { offset, align: 1 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Int(false, BitSize::I16) => {
+                        TypeRepr::Int(false, BitSize::I16) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1037,7 +1026,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load16U(wasm::MemArg { offset, align: 1 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Int(_, BitSize::I32 | BitSize::ISize) => {
+                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1045,7 +1034,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I32Load(wasm::MemArg { offset, align: 2 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Int(_, BitSize::I64) => {
+                        TypeRepr::Int(_, BitSize::I64) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1053,7 +1042,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::I64Load(wasm::MemArg { offset, align: 3 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Float(FloatType::F32) => {
+                        TypeRepr::Float(FloatType::F32) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1061,7 +1050,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::F32Load(wasm::MemArg { offset, align: 2 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Float(FloatType::F64) => {
+                        TypeRepr::Float(FloatType::F64) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1069,7 +1058,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                             result.push(wasm::Instr::F64Load(wasm::MemArg { offset, align: 3 }));
                             result.push(wasm::Instr::LocalGet(temps[0]));
                         }
-                        Type::Ptr(..) | Type::ArrayPtr(..) => {
+                        TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => {
                             let temps = self
                                 .locals
                                 .get_temporary_locals(vec![wasm::ValType::Num(wasm::NumType::I32)]);
@@ -1106,7 +1095,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                         }
 
                         let ty = callee.ty;
-                        let Type::Func(func_type) = ty else {
+                        let TypeRepr::Func(func_type) = &ty.repr else {
                             unreachable!("cannot call non-function expression")
                         };
 
@@ -1130,25 +1119,25 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32Add, wasm::Instr::I32Extend8S]
                     }
-                    Type::Int(true, BitSize::I16) => {
+                    TypeRepr::Int(true, BitSize::I16) => {
                         vec![wasm::Instr::I32Add, wasm::Instr::I32Extend16S]
                     }
-                    Type::Int(true, BitSize::I32) => vec![wasm::Instr::I32Add],
-                    Type::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Add],
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64Add],
+                    TypeRepr::Int(true, BitSize::I32) => vec![wasm::Instr::I32Add],
+                    TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Add],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Add],
 
-                    Type::Int(false, BitSize::I8) => vec![wasm::Instr::I32Add],
-                    Type::Int(false, BitSize::I16) => vec![wasm::Instr::I32Add],
-                    Type::Int(false, BitSize::I32) => vec![wasm::Instr::I32Add],
-                    Type::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Add],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64Add],
+                    TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Add],
+                    TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Add],
+                    TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Add],
+                    TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Add],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Add],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Add],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F32Add],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Add],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Add],
                     _ => {
                         todo!("cannot perform add on {ty:?}");
                     }
@@ -1162,25 +1151,25 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32Sub, wasm::Instr::I32Extend8S]
                     }
-                    Type::Int(true, BitSize::I16) => {
+                    TypeRepr::Int(true, BitSize::I16) => {
                         vec![wasm::Instr::I32Sub, wasm::Instr::I32Extend16S]
                     }
-                    Type::Int(true, BitSize::I32) => vec![wasm::Instr::I32Sub],
-                    Type::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Sub],
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64Sub],
+                    TypeRepr::Int(true, BitSize::I32) => vec![wasm::Instr::I32Sub],
+                    TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Sub],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Sub],
 
-                    Type::Int(false, BitSize::I8) => vec![wasm::Instr::I32Sub],
-                    Type::Int(false, BitSize::I16) => vec![wasm::Instr::I32Sub],
-                    Type::Int(false, BitSize::I32) => vec![wasm::Instr::I32Sub],
-                    Type::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Sub],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64Sub],
+                    TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Sub],
+                    TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Sub],
+                    TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Sub],
+                    TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Sub],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Sub],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Sub],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F32Sub],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Sub],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Sub],
                     _ => {
                         todo!("cannot perform sub on {ty:?}");
                     }
@@ -1194,25 +1183,25 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32Mul, wasm::Instr::I32Extend8S]
                     }
-                    Type::Int(true, BitSize::I16) => {
+                    TypeRepr::Int(true, BitSize::I16) => {
                         vec![wasm::Instr::I32Mul, wasm::Instr::I32Extend16S]
                     }
-                    Type::Int(true, BitSize::I32) => vec![wasm::Instr::I32Mul],
-                    Type::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Mul],
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64Mul],
+                    TypeRepr::Int(true, BitSize::I32) => vec![wasm::Instr::I32Mul],
+                    TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Mul],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Mul],
 
-                    Type::Int(false, BitSize::I8) => vec![wasm::Instr::I32Mul],
-                    Type::Int(false, BitSize::I16) => vec![wasm::Instr::I32Mul],
-                    Type::Int(false, BitSize::I32) => vec![wasm::Instr::I32Mul],
-                    Type::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Mul],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64Mul],
+                    TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Mul],
+                    TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Mul],
+                    TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Mul],
+                    TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Mul],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Mul],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Mul],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F32Mul],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Mul],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Mul],
                     _ => {
                         todo!("cannot perform mul on {ty:?}");
                     }
@@ -1226,25 +1215,25 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32DivS, wasm::Instr::I32Extend8S]
                     }
-                    Type::Int(true, BitSize::I16) => {
+                    TypeRepr::Int(true, BitSize::I16) => {
                         vec![wasm::Instr::I32DivS, wasm::Instr::I32Extend16S]
                     }
-                    Type::Int(true, BitSize::I32) => vec![wasm::Instr::I32DivS],
-                    Type::Int(true, BitSize::ISize) => vec![wasm::Instr::I32DivS],
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64DivS],
+                    TypeRepr::Int(true, BitSize::I32) => vec![wasm::Instr::I32DivS],
+                    TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32DivS],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64DivS],
 
-                    Type::Int(false, BitSize::I8) => vec![wasm::Instr::I32DivU],
-                    Type::Int(false, BitSize::I16) => vec![wasm::Instr::I32DivU],
-                    Type::Int(false, BitSize::I32) => vec![wasm::Instr::I32DivU],
-                    Type::Int(false, BitSize::ISize) => vec![wasm::Instr::I32DivU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64DivU],
+                    TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32DivU],
+                    TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32DivU],
+                    TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32DivU],
+                    TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32DivU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64DivU],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F32Div],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Div],
                     _ => {
                         todo!("cannot perform div on {ty:?}");
                     }
@@ -1258,22 +1247,22 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(true, BitSize::I8) => {
                         vec![wasm::Instr::I32RemS, wasm::Instr::I32Extend8S]
                     }
-                    Type::Int(true, BitSize::I16) => {
+                    TypeRepr::Int(true, BitSize::I16) => {
                         vec![wasm::Instr::I32RemS, wasm::Instr::I32Extend16S]
                     }
-                    Type::Int(true, BitSize::I32) => vec![wasm::Instr::I32RemS],
-                    Type::Int(true, BitSize::ISize) => vec![wasm::Instr::I32RemS],
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64RemS],
+                    TypeRepr::Int(true, BitSize::I32) => vec![wasm::Instr::I32RemS],
+                    TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32RemS],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64RemS],
 
-                    Type::Int(false, BitSize::I8) => vec![wasm::Instr::I32RemU],
-                    Type::Int(false, BitSize::I16) => vec![wasm::Instr::I32RemU],
-                    Type::Int(false, BitSize::I32) => vec![wasm::Instr::I32RemU],
-                    Type::Int(false, BitSize::ISize) => vec![wasm::Instr::I32RemU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64RemU],
+                    TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32RemU],
+                    TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32RemU],
+                    TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32RemU],
+                    TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32RemU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64RemU],
                     _ => {
                         todo!("cannot perform mod on {ty:?}");
                     }
@@ -1287,12 +1276,12 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32Or],
-                    Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32Or],
-                    Type::Int(_, BitSize::I32) => vec![wasm::Instr::I32Or],
-                    Type::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Or],
-                    Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64Or],
+                let instrs = match ty.repr {
+                    TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Or],
+                    TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Or],
+                    TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Or],
+                    TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Or],
+                    TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Or],
                     _ => {
                         todo!("cannot perform or on {ty:?}");
                     }
@@ -1306,12 +1295,12 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32And],
-                    Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32And],
-                    Type::Int(_, BitSize::I32) => vec![wasm::Instr::I32And],
-                    Type::Int(_, BitSize::ISize) => vec![wasm::Instr::I32And],
-                    Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64And],
+                let instrs = match ty.repr {
+                    TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32And],
+                    TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32And],
+                    TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32And],
+                    TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32And],
+                    TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64And],
                     _ => {
                         todo!("cannot perform and on {ty:?}");
                     }
@@ -1325,12 +1314,12 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32Xor],
-                    Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32Xor],
-                    Type::Int(_, BitSize::I32) => vec![wasm::Instr::I32Xor],
-                    Type::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Xor],
-                    Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64Xor],
+                let instrs = match ty.repr {
+                    TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Xor],
+                    TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Xor],
+                    TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Xor],
+                    TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Xor],
+                    TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Xor],
                     _ => {
                         todo!("cannot perform xor on {ty:?}");
                     }
@@ -1344,12 +1333,12 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(_, BitSize::I8) => vec![wasm::Instr::I32Shl],
-                    Type::Int(_, BitSize::I16) => vec![wasm::Instr::I32Shl],
-                    Type::Int(_, BitSize::I32) => vec![wasm::Instr::I32Shl],
-                    Type::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Shl],
-                    Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64Shl],
+                let instrs = match ty.repr {
+                    TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Shl],
+                    TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Shl],
+                    TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Shl],
+                    TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Shl],
+                    TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Shl],
                     _ => {
                         todo!("cannot perform shl on {ty:?}");
                     }
@@ -1363,21 +1352,21 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8) => vec![wasm::Instr::I32ShrS],
-                    Type::Int(true, BitSize::I16) => vec![wasm::Instr::I32ShrS],
-                    Type::Int(true, BitSize::I32) => vec![wasm::Instr::I32ShrS],
-                    Type::Int(true, BitSize::ISize) => vec![wasm::Instr::I32ShrS],
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64ShrS],
+                let instrs = match ty.repr {
+                    TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32ShrS],
+                    TypeRepr::Int(true, BitSize::I16) => vec![wasm::Instr::I32ShrS],
+                    TypeRepr::Int(true, BitSize::I32) => vec![wasm::Instr::I32ShrS],
+                    TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32ShrS],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64ShrS],
 
-                    Type::Int(false, BitSize::I8) => vec![wasm::Instr::I32ShrU],
-                    Type::Int(false, BitSize::I16) => vec![wasm::Instr::I32ShrU],
-                    Type::Int(false, BitSize::I32) => vec![wasm::Instr::I32ShrU],
-                    Type::Int(false, BitSize::ISize) => vec![wasm::Instr::I32ShrU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64ShrU],
+                    TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32ShrU],
+                    TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32ShrU],
+                    TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32ShrU],
+                    TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32ShrU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64ShrU],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Div],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Div],
                     _ => {
                         todo!("cannot perform div on {ty:?}");
                     }
@@ -1415,19 +1404,22 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let b_instr = self.build_value_expr(b);
 
                 let ty = a.ty;
-                let op_instr = match ty {
-                    Type::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize)
-                    | Type::Ptr(..)
-                    | Type::ArrayPtr(..)
-                    | Type::Func(..) => vec![wasm::Instr::I32Eq],
-                    Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
+                let op_instr = match ty.repr {
+                    TypeRepr::Int(
+                        _,
+                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                    )
+                    | TypeRepr::Ptr(..)
+                    | TypeRepr::ArrayPtr(..)
+                    | TypeRepr::Func(..) => vec![wasm::Instr::I32Eq],
+                    TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
 
-                    Type::Bool => vec![wasm::Instr::I32Eq],
+                    TypeRepr::Bool => vec![wasm::Instr::I32Eq],
 
-                    Type::Opaque => {
+                    TypeRepr::Opaque => {
                         let mut result = Vec::default();
                         if !matches!(a.kind, ExprKind::Zero) {
                             result.extend(a_instr);
@@ -1457,19 +1449,24 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let b_instr = self.build_value_expr(b);
 
                 let ty = a.ty;
-                let op_instr = match ty {
-                    Type::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
+                let op_instr = match ty.repr {
+                    TypeRepr::Int(
+                        _,
+                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                    ) => {
                         vec![wasm::Instr::I32Eq]
                     }
-                    Type::Ptr(..) | Type::ArrayPtr(..) | Type::Func(..) => vec![wasm::Instr::I32Eq],
-                    Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
+                    TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) | TypeRepr::Func(..) => {
+                        vec![wasm::Instr::I32Eq]
+                    }
+                    TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
 
-                    Type::Bool => vec![wasm::Instr::I32Eq],
+                    TypeRepr::Bool => vec![wasm::Instr::I32Eq],
 
-                    Type::Opaque => {
+                    TypeRepr::Opaque => {
                         let mut result = Vec::default();
                         if !matches!(a.kind, ExprKind::Zero) {
                             result.extend(a_instr);
@@ -1501,20 +1498,23 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = a.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(
+                        true,
+                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                    ) => {
                         vec![wasm::Instr::I32GtS]
                     }
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64GtS],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64GtS],
 
-                    Type::Int(
+                    TypeRepr::Int(
                         false,
                         BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                     ) => vec![wasm::Instr::I32GtU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64GtU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64GtU],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Gt],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Gt],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Gt],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Gt],
                     _ => {
                         todo!("cannot perform > on {ty:?}");
                     }
@@ -1528,20 +1528,23 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = a.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(
+                        true,
+                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                    ) => {
                         vec![wasm::Instr::I32GeS]
                     }
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64GeS],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64GeS],
 
-                    Type::Int(
+                    TypeRepr::Int(
                         false,
                         BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                     ) => vec![wasm::Instr::I32GeU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64GeU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64GeU],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Ge],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Ge],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Ge],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Ge],
                     _ => {
                         todo!("cannot perform ge on {ty:?}");
                     }
@@ -1555,22 +1558,25 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = a.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(
+                        true,
+                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                    ) => {
                         vec![wasm::Instr::I32LtS]
                     }
-                    Type::Int(true, BitSize::I64) => {
+                    TypeRepr::Int(true, BitSize::I64) => {
                         vec![wasm::Instr::I64LtS]
                     }
 
-                    Type::Int(
+                    TypeRepr::Int(
                         false,
                         BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                     ) => vec![wasm::Instr::I32LtU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64LtU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64LtU],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Lt],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Lt],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Lt],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Lt],
                     _ => {
                         todo!("cannot perform lt on {ty:?}\n{a:?}\n{b:?}");
                     }
@@ -1584,20 +1590,23 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 result.extend(self.build_value_expr(b));
 
                 let ty = a.ty;
-                let instrs = match ty {
-                    Type::Int(true, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(
+                        true,
+                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                    ) => {
                         vec![wasm::Instr::I32LeS]
                     }
-                    Type::Int(true, BitSize::I64) => vec![wasm::Instr::I64LeS],
+                    TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64LeS],
 
-                    Type::Int(
+                    TypeRepr::Int(
                         false,
                         BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                     ) => vec![wasm::Instr::I32LeU],
-                    Type::Int(false, BitSize::I64) => vec![wasm::Instr::I64LeU],
+                    TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64LeU],
 
-                    Type::Float(FloatType::F32) => vec![wasm::Instr::F32Le],
-                    Type::Float(FloatType::F64) => vec![wasm::Instr::F64Le],
+                    TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Le],
+                    TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Le],
                     _ => {
                         todo!("cannot perform le on {ty:?}");
                     }
@@ -1609,17 +1618,17 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::Neg(value) => {
                 let mut result = self.build_value_expr(value);
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(_, BitSize::I64) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(_, BitSize::I64) => {
                         vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Mul]
                     }
-                    Type::Int(..) => {
+                    TypeRepr::Int(..) => {
                         vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Mul]
                     }
-                    Type::Float(FloatType::F32) => {
+                    TypeRepr::Float(FloatType::F32) => {
                         vec![wasm::Instr::F32Const(-1.0), wasm::Instr::F32Mul]
                     }
-                    Type::Float(FloatType::F64) => {
+                    TypeRepr::Float(FloatType::F64) => {
                         vec![wasm::Instr::F64Const(-1.0), wasm::Instr::F64Mul]
                     }
                     _ => {
@@ -1632,11 +1641,11 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
             ExprKind::BitNot(value) => {
                 let mut result = self.build_value_expr(value);
                 let ty = expr.ty;
-                let instrs = match ty {
-                    Type::Int(_, BitSize::I64) => {
+                let instrs = match ty.repr {
+                    TypeRepr::Int(_, BitSize::I64) => {
                         vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Xor]
                     }
-                    Type::Int(..) => {
+                    TypeRepr::Int(..) => {
                         vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Xor]
                     }
                     _ => {
@@ -1657,66 +1666,70 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                 let source_type = value.ty;
                 let target_type = ty;
 
-                let instrs = match source_type {
-                    Type::Ptr(..) | Type::ArrayPtr(..) => match target_type {
-                        Type::Int(_, BitSize::I64) => vec![wasm::Instr::I64ExtendI32U],
-                        Type::Int(..) | Type::Ptr(..) | Type::ArrayPtr(..) => vec![],
+                let instrs = match source_type.repr {
+                    TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => match target_type.repr {
+                        TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64ExtendI32U],
+                        TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => vec![],
                         _ => unreachable!(),
                     },
-                    Type::Int(source_sign, source_size) => {
-                        match (source_sign, source_size, target_type) {
+                    TypeRepr::Int(source_sign, source_size) => {
+                        match (source_sign, source_size, &target_type.repr) {
                             (
                                 _,
                                 BitSize::I64,
-                                Type::Int(
+                                TypeRepr::Int(
                                     _,
                                     BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                                 )
-                                | Type::Ptr(..)
-                                | Type::ArrayPtr(..),
+                                | TypeRepr::Ptr(..)
+                                | TypeRepr::ArrayPtr(..),
                             ) => vec![wasm::Instr::I32WrapI64],
                             (
                                 true,
                                 BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                                Type::Int(_, BitSize::I64),
+                                TypeRepr::Int(_, BitSize::I64),
                             ) => vec![wasm::Instr::I64ExtendI32S],
                             (
                                 false,
                                 BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                                Type::Int(_, BitSize::I64),
+                                TypeRepr::Int(_, BitSize::I64),
                             ) => vec![wasm::Instr::I64ExtendI32U],
-                            (_, _, Type::Int(..) | Type::ArrayPtr(..) | Type::Ptr(..)) => {
+                            (
+                                _,
+                                _,
+                                TypeRepr::Int(..) | TypeRepr::ArrayPtr(..) | TypeRepr::Ptr(..),
+                            ) => {
                                 vec![]
                             }
-                            (true, BitSize::I64, Type::Float(FloatType::F32)) => {
+                            (true, BitSize::I64, TypeRepr::Float(FloatType::F32)) => {
                                 vec![wasm::Instr::F32ConvertI64S]
                             }
-                            (false, BitSize::I64, Type::Float(FloatType::F32)) => {
+                            (false, BitSize::I64, TypeRepr::Float(FloatType::F32)) => {
                                 vec![wasm::Instr::F32ConvertI64U]
                             }
-                            (true, _, Type::Float(FloatType::F32)) => {
+                            (true, _, TypeRepr::Float(FloatType::F32)) => {
                                 vec![wasm::Instr::F32ConvertI32S]
                             }
-                            (false, _, Type::Float(FloatType::F32)) => {
+                            (false, _, TypeRepr::Float(FloatType::F32)) => {
                                 vec![wasm::Instr::F32ConvertI32U]
                             }
-                            (true, BitSize::I64, Type::Float(FloatType::F64)) => {
+                            (true, BitSize::I64, TypeRepr::Float(FloatType::F64)) => {
                                 vec![wasm::Instr::F64ConvertI64S]
                             }
-                            (false, BitSize::I64, Type::Float(FloatType::F64)) => {
+                            (false, BitSize::I64, TypeRepr::Float(FloatType::F64)) => {
                                 vec![wasm::Instr::F64ConvertI64U]
                             }
-                            (true, _, Type::Float(FloatType::F64)) => {
+                            (true, _, TypeRepr::Float(FloatType::F64)) => {
                                 vec![wasm::Instr::F64ConvertI32S]
                             }
-                            (false, _, Type::Float(FloatType::F64)) => {
+                            (false, _, TypeRepr::Float(FloatType::F64)) => {
                                 vec![wasm::Instr::F64ConvertI32U]
                             }
                             _ => unreachable!("{source_sign:?} {source_size:?} {target_type:?}"),
                         }
                     }
-                    Type::Float(source_float_type) => match target_type {
-                        Type::Float(target_float_type) => {
+                    TypeRepr::Float(source_float_type) => match target_type.repr {
+                        TypeRepr::Float(target_float_type) => {
                             match (source_float_type, target_float_type) {
                                 (FloatType::F32, FloatType::F64) => {
                                     vec![wasm::Instr::F64PromoteF32]
@@ -1727,7 +1740,7 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
                                 _ => vec![],
                             }
                         }
-                        Type::Int(sign, size) => match (source_float_type, sign, size) {
+                        TypeRepr::Int(sign, size) => match (source_float_type, sign, size) {
                             (
                                 FloatType::F32,
                                 true,
@@ -1785,8 +1798,8 @@ impl<'a, 'ctx> FuncManager<'a, 'ctx> {
         idx: VariableLoc,
         ty: &'ctx Type<'ctx>,
     ) -> Vec<wasm::Instr> {
-        match ty {
-            Type::Struct(struct_type) => {
+        match &ty.repr {
+            TypeRepr::Struct(struct_type) => {
                 let body = struct_type.body.get().expect("missing struct body");
                 let mut result = Vec::default();
                 let struct_layout = self.layouts.get_stack_layout(ty);
@@ -1876,14 +1889,13 @@ impl<'ctx> Mangle for Func<'ctx> {
 
 impl<'ctx> Mangle for Type<'ctx> {
     fn get_mangled_name(&self) -> String {
-        match self {
-            Type::Unknown => unreachable!("found unknown type arg"),
-            Type::Struct(struct_type) => struct_type.def_id.get_mangled_name(),
-            Type::Inst(inst_type) => {
-                let mut result = format!("{}", inst_type.def_id);
+        match self.kind {
+            TypeKind::User(ty) => ty.def_id.get_mangled_name(),
+            TypeKind::Inst(ty) => {
+                let mut result = format!("{}", ty.def_id);
 
                 result.push('<');
-                for (i, arg) in inst_type.type_args.iter().enumerate() {
+                for (i, arg) in ty.type_args.iter().enumerate() {
                     if i > 0 {
                         result.push(',');
                     }
@@ -1893,15 +1905,8 @@ impl<'ctx> Mangle for Type<'ctx> {
 
                 result
             }
-            Type::Func(..)
-            | Type::Void
-            | Type::Opaque
-            | Type::Bool
-            | Type::Int(..)
-            | Type::Float(..)
-            | Type::Ptr(..)
-            | Type::ArrayPtr(..) => format!("{}", self),
-            Type::TypeArg(..) => unreachable!("found typearg in type"),
+            TypeKind::Generic(..) => unreachable!("found un-monomorphized type"),
+            TypeKind::Anonymous => format!("{}", self.repr),
         }
     }
 }

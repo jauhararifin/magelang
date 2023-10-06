@@ -4,7 +4,7 @@ import fmt "std/fmt";
 
 @main()
 fn main() {
-  let vec_str = mem::alloc::<vector::Vector::<[*]u8>>();
+  let vec_str = mem::alloc::<vector::Vector<[*]u8>>();
   vector::init_with_cap::<[*]u8>(vec_str, 2);
   vector::push::<[*]u8>(vec_str, "This");
   vector::push::<[*]u8>(vec_str, " is");

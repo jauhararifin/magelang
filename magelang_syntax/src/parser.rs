@@ -267,43 +267,34 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             inner_ty.map(Box::new).map(TypeExprNode::Grouped)
         }
         TokenKind::Ident => {
-            let path = parse_path(f).unwrap();
+            let path = parse_path_for_type(f)?;
             Some(TypeExprNode::Path(path))
         }
         _ => None,
     }
 }
 
-fn parse_path<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
+fn parse_path_for_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
     let ident = f.take_if(TokenKind::Ident)?;
 
     let mut names = vec![ident];
-    let mut args = Vec::default();
     while f.take_if(TokenKind::DoubleColon).is_some() {
-        match f.kind() {
-            TokenKind::Ident => {
-                let ident = f.take(TokenKind::Ident).unwrap();
-                names.push(ident);
-            }
-            TokenKind::Lt => {
-                args = parse_sequence(
-                    f,
-                    TokenKind::Lt,
-                    TokenKind::Comma,
-                    TokenKind::Gt,
-                    parse_type_expr,
-                )
-                .map(|(_, type_args, _)| type_args)
-                .unwrap_or_default();
-                break;
-            }
-            _ => {
-                let tok = f.token();
-                f.errors.missing(tok.pos, "ident or generic args");
-                break;
-            }
-        };
+        let ident = f.take(TokenKind::Ident)?;
+        names.push(ident);
     }
+
+    let args = if f.kind() == TokenKind::Lt {
+        parse_sequence(
+            f,
+            TokenKind::Lt,
+            TokenKind::Comma,
+            TokenKind::Gt,
+            parse_type_expr,
+        )
+        .map(|(_, type_args, _)| type_args)?
+    } else {
+        Vec::default()
+    };
 
     Some(PathNode { names, args })
 }
@@ -831,7 +822,7 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
 
 fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
     match f.kind() {
-        TokenKind::Ident => parse_path(f).map(ExprNode::Path),
+        TokenKind::Ident => parse_path_for_expr(f).map(ExprNode::Path),
         TokenKind::IntegerLit => f.take(TokenKind::IntegerLit).map(ExprNode::Integer),
         TokenKind::RealLit => f.take(TokenKind::RealLit).map(ExprNode::Frac),
         TokenKind::StringLit => f.take(TokenKind::StringLit).map(ExprNode::String),
@@ -851,6 +842,40 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
             None
         }
     }
+}
+
+fn parse_path_for_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
+    let ident = f.take_if(TokenKind::Ident)?;
+
+    let mut names = vec![ident];
+    let mut args = Vec::default();
+    while f.take_if(TokenKind::DoubleColon).is_some() {
+        match f.kind() {
+            TokenKind::Ident => {
+                let ident = f.take(TokenKind::Ident).unwrap();
+                names.push(ident);
+            }
+            TokenKind::Lt => {
+                args = parse_sequence(
+                    f,
+                    TokenKind::Lt,
+                    TokenKind::Comma,
+                    TokenKind::Gt,
+                    parse_type_expr,
+                )
+                .map(|(_, type_args, _)| type_args)
+                .unwrap_or_default();
+                break;
+            }
+            _ => {
+                let tok = f.token();
+                f.errors.missing(tok.pos, "ident or generic args");
+                break;
+            }
+        };
+    }
+
+    Some(PathNode { names, args })
 }
 
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {

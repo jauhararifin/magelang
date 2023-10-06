@@ -38,7 +38,7 @@ fn print_i64(val: i64) {
     return;
   }
 
-  let str = mem::alloc::<vector::Vector::<u8>>();
+  let str = mem::alloc::<vector::Vector<u8>>();
   vector::init_with_cap::<u8>(str, 10);
 
   let start: usize = 0;
@@ -68,7 +68,7 @@ fn print_i64(val: i64) {
 
   vector::push::<u8>(str, 0);
   print_str(str.arr.*);
-  mem::dealloc::<vector::Vector::<u8>>(str);
+  mem::dealloc::<vector::Vector<u8>>(str);
 }
 
 fn print_u64(val: u64) {
@@ -77,7 +77,7 @@ fn print_u64(val: u64) {
     return;
   }
 
-  let str = mem::alloc::<vector::Vector::<u8>>();
+  let str = mem::alloc::<vector::Vector<u8>>();
   vector::init_with_cap::<u8>(str, 10);
 
   while val != 0 {
@@ -101,6 +101,6 @@ fn print_u64(val: u64) {
 
   vector::push::<u8>(str, 0);
   print_str(str.arr.*);
-  mem::dealloc::<vector::Vector::<u8>>(str);
+  mem::dealloc::<vector::Vector<u8>>(str);
 }
 

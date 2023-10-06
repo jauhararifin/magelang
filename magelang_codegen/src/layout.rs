@@ -1,4 +1,4 @@
-use magelang_typecheck::{BitSize, FloatType, StructBody, Type};
+use magelang_typecheck::{BitSize, FloatType, StructBody, Type, TypeRepr};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -19,10 +19,10 @@ impl<'ctx> LayoutManager<'ctx> {
         // Note: it is ok to recursively calculate the layout since it's guaranteed that there is no
         // cycle in the struct definition
 
-        match ty {
-            Type::Unknown => unreachable!("found unknown type"),
-            Type::TypeArg(..) => unreachable!("found typearg type"),
-            Type::Struct(struct_type) => {
+        match &ty.repr {
+            TypeRepr::Unknown => unreachable!("found unknown type"),
+            TypeRepr::TypeArg(..) => unreachable!("found typearg type"),
+            TypeRepr::Struct(struct_type) => {
                 {
                     let internal = self.internal.borrow_mut();
                     if let Some(val) = internal.stacks.get(&ty) {
@@ -37,33 +37,18 @@ impl<'ctx> LayoutManager<'ctx> {
                 internal.stacks.insert(ty, layout.clone());
                 layout
             }
-            Type::Inst(inst_type) => {
-                {
-                    let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.stacks.get(&ty) {
-                        return val.clone();
-                    }
-                }
-
-                let layout = self
-                    .get_struct_stack_layout(inst_type.body.get().expect("missing struct body"));
-
-                let mut internal = self.internal.borrow_mut();
-                internal.stacks.insert(ty, layout.clone());
-                layout
-            }
-            Type::Func(..) => Rc::new(1u32.into()),
-            Type::Void => Rc::new(0u32.into()),
-            Type::Opaque => Rc::new(1u32.into()),
-            Type::Bool => Rc::new(1u32.into()),
-            Type::Int(_, BitSize::I8) => Rc::new(1u32.into()),
-            Type::Int(_, BitSize::I16) => Rc::new(1u32.into()),
-            Type::Int(_, BitSize::I32) => Rc::new(1u32.into()),
-            Type::Int(_, BitSize::I64) => Rc::new(1u32.into()),
-            Type::Int(_, BitSize::ISize) => Rc::new(1u32.into()),
-            Type::Float(FloatType::F32) => Rc::new(1u32.into()),
-            Type::Float(FloatType::F64) => Rc::new(1u32.into()),
-            Type::Ptr(..) | Type::ArrayPtr(..) => Rc::new(1u32.into()),
+            TypeRepr::Func(..) => Rc::new(1u32.into()),
+            TypeRepr::Void => Rc::new(0u32.into()),
+            TypeRepr::Opaque => Rc::new(1u32.into()),
+            TypeRepr::Bool => Rc::new(1u32.into()),
+            TypeRepr::Int(_, BitSize::I8) => Rc::new(1u32.into()),
+            TypeRepr::Int(_, BitSize::I16) => Rc::new(1u32.into()),
+            TypeRepr::Int(_, BitSize::I32) => Rc::new(1u32.into()),
+            TypeRepr::Int(_, BitSize::I64) => Rc::new(1u32.into()),
+            TypeRepr::Int(_, BitSize::ISize) => Rc::new(1u32.into()),
+            TypeRepr::Float(FloatType::F32) => Rc::new(1u32.into()),
+            TypeRepr::Float(FloatType::F64) => Rc::new(1u32.into()),
+            TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => Rc::new(1u32.into()),
         }
     }
 
@@ -85,11 +70,11 @@ impl<'ctx> LayoutManager<'ctx> {
         // it is ok to recursively calculate the layout since it's guaranteed that there is no
         // cycle in the struct definition
 
-        match ty {
-            Type::Unknown => unreachable!("found unknown type"),
-            Type::TypeArg(..) => unreachable!("found typearg type"),
-            Type::Opaque => unreachable!("opaque doesn't have memory representation"),
-            Type::Struct(struct_type) => {
+        match &ty.repr {
+            TypeRepr::Unknown => unreachable!("found unknown type"),
+            TypeRepr::TypeArg(..) => unreachable!("found typearg type"),
+            TypeRepr::Opaque => unreachable!("opaque doesn't have memory representation"),
+            TypeRepr::Struct(struct_type) => {
                 {
                     let internal = self.internal.borrow_mut();
                     if let Some(val) = internal.mems.get(&ty) {
@@ -104,32 +89,17 @@ impl<'ctx> LayoutManager<'ctx> {
                 internal.mems.insert(ty, layout.clone());
                 layout
             }
-            Type::Inst(inst_type) => {
-                {
-                    let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.mems.get(&ty) {
-                        return val.clone();
-                    }
-                }
-
-                let layout =
-                    self.get_struct_mem_layout(inst_type.body.get().expect("missing struct body"));
-
-                let mut internal = self.internal.borrow_mut();
-                internal.mems.insert(ty, layout.clone());
-                layout
-            }
-            Type::Func(..) => Rc::new(MemLayout::primitive(4, 4)),
-            Type::Void => Rc::new(MemLayout::primitive(0, 1)),
-            Type::Bool => Rc::new(MemLayout::primitive(1, 1)),
-            Type::Int(_, BitSize::I8) => Rc::new(MemLayout::primitive(1, 1)),
-            Type::Int(_, BitSize::I16) => Rc::new(MemLayout::primitive(2, 2)),
-            Type::Int(_, BitSize::I32) => Rc::new(MemLayout::primitive(4, 4)),
-            Type::Int(_, BitSize::I64) => Rc::new(MemLayout::primitive(8, 8)),
-            Type::Int(_, BitSize::ISize) => Rc::new(MemLayout::primitive(4, 4)),
-            Type::Float(FloatType::F32) => Rc::new(MemLayout::primitive(4, 4)),
-            Type::Float(FloatType::F64) => Rc::new(MemLayout::primitive(8, 8)),
-            Type::Ptr(..) | Type::ArrayPtr(..) => Rc::new(MemLayout::primitive(4, 4)),
+            TypeRepr::Func(..) => Rc::new(MemLayout::primitive(4, 4)),
+            TypeRepr::Void => Rc::new(MemLayout::primitive(0, 1)),
+            TypeRepr::Bool => Rc::new(MemLayout::primitive(1, 1)),
+            TypeRepr::Int(_, BitSize::I8) => Rc::new(MemLayout::primitive(1, 1)),
+            TypeRepr::Int(_, BitSize::I16) => Rc::new(MemLayout::primitive(2, 2)),
+            TypeRepr::Int(_, BitSize::I32) => Rc::new(MemLayout::primitive(4, 4)),
+            TypeRepr::Int(_, BitSize::I64) => Rc::new(MemLayout::primitive(8, 8)),
+            TypeRepr::Int(_, BitSize::ISize) => Rc::new(MemLayout::primitive(4, 4)),
+            TypeRepr::Float(FloatType::F32) => Rc::new(MemLayout::primitive(4, 4)),
+            TypeRepr::Float(FloatType::F64) => Rc::new(MemLayout::primitive(8, 8)),
+            TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => Rc::new(MemLayout::primitive(4, 4)),
         }
     }
 
