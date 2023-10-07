@@ -12,7 +12,7 @@ pub fn generate<'ctx>(
     file_manager: &'ctx mut FileManager,
     error_manager: &'ctx impl ErrorReporter,
     module: &'ctx Module<'ctx>,
-) -> wasm::Module<'ctx> {
+) -> Option<wasm::Module<'ctx>> {
     let ctx = Context {
         arena,
         files: file_manager,
@@ -24,6 +24,32 @@ pub fn generate<'ctx>(
     let type_manager = TypeManager::build(ctx);
 
     let functions = setup_functions(&ctx, &type_manager);
+
+    if ctx.errors.has_errors() {
+        return None;
+    }
+
+    let mut exports = Vec::default();
+    let mut imports = Vec::default();
+
+    for (idx, func) in functions.iter().enumerate() {
+        let func_id = idx as wasm::FuncIdx;
+
+        if let Some(name) = func.export {
+            exports.push(wasm::Export {
+                name: name.to_string(),
+                desc: wasm::ExportDesc::Func(func_id),
+            });
+        }
+
+        if let Some((module_name, object_name)) = func.import {
+            imports.push(wasm::Import {
+                module: module_name.to_string(),
+                name: object_name.to_string(),
+                desc: wasm::ImportDesc::Func(func.type_id),
+            });
+        }
+    }
 
     todo!();
 }

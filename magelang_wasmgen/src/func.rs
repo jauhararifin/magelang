@@ -8,14 +8,14 @@ use std::collections::HashMap;
 use wasm_helper as wasm;
 
 pub(crate) struct Function<'ctx> {
-    name: &'ctx str,
-    pos: Pos,
-    type_id: wasm::TypeIdx,
-    import: Option<(&'ctx str, &'ctx str)>,
-    export: Option<&'ctx str>,
-    intrinsic: Option<Intrinsic>,
-    body: Option<&'ctx Statement<'ctx>>,
-    is_main: bool,
+    pub(crate) name: &'ctx str,
+    pub(crate) pos: Pos,
+    pub(crate) type_id: wasm::TypeIdx,
+    pub(crate) import: Option<(&'ctx str, &'ctx str)>,
+    pub(crate) export: Option<&'ctx str>,
+    pub(crate) intrinsic: Option<Intrinsic>,
+    pub(crate) body: Option<&'ctx Statement<'ctx>>,
+    pub(crate) is_main: bool,
 }
 
 pub(crate) enum Intrinsic {
