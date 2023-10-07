@@ -1,4 +1,5 @@
 use magelang_syntax::{ErrorReporter, Location, Pos};
+use magelang_typecheck::Annotation;
 use std::path::Path;
 
 pub(crate) trait CodegenError: ErrorReporter {
@@ -6,17 +7,41 @@ pub(crate) trait CodegenError: ErrorReporter {
         self.report(pos, format!("Cannot open file {path:?}: {err}"));
     }
 
-    fn duplicated_embed_file_annotation(&self, redeclared_at: Pos, declared_at: Location) {
+    fn duplicated_annotation(&self, annotation: &Annotation) {
         self.report(
-            redeclared_at,
-            format!("Found multiple @embed_file annotations. First declared at {declared_at}"),
+            annotation.pos,
+            format!("Found multiple annotation for {}", annotation.name),
         );
     }
 
-    fn annotation_arg_mismatch(&self, pos: Pos, name: &str, expected: usize, found: usize) {
+    fn unknown_intrinsic(&self, pos: Pos, name: &str) {
+        self.report(pos, format!("Unknown intrinsic named {name}"));
+    }
+
+    fn unknown_annotation(&self, annotation: &Annotation) {
+        self.report(
+            annotation.pos,
+            format!("Unknown annotation named {}", &annotation.name),
+        );
+    }
+
+    fn intrinsic_signature_mismatch(&self, pos: Pos) {
         self.report(
             pos,
-            format!("Expecting {expected} argument(s) for {name} annotation, but found {found}"),
+            String::from("The function signature is not compatible for the defined intrinsic"),
+        );
+    }
+
+    fn annotation_arg_mismatch(&self, annotation: &Annotation, expected: usize) {
+        self.report(
+            annotation.pos,
+            format!(
+                "Expecting {expected} argument(s) for {} annotation, but found {}",
+                &annotation.name,
+                annotation.arguments.len()
+            ),
         );
     }
 }
+
+impl<T> CodegenError for T where T: ErrorReporter {}

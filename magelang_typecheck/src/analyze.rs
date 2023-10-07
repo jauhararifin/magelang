@@ -242,6 +242,7 @@ pub struct FuncObject<'a> {
     pub type_params: &'a [TypeArg<'a>],
     pub ty: &'a Type<'a>,
     pub(crate) node: FunctionNode,
+    pub pos: Pos,
     pub body: OnceCell<&'a Statement<'a>>,
     pub annotations: Rc<[Annotation]>,
     pub monomorphized: OnceCell<&'a [(&'a TypeArgs<'a>, &'a Type<'a>, &'a Statement<'a>)]>,
@@ -573,6 +574,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                         def_id,
                         type_params,
                         ty,
+                        pos: func_node.signature.pos,
                         node: func_node,
                         body: OnceCell::default(),
                         annotations,
@@ -952,6 +954,7 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
                     if func_object.type_params.is_empty() {
                         functions.push(Func {
                             name: func_object.def_id,
+                            pos: func_object.pos,
                             typeargs: None,
                             ty: func_object.ty,
                             statement: func_object.body.get().expect("missing function body"),
@@ -962,6 +965,7 @@ fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
                         for (typeargs, ty, body) in monomorphized {
                             functions.push(Func {
                                 name: func_object.def_id,
+                                pos: func_object.pos,
                                 typeargs: Some(*typeargs),
                                 ty,
                                 statement: body,

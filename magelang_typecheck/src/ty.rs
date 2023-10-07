@@ -213,6 +213,10 @@ impl<'a> Type<'a> {
         self.repr.as_struct()
     }
 
+    pub fn is_usize(&self) -> bool {
+        self.is_unknown() || matches!(self.repr, TypeRepr::Int(false, BitSize::ISize))
+    }
+
     pub fn is_void(&self) -> bool {
         self.repr.is_unknown() || self.repr.is_void()
     }
@@ -227,6 +231,14 @@ impl<'a> Type<'a> {
 
     pub fn is_int(&self) -> bool {
         self.repr.is_unknown() || self.repr.is_int()
+    }
+
+    pub fn is_f32(&self) -> bool {
+        self.is_unknown() || matches!(self.repr, TypeRepr::Float(FloatType::F32))
+    }
+
+    pub fn is_f64(&self) -> bool {
+        self.is_unknown() || matches!(self.repr, TypeRepr::Float(FloatType::F64))
     }
 
     pub fn is_bool(&self) -> bool {

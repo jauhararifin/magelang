@@ -1,3 +1,7 @@
+mod context;
 mod data;
 mod errors;
-mod context;
+mod func;
+mod gen;
+mod mangling;
+mod ty;

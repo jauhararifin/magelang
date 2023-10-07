@@ -9,6 +9,7 @@ mod ty;
 mod value;
 
 use interner::Interner;
+use magelang_syntax::Pos;
 use std::fmt::Display;
 use std::rc::Rc;
 
@@ -60,6 +61,7 @@ pub struct Global<'a> {
 #[derive(Debug)]
 pub struct Func<'a> {
     pub name: DefId<'a>,
+    pub pos: Pos,
     pub typeargs: Option<&'a TypeArgs<'a>>,
     pub ty: &'a Type<'a>,
     pub statement: &'a Statement<'a>,

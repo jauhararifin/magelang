@@ -1,6 +1,6 @@
 use crate::context::Context;
 use crate::errors::CodegenError;
-use magelang_syntax::Pos;
+use magelang_syntax::{ErrorReporter, Pos};
 use magelang_typecheck::{Annotation, Expr, ExprKind, Statement};
 use std::collections::HashMap;
 use std::fs::File;
@@ -33,7 +33,7 @@ impl<'ctx, E> DataManager<'ctx, E> {
     }
 }
 
-impl<'ctx, E: CodegenError> DataManager<'ctx, E> {
+impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
     pub(crate) fn build(ctx: Context<'ctx, E>) -> Self {
         let mut s = Self::new(ctx);
         s.init();
@@ -170,27 +170,20 @@ impl<'ctx, E: CodegenError> DataManager<'ctx, E> {
         annotations: &'ctx [Annotation],
     ) -> Option<(Pos, &'ctx Path)> {
         let mut result = None;
-        for annotation in annotations {
+        for annotation in annotations.iter().rev() {
             let name = annotation.name.as_str();
             if name != EMBED_FILE_ANNOTATION_NAME {
                 continue;
             }
 
             if annotation.arguments.len() != 1 {
-                self.ctx.errors.annotation_arg_mismatch(
-                    annotation.pos,
-                    &annotation.name,
-                    1,
-                    annotation.arguments.len(),
-                );
+                self.ctx.errors.annotation_arg_mismatch(&annotation, 1);
                 continue;
             }
 
-            if let Some((declared_at, _)) = &result {
-                self.ctx.errors.duplicated_embed_file_annotation(
-                    annotation.pos,
-                    self.ctx.files.location(*declared_at),
-                );
+            if result.is_some() {
+                self.ctx.errors.duplicated_annotation(annotation);
+                continue;
             }
 
             let filepath = annotation.arguments[0].as_str();
