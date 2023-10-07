@@ -2,17 +2,19 @@ use crate::context::Context;
 use crate::errors::CodegenError;
 use crate::mangling::Mangle;
 use crate::ty::{build_val_type, TypeManager};
-use magelang_syntax::ErrorReporter;
-use magelang_typecheck::{Annotation, Func};
+use magelang_syntax::{ErrorReporter, Pos};
+use magelang_typecheck::{Annotation, Func, Statement};
+use std::collections::HashMap;
 use wasm_helper as wasm;
 
 pub(crate) struct Function<'ctx> {
     name: &'ctx str,
+    pos: Pos,
     type_id: wasm::TypeIdx,
     import: Option<(&'ctx str, &'ctx str)>,
     export: Option<&'ctx str>,
     intrinsic: Option<Intrinsic>,
-    body: Option<()>,
+    body: Option<&'ctx Statement<'ctx>>,
     is_main: bool,
 }
 
@@ -40,6 +42,25 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
     ctx: &Context<'ctx, E>,
     type_manager: &TypeManager<'ctx>,
 ) -> Vec<Function<'ctx>> {
+    let mut functions = init_functions(ctx, type_manager);
+
+    // it is important that the imported function appear first due to wasm specification
+    // require all imported functions to occupied the first indexes.
+    functions.sort_by(|a, b| match (a.import, b.import) {
+        (Some(..), Some(..)) | (None, None) => a.name.cmp(b.name),
+        (Some(..), None) => std::cmp::Ordering::Less,
+        (None, Some(..)) => std::cmp::Ordering::Greater,
+    });
+
+    check_functions(ctx, &functions);
+
+    functions
+}
+
+fn init_functions<'ctx, E: ErrorReporter>(
+    ctx: &Context<'ctx, E>,
+    type_manager: &TypeManager<'ctx>,
+) -> Vec<Function<'ctx>> {
     let mut results = Vec::default();
 
     let functions = ctx.module.packages.iter().flat_map(|pkg| &pkg.functions);
@@ -60,13 +81,20 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
 
         let func_name = func.get_mangled_name(ctx);
 
+        let body = if matches!(func.statement, Statement::Native) {
+            None
+        } else {
+            Some(func.statement)
+        };
+
         let mut result = Function {
             name: func_name,
+            pos: func.pos,
             type_id: func_wasm_type_id,
             import: None,
             export: None,
             intrinsic: None,
-            body: None,
+            body,
             is_main: false,
         };
 
@@ -83,6 +111,11 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
                         continue;
                     }
 
+                    if func.typeargs.is_some() {
+                        ctx.errors.import_generic_func(func.pos);
+                        continue;
+                    }
+
                     let import_module = annotation.arguments.get(0).unwrap();
                     let import_name = annotation.arguments.get(1).unwrap();
                     result.import = Some((import_module, import_name));
@@ -95,6 +128,11 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
 
                     if result.export.is_some() {
                         ctx.errors.duplicated_annotation(&annotation);
+                        continue;
+                    }
+
+                    if func.typeargs.is_some() {
+                        ctx.errors.import_generic_func(func.pos);
                         continue;
                     }
 
@@ -125,6 +163,15 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
                         ctx.errors.duplicated_annotation(&annotation);
                         continue;
                     }
+
+                    let is_valid = func.typeargs.is_none()
+                        && func.ty.as_func().is_some_and(|f| f.params.is_empty())
+                        && func.ty.as_func().is_some_and(|f| f.return_type.is_void());
+                    if !is_valid {
+                        ctx.errors.invalid_main_signature(func.pos);
+                        continue;
+                    }
+
                     result.is_main = true;
                 }
                 _ => ctx.errors.unknown_annotation(annotation),
@@ -252,4 +299,85 @@ fn setup_func_intrinsic<'ctx, E: ErrorReporter>(
     }
 
     Some(intrinsic)
+}
+
+fn check_functions<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, E>, functions: &[Function<'ctx>]) {
+    check_duplicated_main(ctx, functions);
+    check_imports_exports(ctx, functions);
+    check_compilation_strategy(ctx, functions);
+}
+
+fn check_duplicated_main<'ctx, E: ErrorReporter>(
+    ctx: &Context<'ctx, E>,
+    functions: &[Function<'ctx>],
+) {
+    let mut main = None;
+    for func in functions {
+        if func.is_main {
+            if let Some(declared_at) = main {
+                ctx.errors
+                    .multiple_main(func.pos, ctx.files.location(declared_at));
+            } else {
+                main = Some(func.pos);
+            }
+        }
+    }
+}
+
+fn check_imports_exports<'ctx, E: ErrorReporter>(
+    ctx: &Context<'ctx, E>,
+    functions: &[Function<'ctx>],
+) {
+    let mut imports = HashMap::<(&str, &str), Pos>::default();
+    let mut exports = HashMap::<&str, Pos>::default();
+
+    for func in functions {
+        if let Some((im_module, im_name)) = &func.import {
+            if let Some(declared_at) = imports.get(&(im_module, im_name)) {
+                ctx.errors.duplicated_import(
+                    func.pos,
+                    im_module,
+                    im_name,
+                    ctx.files.location(*declared_at),
+                );
+            } else {
+                imports.insert((*im_module, *im_name), func.pos);
+            }
+        }
+
+        if let Some(name) = &func.export {
+            if let Some(declared_at) = exports.get(name) {
+                ctx.errors
+                    .duplicated_export(func.pos, name, ctx.files.location(*declared_at));
+            } else {
+                exports.insert(name, func.pos);
+            }
+        }
+
+        if func.export.is_some() && func.import.is_some() {
+            ctx.errors.func_both_imported_and_exported(func.pos);
+        }
+    }
+}
+
+fn check_compilation_strategy<'ctx, E: ErrorReporter>(
+    ctx: &Context<'ctx, E>,
+    functions: &[Function<'ctx>],
+) {
+    for func in functions {
+        let is_import = func.import.is_some();
+        let is_export = func.export.is_some();
+        let is_intrinsic = func.intrinsic.is_some();
+        let is_user = func.body.is_some();
+
+        let is_valid = (is_import && !is_export && !is_intrinsic && !is_user)
+            || (!is_import && is_export && is_intrinsic && !is_user)
+            || (!is_import && is_export && !is_intrinsic && is_user)
+            || (!is_import && !is_export && is_intrinsic && !is_user)
+            || (!is_import && !is_export && !is_intrinsic && is_user);
+
+        if !is_valid {
+            ctx.errors.unknown_compilation_strategy(func.pos);
+        }
+    }
 }

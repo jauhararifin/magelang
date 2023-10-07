@@ -5,3 +5,5 @@ mod func;
 mod gen;
 mod mangling;
 mod ty;
+
+pub use gen::generate;
