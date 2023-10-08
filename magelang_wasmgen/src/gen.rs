@@ -1,7 +1,8 @@
 use crate::context::Context;
 use crate::data::DataManager;
-use crate::func::{build_intrinsic_func, setup_functions};
+use crate::func::{build_intrinsic_func, setup_functions, FuncManager};
 use crate::ty::TypeManager;
+use crate::var::GlobalManager;
 use bumpalo::Bump;
 use magelang_syntax::{ErrorReporter, FileManager};
 use magelang_typecheck::Module;
@@ -22,6 +23,7 @@ pub fn generate<'ctx>(
 
     let data_manager = DataManager::build(ctx);
     let type_manager = TypeManager::build(ctx);
+    let global_manager = GlobalManager::build(module);
 
     let functions = setup_functions(&ctx, &type_manager);
 
@@ -29,27 +31,7 @@ pub fn generate<'ctx>(
         return None;
     }
 
-    let mut exports = Vec::default();
-    let mut imports = Vec::default();
-
-    for (idx, func) in functions.iter().enumerate() {
-        let func_id = idx as wasm::FuncIdx;
-
-        if let Some(name) = func.export {
-            exports.push(wasm::Export {
-                name: name.to_string(),
-                desc: wasm::ExportDesc::Func(func_id),
-            });
-        }
-
-        if let Some((module_name, object_name)) = func.import {
-            imports.push(wasm::Import {
-                module: module_name.to_string(),
-                name: object_name.to_string(),
-                desc: wasm::ImportDesc::Func(func.type_id),
-            });
-        }
-    }
+    let func_manager = FuncManager::new(&functions);
 
     let mut module_functions = Vec::default();
     for func in &functions {
@@ -65,8 +47,14 @@ pub fn generate<'ctx>(
         return None;
     }
 
-    let func_elems = todo!();
-    let func_table = todo!();
+    let func_elems = func_manager.func_elems;
+    let func_table = wasm::Table {
+        limits: wasm::Limits {
+            min: module_functions.len() as u32,
+            max: None,
+        },
+        ref_type: wasm::RefType::FuncRef,
+    };
     let opaque_table = wasm::TableType {
         limits: wasm::Limits { min: 32, max: None },
         ref_type: wasm::RefType::ExternRef,
@@ -86,11 +74,11 @@ pub fn generate<'ctx>(
         funcs: module_functions,
         tables,
         mems,
-        globals: todo!(),
-        elems: todo!(),
+        globals: global_manager.take(),
+        elems: func_elems,
         datas: data.datas,
-        start: todo!(),
-        imports: todo!(),
-        exports,
+        start: func_manager.main_func,
+        imports: func_manager.imports,
+        exports: func_manager.exports,
     })
 }

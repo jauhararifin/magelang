@@ -395,16 +395,59 @@ fn check_compilation_strategy<'ctx, E: ErrorReporter>(
 }
 
 pub(crate) struct FuncManager<'ctx> {
-    func_map: HashMap<FuncId<'ctx>, wasm::FuncIdx>,
+    pub(crate) func_map: HashMap<FuncId<'ctx>, wasm::FuncIdx>,
+    pub(crate) func_elems: Vec<wasm::Elem>,
+    pub(crate) main_func: Option<wasm::FuncIdx>,
+    pub(crate) exports: Vec<wasm::Export>,
+    pub(crate) imports: Vec<wasm::Import>,
 }
 
 impl<'ctx> FuncManager<'ctx> {
     pub(crate) fn new(functions: &[Function<'ctx>]) -> Self {
         let mut func_map = HashMap::default();
+        let mut func_elems = Vec::default();
+        let mut main_func = None;
+        let mut exports = Vec::default();
+        let mut imports = Vec::default();
+
         for (idx, func) in functions.iter().enumerate() {
-            func_map.insert(func.id.clone(), wasm::FuncIdx::from(idx as u32));
+            let func_id = wasm::FuncIdx::from(idx as u32);
+            if main_func.is_none() && func.is_main {
+                main_func = Some(func_id);
+            }
+            func_map.insert(func.id.clone(), func_id);
+            func_elems.push(wasm::Elem {
+                ty: wasm::RefType::FuncRef,
+                init: vec![wasm::Expr(vec![wasm::Instr::RefFunc(func_id)])],
+                mode: wasm::ElemMode::Active {
+                    table: 0,
+                    offset: wasm::Expr(vec![wasm::Instr::I32Const(func_id as i32)]),
+                },
+            });
+
+            if let Some(name) = func.export {
+                exports.push(wasm::Export {
+                    name: name.to_string(),
+                    desc: wasm::ExportDesc::Func(func_id),
+                });
+            }
+
+            if let Some((module_name, object_name)) = func.import {
+                imports.push(wasm::Import {
+                    module: module_name.to_string(),
+                    name: object_name.to_string(),
+                    desc: wasm::ImportDesc::Func(func.type_id),
+                });
+            }
         }
-        Self { func_map }
+
+        Self {
+            func_map,
+            func_elems,
+            main_func,
+            imports,
+            exports,
+        }
     }
 }
 
