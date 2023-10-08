@@ -1,14 +1,16 @@
 use crate::context::Context;
+use crate::data::DataManager;
 use crate::errors::CodegenError;
 use crate::mangling::Mangle;
 use crate::ty::{build_val_type, TypeManager};
 use magelang_syntax::{ErrorReporter, Pos};
-use magelang_typecheck::{Annotation, Func, Statement};
+use magelang_typecheck::{Annotation, DefId, Func, Statement, TypeArgs};
 use std::collections::HashMap;
 use wasm_helper as wasm;
 
 pub(crate) struct Function<'ctx> {
-    pub(crate) name: &'ctx str,
+    pub(crate) id: FuncId<'ctx>,
+    pub(crate) mangled_name: &'ctx str,
     pub(crate) pos: Pos,
     pub(crate) type_id: wasm::TypeIdx,
     pub(crate) import: Option<(&'ctx str, &'ctx str)>,
@@ -16,6 +18,12 @@ pub(crate) struct Function<'ctx> {
     pub(crate) intrinsic: Option<Intrinsic>,
     pub(crate) body: Option<&'ctx Statement<'ctx>>,
     pub(crate) is_main: bool,
+}
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub(crate) struct FuncId<'ctx> {
+    def_id: DefId<'ctx>,
+    typeargs: Option<&'ctx TypeArgs<'ctx>>,
 }
 
 pub(crate) enum Intrinsic {
@@ -47,7 +55,7 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
     // it is important that the imported function appear first due to wasm specification
     // require all imported functions to occupied the first indexes.
     functions.sort_by(|a, b| match (a.import, b.import) {
-        (Some(..), Some(..)) | (None, None) => a.name.cmp(b.name),
+        (Some(..), Some(..)) | (None, None) => a.mangled_name.cmp(b.mangled_name),
         (Some(..), None) => std::cmp::Ordering::Less,
         (None, Some(..)) => std::cmp::Ordering::Greater,
     });
@@ -79,7 +87,7 @@ fn init_functions<'ctx, E: ErrorReporter>(
             returns,
         });
 
-        let func_name = func.get_mangled_name(ctx);
+        let mangled_name = func.get_mangled_name(ctx);
 
         let body = if matches!(func.statement, Statement::Native) {
             None
@@ -88,7 +96,11 @@ fn init_functions<'ctx, E: ErrorReporter>(
         };
 
         let mut result = Function {
-            name: func_name,
+            id: FuncId {
+                def_id: func.name,
+                typeargs: func.typeargs.clone(),
+            },
+            mangled_name,
             pos: func.pos,
             type_id: func_wasm_type_id,
             import: None,
@@ -379,5 +391,84 @@ fn check_compilation_strategy<'ctx, E: ErrorReporter>(
         if !is_valid {
             ctx.errors.unknown_compilation_strategy(func.pos);
         }
+    }
+}
+
+pub(crate) struct FuncManager<'ctx> {
+    func_map: HashMap<FuncId<'ctx>, wasm::FuncIdx>,
+}
+
+impl<'ctx> FuncManager<'ctx> {
+    pub(crate) fn new(functions: &[Function<'ctx>]) -> Self {
+        let mut func_map = HashMap::default();
+        for (idx, func) in functions.iter().enumerate() {
+            func_map.insert(func.id.clone(), wasm::FuncIdx::from(idx as u32));
+        }
+        Self { func_map }
+    }
+}
+
+pub(crate) fn build_intrinsic_func<'ctx, E>(
+    type_manager: &TypeManager<'ctx>,
+    data_manager: &DataManager<'ctx, E>,
+    func: &Function<'ctx>,
+) -> wasm::Func {
+    let kind = func.intrinsic.as_ref().unwrap();
+    wasm::Func {
+        name: func.mangled_name.to_string(),
+        ty: func.type_id,
+        locals: vec![],
+        body: wasm::Expr(match kind {
+            Intrinsic::MemorySize => vec![wasm::Instr::MemorySize],
+            Intrinsic::MemoryGrow => {
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::MemoryGrow]
+            }
+            Intrinsic::F32Floor => {
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Floor]
+            }
+            Intrinsic::F64Floor => {
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Floor]
+            }
+            Intrinsic::F32Ceil => {
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::F32Ceil]
+            }
+            Intrinsic::F64Ceil => {
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::F64Ceil]
+            }
+            Intrinsic::Trap => vec![wasm::Instr::Unreachable],
+            Intrinsic::DataEnd => {
+                vec![wasm::Instr::I32Const(data_manager.data_end() as i32)]
+            }
+            Intrinsic::TableGet => {
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::TableGet(1)]
+            }
+            Intrinsic::TableSet => {
+                vec![
+                    wasm::Instr::LocalGet(0),
+                    wasm::Instr::LocalGet(1),
+                    wasm::Instr::TableSet(1),
+                ]
+            }
+            Intrinsic::SizeOf => {
+                let typeargs = func.id.typeargs.unwrap();
+                assert!(typeargs.len() == 1);
+                let ty = typeargs[0];
+                if let Some(layout) = type_manager.get_mem_layout(ty) {
+                    vec![wasm::Instr::I32Const(layout.size as i32)]
+                } else {
+                    vec![wasm::Instr::I32Const(0i32)]
+                }
+            }
+            Intrinsic::AlignOf => {
+                let typeargs = func.id.typeargs.unwrap();
+                assert!(typeargs.len() == 1);
+                let ty = typeargs[0];
+                if let Some(layout) = type_manager.get_mem_layout(ty) {
+                    vec![wasm::Instr::I32Const(layout.align as i32)]
+                } else {
+                    vec![wasm::Instr::I32Const(0 as i32)]
+                }
+            }
+        }),
     }
 }

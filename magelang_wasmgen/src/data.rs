@@ -33,33 +33,7 @@ impl<'ctx, E> DataManager<'ctx, E> {
     }
 }
 
-impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
-    pub(crate) fn build(ctx: Context<'ctx, E>) -> Self {
-        let mut s = Self::new(ctx);
-        s.init();
-        s
-    }
-
-    fn init(&mut self) {
-        let globals = self.ctx.module.packages.iter().flat_map(|pkg| &pkg.globals);
-        for global in globals.clone() {
-            self.init_from_expr(global.value);
-        }
-        for global in globals {
-            self.init_from_annotations(&global.annotations);
-        }
-
-        let functions = self
-            .ctx
-            .module
-            .packages
-            .iter()
-            .flat_map(|pkg| &pkg.functions);
-        for func in functions {
-            self.init_from_stmt(func.statement);
-        }
-    }
-
+impl<'ctx, E> DataManager<'ctx, E> {
     pub(crate) fn data_end(&self) -> usize {
         self.next_offset
     }
@@ -134,6 +108,63 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
         }
     }
 
+    pub(crate) fn get_min_page(&self) -> usize {
+        (self.next_offset + wasm_helper::PAGE_SIZE as usize - 1) / (wasm_helper::PAGE_SIZE as usize)
+    }
+
+    pub(crate) fn get_bytes(&self, bytes: &[u8]) -> Option<usize> {
+        self.literals.get(bytes).cloned()
+    }
+
+    pub(crate) fn get_file(&self, path: &Path) -> Option<usize> {
+        self.files.get(path).cloned()
+    }
+
+    pub(crate) fn take(self) -> Data<'ctx> {
+        let num_pages = self.get_min_page();
+
+        let mut datas = Vec::default();
+        for (data, offset) in self.data {
+            datas.push(wasm::Data {
+                init: wasm::Bytes(data),
+                mode: wasm::DataMode::Active {
+                    memory: 0,
+                    offset: wasm::Expr(vec![wasm::Instr::I32Const(offset as i32)]),
+                },
+            });
+        }
+
+        Data { num_pages, datas }
+    }
+}
+
+impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
+    pub(crate) fn build(ctx: Context<'ctx, E>) -> Self {
+        let mut s = Self::new(ctx);
+        s.init();
+        s
+    }
+
+    fn init(&mut self) {
+        let globals = self.ctx.module.packages.iter().flat_map(|pkg| &pkg.globals);
+        for global in globals.clone() {
+            self.init_from_expr(global.value);
+        }
+        for global in globals {
+            self.init_from_annotations(&global.annotations);
+        }
+
+        let functions = self
+            .ctx
+            .module
+            .packages
+            .iter()
+            .flat_map(|pkg| &pkg.functions);
+        for func in functions {
+            self.init_from_stmt(func.statement);
+        }
+    }
+
     fn init_from_annotations(&mut self, annotations: &'ctx [Annotation]) {
         let Some((pos, filepath)) = self.get_embed_file_annotation(annotations) else {
             return;
@@ -145,6 +176,39 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
         self.next_offset += buff.len();
         self.files.insert(filepath.into(), next_offset);
         self.data.push((buff, next_offset));
+    }
+
+    fn init_from_stmt(&mut self, stmt: &Statement<'ctx>) {
+        match stmt {
+            Statement::Block(statements) => {
+                for stmt in statements.iter() {
+                    self.init_from_stmt(stmt);
+                }
+            }
+            Statement::NewLocal(_, expr) => {
+                self.init_from_expr(expr);
+            }
+            Statement::If(if_stmt) => {
+                self.init_from_expr(&if_stmt.cond);
+                self.init_from_stmt(&if_stmt.body);
+                if let Some(ref else_body) = if_stmt.else_stmt {
+                    self.init_from_stmt(else_body);
+                }
+            }
+            Statement::While(while_stmt) => {
+                self.init_from_expr(&while_stmt.cond);
+                self.init_from_stmt(&while_stmt.body);
+            }
+            Statement::Return(Some(val)) => {
+                self.init_from_expr(val);
+            }
+            Statement::Expr(expr) => self.init_from_expr(expr),
+            Statement::Assign(target, value) => {
+                self.init_from_expr(target);
+                self.init_from_expr(value);
+            }
+            Statement::Native | Statement::Return(..) | Statement::Continue | Statement::Break => {}
+        }
     }
 
     fn get_file_contents(&self, pos: Pos, filepath: &Path) -> &'ctx [u8] {
@@ -193,71 +257,9 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
 
         result
     }
-
-    fn init_from_stmt(&mut self, stmt: &Statement<'ctx>) {
-        match stmt {
-            Statement::Block(statements) => {
-                for stmt in statements.iter() {
-                    self.init_from_stmt(stmt);
-                }
-            }
-            Statement::NewLocal(_, expr) => {
-                self.init_from_expr(expr);
-            }
-            Statement::If(if_stmt) => {
-                self.init_from_expr(&if_stmt.cond);
-                self.init_from_stmt(&if_stmt.body);
-                if let Some(ref else_body) = if_stmt.else_stmt {
-                    self.init_from_stmt(else_body);
-                }
-            }
-            Statement::While(while_stmt) => {
-                self.init_from_expr(&while_stmt.cond);
-                self.init_from_stmt(&while_stmt.body);
-            }
-            Statement::Return(Some(val)) => {
-                self.init_from_expr(val);
-            }
-            Statement::Expr(expr) => self.init_from_expr(expr),
-            Statement::Assign(target, value) => {
-                self.init_from_expr(target);
-                self.init_from_expr(value);
-            }
-            Statement::Native | Statement::Return(..) | Statement::Continue | Statement::Break => {}
-        }
-    }
-
-    pub(crate) fn get_min_page(&self) -> usize {
-        (self.next_offset + wasm_helper::PAGE_SIZE as usize - 1) / (wasm_helper::PAGE_SIZE as usize)
-    }
-
-    pub(crate) fn get_bytes(&self, bytes: &[u8]) -> Option<usize> {
-        self.literals.get(bytes).cloned()
-    }
-
-    pub(crate) fn get_file(&self, path: &Path) -> Option<usize> {
-        self.files.get(path).cloned()
-    }
-
-    pub(crate) fn take(self) -> Data<'ctx> {
-        let num_pages = self.get_min_page();
-
-        let mut datas = Vec::default();
-        for (data, offset) in self.data {
-            datas.push(wasm::Data {
-                init: wasm::Bytes(data),
-                mode: wasm::DataMode::Active {
-                    memory: 0,
-                    offset: wasm::Expr(vec![wasm::Instr::I32Const(offset as i32)]),
-                },
-            });
-        }
-
-        Data { num_pages, datas }
-    }
 }
 
 pub(crate) struct Data<'ctx> {
-    num_pages: usize,
-    datas: Vec<wasm::Data<'ctx>>,
+    pub(crate) num_pages: usize,
+    pub(crate) datas: Vec<wasm::Data<'ctx>>,
 }

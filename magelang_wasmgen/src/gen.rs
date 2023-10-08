@@ -1,6 +1,6 @@
 use crate::context::Context;
 use crate::data::DataManager;
-use crate::func::setup_functions;
+use crate::func::{build_intrinsic_func, setup_functions};
 use crate::ty::TypeManager;
 use bumpalo::Bump;
 use magelang_syntax::{ErrorReporter, FileManager};
@@ -51,5 +51,46 @@ pub fn generate<'ctx>(
         }
     }
 
-    todo!();
+    let mut module_functions = Vec::default();
+    for func in &functions {
+        if func.intrinsic.is_some() {
+            let result = build_intrinsic_func(&type_manager, &data_manager, func);
+            module_functions.push(result);
+        } else if func.body.is_some() {
+            todo!();
+        }
+    }
+
+    if ctx.errors.has_errors() {
+        return None;
+    }
+
+    let func_elems = todo!();
+    let func_table = todo!();
+    let opaque_table = wasm::TableType {
+        limits: wasm::Limits { min: 32, max: None },
+        ref_type: wasm::RefType::ExternRef,
+    };
+    let tables = vec![func_table, opaque_table];
+
+    let data = data_manager.take();
+
+    let min_page = data.num_pages;
+    let mems = vec![wasm::Mem {
+        min: min_page as u32,
+        max: None,
+    }];
+
+    Some(wasm::Module {
+        types: type_manager.take(),
+        funcs: module_functions,
+        tables,
+        mems,
+        globals: todo!(),
+        elems: todo!(),
+        datas: data.datas,
+        start: todo!(),
+        imports: todo!(),
+        exports,
+    })
 }

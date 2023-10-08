@@ -148,6 +148,10 @@ impl<'ctx> TypeManager<'ctx> {
             offset: mem_offset,
         }))
     }
+
+    pub(crate) fn take(self) -> Vec<wasm::FuncType> {
+        self.func_types.take().into_keys().collect()
+    }
 }
 
 pub(crate) struct MemLayout {
