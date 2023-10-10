@@ -24,7 +24,7 @@ use std::rc::Rc;
 
 pub fn analyze<'a, 'b: 'a>(
     arena: &'a Bump,
-    file_manager: &'b mut FileManager,
+    file_manager: &mut FileManager,
     error_manager: &'b impl ErrorReporter,
     main_package: &'b str,
 ) -> Module<'a> {
@@ -103,16 +103,16 @@ pub fn analyze<'a, 'b: 'a>(
     build_module(&ctx, is_valid)
 }
 
-pub struct Context<'a, E> {
+pub struct Context<'a, 'syn, E> {
     pub(crate) arena: &'a Bump,
-    pub(crate) files: &'a FileManager,
-    pub(crate) errors: &'a E,
+    pub(crate) files: &'syn FileManager,
+    pub(crate) errors: &'syn E,
 
     pub(crate) interners: Interners<'a>,
     pub(crate) scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
 }
 
-impl<'a, E> Context<'a, E> {
+impl<'a, 'syn, E> Context<'a, 'syn, E> {
     pub(crate) fn define_symbol(&self, symbol: &str) -> Symbol<'a> {
         self.interners.symbols.define(symbol)
     }
@@ -301,8 +301,8 @@ fn get_all_package_asts<'a>(
     package_asts
 }
 
-fn build_imports<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn build_imports<'a, 'syn, E: ErrorReporter>(
+    ctx: &Context<'a, 'syn, E>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, ImportObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<ImportObject>>::default();
@@ -354,8 +354,8 @@ fn build_imports<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn build_type_scopes<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+fn build_type_scopes<'a, 'syn, E: ErrorReporter>(
+    ctx: &Context<'a, 'syn, E>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, TypeObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<TypeObject<'a>>>::default();
@@ -417,7 +417,7 @@ fn build_type_scopes<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, TypeObject<'a>> {
+fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>) -> Scope<'a, TypeObject<'a>> {
     let i8_type = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::I8),
@@ -500,7 +500,7 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, Ty
     builtin_scope
 }
 
-fn generate_type_body<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, E>) {
+fn generate_type_body<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, '_, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             type_object.init_body(ctx);
@@ -510,7 +510,7 @@ fn generate_type_body<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, E>) {
 }
 
 fn build_value_scopes<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<ValueObject<'a>>>::default();
@@ -595,7 +595,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
 }
 
 fn build_annotations_from_node<E: ErrorReporter>(
-    ctx: &Context<'_, E>,
+    ctx: &Context<'_, '_, E>,
     nodes: &[AnnotationNode],
 ) -> Vec<Annotation> {
     let mut annotations = Vec::default();
@@ -628,7 +628,7 @@ fn build_annotations_from_node<E: ErrorReporter>(
     annotations
 }
 
-fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, E>) {
+fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Global(global_object) = value_object else {
@@ -665,7 +665,7 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, E>) {
     }
 }
 
-fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, E>) {
+fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Func(func_object) = value_object else {
@@ -680,7 +680,7 @@ fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, E>) {
 }
 
 fn get_func_body<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
     func_object: &FuncObject<'a>,
 ) -> Statement<'a> {
@@ -725,7 +725,7 @@ fn get_func_body<'a, E: ErrorReporter>(
     result.statement
 }
 
-fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
+fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     let monomorphized_funcs = get_all_monomorphized_funcs(ctx);
 
     for (def_id, all_typeargs) in monomorphized_funcs {
@@ -761,7 +761,7 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, E>) {
 }
 
 fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
 ) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
@@ -934,7 +934,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     monomorphized_funcs.into_iter().collect()
 }
 
-fn build_module<'a, E>(ctx: &Context<'a, E>, is_valid: bool) -> Module<'a> {
+fn build_module<'a, E>(ctx: &Context<'a, '_, E>, is_valid: bool) -> Module<'a> {
     let mut packages = Vec::default();
     for (name, scope) in ctx.scopes.iter() {
         let mut globals = Vec::default();

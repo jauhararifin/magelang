@@ -62,7 +62,7 @@ impl<'a> Debug for Type<'a> {
 }
 
 impl<'a> Type<'a> {
-    pub(crate) fn init_body<E: ErrorReporter>(&'a self, ctx: &Context<'a, E>) {
+    pub(crate) fn init_body<E: ErrorReporter>(&'a self, ctx: &Context<'a, '_, E>) {
         let TypeRepr::Struct(struct_type) = &self.repr else {
             return;
         };
@@ -117,7 +117,7 @@ impl<'a> Type<'a> {
 
         if let TypeKind::Generic(kind) = &self.kind {
             for ty in kind.mono_cache.borrow().values() {
-                let TypeKind::Inst(instanced_type) =&ty.kind else {
+                let TypeKind::Inst(instanced_type) = &ty.kind else {
                     continue;
                 };
                 self.monomorphize_repr(ctx, instanced_type.type_args);
@@ -127,7 +127,7 @@ impl<'a> Type<'a> {
 
     pub(crate) fn monomorphize<E: ErrorReporter>(
         &'a self,
-        ctx: &Context<'a, E>,
+        ctx: &Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
         if let TypeKind::Generic(generic_type) = &self.kind {
@@ -153,7 +153,7 @@ impl<'a> Type<'a> {
 
     fn monomorphize_repr<E: ErrorReporter>(
         &'a self,
-        ctx: &Context<'a, E>,
+        ctx: &Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
         match &self.repr {
@@ -239,6 +239,15 @@ impl<'a> Type<'a> {
 
     pub fn is_f64(&self) -> bool {
         self.is_unknown() || matches!(self.repr, TypeRepr::Float(FloatType::F64))
+    }
+
+    pub fn is_byte_array(&self) -> bool {
+        self.is_unknown()
+            || if let TypeRepr::ArrayPtr(element_ty) = self.repr {
+                matches!(element_ty.repr, TypeRepr::Int(false, BitSize::I8))
+            } else {
+                false
+            }
     }
 
     pub fn is_bool(&self) -> bool {
@@ -498,7 +507,7 @@ pub struct StructType<'a> {
 impl<'a> StructType<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
+        ctx: &'b Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> Option<StructBody<'a>> {
         let fields = self
@@ -532,7 +541,7 @@ pub struct FuncType<'a> {
 impl<'a> FuncType<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
+        ctx: &'b Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> FuncType<'a> {
         let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
@@ -589,7 +598,7 @@ impl<'a> TypeArg<'a> {
 
     pub(crate) fn monomorphize<'b, E>(
         &self,
-        _: &'b Context<'a, E>,
+        _: &'b Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
         type_args
@@ -599,7 +608,7 @@ impl<'a> TypeArg<'a> {
 }
 
 pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, E>,
+    ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
     node: &TypeExprNode,
 ) -> &'a Type<'a> {
@@ -651,7 +660,7 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
 }
 
 fn get_type_from_path<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, E>,
+    ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
     node: &PathNode,
 ) -> &'a Type<'a> {
@@ -694,7 +703,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
 }
 
 fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, E>,
+    ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
     names: &[Token],
 ) -> Option<&'b TypeObject<'a>> {
@@ -731,7 +740,7 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
 }
 
 pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
     type_params: &[TypeArg<'a>],
     signature: &SignatureNode,
@@ -773,7 +782,7 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
     nodes: &[TypeParameterNode],
 ) -> &'a [TypeArg<'a>] {
     let mut type_params = BumpVec::with_capacity_in(nodes.len(), ctx.arena);
@@ -793,7 +802,7 @@ pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
     type_params: &[TypeArg<'a>],
 ) -> Scopes<'a> {
@@ -817,7 +826,7 @@ pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(
     scope
 }
 
-pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, E>) {
+pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     let dep_list = build_struct_dependency_list(ctx);
 
     let mut visited = IndexSet::<DefId>::default();
@@ -850,7 +859,7 @@ pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, E>) {
 }
 
 fn build_struct_dependency_list<'a, E: ErrorReporter>(
-    ctx: &Context<'a, E>,
+    ctx: &Context<'a, '_, E>,
 ) -> IndexMap<DefId<'a>, IndexSet<DefId<'a>>> {
     let mut adjlist = IndexMap::<DefId, IndexSet<DefId>>::default();
     let type_objects = ctx
@@ -884,7 +893,7 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
 }
 
 fn report_circular_type<E: ErrorReporter>(
-    ctx: &Context<'_, E>,
+    ctx: &Context<'_, '_, E>,
     in_chain: &IndexSet<DefId>,
     start: DefId,
 ) {

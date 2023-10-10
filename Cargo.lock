@@ -212,9 +212,9 @@ version = "0.0.1"
 dependencies = [
  "bumpalo",
  "clap",
- "magelang_codegen",
  "magelang_syntax",
  "magelang_typecheck",
+ "magelang_wasmgen",
  "wasm_helper",
 ]
 

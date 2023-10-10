@@ -1,4 +1,3 @@
-use crate::context::Context;
 use indexmap::IndexMap;
 use magelang_typecheck::{BitSize, FloatType, StructBody, Type, TypeRepr};
 use std::cell::RefCell;
@@ -19,10 +18,6 @@ struct LayoutManagerInternal<'ctx> {
 }
 
 impl<'ctx> TypeManager<'ctx> {
-    pub(crate) fn build<E>(ctx: Context<'ctx, E>) -> Self {
-        todo!();
-    }
-
     pub(crate) fn get_func_type(&self, func_type: wasm::FuncType) -> wasm::TypeIdx {
         let mut func_type_cache = self.func_types.borrow_mut();
         let next_id = func_type_cache.len() as wasm::TypeIdx;
@@ -70,13 +65,16 @@ impl<'ctx> TypeManager<'ctx> {
         let mut idx_offset = Vec::default();
         let mut curr_idx = 0;
         for ty in body.fields.values() {
-            idx_offset.push(curr_idx);
             let type_layout = self.get_stack_layout(ty);
+            idx_offset.push(StackComponent {
+                offset: curr_idx,
+                size: type_layout.size,
+            });
             curr_idx += type_layout.size;
         }
         Rc::new(StackLayout {
             size: curr_idx,
-            offset: idx_offset,
+            components: idx_offset,
         })
     }
 
@@ -132,7 +130,10 @@ impl<'ctx> TypeManager<'ctx> {
             if curr_mem % align != 0 {
                 curr_mem += align - (curr_mem % align);
             }
-            mem_offset.push(curr_mem);
+            mem_offset.push(MemComponent {
+                offset: curr_mem,
+                align,
+            });
 
             curr_mem += size;
         }
@@ -145,7 +146,7 @@ impl<'ctx> TypeManager<'ctx> {
         Some(Rc::new(MemLayout {
             size: mem_size,
             align: total_align,
-            offset: mem_offset,
+            components: mem_offset,
         }))
     }
 
@@ -157,7 +158,13 @@ impl<'ctx> TypeManager<'ctx> {
 pub(crate) struct MemLayout {
     pub(crate) size: u32,
     pub(crate) align: u32,
-    pub(crate) offset: Vec<u32>, // only relevant for struct
+    pub(crate) components: Vec<MemComponent>, // only relevant for struct
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct MemComponent {
+    pub(crate) offset: u32,
+    pub(crate) align: u32,
 }
 
 impl MemLayout {
@@ -165,27 +172,52 @@ impl MemLayout {
         Self {
             size,
             align,
-            offset: Vec::default(),
+            components: vec![MemComponent { offset: 0, align }],
         }
+    }
+}
+
+pub(crate) trait AlignNormalize {
+    fn normalize(self) -> u32;
+}
+
+impl AlignNormalize for u32 {
+    fn normalize(self) -> u32 {
+        let mut x = self;
+        let mut v = 0;
+        loop {
+            x = x >> 1;
+            if x == 0 {
+                break;
+            }
+            v += 1;
+        }
+        v
     }
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct StackLayout {
     pub(crate) size: u32,
-    pub(crate) offset: Vec<u32>, // only relevant for struct
+    pub(crate) components: Vec<StackComponent>, // only relevant for struct
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct StackComponent {
+    pub(crate) offset: u32,
+    pub(crate) size: u32,
 }
 
 impl From<u32> for StackLayout {
     fn from(size: u32) -> Self {
         Self {
             size,
-            offset: Vec::default(),
+            components: vec![StackComponent { offset: 0, size }],
         }
     }
 }
 
-pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<wasm::ValType> {
+pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<PrimitiveType> {
     match &ty.repr {
         TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type {ty}"),
         TypeRepr::Struct(struct_type) => {
@@ -202,21 +234,72 @@ pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<wasm::ValType> {
             fields
         }
 
-        TypeRepr::Func(..) => vec![wasm::ValType::Num(wasm::NumType::I32)],
+        TypeRepr::Func(..) => vec![PrimitiveType::U32],
 
         TypeRepr::Void => vec![],
-        TypeRepr::Opaque => vec![wasm::ValType::Ref(wasm::RefType::ExternRef)],
-        TypeRepr::Bool => vec![wasm::ValType::Num(wasm::NumType::I32)],
+        TypeRepr::Opaque => vec![PrimitiveType::Extern],
+        TypeRepr::Bool => vec![PrimitiveType::U8],
 
-        TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
-            vec![wasm::ValType::Num(wasm::NumType::I32)]
+        TypeRepr::Int(true, BitSize::I8) => vec![PrimitiveType::I8],
+        TypeRepr::Int(true, BitSize::I16) => vec![PrimitiveType::I16],
+        TypeRepr::Int(true, BitSize::I32 | BitSize::ISize) => vec![PrimitiveType::I32],
+        TypeRepr::Int(true, BitSize::I64) => vec![PrimitiveType::I64],
+        TypeRepr::Int(false, BitSize::I8) => vec![PrimitiveType::U8],
+        TypeRepr::Int(false, BitSize::I16) => vec![PrimitiveType::U16],
+        TypeRepr::Int(false, BitSize::I32 | BitSize::ISize) => vec![PrimitiveType::U32],
+        TypeRepr::Int(false, BitSize::I64) => vec![PrimitiveType::U64],
+
+        TypeRepr::Float(FloatType::F32) => vec![PrimitiveType::F32],
+        TypeRepr::Float(FloatType::F64) => vec![PrimitiveType::F64],
+
+        TypeRepr::Ptr(..) => vec![PrimitiveType::U32],
+        TypeRepr::ArrayPtr(..) => vec![PrimitiveType::U32],
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PrimitiveType {
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    I64,
+    U64,
+    F32,
+    F64,
+    Extern,
+}
+
+impl Into<wasm::ValType> for PrimitiveType {
+    fn into(self) -> wasm::ValType {
+        match self {
+            Self::I8 => wasm::ValType::Num(wasm::NumType::I32),
+            Self::U8 => wasm::ValType::Num(wasm::NumType::I32),
+            Self::I16 => wasm::ValType::Num(wasm::NumType::I32),
+            Self::U16 => wasm::ValType::Num(wasm::NumType::I32),
+            Self::I32 => wasm::ValType::Num(wasm::NumType::I32),
+            Self::U32 => wasm::ValType::Num(wasm::NumType::I32),
+            Self::I64 => wasm::ValType::Num(wasm::NumType::I64),
+            Self::U64 => wasm::ValType::Num(wasm::NumType::I64),
+            Self::F32 => wasm::ValType::Num(wasm::NumType::F32),
+            Self::F64 => wasm::ValType::Num(wasm::NumType::F64),
+            Self::Extern => wasm::ValType::Ref(wasm::RefType::ExternRef),
         }
-        TypeRepr::Int(_, BitSize::I64) => vec![wasm::ValType::Num(wasm::NumType::I64)],
+    }
+}
 
-        TypeRepr::Float(FloatType::F32) => vec![wasm::ValType::Num(wasm::NumType::F32)],
-        TypeRepr::Float(FloatType::F64) => vec![wasm::ValType::Num(wasm::NumType::F64)],
-
-        TypeRepr::Ptr(..) => vec![wasm::ValType::Num(wasm::NumType::I32)],
-        TypeRepr::ArrayPtr(..) => vec![wasm::ValType::Num(wasm::NumType::I32)],
+impl PrimitiveType {
+    pub(crate) fn zero(&self) -> Vec<wasm::Instr> {
+        match self {
+            Self::I8 | Self::U8 | Self::I16 | Self::U16 | Self::I32 | Self::U32 => {
+                vec![wasm::Instr::I32Const(0)]
+            }
+            Self::I64 | Self::U64 => vec![wasm::Instr::I64Const(0)],
+            Self::F32 => vec![wasm::Instr::F32Const(0.0)],
+            Self::F64 => vec![wasm::Instr::F64Const(0.0)],
+            Self::Extern => vec![wasm::Instr::RefNull(wasm::RefType::ExternRef)],
+        }
     }
 }

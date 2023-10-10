@@ -2,14 +2,15 @@ use crate::context::Context;
 use crate::data::DataManager;
 use crate::errors::CodegenError;
 use crate::mangling::Mangle;
-use crate::ty::{build_val_type, TypeManager};
+use crate::ty::{build_val_type, PrimitiveType, TypeManager};
 use magelang_syntax::{ErrorReporter, Pos};
-use magelang_typecheck::{Annotation, DefId, Func, Statement, TypeArgs};
+use magelang_typecheck::{Annotation, DefId, Func, FuncType, Statement, TypeArgs};
 use std::collections::HashMap;
 use wasm_helper as wasm;
 
 pub(crate) struct Function<'ctx> {
     pub(crate) id: FuncId<'ctx>,
+    pub(crate) ty: &'ctx FuncType<'ctx>,
     pub(crate) mangled_name: &'ctx str,
     pub(crate) pos: Pos,
     pub(crate) type_id: wasm::TypeIdx,
@@ -22,8 +23,8 @@ pub(crate) struct Function<'ctx> {
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub(crate) struct FuncId<'ctx> {
-    def_id: DefId<'ctx>,
-    typeargs: Option<&'ctx TypeArgs<'ctx>>,
+    pub(crate) def_id: DefId<'ctx>,
+    pub(crate) typeargs: Option<&'ctx TypeArgs<'ctx>>,
 }
 
 pub(crate) enum Intrinsic {
@@ -78,10 +79,13 @@ fn init_functions<'ctx, E: ErrorReporter>(
         let mut parameters = Vec::default();
         for param in func_type.params {
             let val_types = build_val_type(param);
-            parameters.extend(val_types);
+            parameters.extend(val_types.into_iter().map(Into::<wasm::ValType>::into));
         }
 
-        let returns = build_val_type(func_type.return_type);
+        let returns = build_val_type(func_type.return_type)
+            .into_iter()
+            .map(PrimitiveType::into)
+            .collect();
         let func_wasm_type_id = type_manager.get_func_type(wasm::FuncType {
             parameters,
             returns,
@@ -100,6 +104,7 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 def_id: func.name,
                 typeargs: func.typeargs.clone(),
             },
+            ty: func_type,
             mangled_name,
             pos: func.pos,
             type_id: func_wasm_type_id,
@@ -214,7 +219,7 @@ fn setup_func_intrinsic<'ctx, E: ErrorReporter>(
     annotation: &Annotation,
     func: &Func<'ctx>,
 ) -> Option<Intrinsic> {
-    let intrinsic_name = annotation.name.as_str();
+    let intrinsic_name = annotation.arguments[0].as_str();
     let intrinsic = match intrinsic_name {
         INTRINSIC_MEMORY_SIZE => Some(Intrinsic::MemorySize),
         INTRINSIC_MEMORY_GROW => Some(Intrinsic::MemoryGrow),
@@ -394,7 +399,7 @@ fn check_compilation_strategy<'ctx, E: ErrorReporter>(
     }
 }
 
-pub(crate) struct FuncManager<'ctx> {
+pub(crate) struct FuncMapper<'ctx> {
     pub(crate) func_map: HashMap<FuncId<'ctx>, wasm::FuncIdx>,
     pub(crate) func_elems: Vec<wasm::Elem>,
     pub(crate) main_func: Option<wasm::FuncIdx>,
@@ -402,7 +407,7 @@ pub(crate) struct FuncManager<'ctx> {
     pub(crate) imports: Vec<wasm::Import>,
 }
 
-impl<'ctx> FuncManager<'ctx> {
+impl<'ctx> FuncMapper<'ctx> {
     pub(crate) fn new(functions: &[Function<'ctx>]) -> Self {
         let mut func_map = HashMap::default();
         let mut func_elems = Vec::default();

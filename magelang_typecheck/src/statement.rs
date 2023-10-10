@@ -29,7 +29,7 @@ pub enum Statement<'a> {
 impl<'a> Statement<'a> {
     pub(crate) fn monomorphize<'b, E: ErrorReporter>(
         &self,
-        ctx: &'b Context<'a, E>,
+        ctx: &'b Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> Statement<'a> {
         match self {
@@ -108,17 +108,17 @@ pub(crate) struct StatementResult<'a> {
     pub(crate) last_unused_local: usize,
 }
 
-pub(crate) struct StatementContext<'a, 'b, E: ErrorReporter> {
-    ctx: &'b Context<'a, E>,
+pub(crate) struct StatementContext<'a, 'b, 'syn, E: ErrorReporter> {
+    ctx: &'b Context<'a, 'syn, E>,
     scope: &'b Scopes<'a>,
     last_unused_local: usize,
     return_type: &'a Type<'a>,
     is_inside_loop: bool,
 }
 
-impl<'a, 'b, E: ErrorReporter> StatementContext<'a, 'b, E> {
+impl<'a, 'b, 'syn, E: ErrorReporter> StatementContext<'a, 'b, 'syn, E> {
     pub(crate) fn new(
-        ctx: &'b Context<'a, E>,
+        ctx: &'b Context<'a, 'syn, E>,
         scope: &'b Scopes<'a>,
         last_unused_local: usize,
         return_type: &'a Type<'a>,
@@ -134,7 +134,7 @@ impl<'a, 'b, E: ErrorReporter> StatementContext<'a, 'b, E> {
 }
 
 pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &StatementNode,
 ) -> StatementResult<'a> {
     match node {
@@ -157,7 +157,7 @@ pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &LetStatementNode,
 ) -> StatementResult<'a> {
     let expr = match &node.kind {
@@ -204,7 +204,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &AssignStatementNode,
 ) -> StatementResult<'a> {
     let receiver = get_expr_from_node(ctx.ctx, ctx.scope, None, &node.receiver);
@@ -228,7 +228,7 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &BlockStatementNode,
 ) -> StatementResult<'a> {
     let mut scope = ctx.scope.clone();
@@ -271,7 +271,7 @@ pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &IfStatementNode,
 ) -> StatementResult<'a> {
     let bool_type = ctx.ctx.define_type(Type {
@@ -325,7 +325,7 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &WhileStatementNode,
 ) -> StatementResult<'a> {
     let bool_type = ctx.ctx.define_type(Type {
@@ -363,7 +363,7 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_keyword<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     token: &Token,
 ) -> StatementResult<'a> {
     match token.kind {
@@ -394,7 +394,7 @@ pub(crate) fn get_statement_from_keyword<'a, E: ErrorReporter>(
 }
 
 pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, E>,
+    ctx: &StatementContext<'a, '_, '_, E>,
     node: &ReturnStatementNode,
 ) -> StatementResult<'a> {
     let return_type = ctx.return_type;

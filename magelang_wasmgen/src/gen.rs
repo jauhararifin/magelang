@@ -1,6 +1,7 @@
+use crate::code::{build_function, build_init_function};
 use crate::context::Context;
 use crate::data::DataManager;
-use crate::func::{build_intrinsic_func, setup_functions, FuncManager};
+use crate::func::{build_intrinsic_func, setup_functions, FuncMapper};
 use crate::ty::TypeManager;
 use crate::var::GlobalManager;
 use bumpalo::Bump;
@@ -10,7 +11,7 @@ use wasm_helper as wasm;
 
 pub fn generate<'ctx>(
     arena: &'ctx Bump,
-    file_manager: &'ctx mut FileManager,
+    file_manager: &'ctx FileManager,
     error_manager: &'ctx impl ErrorReporter,
     module: &'ctx Module<'ctx>,
 ) -> Option<wasm::Module<'ctx>> {
@@ -22,7 +23,7 @@ pub fn generate<'ctx>(
     };
 
     let data_manager = DataManager::build(ctx);
-    let type_manager = TypeManager::build(ctx);
+    let type_manager = TypeManager::default();
     let global_manager = GlobalManager::build(module);
 
     let functions = setup_functions(&ctx, &type_manager);
@@ -31,7 +32,7 @@ pub fn generate<'ctx>(
         return None;
     }
 
-    let func_manager = FuncManager::new(&functions);
+    let func_manager = FuncMapper::new(&functions);
 
     let mut module_functions = Vec::default();
     for func in &functions {
@@ -39,13 +40,37 @@ pub fn generate<'ctx>(
             let result = build_intrinsic_func(&type_manager, &data_manager, func);
             module_functions.push(result);
         } else if func.body.is_some() {
-            todo!();
+            let wasm_func = build_function(
+                &data_manager,
+                &type_manager,
+                &global_manager,
+                &func_manager,
+                func,
+            );
+            module_functions.push(wasm_func);
         }
     }
 
     if ctx.errors.has_errors() {
         return None;
     }
+
+    let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
+    let init_func = build_init_function(
+        &data_manager,
+        &type_manager,
+        &global_manager,
+        &func_manager,
+        globals,
+        func_manager.main_func,
+    );
+
+    if ctx.errors.has_errors() {
+        return None;
+    }
+
+    let start = Some(functions.len() as wasm::FuncIdx);
+    module_functions.push(init_func);
 
     let func_elems = func_manager.func_elems;
     let func_table = wasm::Table {
@@ -69,6 +94,17 @@ pub fn generate<'ctx>(
         max: None,
     }];
 
+    let mut exports = Vec::<wasm::Export>::default();
+    exports.push(wasm::Export {
+        name: "memory".to_string(),
+        desc: wasm::ExportDesc::Mem(0),
+    });
+    exports.extend(func_manager.exports);
+    exports.push(wasm::Export {
+        name: "func_table".into(),
+        desc: wasm::ExportDesc::Table(0),
+    });
+
     Some(wasm::Module {
         types: type_manager.take(),
         funcs: module_functions,
@@ -77,8 +113,8 @@ pub fn generate<'ctx>(
         globals: global_manager.take(),
         elems: func_elems,
         datas: data.datas,
-        start: func_manager.main_func,
+        start,
         imports: func_manager.imports,
-        exports: func_manager.exports,
+        exports,
     })
 }

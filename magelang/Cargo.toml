@@ -9,7 +9,7 @@ edition = "2021"
 bumpalo = "3.14.0"
 magelang_syntax = { path = "../magelang_syntax" }
 magelang_typecheck = { path = "../magelang_typecheck" }
-magelang_codegen = { path = "../magelang_codegen" }
+magelang_wasmgen = { path = "../magelang_wasmgen" }
 wasm_helper = { path = "../wasm_helper" }
 clap = { version = "4.0", features = ["derive"] }
 

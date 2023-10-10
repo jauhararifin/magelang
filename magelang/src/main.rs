@@ -1,8 +1,8 @@
 use bumpalo::Bump;
 use clap::{Parser, Subcommand};
-use magelang_codegen::generate;
 use magelang_syntax::{parse, ErrorManager, FileManager};
 use magelang_typecheck::analyze;
+use magelang_wasmgen::generate;
 use wasm_helper::Serializer;
 
 #[derive(Parser)]
@@ -117,11 +117,19 @@ fn compile(package_name: String, output: std::path::PathBuf) {
             let message = error.message;
             eprintln!("{location}: {message}");
         }
-        return;
+        std::process::exit(-1);
     };
 
     let mut f = std::fs::File::create(output).expect("cannot create output file");
-    let wasm_module = generate(&arena, module);
+    let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
+        for error in error_manager.take() {
+            let location = file_manager.location(error.pos);
+            let message = error.message;
+            eprintln!("{location}: {message}");
+        }
+        std::process::exit(-1);
+    };
+
     wasm_module
         .serialize(&mut f)
         .expect("cannot write wasm to target file");
