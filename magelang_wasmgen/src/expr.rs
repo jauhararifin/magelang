@@ -120,8 +120,7 @@ impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
     fn build_struct_lit(&self, ty: &Type, values: &[Expr<'ctx>]) -> ExprInstr {
         let mut header = values
             .iter()
-            .map(|expr| self.build(expr).flatten())
-            .flatten()
+            .flat_map(|expr| self.build(expr).flatten())
             .collect::<Vec<_>>();
 
         let types = build_val_type(ty);
@@ -250,7 +249,7 @@ impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
             .types
             .get_mem_layout(element_type)
             .expect("todo: dereferencing unsized type");
-        let val_types = build_val_type(&element_type);
+        let val_types = build_val_type(element_type);
         assert_eq!(layout.components.len(), val_types.len());
 
         let mut header = self.build(addr).flatten();

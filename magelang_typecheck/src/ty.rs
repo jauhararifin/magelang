@@ -27,9 +27,9 @@ pub struct Type<'a> {
 impl<'a> PartialEq for Type<'a> {
     fn eq(&self, other: &Self) -> bool {
         match (&self.kind, &other.kind) {
-            (TypeKind::User(a), TypeKind::User(b)) => a.eq(&b),
-            (TypeKind::Inst(a), TypeKind::Inst(b)) => a.eq(&b),
-            (TypeKind::Generic(a), TypeKind::Generic(b)) => a.eq(&b),
+            (TypeKind::User(a), TypeKind::User(b)) => a.eq(b),
+            (TypeKind::Inst(a), TypeKind::Inst(b)) => a.eq(b),
+            (TypeKind::Generic(a), TypeKind::Generic(b)) => a.eq(b),
             (TypeKind::Anonymous, TypeKind::Anonymous) => self.repr.eq(&other.repr),
             _ => false,
         }
@@ -105,7 +105,7 @@ impl<'a> Type<'a> {
                 );
             } else {
                 field_pos.insert(field_name, pos);
-                let ty = get_type_from_node(ctx, &scope, &field_node.ty);
+                let ty = get_type_from_node(ctx, scope, &field_node.ty);
                 fields.insert(field_name, ty);
             }
         }
@@ -639,7 +639,7 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
             }
 
             let return_type = if let Some(expr) = &node.return_type {
-                get_type_from_node(ctx, &scope, expr)
+                get_type_from_node(ctx, scope, expr)
             } else {
                 ctx.define_type(Type {
                     kind: TypeKind::Anonymous,

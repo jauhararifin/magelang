@@ -241,7 +241,7 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
             }
 
             if annotation.arguments.len() != 1 {
-                self.ctx.errors.annotation_arg_mismatch(&annotation, 1);
+                self.ctx.errors.annotation_arg_mismatch(annotation, 1);
                 continue;
             }
 

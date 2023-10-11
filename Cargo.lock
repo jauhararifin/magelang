@@ -219,16 +219,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "magelang_codegen"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "indexmap",
- "magelang_typecheck",
- "wasm_helper",
-]
-
-[[package]]
 name = "magelang_syntax"
 version = "0.1.0"
 dependencies = [

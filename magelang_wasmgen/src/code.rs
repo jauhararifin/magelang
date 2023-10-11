@@ -73,7 +73,8 @@ where
             if !global.ty.is_byte_array() {
                 continue;
             }
-            let Some((_, path)) = data_manager.get_embed_file_annotation(&global.annotations) else {
+            let Some((_, path)) = data_manager.get_embed_file_annotation(&global.annotations)
+            else {
                 continue;
             };
             let ptr = data_manager.get_file(path).expect("missing path");
@@ -114,7 +115,7 @@ struct FuncBuilder<'a, 'ctx, E> {
 
 impl<'a, 'ctx, E> FuncBuilder<'a, 'ctx, E> {
     fn build(self) -> wasm::Func {
-        let stmt = if let Some(ref body) = self.func.body {
+        let stmt = if let Some(body) = self.func.body {
             self.build_statement(0, 0, body)
         } else {
             vec![wasm::Instr::Unreachable]

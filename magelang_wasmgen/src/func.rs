@@ -102,7 +102,7 @@ fn init_functions<'ctx, E: ErrorReporter>(
         let mut result = Function {
             id: FuncId {
                 def_id: func.name,
-                typeargs: func.typeargs.clone(),
+                typeargs: func.typeargs,
             },
             ty: func_type,
             mangled_name,
@@ -119,12 +119,12 @@ fn init_functions<'ctx, E: ErrorReporter>(
             match annotation.name.as_str() {
                 WASM_IMPORT_ANNOTATION => {
                     if annotation.arguments.len() != 2 {
-                        ctx.errors.annotation_arg_mismatch(&annotation, 2);
+                        ctx.errors.annotation_arg_mismatch(annotation, 2);
                         continue;
                     }
 
                     if result.import.is_some() {
-                        ctx.errors.duplicated_annotation(&annotation);
+                        ctx.errors.duplicated_annotation(annotation);
                         continue;
                     }
 
@@ -139,12 +139,12 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 }
                 WASM_EXPORT_ANNOTATION => {
                     if annotation.arguments.len() != 1 {
-                        ctx.errors.annotation_arg_mismatch(&annotation, 1);
+                        ctx.errors.annotation_arg_mismatch(annotation, 1);
                         continue;
                     }
 
                     if result.export.is_some() {
-                        ctx.errors.duplicated_annotation(&annotation);
+                        ctx.errors.duplicated_annotation(annotation);
                         continue;
                     }
 
@@ -158,12 +158,12 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 }
                 INTRINSIC_ANNOTATION => {
                     if annotation.arguments.len() != 1 {
-                        ctx.errors.annotation_arg_mismatch(&annotation, 1);
+                        ctx.errors.annotation_arg_mismatch(annotation, 1);
                         continue;
                     }
 
                     if result.intrinsic.is_some() {
-                        ctx.errors.duplicated_annotation(&annotation);
+                        ctx.errors.duplicated_annotation(annotation);
                         continue;
                     }
 
@@ -173,11 +173,11 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 }
                 MAIN_ANNOTATION => {
                     if !annotation.arguments.is_empty() {
-                        ctx.errors.annotation_arg_mismatch(&annotation, 0);
+                        ctx.errors.annotation_arg_mismatch(annotation, 0);
                         continue;
                     }
                     if result.is_main {
-                        ctx.errors.duplicated_annotation(&annotation);
+                        ctx.errors.duplicated_annotation(annotation);
                         continue;
                     }
 
@@ -514,7 +514,7 @@ pub(crate) fn build_intrinsic_func<'ctx, E>(
                 if let Some(layout) = type_manager.get_mem_layout(ty) {
                     vec![wasm::Instr::I32Const(layout.align as i32)]
                 } else {
-                    vec![wasm::Instr::I32Const(0 as i32)]
+                    vec![wasm::Instr::I32Const(0_i32)]
                 }
             }
         }),

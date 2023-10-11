@@ -21,7 +21,7 @@ impl<'ctx> Mangle<'ctx> for Func<'ctx> {
                 if i > 0 {
                     result.push(',');
                 }
-                result.push_str(&arg.get_mangled_name(ctx));
+                result.push_str(arg.get_mangled_name(ctx));
             }
             result.push('>');
         }
@@ -42,7 +42,7 @@ impl<'ctx> Mangle<'ctx> for Type<'ctx> {
                     if i > 0 {
                         result.push(',');
                     }
-                    result.push_str(&arg.get_mangled_name(ctx));
+                    result.push_str(arg.get_mangled_name(ctx));
                 }
                 result.push('>');
 

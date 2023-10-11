@@ -186,7 +186,7 @@ impl AlignNormalize for u32 {
         let mut x = self;
         let mut v = 0;
         loop {
-            x = x >> 1;
+            x >>= 1;
             if x == 0 {
                 break;
             }
@@ -272,20 +272,20 @@ pub(crate) enum PrimitiveType {
     Extern,
 }
 
-impl Into<wasm::ValType> for PrimitiveType {
-    fn into(self) -> wasm::ValType {
-        match self {
-            Self::I8 => wasm::ValType::Num(wasm::NumType::I32),
-            Self::U8 => wasm::ValType::Num(wasm::NumType::I32),
-            Self::I16 => wasm::ValType::Num(wasm::NumType::I32),
-            Self::U16 => wasm::ValType::Num(wasm::NumType::I32),
-            Self::I32 => wasm::ValType::Num(wasm::NumType::I32),
-            Self::U32 => wasm::ValType::Num(wasm::NumType::I32),
-            Self::I64 => wasm::ValType::Num(wasm::NumType::I64),
-            Self::U64 => wasm::ValType::Num(wasm::NumType::I64),
-            Self::F32 => wasm::ValType::Num(wasm::NumType::F32),
-            Self::F64 => wasm::ValType::Num(wasm::NumType::F64),
-            Self::Extern => wasm::ValType::Ref(wasm::RefType::ExternRef),
+impl From<PrimitiveType> for wasm::ValType {
+    fn from(val: PrimitiveType) -> Self {
+        match val {
+            PrimitiveType::I8 => wasm::ValType::Num(wasm::NumType::I32),
+            PrimitiveType::U8 => wasm::ValType::Num(wasm::NumType::I32),
+            PrimitiveType::I16 => wasm::ValType::Num(wasm::NumType::I32),
+            PrimitiveType::U16 => wasm::ValType::Num(wasm::NumType::I32),
+            PrimitiveType::I32 => wasm::ValType::Num(wasm::NumType::I32),
+            PrimitiveType::U32 => wasm::ValType::Num(wasm::NumType::I32),
+            PrimitiveType::I64 => wasm::ValType::Num(wasm::NumType::I64),
+            PrimitiveType::U64 => wasm::ValType::Num(wasm::NumType::I64),
+            PrimitiveType::F32 => wasm::ValType::Num(wasm::NumType::F32),
+            PrimitiveType::F64 => wasm::ValType::Num(wasm::NumType::F64),
+            PrimitiveType::Extern => wasm::ValType::Ref(wasm::RefType::ExternRef),
         }
     }
 }

@@ -528,7 +528,10 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_bool_lit<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>, token: &Token) -> Expr<'a> {
+fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    token: &Token,
+) -> Expr<'a> {
     let kind = match token.kind {
         TokenKind::True => ExprKind::ConstBool(true),
         TokenKind::False => ExprKind::ConstBool(false),
@@ -544,7 +547,10 @@ fn get_expr_from_bool_lit<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>, token:
     }
 }
 
-fn get_expr_from_string_lit<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>, token: &Token) -> Expr<'a> {
+fn get_expr_from_string_lit<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    token: &Token,
+) -> Expr<'a> {
     let u8_ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I8),

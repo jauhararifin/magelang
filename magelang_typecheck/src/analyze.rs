@@ -301,8 +301,8 @@ fn get_all_package_asts<'a>(
     package_asts
 }
 
-fn build_imports<'a, 'syn, E: ErrorReporter>(
-    ctx: &Context<'a, 'syn, E>,
+fn build_imports<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, ImportObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<ImportObject>>::default();
@@ -500,7 +500,7 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>) -> Scope<'a
     builtin_scope
 }
 
-fn generate_type_body<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, '_, E>) {
+fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             type_object.init_body(ctx);
