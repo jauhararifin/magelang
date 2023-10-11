@@ -5,6 +5,5 @@ members = [
   "magelang_syntax",
   "magelang_typecheck",
   "wasm_helper",
-  "magelang_codegen",
   "magelang_wasmgen",
 ]

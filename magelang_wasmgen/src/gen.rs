@@ -75,7 +75,7 @@ pub fn generate<'ctx>(
     let func_elems = func_manager.func_elems;
     let func_table = wasm::Table {
         limits: wasm::Limits {
-            min: module_functions.len() as u32,
+            min: func_elems.len() as u32,
             max: None,
         },
         ref_type: wasm::RefType::FuncRef,
