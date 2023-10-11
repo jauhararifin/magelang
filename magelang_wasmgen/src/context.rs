@@ -11,12 +11,7 @@ pub(crate) struct Context<'ctx, E> {
 
 impl<'ctx, E> Clone for Context<'ctx, E> {
     fn clone(&self) -> Self {
-        Self {
-            arena: self.arena,
-            files: self.files,
-            errors: self.errors,
-            module: self.module,
-        }
+        *self
     }
 }
 

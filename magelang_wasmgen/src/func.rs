@@ -377,6 +377,7 @@ fn check_imports_exports<'ctx, E: ErrorReporter>(
     }
 }
 
+#[allow(clippy::nonminimal_bool)]
 fn check_compilation_strategy<'ctx, E: ErrorReporter>(
     ctx: &Context<'ctx, E>,
     functions: &[Function<'ctx>],
