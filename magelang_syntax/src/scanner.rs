@@ -562,6 +562,11 @@ string"
             0x123.abcd
             0b101.101
             0o123.123
+            0b123
+            123eabc
+            123e-1a
+            0xabcghijklmnopqrstuvwxyz
+            123.abcde
         "#
         .to_string();
         let file = files.add_file(path, source);
@@ -609,9 +614,19 @@ string"
         assert_eq!(&tokens[20].value, "0b101.101");
         assert_eq!(tokens[21].kind, TokenKind::RealLit);
         assert_eq!(&tokens[21].value, "0o123.123");
+        assert_eq!(tokens[22].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[22].value, "0b123");
+        assert_eq!(tokens[23].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[23].value, "123eabc");
+        assert_eq!(tokens[24].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[24].value, "123e-1a");
+        assert_eq!(tokens[25].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[25].value, "0xabcghijklmnopqrstuvwxyz");
+        assert_eq!(tokens[26].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[26].value, "123.abcde");
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 5);
+        assert_eq!(errors.len(), 11);
         assert_eq!(
             errors[0].message,
             "Invalid suffix \"abcdef456\" for number literal"
@@ -631,6 +646,27 @@ string"
         assert_eq!(
             errors[4].message,
             "can only use decimal number for fractional number literal",
+        );
+        assert_eq!(
+            errors[5].message,
+            "Cannot use '2' in 2-base integer literal",
+        );
+        assert_eq!(
+            errors[6].message,
+            "Cannot use '3' in 2-base integer literal",
+        );
+        assert_eq!(
+            errors[7].message,
+            "Invalid suffix \"abc\" for number literal",
+        );
+        assert_eq!(errors[8].message, "Invalid suffix \"a\" for number literal",);
+        assert_eq!(
+            errors[9].message,
+            "Invalid suffix \"ghijklmnopqrstuvwxyz\" for number literal",
+        );
+        assert_eq!(
+            errors[10].message,
+            "Invalid suffix \"abcde\" for number literal",
         );
     }
 }
