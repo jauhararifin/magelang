@@ -160,7 +160,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             Fraction,
             Exponent,
             ExponentAfterSign,
-            InvalidSuffix,
+            InvalidSuffix(Pos),
         }
 
         let mut value = String::default();
@@ -199,7 +199,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                         state = State::Fraction;
                     }
                     'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix;
+                        state = State::InvalidSuffix(char_pos);
                         continue;
                     }
                     _ => break,
@@ -223,7 +223,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     (Base::Oct, '8'..='9') => self.errors.invalid_digit_in_base(char_pos, c, 8),
                     (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z')
                     | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
-                        state = State::InvalidSuffix;
+                        state = State::InvalidSuffix(char_pos);
                         continue;
                     }
                     _ => break,
@@ -232,7 +232,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     'e' | 'E' => state = State::Exponent,
                     '0'..='9' => (),
                     'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix;
+                        state = State::InvalidSuffix(char_pos);
                         continue;
                     }
                     _ => break,
@@ -241,7 +241,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     '-' => state = State::ExponentAfterSign,
                     '0'..='9' => state = State::ExponentAfterSign,
                     'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix;
+                        state = State::InvalidSuffix(char_pos);
                         continue;
                     }
                     _ => break,
@@ -249,12 +249,12 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 State::ExponentAfterSign => match c {
                     '0'..='9' => (),
                     'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix;
+                        state = State::InvalidSuffix(char_pos);
                         continue;
                     }
                     _ => break,
                 },
-                State::InvalidSuffix => match c {
+                State::InvalidSuffix(..) => match c {
                     '0'..='9' | 'a'..='z' | 'A'..='Z' => (),
                     _ => break,
                 },
@@ -262,6 +262,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
             let (c, _) = self.next().unwrap();
             value.push(c);
+        }
+
+        if let State::InvalidSuffix(pos) = state {
+            self.errors.invalid_number_suffix(pos);
         }
 
         let pos = pos?;
@@ -432,6 +436,139 @@ trait ScanningError: ErrorReporter {
             format!("Cannot use '{digit}' in {base}-base integer literal"),
         );
     }
+
+    fn invalid_number_suffix(&self, pos: Pos) {
+        self.report(pos, String::from("Invalid suffix for number literal"));
+    }
 }
 
 impl<T> ScanningError for T where T: ErrorReporter {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::error::ErrorManager;
+    use crate::token::FileManager;
+    use std::path::PathBuf;
+
+    #[test]
+    fn comment() {
+        let path = PathBuf::from("dummy.mg");
+        let mut files = FileManager::default();
+        let source = r#"
+// a simple comment
+
+// another comment
+// with multiline
+// grouped comment
+
+let a = 10; // comment in the end
+
+// nested comment // is considered a single comment
+
+// unicode
+// a۰۱۸
+// foo६४
+// ŝ
+// ŝfoo
+
+"this is a string // not a comment"
+"this is
+a multi line // not a comment
+string"
+        "#
+        .to_string();
+        let file = files.add_file(path, source);
+        let error_manager = ErrorManager::default();
+
+        let tokens = scan(&error_manager, &file);
+
+        assert_eq!(tokens[0].kind, TokenKind::Comment);
+        assert_eq!(&tokens[0].value, "// a simple comment\n");
+
+        assert_eq!(tokens[1].kind, TokenKind::Comment);
+        assert_eq!(&tokens[1].value, "// another comment\n");
+        assert_eq!(tokens[2].kind, TokenKind::Comment);
+        assert_eq!(&tokens[2].value, "// with multiline\n");
+        assert_eq!(tokens[3].kind, TokenKind::Comment);
+        assert_eq!(&tokens[3].value, "// grouped comment\n");
+
+        assert_eq!(tokens[4].kind, TokenKind::Let);
+        assert_eq!(tokens[5].kind, TokenKind::Ident);
+        assert_eq!(tokens[6].kind, TokenKind::Equal);
+        assert_eq!(tokens[7].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[8].kind, TokenKind::SemiColon);
+        assert_eq!(tokens[9].kind, TokenKind::Comment);
+        assert_eq!(&tokens[9].value, "// comment in the end\n");
+
+        assert_eq!(tokens[10].kind, TokenKind::Comment);
+        assert_eq!(
+            &tokens[10].value,
+            "// nested comment // is considered a single comment\n"
+        );
+
+        assert_eq!(&tokens[11].value, "// unicode\n");
+        assert_eq!(&tokens[12].value, "// a۰۱۸\n");
+        assert_eq!(&tokens[13].value, "// foo६४\n");
+        assert_eq!(&tokens[14].value, "// ŝ\n");
+        assert_eq!(&tokens[15].value, "// ŝfoo\n");
+
+        assert_eq!(tokens[16].kind, TokenKind::StringLit);
+        assert_eq!(&tokens[16].value, r#""this is a string // not a comment""#);
+
+        assert_eq!(tokens[17].kind, TokenKind::StringLit);
+        assert_eq!(
+            &tokens[17].value,
+            "\"this is\na multi line // not a comment\nstring\""
+        );
+
+        assert!(!error_manager.has_errors());
+    }
+
+    #[test]
+    fn number_literal() {
+        let path = PathBuf::from("dummy.mg");
+        let mut files = FileManager::default();
+        let source = r#"
+            0
+            1
+            12345678_90123455561_090
+            01234_567
+            0xabc___def01234567890deadbeef0__10_
+            0_o012345670123_4567
+            0b_11010101001010101010
+            0_b11010101001010101010
+            0__b__11010101001010101010
+
+            0123abcdef456
+        "#
+        .to_string();
+        let file = files.add_file(path, source);
+        let mut error_manager = ErrorManager::default();
+
+        let tokens = scan(&error_manager, &file);
+
+        assert!(tokens[0..8]
+            .iter()
+            .all(|token| token.kind == TokenKind::IntegerLit));
+
+        assert_eq!(&tokens[0].value, "0");
+        assert_eq!(&tokens[1].value, "1");
+        assert_eq!(&tokens[2].value, "12345678_90123455561_090");
+        assert_eq!(&tokens[3].value, "01234_567");
+        assert_eq!(&tokens[4].value, "0xabc___def01234567890deadbeef0__10_");
+        assert_eq!(&tokens[5].value, "0_o012345670123_4567");
+        assert_eq!(&tokens[6].value, "0b_11010101001010101010");
+        assert_eq!(&tokens[7].value, "0_b11010101001010101010");
+        assert_eq!(&tokens[8].value, "0__b__11010101001010101010");
+
+        assert!(tokens[9..]
+            .iter()
+            .all(|token| token.kind == TokenKind::IntegerLit));
+        assert_eq!(&tokens[9].value, "0123abcdef456");
+
+        let errors = error_manager.take();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "Invalid suffix for number literal");
+    }
+}
