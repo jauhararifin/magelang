@@ -167,6 +167,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let mut pos = None;
         let mut state = State::Init;
         let mut is_fractional = false;
+        let mut invalid_suffix = String::default();
 
         loop {
             while let Some((c, _)) = self.next_if(|c| c == '_') {
@@ -211,6 +212,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                         state = State::Fraction;
                     }
                     (_, '.') => {
+                        is_fractional = true;
                         self.errors.non_decimal_fraction(char_pos);
                     }
                     (Base::Bin, '0' | '1')
@@ -258,7 +260,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     _ => break,
                 },
                 State::InvalidSuffix(..) => match c {
-                    '0'..='9' | 'a'..='z' | 'A'..='Z' => (),
+                    '0'..='9' | 'a'..='z' | 'A'..='Z' => invalid_suffix.push(c),
                     _ => break,
                 },
             }
@@ -268,7 +270,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         if let State::InvalidSuffix(pos) = state {
-            self.errors.invalid_number_suffix(pos);
+            self.errors.invalid_number_suffix(pos, &invalid_suffix);
         }
 
         let pos = pos?;
@@ -429,7 +431,7 @@ trait ScanningError: ErrorReporter {
     fn non_decimal_fraction(&self, pos: Pos) {
         self.report(
             pos,
-            String::from("Can only use decimal number for fractional number literal"),
+            String::from("can only use decimal number for fractional number literal"),
         );
     }
 
@@ -440,8 +442,11 @@ trait ScanningError: ErrorReporter {
         );
     }
 
-    fn invalid_number_suffix(&self, pos: Pos) {
-        self.report(pos, String::from("Invalid suffix for number literal"));
+    fn invalid_number_suffix(&self, pos: Pos, invalid_suffix: &str) {
+        self.report(
+            pos,
+            format!("Invalid suffix \"{invalid_suffix}\" for number literal"),
+        );
     }
 }
 
@@ -548,8 +553,15 @@ string"
             123e-123
             123E123
             123E-123
+            1.23e123
+            0.123
+            0e123
 
             0123abcdef456
+            0abcde
+            0x123.abcd
+            0b101.101
+            0o123.123
         "#
         .to_string();
         let file = files.add_file(path, source);
@@ -572,26 +584,53 @@ string"
 
         assert_eq!(tokens[9].kind, TokenKind::RealLit);
         assert_eq!(&tokens[9].value, "123.123");
-
         assert_eq!(tokens[10].kind, TokenKind::IntegerLit);
         assert_eq!(&tokens[10].value, "123e123");
-
         assert_eq!(tokens[11].kind, TokenKind::RealLit);
         assert_eq!(&tokens[11].value, "123e-123");
-
         assert_eq!(tokens[12].kind, TokenKind::IntegerLit);
         assert_eq!(&tokens[12].value, "123E123");
-
         assert_eq!(tokens[13].kind, TokenKind::RealLit);
         assert_eq!(&tokens[13].value, "123E-123");
+        assert_eq!(tokens[14].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[14].value, "1.23e123");
+        assert_eq!(tokens[15].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[15].value, "0.123");
+        assert_eq!(tokens[16].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[16].value, "0e123");
 
-        assert!(tokens[14..]
-            .iter()
-            .all(|token| token.kind == TokenKind::IntegerLit));
-        assert_eq!(&tokens[14].value, "0123abcdef456");
+        assert_eq!(tokens[17].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[17].value, "0123abcdef456");
+        assert_eq!(tokens[18].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[18].value, "0abcde");
+        assert_eq!(tokens[19].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[19].value, "0x123.abcd");
+        assert_eq!(tokens[20].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[20].value, "0b101.101");
+        assert_eq!(tokens[21].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[21].value, "0o123.123");
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].message, "Invalid suffix for number literal");
+        assert_eq!(errors.len(), 5);
+        assert_eq!(
+            errors[0].message,
+            "Invalid suffix \"abcdef456\" for number literal"
+        );
+        assert_eq!(
+            errors[1].message,
+            "Invalid suffix \"abcde\" for number literal"
+        );
+        assert_eq!(
+            errors[2].message,
+            "can only use decimal number for fractional number literal",
+        );
+        assert_eq!(
+            errors[3].message,
+            "can only use decimal number for fractional number literal",
+        );
+        assert_eq!(
+            errors[4].message,
+            "can only use decimal number for fractional number literal",
+        );
     }
 }
