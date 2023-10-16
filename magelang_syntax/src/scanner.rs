@@ -238,7 +238,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     _ => break,
                 },
                 State::Exponent => match c {
-                    '-' => state = State::ExponentAfterSign,
+                    '-' => {
+                        is_fractional = true;
+                        state = State::ExponentAfterSign;
+                    }
                     '0'..='9' => state = State::ExponentAfterSign,
                     'a'..='z' | 'A'..='Z' => {
                         state = State::InvalidSuffix(char_pos);
@@ -540,6 +543,12 @@ string"
             0_b11010101001010101010
             0__b__11010101001010101010
 
+            123.123
+            123e123
+            123e-123
+            123E123
+            123E-123
+
             0123abcdef456
         "#
         .to_string();
@@ -551,7 +560,6 @@ string"
         assert!(tokens[0..8]
             .iter()
             .all(|token| token.kind == TokenKind::IntegerLit));
-
         assert_eq!(&tokens[0].value, "0");
         assert_eq!(&tokens[1].value, "1");
         assert_eq!(&tokens[2].value, "12345678_90123455561_090");
@@ -562,10 +570,25 @@ string"
         assert_eq!(&tokens[7].value, "0_b11010101001010101010");
         assert_eq!(&tokens[8].value, "0__b__11010101001010101010");
 
-        assert!(tokens[9..]
+        assert_eq!(tokens[9].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[9].value, "123.123");
+
+        assert_eq!(tokens[10].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[10].value, "123e123");
+
+        assert_eq!(tokens[11].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[11].value, "123e-123");
+
+        assert_eq!(tokens[12].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[12].value, "123E123");
+
+        assert_eq!(tokens[13].kind, TokenKind::RealLit);
+        assert_eq!(&tokens[13].value, "123E-123");
+
+        assert!(tokens[14..]
             .iter()
             .all(|token| token.kind == TokenKind::IntegerLit));
-        assert_eq!(&tokens[9].value, "0123abcdef456");
+        assert_eq!(&tokens[14].value, "0123abcdef456");
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);
