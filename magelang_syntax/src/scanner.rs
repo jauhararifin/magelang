@@ -249,7 +249,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                         state = State::InvalidSuffix(char_pos);
                         continue;
                     }
-                    _ => break,
+                    _ => {
+                        self.errors.missing_exponent_digits(char_pos);
+                        break;
+                    }
                 },
                 State::ExponentAfterSign => match c {
                     '0'..='9' => (),
@@ -448,6 +451,10 @@ trait ScanningError: ErrorReporter {
             format!("Invalid suffix \"{invalid_suffix}\" for number literal"),
         );
     }
+
+    fn missing_exponent_digits(&self, pos: Pos) {
+        self.report(pos, String::from("The exponent has no digits"));
+    }
 }
 
 impl<T> ScanningError for T where T: ErrorReporter {}
@@ -567,6 +574,7 @@ string"
             123e-1a
             0xabcghijklmnopqrstuvwxyz
             123.abcde
+            123e
         "#
         .to_string();
         let file = files.add_file(path, source);
@@ -624,9 +632,11 @@ string"
         assert_eq!(&tokens[25].value, "0xabcghijklmnopqrstuvwxyz");
         assert_eq!(tokens[26].kind, TokenKind::RealLit);
         assert_eq!(&tokens[26].value, "123.abcde");
+        assert_eq!(tokens[27].kind, TokenKind::IntegerLit);
+        assert_eq!(&tokens[27].value, "123e");
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 11);
+        assert_eq!(errors.len(), 12);
         assert_eq!(
             errors[0].message,
             "Invalid suffix \"abcdef456\" for number literal"
@@ -667,6 +677,10 @@ string"
         assert_eq!(
             errors[10].message,
             "Invalid suffix \"abcde\" for number literal",
+        );
+        assert_eq!(
+            errors[11].message,
+            "The exponent has no digits",
         );
     }
 }

@@ -4,3 +4,4 @@
 temp/
 *.profraw
 /*.wasm
+tarpaulin-report.html
