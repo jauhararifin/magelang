@@ -767,4 +767,94 @@ string"
         );
         assert_eq!(errors[11].message, "The exponent has no digits",);
     }
+
+    #[test]
+    fn symbols() {
+        let path = PathBuf::from("dummy.mg");
+        let mut files = FileManager::default();
+        let source = r#"
+            :: : ; . != ! == = * + - / : << <= < >> >= > { } ( ) [ ] , % && & || | ^ ~ @
+            :::;.!!====*+-/:<<<=<>>>=>{}()[],%&&&|||^~@
+            #
+        "#
+        .to_string();
+
+        let file = files.add_file(path, source);
+        let mut error_manager = ErrorManager::default();
+
+        let tokens = scan(&error_manager, &file);
+        assert_eq!(tokens[0].kind, TokenKind::DoubleColon);
+        assert_eq!(tokens[1].kind, TokenKind::Colon);
+        assert_eq!(tokens[2].kind, TokenKind::SemiColon);
+        assert_eq!(tokens[3].kind, TokenKind::Dot);
+        assert_eq!(tokens[4].kind, TokenKind::NEq);
+        assert_eq!(tokens[5].kind, TokenKind::Not);
+        assert_eq!(tokens[6].kind, TokenKind::Eq);
+        assert_eq!(tokens[7].kind, TokenKind::Equal);
+        assert_eq!(tokens[8].kind, TokenKind::Mul);
+        assert_eq!(tokens[9].kind, TokenKind::Add);
+        assert_eq!(tokens[10].kind, TokenKind::Sub);
+        assert_eq!(tokens[11].kind, TokenKind::Div);
+        assert_eq!(tokens[12].kind, TokenKind::Colon);
+        assert_eq!(tokens[13].kind, TokenKind::ShiftLeft);
+        assert_eq!(tokens[14].kind, TokenKind::LEq);
+        assert_eq!(tokens[15].kind, TokenKind::Lt);
+        assert_eq!(tokens[16].kind, TokenKind::ShiftRight);
+        assert_eq!(tokens[17].kind, TokenKind::GEq);
+        assert_eq!(tokens[18].kind, TokenKind::Gt);
+        assert_eq!(tokens[19].kind, TokenKind::OpenBlock);
+        assert_eq!(tokens[20].kind, TokenKind::CloseBlock);
+        assert_eq!(tokens[21].kind, TokenKind::OpenBrac);
+        assert_eq!(tokens[22].kind, TokenKind::CloseBrac);
+        assert_eq!(tokens[23].kind, TokenKind::OpenSquare);
+        assert_eq!(tokens[24].kind, TokenKind::CloseSquare);
+        assert_eq!(tokens[25].kind, TokenKind::Comma);
+        assert_eq!(tokens[26].kind, TokenKind::Mod);
+        assert_eq!(tokens[27].kind, TokenKind::And);
+        assert_eq!(tokens[28].kind, TokenKind::BitAnd);
+        assert_eq!(tokens[29].kind, TokenKind::Or);
+        assert_eq!(tokens[30].kind, TokenKind::BitOr);
+        assert_eq!(tokens[31].kind, TokenKind::BitXor);
+        assert_eq!(tokens[32].kind, TokenKind::BitNot);
+        assert_eq!(tokens[33].kind, TokenKind::AtSign);
+
+        assert_eq!(tokens[34].kind, TokenKind::DoubleColon);
+        assert_eq!(tokens[35].kind, TokenKind::Colon);
+        assert_eq!(tokens[36].kind, TokenKind::SemiColon);
+        assert_eq!(tokens[37].kind, TokenKind::Dot);
+        assert_eq!(tokens[38].kind, TokenKind::Not);
+        assert_eq!(tokens[39].kind, TokenKind::NEq);
+        assert_eq!(tokens[40].kind, TokenKind::Eq);
+        assert_eq!(tokens[41].kind, TokenKind::Equal);
+        assert_eq!(tokens[42].kind, TokenKind::Mul);
+        assert_eq!(tokens[43].kind, TokenKind::Add);
+        assert_eq!(tokens[44].kind, TokenKind::Sub);
+        assert_eq!(tokens[45].kind, TokenKind::Div);
+        assert_eq!(tokens[46].kind, TokenKind::Colon);
+        assert_eq!(tokens[47].kind, TokenKind::ShiftLeft);
+        assert_eq!(tokens[48].kind, TokenKind::LEq);
+        assert_eq!(tokens[49].kind, TokenKind::Lt);
+        assert_eq!(tokens[50].kind, TokenKind::ShiftRight);
+        assert_eq!(tokens[51].kind, TokenKind::GEq);
+        assert_eq!(tokens[52].kind, TokenKind::Gt);
+        assert_eq!(tokens[53].kind, TokenKind::OpenBlock);
+        assert_eq!(tokens[54].kind, TokenKind::CloseBlock);
+        assert_eq!(tokens[55].kind, TokenKind::OpenBrac);
+        assert_eq!(tokens[56].kind, TokenKind::CloseBrac);
+        assert_eq!(tokens[57].kind, TokenKind::OpenSquare);
+        assert_eq!(tokens[58].kind, TokenKind::CloseSquare);
+        assert_eq!(tokens[59].kind, TokenKind::Comma);
+        assert_eq!(tokens[60].kind, TokenKind::Mod);
+        assert_eq!(tokens[61].kind, TokenKind::And);
+        assert_eq!(tokens[62].kind, TokenKind::BitAnd);
+        assert_eq!(tokens[63].kind, TokenKind::Or);
+        assert_eq!(tokens[64].kind, TokenKind::BitOr);
+        assert_eq!(tokens[65].kind, TokenKind::BitXor);
+        assert_eq!(tokens[66].kind, TokenKind::BitNot);
+        assert_eq!(tokens[67].kind, TokenKind::AtSign);
+
+        let errors = error_manager.take();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "Unexpected char '#'");
+    }
 }
