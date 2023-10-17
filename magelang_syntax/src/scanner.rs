@@ -123,6 +123,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     '"' => {
                         self.errors.unexpected_char(pos, c);
                         state = State::Closed;
+                        break;
                     }
                     _ => {
                         self.errors.unexpected_char(pos, c);
@@ -541,6 +542,92 @@ string"
     }
 
     #[test]
+    fn string_literal() {
+        let path = PathBuf::from("dummy.mg");
+        let mut files = FileManager::default();
+        let source = r#"
+            "basic string"
+            "this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly"
+            "this is a string // not a comment"
+            "hex escape like \x00\x12\xAb\xCd\xef\xEF are fine"
+            "\n\r\t\\\0\"\''"
+            "multiline
+            string"
+            "invalid escape \a\b\c\d\e\f\g\h\i\j\k\l\m\o\p\q\s\u\v\w\y\z"
+            "invalid hex \xgh\x\\x"
+            "missing closing quote"#
+            .to_string();
+        let file = files.add_file(path, source);
+        let mut error_manager = ErrorManager::default();
+
+        let tokens = scan(&error_manager, &file);
+
+        assert_eq!(tokens[0].kind, TokenKind::StringLit);
+        assert_eq!(&tokens[0].value, r#""basic string""#);
+        assert_eq!(tokens[1].kind, TokenKind::StringLit);
+        assert_eq!(
+            &tokens[1].value,
+            r#""this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly""#
+        );
+        assert_eq!(tokens[2].kind, TokenKind::StringLit);
+        assert_eq!(&tokens[2].value, r#""this is a string // not a comment""#);
+        assert_eq!(tokens[3].kind, TokenKind::StringLit);
+        assert_eq!(
+            &tokens[3].value,
+            r#""hex escape like \x00\x12\xAb\xCd\xef\xEF are fine""#
+        );
+        assert_eq!(tokens[4].kind, TokenKind::StringLit);
+        assert_eq!(&tokens[4].value, r#""\n\r\t\\\0\"\''""#);
+        assert_eq!(tokens[5].kind, TokenKind::StringLit);
+        assert_eq!(
+            &tokens[5].value,
+            r#""multiline
+            string""#
+        );
+        assert_eq!(tokens[6].kind, TokenKind::StringLit);
+        assert_eq!(
+            &tokens[6].value,
+            r#""invalid escape \a\b\c\d\e\f\g\h\i\j\k\l\m\o\p\q\s\u\v\w\y\z""#
+        );
+        assert_eq!(tokens[7].kind, TokenKind::StringLit);
+        assert_eq!(&tokens[7].value, r#""invalid hex \xgh\x\\x""#);
+        assert_eq!(tokens[8].kind, TokenKind::StringLit);
+        assert_eq!(&tokens[8].value, r#""missing closing quote"#);
+
+        let errors = error_manager.take();
+        assert_eq!(errors.len(), 26);
+        assert_eq!(errors[0].message, "Unexpected char 'a'");
+        assert_eq!(errors[1].message, "Unexpected char 'b'");
+        assert_eq!(errors[2].message, "Unexpected char 'c'");
+        assert_eq!(errors[3].message, "Unexpected char 'd'");
+        assert_eq!(errors[4].message, "Unexpected char 'e'");
+        assert_eq!(errors[5].message, "Unexpected char 'f'");
+        assert_eq!(errors[6].message, "Unexpected char 'g'");
+        assert_eq!(errors[7].message, "Unexpected char 'h'");
+        assert_eq!(errors[8].message, "Unexpected char 'i'");
+        assert_eq!(errors[9].message, "Unexpected char 'j'");
+        assert_eq!(errors[10].message, "Unexpected char 'k'");
+        assert_eq!(errors[11].message, "Unexpected char 'l'");
+        assert_eq!(errors[12].message, "Unexpected char 'm'");
+        assert_eq!(errors[13].message, "Unexpected char 'o'");
+        assert_eq!(errors[14].message, "Unexpected char 'p'");
+        assert_eq!(errors[15].message, "Unexpected char 'q'");
+        assert_eq!(errors[16].message, "Unexpected char 's'");
+        assert_eq!(errors[17].message, "Unexpected char 'u'");
+        assert_eq!(errors[18].message, "Unexpected char 'v'");
+        assert_eq!(errors[19].message, "Unexpected char 'w'");
+        assert_eq!(errors[20].message, "Unexpected char 'y'");
+        assert_eq!(errors[21].message, "Unexpected char 'z'");
+        assert_eq!(errors[22].message, "Unexpected char 'g'");
+        assert_eq!(errors[23].message, "Unexpected char '\\'");
+        assert_eq!(errors[24].message, "Unexpected char '\"'");
+        assert_eq!(
+            errors[25].message,
+            "Missing closing quote in string literal"
+        );
+    }
+
+    #[test]
     fn number_literal() {
         let path = PathBuf::from("dummy.mg");
         let mut files = FileManager::default();
@@ -678,9 +765,6 @@ string"
             errors[10].message,
             "Invalid suffix \"abcde\" for number literal",
         );
-        assert_eq!(
-            errors[11].message,
-            "The exponent has no digits",
-        );
+        assert_eq!(errors[11].message, "The exponent has no digits",);
     }
 }
