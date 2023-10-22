@@ -7,7 +7,8 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ErrorReporter, ExprNode,
-    IndexExprNode, PathNode, SelectionExprNode, StructExprNode, Token, TokenKind, UnaryExprNode,
+    IndexExprNode, PathNode, Pos, SelectionExprNode, StructExprNode, Token, TokenKind,
+    UnaryExprNode,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -19,6 +20,7 @@ pub(crate) type ExprInterner<'a> = Interner<'a, Expr<'a>>;
 pub struct Expr<'a> {
     pub ty: &'a Type<'a>,
     pub kind: ExprKind<'a>,
+    pub pos: Pos,
     pub(crate) assignable: bool,
 }
 
@@ -174,6 +176,7 @@ impl<'a> Expr<'a> {
         Expr {
             ty,
             kind,
+            pos: self.pos,
             assignable: self.assignable,
         }
     }
@@ -280,6 +283,7 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Opaque,
             }),
             kind: ExprKind::Zero,
+            pos: node.pos(),
             assignable: false,
         },
         ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
@@ -313,6 +317,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             })),
             kind: ExprKind::Invalid,
+            pos: node.pos(),
             assignable: false,
         };
     };
@@ -328,6 +333,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                 Expr {
                     ty: func_obj.ty,
                     kind: ExprKind::Func(func_obj.def_id),
+                    pos: node.pos(),
                     assignable: false,
                 }
             } else {
@@ -360,6 +366,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                 Expr {
                     ty: instance_ty,
                     kind: ExprKind::FuncInst(func_obj.def_id, type_args),
+                    pos: node.pos(),
                     assignable: false,
                 }
             }
@@ -371,6 +378,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
             Expr {
                 ty: global_obj.ty,
                 kind: ExprKind::Global(global_obj.def_id),
+                pos: node.pos(),
                 assignable: true,
             }
         }
@@ -381,6 +389,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
             Expr {
                 ty: local_obj.ty,
                 kind: ExprKind::Local(local_obj.id),
+                pos: node.pos(),
                 assignable: true,
             }
         }
@@ -438,6 +447,7 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     };
 
     let kind = match (sign, bit_size) {
+        // TODO: fix integer parsing
         (true, BitSize::ISize) => token
             .value
             .parse::<i64>()
@@ -480,6 +490,7 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind,
+        pos: token.pos,
         assignable: false,
     }
 }
@@ -500,6 +511,7 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
 
     let value = ctx.define_symbol(&token.value);
     let kind = match float_type {
+        // TODO: fix float parsing
         FloatType::F32 => value
             .parse::<f32>()
             .map(|val| ExprKind::ConstF32(Float::new(value, val))),
@@ -524,6 +536,7 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind,
+        pos: token.pos,
         assignable: false,
     }
 }
@@ -543,6 +556,7 @@ fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
             repr: TypeRepr::Bool,
         }),
         kind,
+        pos: token.pos,
         assignable: false,
     }
 }
@@ -564,6 +578,7 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
         return Expr {
             ty,
             kind: ExprKind::Invalid,
+            pos: token.pos,
             assignable: false,
         };
     };
@@ -573,6 +588,7 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind: ExprKind::Bytes(bytes),
+        pos: token.pos,
         assignable: false,
     }
 }
@@ -627,6 +643,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         return Expr {
             ty: estimated_type,
             kind: ExprKind::Invalid,
+            pos: node.a.pos(),
             assignable: false,
         };
     }
@@ -735,6 +752,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     Expr {
         ty: result_ty,
         kind: expr_kind,
+        pos: node.a.pos(),
         assignable: false,
     }
 }
@@ -755,6 +773,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.pos,
             assignable: false,
         };
     };
@@ -766,6 +785,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     Expr {
         ty: element_ty,
         kind: ExprKind::Deref(ctx.arena.alloc(value)),
+        pos: node.pos,
         assignable: true,
     }
 }
@@ -808,6 +828,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.op.pos,
             assignable: false,
         };
     }
@@ -815,6 +836,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     Expr {
         ty: type_id,
         kind,
+        pos: node.op.pos,
         assignable: false,
     }
 }
@@ -838,6 +860,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.pos,
             assignable: false,
         };
     };
@@ -866,6 +889,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
     Expr {
         ty: func_type.return_type,
         kind: ExprKind::Call(ctx.arena.alloc(func_expr), arguments.into_bump_slice()),
+        pos: node.pos,
         assignable: false,
     }
 }
@@ -899,6 +923,7 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
     Expr {
         ty: target_type,
         kind,
+        pos: node.value.pos(),
         assignable: false,
     }
 }
@@ -918,6 +943,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.pos,
             assignable: false,
         };
     };
@@ -948,6 +974,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
                     repr: TypeRepr::Unknown,
                 }),
                 kind: ExprKind::Invalid,
+                pos: element.pos,
                 assignable: false,
             }
         } else {
@@ -965,6 +992,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
             full_values.push(Expr {
                 ty: type_id,
                 kind: ExprKind::Zero,
+                pos: node.pos,
                 assignable: false,
             })
         }
@@ -973,6 +1001,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind: ExprKind::StructLit(ty, full_values.into_bump_slice()),
+        pos: node.pos,
         assignable: false,
     }
 }
@@ -1001,6 +1030,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.value.pos(),
             assignable: false,
         };
     };
@@ -1016,6 +1046,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.value.pos(),
             assignable: false,
         };
     };
@@ -1028,12 +1059,14 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Ptr(field_type_id),
             }),
             kind: ExprKind::GetElementAddr(ctx.arena.alloc(value), idx),
+            pos: node.value.pos(),
             assignable,
         }
     } else {
         Expr {
             ty: field_type_id,
             kind: ExprKind::GetElement(ctx.arena.alloc(value), idx),
+            pos: node.value.pos(),
             assignable,
         }
     }
@@ -1058,6 +1091,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
                 return Expr {
                     ty: element,
                     kind: ExprKind::Invalid,
+                    pos: node.value.pos(),
                     assignable: false,
                 };
             }
@@ -1068,6 +1102,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
                     repr: TypeRepr::Ptr(element),
                 }),
                 kind: ExprKind::GetIndex(ctx.arena.alloc(value), ctx.arena.alloc(index)),
+                pos: node.value.pos(),
                 assignable: false,
             }
         }
@@ -1077,6 +1112,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
+            pos: node.value.pos(),
             assignable: false,
         },
         _ => {
@@ -1087,6 +1123,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
                     repr: TypeRepr::Unknown,
                 }),
                 kind: ExprKind::Invalid,
+                pos: node.value.pos(),
                 assignable: false,
             }
         }

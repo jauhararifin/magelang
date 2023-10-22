@@ -775,6 +775,7 @@ string"
         let source = r#"
             :: : ; . != ! == = * + - / : << <= < >> >= > { } ( ) [ ] , % && & || | ^ ~ @
             :::;.!!====*+-/:<<<=<>>>=>{}()[],%&&&|||^~@
+            -1
             #
         "#
         .to_string();
@@ -852,6 +853,9 @@ string"
         assert_eq!(tokens[65].kind, TokenKind::BitXor);
         assert_eq!(tokens[66].kind, TokenKind::BitNot);
         assert_eq!(tokens[67].kind, TokenKind::AtSign);
+
+        assert_eq!(tokens[68].kind, TokenKind::Sub);
+        assert_eq!(tokens[69].kind, TokenKind::IntegerLit);
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);

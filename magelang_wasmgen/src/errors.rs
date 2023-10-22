@@ -26,6 +26,22 @@ pub(crate) trait CodegenError: ErrorReporter {
         self.report(pos, String::from("The compilation strategy is unclear"));
     }
 
+    fn dereferencing_opaque(&self, pos: Pos) {
+        self.report(
+            pos,
+            String::from("The expression contains an opaque type which can't be dereferenced"),
+        );
+    }
+
+    fn storing_opaque(&self, pos: Pos) {
+        self.report(
+            pos,
+            String::from(
+                "The expression contains an opaque type which can't be stored in linear memory",
+            ),
+        );
+    }
+
     fn duplicated_import(&self, pos: Pos, module: &str, name: &str, declared_at: Location) {
         self.report(
             pos,

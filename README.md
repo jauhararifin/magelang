@@ -192,7 +192,7 @@ TBD.
 # TODOs
 
 - [ ] Support externref & funcref type for web assembly
-- [ ] Support embedding file
+- [ ] Consider following golang way of defining compilation unit (directory based instead of file based)
 - [ ] Check and block circular global initialization
 - [ ] Char literal
 - [ ] For loops

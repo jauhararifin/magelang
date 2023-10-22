@@ -1,12 +1,15 @@
 use crate::data::DataManager;
+use crate::errors::CodegenError;
 use crate::func::{FuncId, FuncMapper};
 use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, StackComponent, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
+use magelang_syntax::ErrorReporter;
 use magelang_typecheck::{BitSize, DefId, Expr, ExprKind, FloatType, Type, TypeArgs, TypeRepr};
 use std::iter::zip;
 use wasm_helper as wasm;
 
 pub(crate) struct ExprBuilder<'a, 'ctx, E> {
+    pub(crate) errors: &'ctx E,
     pub(crate) data: &'a DataManager<'ctx, E>,
     pub(crate) types: &'a TypeManager<'ctx>,
     pub(crate) funcs: &'a FuncMapper<'ctx>,
@@ -64,7 +67,7 @@ impl ExprInstr {
     }
 }
 
-impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
+impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
     pub(crate) fn build(&self, expr: &Expr<'ctx>) -> ExprInstr {
         match &expr.kind {
             ExprKind::Invalid => unreachable!("found invalid expr"),
@@ -203,10 +206,10 @@ impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
         let TypeRepr::Ptr(element_type) = addr.ty.repr else {
             unreachable!()
         };
-        let struct_layout = self
-            .types
-            .get_mem_layout(element_type)
-            .expect("todo: addressing unsized type");
+        let Some(struct_layout) = self.types.get_mem_layout(element_type) else {
+            self.errors.dereferencing_opaque(addr.pos);
+            return vec![wasm::Instr::Unreachable].into();
+        };
         let offset = struct_layout.components[field].offset;
 
         let mut result = self.build(addr).flatten();
@@ -219,10 +222,10 @@ impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
         let TypeRepr::ArrayPtr(element_type) = arr.ty.repr else {
             unreachable!()
         };
-        let layout = self
-            .types
-            .get_mem_layout(element_type)
-            .expect("todo: addressing unsized type");
+        let Some(layout) = self.types.get_mem_layout(element_type) else {
+            self.errors.dereferencing_opaque(arr.pos);
+            return vec![wasm::Instr::Unreachable].into();
+        };
         let size = layout.size;
 
         let mut result = self.build(arr).flatten();
@@ -245,10 +248,10 @@ impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
             unreachable!()
         };
 
-        let layout = self
-            .types
-            .get_mem_layout(element_type)
-            .expect("todo: dereferencing unsized type");
+        let Some(layout) = self.types.get_mem_layout(element_type) else {
+            self.errors.dereferencing_opaque(addr.pos);
+            return vec![wasm::Instr::Unreachable].into();
+        };
         let val_types = build_val_type(element_type);
         assert_eq!(layout.components.len(), val_types.len());
 
@@ -272,7 +275,10 @@ impl<'a, 'ctx, E> ExprBuilder<'a, 'ctx, E> {
                 PrimitiveType::I64 | PrimitiveType::U64 => wasm::Instr::I64Load,
                 PrimitiveType::F32 => wasm::Instr::F32Load,
                 PrimitiveType::F64 => wasm::Instr::F64Load,
-                PrimitiveType::Extern => unreachable!("todo: dereferencing unsized type"),
+                PrimitiveType::Extern => {
+                    self.errors.dereferencing_opaque(addr.pos);
+                    return vec![wasm::Instr::Unreachable].into();
+                }
             };
             let load_instr = load_instr(mem_arg);
 

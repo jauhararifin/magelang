@@ -231,9 +231,16 @@ fn f(): i32 {
             break;
         }
     }
+    if (true)
+        print(a);
+    while (true)
+        print(a);
 }
 "#;
-const TEST_STATEMENTS_ERROR: &[(&str, &str)] = &[];
+const TEST_STATEMENTS_ERROR: &[(&str, &str)] = &[
+    ("testcase.mg:25:5", "Missing if body"),
+    ("testcase.mg:27:5", "Missing while body"),
+];
 testcase!(
     test_statements,
     TEST_STATEMENTS_SOURCE,

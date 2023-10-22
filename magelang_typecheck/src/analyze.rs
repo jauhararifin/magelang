@@ -642,6 +642,12 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
                 Expr {
                     ty,
                     kind: ExprKind::Zero,
+                    pos: global_object
+                        .node
+                        .value
+                        .as_ref()
+                        .map(|val| val.pos())
+                        .unwrap_or(global_object.node.pos),
                     assignable: false,
                 }
             };

@@ -166,6 +166,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
             Expr {
                 ty: type_id,
                 kind: ExprKind::Zero,
+                pos: node.pos,
                 assignable: false,
             }
         }

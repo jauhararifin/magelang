@@ -41,6 +41,7 @@ pub fn generate<'ctx>(
             module_functions.push(result);
         } else if func.body.is_some() {
             let wasm_func = build_function(
+                error_manager,
                 &data_manager,
                 &type_manager,
                 &global_manager,
@@ -57,6 +58,7 @@ pub fn generate<'ctx>(
 
     let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
     let init_func = build_init_function(
+        error_manager,
         &data_manager,
         &type_manager,
         &global_manager,

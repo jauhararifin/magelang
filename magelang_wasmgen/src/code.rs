@@ -1,4 +1,5 @@
 use crate::data::DataManager;
+use crate::errors::CodegenError;
 use crate::expr::ExprBuilder;
 use crate::func::{FuncMapper, Function};
 use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
@@ -7,7 +8,8 @@ use magelang_syntax::ErrorReporter;
 use magelang_typecheck::{Expr, ExprKind, Global, IfStatement, Statement, WhileStatement};
 use wasm_helper as wasm;
 
-pub(crate) fn build_function<'a, 'ctx, E>(
+pub(crate) fn build_function<'a, 'ctx, E: ErrorReporter>(
+    errors: &'ctx E,
     data_manager: &'a DataManager<'ctx, E>,
     type_manager: &'a TypeManager<'ctx>,
     global_manager: &'a GlobalManager<'ctx>,
@@ -30,11 +32,13 @@ pub(crate) fn build_function<'a, 'ctx, E>(
     let local_manager = LocalManager::new(locals.into_iter());
 
     let builder = FuncBuilder {
+        errors,
         locals: &local_manager,
         globals: global_manager,
         types: type_manager,
         func,
         exprs: ExprBuilder {
+            errors,
             data: data_manager,
             types: type_manager,
             funcs: func_manager,
@@ -47,6 +51,7 @@ pub(crate) fn build_function<'a, 'ctx, E>(
 }
 
 pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter, G>(
+    errors: &'ctx E,
     data_manager: &'a DataManager<'ctx, E>,
     type_manager: &'a TypeManager<'ctx>,
     global_manager: &'a GlobalManager<'ctx>,
@@ -59,6 +64,7 @@ where
 {
     let local_manager = LocalManager::new(std::iter::empty());
     let exprs = ExprBuilder {
+        errors,
         data: data_manager,
         types: type_manager,
         funcs: func_manager,
@@ -106,6 +112,7 @@ where
 }
 
 struct FuncBuilder<'a, 'ctx, E> {
+    errors: &'a E,
     locals: &'a LocalManager,
     globals: &'a GlobalManager<'ctx>,
     types: &'a TypeManager<'ctx>,
@@ -113,7 +120,7 @@ struct FuncBuilder<'a, 'ctx, E> {
     exprs: ExprBuilder<'a, 'ctx, E>,
 }
 
-impl<'a, 'ctx, E> FuncBuilder<'a, 'ctx, E> {
+impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
     fn build(self) -> wasm::Func {
         let stmt = if let Some(body) = self.func.body {
             self.build_statement(0, 0, body)
@@ -274,10 +281,10 @@ impl<'a, 'ctx, E> FuncBuilder<'a, 'ctx, E> {
         result.push(wasm::Instr::LocalSet(ptr_tmp));
 
         let val_types = build_val_type(value.ty);
-        let mem_layout = self
-            .types
-            .get_mem_layout(value.ty)
-            .expect("todo: dereferencing unsized type");
+        let Some(mem_layout) = self.types.get_mem_layout(value.ty) else {
+            self.errors.storing_opaque(value.pos);
+            return vec![wasm::Instr::Unreachable];
+        };
 
         let exprs = self.exprs.build(value);
         result.extend(exprs.header);
@@ -303,7 +310,10 @@ impl<'a, 'ctx, E> FuncBuilder<'a, 'ctx, E> {
                 PrimitiveType::I64 | PrimitiveType::U64 => wasm::Instr::I64Store,
                 PrimitiveType::F32 => wasm::Instr::F32Store,
                 PrimitiveType::F64 => wasm::Instr::F64Store,
-                PrimitiveType::Extern => unreachable!("todo: dereferencing unsized type"),
+                PrimitiveType::Extern => {
+                    self.errors.storing_opaque(value.pos);
+                    return vec![wasm::Instr::Unreachable];
+                }
             };
 
             result.push(store_instr(mem_arg));
