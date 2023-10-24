@@ -2,7 +2,7 @@ use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
 use crate::interner::Interner;
 use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr};
-use crate::value::value_from_string_lit;
+use crate::value::{value_from_num_lit, value_from_string_lit};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
@@ -446,41 +446,28 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
         (true, BitSize::ISize)
     };
 
-    let kind = match (sign, bit_size) {
-        // TODO: fix integer parsing
-        (true, BitSize::ISize) => token
-            .value
-            .parse::<i64>()
-            .map(|v| ExprKind::ConstIsize(v as u64)),
-        (true, BitSize::I64) => token
-            .value
-            .parse::<i64>()
-            .map(|v| ExprKind::ConstI64(v as u64)),
-        (true, BitSize::I32) => token
-            .value
-            .parse::<i32>()
-            .map(|v| ExprKind::ConstI32(v as u32)),
-        (true, BitSize::I16) => token
-            .value
-            .parse::<i16>()
-            .map(|v| ExprKind::ConstI16(v as u16)),
-        (true, BitSize::I8) => token
-            .value
-            .parse::<i8>()
-            .map(|v| ExprKind::ConstI8(v as u8)),
-        (false, BitSize::ISize) => token.value.parse::<u64>().map(ExprKind::ConstIsize),
-        (false, BitSize::I64) => token.value.parse::<u64>().map(ExprKind::ConstI64),
-        (false, BitSize::I32) => token.value.parse::<u32>().map(ExprKind::ConstI32),
-        (false, BitSize::I16) => token.value.parse::<u16>().map(ExprKind::ConstI16),
-        (false, BitSize::I8) => token.value.parse::<u8>().map(ExprKind::ConstI8),
-    };
-
-    let kind = match kind {
-        Ok(v) => v,
-        Err(err) => {
-            ctx.errors.invalid_int_literal(token.pos, err);
-            ExprKind::Invalid
+    let kind = if let Some(number_literal) = value_from_num_lit(&token.value) {
+        let value = match (sign, bit_size) {
+            (true, BitSize::ISize) => number_literal.try_into().map(ExprKind::ConstIsize),
+            (true, BitSize::I64) => number_literal.try_into().map(ExprKind::ConstI64),
+            (true, BitSize::I32) => number_literal.try_into().map(ExprKind::ConstI32),
+            (true, BitSize::I16) => number_literal.try_into().map(ExprKind::ConstI16),
+            (true, BitSize::I8) => number_literal.try_into().map(ExprKind::ConstI8),
+            (false, BitSize::ISize) => number_literal.try_into().map(ExprKind::ConstIsize),
+            (false, BitSize::I64) => number_literal.try_into().map(ExprKind::ConstI64),
+            (false, BitSize::I32) => number_literal.try_into().map(ExprKind::ConstI32),
+            (false, BitSize::I16) => number_literal.try_into().map(ExprKind::ConstI16),
+            (false, BitSize::I8) => number_literal.try_into().map(ExprKind::ConstI8),
+        };
+        match value {
+            Ok(v) => v,
+            Err(..) => {
+                ctx.errors.invalid_int_literal(token.pos);
+                ExprKind::Invalid
+            }
         }
+    } else {
+        ExprKind::Invalid
     };
 
     let ty = ctx.define_type(Type {

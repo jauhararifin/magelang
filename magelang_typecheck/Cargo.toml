@@ -10,4 +10,5 @@ magelang_syntax = { path = "../magelang_syntax" }
 indexmap = "1.9.3"
 home = "0.5.5"
 bumpalo = { version = "3.14.0", features = ["collections"] }
+num = "0.4.1"
 

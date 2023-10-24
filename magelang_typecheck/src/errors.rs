@@ -1,6 +1,6 @@
 use magelang_syntax::{ErrorReporter, Location, Pos};
 use std::fmt::Display;
-use std::num::{ParseFloatError, ParseIntError};
+use std::num::ParseFloatError;
 use std::path::Path;
 
 pub(crate) trait SemanticError: ErrorReporter {
@@ -70,11 +70,8 @@ pub(crate) trait SemanticError: ErrorReporter {
         self.report(pos, String::from("Missing return statement"))
     }
 
-    fn invalid_int_literal(&self, pos: Pos, err: ParseIntError) {
-        self.report(
-            pos,
-            format!("Expression is not a valid integer literal: {err}"),
-        );
+    fn invalid_int_literal(&self, pos: Pos) {
+        self.report(pos, String::from("The int literal can't be assigned"));
     }
 
     fn invalid_float_literal(&self, pos: Pos, err: ParseFloatError) {
