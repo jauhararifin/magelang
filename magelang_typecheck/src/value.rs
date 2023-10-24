@@ -170,53 +170,53 @@ impl NumberBuilder {
     fn add_bin(&mut self, c: char) {
         let c = (c as u128) - ('0' as u128);
         if self.is_exp {
-            self.exp = &self.exp << 1 + c;
+            self.exp = (&self.exp << 1) + c;
         } else {
             if self.is_frac {
                 self.frac += 1;
             }
-            self.val = &self.val << 1 + c;
+            self.val = (&self.val << 1) + c;
         }
     }
 
     fn add_dec(&mut self, c: char) {
         let c = (c as u128) - ('0' as u128);
         if self.is_exp {
-            self.exp = &self.exp * 10 + c;
+            self.exp = (&self.exp * 10) + c;
         } else {
             if self.is_frac {
                 self.frac += 1;
             }
-            self.val = &self.val * 10 + c;
+            self.val = (&self.val * 10) + c;
         }
     }
 
     fn add_oct(&mut self, c: char) {
         let c = (c as u128) - ('0' as u128);
         if self.is_exp {
-            self.exp = &self.exp << 3 + c;
+            self.exp = (&self.exp << 3) + c;
         } else {
             if self.is_frac {
                 self.frac += 1;
             }
-            self.val = &self.val << 3 + c;
+            self.val = (&self.val << 3) + c;
         }
     }
 
     fn add_hex(&mut self, c: char) {
         let c = match c {
-            '0'..='9' => (c as u128) - ('0' as u128),
-            'a'..='f' => (c as u128) - ('a' as u128),
-            'A'..='F' => (c as u128) - ('A' as u128),
+            '0'..='9' => (c as u32) - ('0' as u32),
+            'a'..='f' => (c as u32) - ('a' as u32),
+            'A'..='F' => (c as u32) - ('A' as u32),
             _ => unreachable!(),
         };
         if self.is_exp {
-            self.exp = &self.exp << 4 + c;
+            self.exp = (&self.exp << 4) + c;
         } else {
             if self.is_frac {
                 self.frac += 1;
             }
-            self.val = &self.val << 4 + c;
+            self.val = (&self.val << 4) + c;
         }
     }
 
@@ -273,7 +273,7 @@ impl Number {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum TryFromNumberError {
     NotInt,
     OutOfRange,
@@ -320,3 +320,14 @@ number_try_into!(u8);
 number_try_into!(u16);
 number_try_into!(u32);
 number_try_into!(u64);
+
+#[cfg(test)]
+mod tests {
+    use super::value_from_num_lit;
+
+    #[test]
+    fn parse_int() {
+        let val = value_from_num_lit("0x1").expect("cannot parse number");
+        assert_eq!(Ok(1u8), val.try_into());
+    }
+}
