@@ -376,7 +376,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Add],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Add],
             _ => {
-                todo!("cannot perform add on {ty:?}");
+                unreachable!("cannot perform add on {ty:?}");
             }
         };
 
@@ -408,7 +408,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Sub],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Sub],
             _ => {
-                todo!("cannot perform sub on {ty:?}");
+                unreachable!("cannot perform sub on {ty:?}");
             }
         };
 
@@ -440,7 +440,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Mul],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Mul],
             _ => {
-                todo!("cannot perform mul on {ty:?}");
+                unreachable!("cannot perform mul on {ty:?}");
             }
         };
 
@@ -472,7 +472,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Div],
             _ => {
-                todo!("cannot perform div on {ty:?}");
+                unreachable!("cannot perform div on {ty:?}");
             }
         };
 
@@ -501,7 +501,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32RemU],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64RemU],
             _ => {
-                todo!("cannot perform mod on {ty:?}");
+                unreachable!("cannot perform mod on {ty:?}");
             }
         };
 
@@ -520,7 +520,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Or],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Or],
             _ => {
-                todo!("cannot perform or on {ty:?}");
+                unreachable!("cannot perform or on {ty:?}");
             }
         };
 
@@ -539,7 +539,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32And],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64And],
             _ => {
-                todo!("cannot perform and on {ty:?}");
+                unreachable!("cannot perform and on {ty:?}");
             }
         };
 
@@ -558,7 +558,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Xor],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Xor],
             _ => {
-                todo!("cannot perform xor on {ty:?}");
+                unreachable!("cannot perform xor on {ty:?}");
             }
         };
 
@@ -577,7 +577,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Shl],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Shl],
             _ => {
-                todo!("cannot perform shl on {ty:?}");
+                unreachable!("cannot perform shl on {ty:?}");
             }
         };
 
@@ -605,7 +605,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Div],
             _ => {
-                todo!("cannot perform div on {ty:?}");
+                unreachable!("cannot perform div on {ty:?}");
             }
         };
 
@@ -671,7 +671,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             }
 
             _ => {
-                todo!("cannot perform eq on {ty:?}");
+                unreachable!("cannot perform eq on {ty:?}");
             }
         };
 
@@ -717,7 +717,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             }
 
             _ => {
-                todo!("cannot perform neq on {ty:?}");
+                unreachable!("cannot perform neq on {ty:?}");
             }
         };
         let mut result = Vec::default();
@@ -748,7 +748,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Gt],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Gt],
             _ => {
-                todo!("cannot perform > on {ty:?}");
+                unreachable!("cannot perform > on {ty:?}");
             }
         };
 
@@ -775,7 +775,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Ge],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Ge],
             _ => {
-                todo!("cannot perform ge on {ty:?}");
+                unreachable!("cannot perform ge on {ty:?}");
             }
         };
 
@@ -804,7 +804,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Lt],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Lt],
             _ => {
-                todo!("cannot perform lt on {ty:?}\n{a:?}\n{b:?}");
+                unreachable!("cannot perform lt on {ty:?}\n{a:?}\n{b:?}");
             }
         };
 
@@ -831,7 +831,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Le],
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Le],
             _ => {
-                todo!("cannot perform le on {ty:?}");
+                unreachable!("cannot perform le on {ty:?}");
             }
         };
 
@@ -855,7 +855,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 vec![wasm::Instr::F64Const(-1.0), wasm::Instr::F64Mul]
             }
             _ => {
-                todo!("cannot perform neg on {ty:?}");
+                unreachable!("cannot perform neg on {ty:?}");
             }
         };
         result.extend(instrs);
@@ -872,7 +872,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Xor]
             }
             _ => {
-                todo!("cannot perform bitnot on {ty:?}");
+                unreachable!("cannot perform bitnot on {ty:?}");
             }
         };
         result.extend(instrs);

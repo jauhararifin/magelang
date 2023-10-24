@@ -778,10 +778,6 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
         };
     };
 
-    if !element_ty.is_sized() {
-        ctx.errors.deref_unsized(node.pos);
-    }
-
     Expr {
         ty: element_ty,
         kind: ExprKind::Deref(ctx.arena.alloc(value)),

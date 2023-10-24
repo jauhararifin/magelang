@@ -110,8 +110,7 @@ impl<'a> Type<'a> {
             }
         }
 
-        let sized = true; // TODO: set this value properly.
-        let body = StructBody { fields, sized };
+        let body = StructBody { fields };
 
         struct_type.body.set(body).expect("cannot set struct body");
 
@@ -256,10 +255,6 @@ impl<'a> Type<'a> {
 
     pub fn is_opaque(&self) -> bool {
         self.repr.is_unknown() || self.repr.is_opaque()
-    }
-
-    pub fn is_sized(&self) -> bool {
-        self.repr.is_unknown() || self.repr.is_sized()
     }
 
     pub fn is_unknown(&self) -> bool {
@@ -429,24 +424,6 @@ impl<'a> TypeRepr<'a> {
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
         self.eq(other)
     }
-
-    pub(crate) fn is_sized(&self) -> bool {
-        match self {
-            TypeRepr::Unknown => true,
-            TypeRepr::Void => true,
-            TypeRepr::Struct(struct_type) => {
-                struct_type.body.get().expect("missing struct body").sized
-            }
-            TypeRepr::Func(..) => true,
-            TypeRepr::Opaque => false,
-            TypeRepr::Bool => true,
-            TypeRepr::Int(..) => true,
-            TypeRepr::Float(..) => true,
-            TypeRepr::Ptr(..) => true,
-            TypeRepr::ArrayPtr(..) => true,
-            TypeRepr::TypeArg(..) => true,
-        }
-    }
 }
 
 impl<'a> Display for TypeRepr<'a> {
@@ -517,17 +494,13 @@ impl<'a> StructType<'a> {
             .iter()
             .map(|(name, ty)| (*name, ty.monomorphize(ctx, type_args)))
             .collect::<IndexMap<_, _>>();
-        Some(StructBody {
-            fields,
-            sized: true, // TODO: calculate this properly.
-        })
+        Some(StructBody { fields })
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructBody<'a> {
     pub fields: IndexMap<Symbol<'a>, &'a Type<'a>>,
-    pub sized: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
