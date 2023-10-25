@@ -452,7 +452,9 @@ fn get_expr_from_number_lit<'a, E: ErrorReporter>(
             TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => {
                 return get_expr_from_int_lit(ctx, expected_type, token.pos, num)
             }
-            TypeRepr::Float(..) => return get_expr_from_float_lit(ctx, expected_type, token, num),
+            TypeRepr::Float(..) => {
+                return get_expr_from_float_lit(ctx, expected_type, token, num);
+            }
             _ => (),
         }
     };
@@ -1090,12 +1092,30 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
     expected_type: Option<&'a Type<'a>>,
     node: &IndexExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
+    let value = get_expr_from_node(
+        ctx,
+        scope,
+        expected_type.map(|elem_ty| {
+            ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::ArrayPtr(elem_ty),
+            })
+        }),
+        &node.value,
+    );
     let ty = value.ty;
 
     match ty.repr {
         TypeRepr::ArrayPtr(element) => {
-            let index = get_expr_from_node(ctx, scope, expected_type, &node.index);
+            let index = get_expr_from_node(
+                ctx,
+                scope,
+                Some(ctx.define_type(Type {
+                    kind: TypeKind::Anonymous,
+                    repr: TypeRepr::Int(true, BitSize::ISize),
+                })),
+                &node.index,
+            );
             let index_type = index.ty;
 
             if !index_type.is_int() {

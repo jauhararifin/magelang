@@ -148,11 +148,6 @@ impl StringBuilder {
         }
 
         self.value.push(c);
-
-        let mut buff: [u8; 8] = [0; 8];
-        let len = c.encode_utf8(&mut buff).len();
-        self.raw.extend_from_slice(&buff[..len]);
-
         self.offset += 1;
         true
     }
@@ -172,7 +167,7 @@ impl StringBuilder {
     }
 
     pub fn build_raw(self) -> Result<Vec<u8>, Vec<StringError>> {
-        if self.errors.is_empty() {
+        if !self.errors.is_empty() {
             Err(self.errors)
         } else {
             Ok(self.raw)
