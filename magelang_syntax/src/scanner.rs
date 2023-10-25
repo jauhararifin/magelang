@@ -85,12 +85,13 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let mut pos = None;
 
         let mut builder = StringBuilder::default();
-        while let Some((c, p)) = self.next() {
-            if pos.is_none() {
-                pos = Some(p);
-            }
+        while let Some((c, p)) = self.peek() {
             if !builder.add(c) {
                 break;
+            }
+            self.next();
+            if pos.is_none() {
+                pos = Some(p);
             }
         }
 

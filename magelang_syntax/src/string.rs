@@ -28,6 +28,7 @@ enum State {
     Closed,
 }
 
+#[derive(Debug)]
 pub enum StringError {
     UnknownEscape { offset: usize, c: char },
     UnexpectedHex { offset: usize, c: char },
@@ -126,6 +127,7 @@ impl StringBuilder {
 
                     let b = (into_u8(first_char) << 4) | (into_u8(c));
                     self.raw.push(b);
+                    self.state = State::Normal;
                 }
                 '"' => {
                     self.errors.push(StringError::UnexpectedHex {
