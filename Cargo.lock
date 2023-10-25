@@ -223,6 +223,7 @@ name = "magelang_syntax"
 version = "0.1.0"
 dependencies = [
  "indexmap",
+ "num",
 ]
 
 [[package]]

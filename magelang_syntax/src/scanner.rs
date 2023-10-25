@@ -1,4 +1,6 @@
 use crate::error::ErrorReporter;
+use crate::number::{NumberBuilder, NumberError};
+use crate::string::{StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
 
@@ -80,217 +82,83 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn scan_string_lit(&mut self) -> Option<Token> {
-        enum State {
-            Normal,
-            AfterBlackslash,
-            ReadHex(u8),
-            Closed,
-        }
+        let mut pos = None;
 
-        let (_, pos) = self.next_if(|c| c == '"')?;
-        let mut last_pos = pos;
-        let mut value = String::from('"');
-        let mut state = State::Normal;
-
-        while let Some((c, pos)) = self.next() {
-            last_pos = pos;
-            value.push(c);
-            match state {
-                State::Normal => match c {
-                    '\\' => state = State::AfterBlackslash,
-                    '"' => {
-                        state = State::Closed;
-                        break;
-                    }
-                    _ => (),
-                },
-                State::AfterBlackslash => match c {
-                    'n' | 'r' | 't' | '\\' | '0' | '"' | '\'' => state = State::Normal,
-                    'x' => state = State::ReadHex(2),
-                    _ => {
-                        self.errors.unexpected_char(pos, c);
-                        state = State::Normal;
-                    }
-                },
-                State::ReadHex(remaining) => match c {
-                    '0'..='9' | 'a'..='f' | 'A'..='F' => {
-                        state = if remaining == 1 {
-                            State::Normal
-                        } else {
-                            State::ReadHex(remaining - 1)
-                        }
-                    }
-                    '"' => {
-                        self.errors.unexpected_char(pos, c);
-                        state = State::Closed;
-                        break;
-                    }
-                    _ => {
-                        self.errors.unexpected_char(pos, c);
-                        state = State::Normal;
-                    }
-                },
-                State::Closed => unreachable!(),
+        let mut builder = StringBuilder::default();
+        while let Some((c, p)) = self.next() {
+            if pos.is_none() {
+                pos = Some(p);
+            }
+            if !builder.add(c) {
+                break;
             }
         }
 
-        if !matches!(state, State::Closed) {
-            self.errors.missing_closing_quote(last_pos);
+        let literal = builder.build_literal();
+        let pos = pos?;
+        for error in literal.errors {
+            match error {
+                StringError::UnknownEscape { offset, c } => {
+                    self.errors.unexpected_char(pos.with_offset(offset), c)
+                }
+                StringError::UnexpectedHex { offset, c } => {
+                    self.errors.unexpected_char(pos.with_offset(offset), c)
+                }
+                StringError::MissingClosingQuote { offset } => {
+                    self.errors.missing_closing_quote(pos.with_offset(offset));
+                }
+            }
         }
 
         Some(Token {
             kind: TokenKind::StringLit,
-            value,
+            value: literal.value,
             pos,
         })
     }
 
     fn scan_number_lit(&mut self) -> Option<Token> {
-        #[derive(Clone, Copy)]
-        enum Base {
-            Bin,
-            Dec,
-            Oct,
-            Hex,
-        }
-        #[derive(Clone, Copy)]
-        enum State {
-            Init,
-            Prefix,
-            Integer(Base),
-            Fraction,
-            Exponent,
-            ExponentAfterSign,
-            InvalidSuffix(Pos),
-        }
-
-        let mut value = String::default();
         let mut pos = None;
-        let mut state = State::Init;
-        let mut is_fractional = false;
-        let mut invalid_suffix = String::default();
-
-        loop {
-            while let Some((c, _)) = self.next_if(|c| c == '_') {
-                value.push(c);
-            }
-
-            let Some((c, char_pos)) = self.peek() else {
-                break;
-            };
+        let mut builder = NumberBuilder::default();
+        while let Some((c, char_pos)) = self.peek() {
             if pos.is_none() {
                 pos = Some(char_pos);
             }
-
-            match state {
-                State::Init => match c {
-                    '0' => {
-                        state = State::Prefix;
-                    }
-                    '1'..='9' => state = State::Integer(Base::Dec),
-                    _ => return None,
-                },
-                State::Prefix => match c {
-                    'x' => state = State::Integer(Base::Hex),
-                    'b' => state = State::Integer(Base::Bin),
-                    'o' => state = State::Integer(Base::Oct),
-                    '0'..='7' => state = State::Integer(Base::Oct),
-                    'e' | 'E' => state = State::Exponent,
-                    '.' => {
-                        is_fractional = true;
-                        state = State::Fraction;
-                    }
-                    'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix(char_pos);
-                        continue;
-                    }
-                    _ => break,
-                },
-                State::Integer(base) => match (base, c) {
-                    (Base::Dec, 'e' | 'E') => state = State::Exponent,
-                    (Base::Dec, '.') => {
-                        is_fractional = true;
-                        state = State::Fraction;
-                    }
-                    (_, '.') => {
-                        is_fractional = true;
-                        self.errors.non_decimal_fraction(char_pos);
-                    }
-                    (Base::Bin, '0' | '1')
-                    | (Base::Dec, '0'..='9')
-                    | (Base::Oct, '0'..='7')
-                    | (Base::Hex, '0'..='9')
-                    | (Base::Hex, 'a'..='f')
-                    | (Base::Hex, 'A'..='F') => (),
-                    (Base::Bin, '2'..='9') => self.errors.invalid_digit_in_base(char_pos, c, 2),
-                    (Base::Oct, '8'..='9') => self.errors.invalid_digit_in_base(char_pos, c, 8),
-                    (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z')
-                    | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
-                        state = State::InvalidSuffix(char_pos);
-                        continue;
-                    }
-                    _ => break,
-                },
-                State::Fraction => match c {
-                    'e' | 'E' => state = State::Exponent,
-                    '0'..='9' => (),
-                    'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix(char_pos);
-                        continue;
-                    }
-                    _ => break,
-                },
-                State::Exponent => match c {
-                    '-' => {
-                        is_fractional = true;
-                        state = State::ExponentAfterSign;
-                    }
-                    '0'..='9' => state = State::ExponentAfterSign,
-                    'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix(char_pos);
-                        continue;
-                    }
-                    _ => {
-                        self.errors.missing_exponent_digits(char_pos);
-                        break;
-                    }
-                },
-                State::ExponentAfterSign => match c {
-                    '0'..='9' => (),
-                    'a'..='z' | 'A'..='Z' => {
-                        state = State::InvalidSuffix(char_pos);
-                        continue;
-                    }
-                    _ => break,
-                },
-                State::InvalidSuffix(..) => match c {
-                    '0'..='9' | 'a'..='z' | 'A'..='Z' => invalid_suffix.push(c),
-                    _ => break,
-                },
+            if !builder.add(c) {
+                break;
             }
-
-            let (c, _) = self.next().unwrap();
-            value.push(c);
+            self.next();
         }
 
-        if let State::InvalidSuffix(pos) = state {
-            self.errors.invalid_number_suffix(pos, &invalid_suffix);
-        }
-
+        let literal = builder.build_token()?;
         let pos = pos?;
-        if is_fractional {
-            Some(Token {
-                kind: TokenKind::RealLit,
-                value,
-                pos,
-            })
-        } else {
-            Some(Token {
-                kind: TokenKind::IntegerLit,
-                value,
-                pos,
-            })
+
+        for err in literal.errors {
+            match err {
+                NumberError::InvalidSuffix { offset } => self
+                    .errors
+                    .invalid_number_suffix(pos.with_offset(offset), &literal.invalid_suffix),
+                NumberError::NonDecimalFraction { offset } => {
+                    self.errors.non_decimal_fraction(pos.with_offset(offset))
+                }
+                NumberError::InvalidDigit {
+                    offset,
+                    base,
+                    digit,
+                } => self
+                    .errors
+                    .invalid_digit_in_base(pos.with_offset(offset), digit, base as u8),
+                NumberError::MissingExponent { offset } => {
+                    self.errors.missing_exponent_digits(pos.with_offset(offset))
+                }
+            }
         }
+
+        Some(Token {
+            kind: TokenKind::NumberLit,
+            value: literal.value,
+            pos,
+        })
     }
 
     fn scan_comments(&mut self) -> Option<Token> {
@@ -512,7 +380,7 @@ string"
         assert_eq!(tokens[4].kind, TokenKind::Let);
         assert_eq!(tokens[5].kind, TokenKind::Ident);
         assert_eq!(tokens[6].kind, TokenKind::Equal);
-        assert_eq!(tokens[7].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[7].kind, TokenKind::NumberLit);
         assert_eq!(tokens[8].kind, TokenKind::SemiColon);
         assert_eq!(tokens[9].kind, TokenKind::Comment);
         assert_eq!(&tokens[9].value, "// comment in the end\n");
@@ -671,7 +539,7 @@ string"
 
         assert!(tokens[0..8]
             .iter()
-            .all(|token| token.kind == TokenKind::IntegerLit));
+            .all(|token| token.kind == TokenKind::NumberLit));
         assert_eq!(&tokens[0].value, "0");
         assert_eq!(&tokens[1].value, "1");
         assert_eq!(&tokens[2].value, "12345678_90123455561_090");
@@ -682,48 +550,59 @@ string"
         assert_eq!(&tokens[7].value, "0_b11010101001010101010");
         assert_eq!(&tokens[8].value, "0__b__11010101001010101010");
 
-        assert_eq!(tokens[9].kind, TokenKind::RealLit);
+        assert_eq!(tokens[9].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[9].value, "123.123");
-        assert_eq!(tokens[10].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[10].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[10].value, "123e123");
-        assert_eq!(tokens[11].kind, TokenKind::RealLit);
+        assert_eq!(tokens[11].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[11].value, "123e-123");
-        assert_eq!(tokens[12].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[12].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[12].value, "123E123");
-        assert_eq!(tokens[13].kind, TokenKind::RealLit);
+        assert_eq!(tokens[13].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[13].value, "123E-123");
-        assert_eq!(tokens[14].kind, TokenKind::RealLit);
+        assert_eq!(tokens[14].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[14].value, "1.23e123");
-        assert_eq!(tokens[15].kind, TokenKind::RealLit);
+        assert_eq!(tokens[15].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[15].value, "0.123");
-        assert_eq!(tokens[16].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[16].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[16].value, "0e123");
 
-        assert_eq!(tokens[17].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[17].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[17].value, "0123abcdef456");
-        assert_eq!(tokens[18].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[18].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[18].value, "0abcde");
-        assert_eq!(tokens[19].kind, TokenKind::RealLit);
-        assert_eq!(&tokens[19].value, "0x123.abcd");
-        assert_eq!(tokens[20].kind, TokenKind::RealLit);
-        assert_eq!(&tokens[20].value, "0b101.101");
-        assert_eq!(tokens[21].kind, TokenKind::RealLit);
-        assert_eq!(&tokens[21].value, "0o123.123");
-        assert_eq!(tokens[22].kind, TokenKind::IntegerLit);
-        assert_eq!(&tokens[22].value, "0b123");
-        assert_eq!(tokens[23].kind, TokenKind::IntegerLit);
-        assert_eq!(&tokens[23].value, "123eabc");
-        assert_eq!(tokens[24].kind, TokenKind::RealLit);
-        assert_eq!(&tokens[24].value, "123e-1a");
-        assert_eq!(tokens[25].kind, TokenKind::IntegerLit);
-        assert_eq!(&tokens[25].value, "0xabcghijklmnopqrstuvwxyz");
-        assert_eq!(tokens[26].kind, TokenKind::RealLit);
-        assert_eq!(&tokens[26].value, "123.abcde");
-        assert_eq!(tokens[27].kind, TokenKind::IntegerLit);
-        assert_eq!(&tokens[27].value, "123e");
+        assert_eq!(tokens[19].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[19].value, "0x123");
+        assert_eq!(tokens[20].kind, TokenKind::Dot);
+        assert_eq!(tokens[21].kind, TokenKind::Ident);
+
+        assert_eq!(tokens[22].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[22].value, "0b101");
+        assert_eq!(tokens[23].kind, TokenKind::Dot);
+        assert_eq!(tokens[24].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[24].value, "101");
+
+        assert_eq!(tokens[25].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[25].value, "0o123");
+        assert_eq!(tokens[26].kind, TokenKind::Dot);
+        assert_eq!(tokens[27].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[27].value, "123");
+
+        assert_eq!(tokens[28].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[28].value, "0b123");
+        assert_eq!(tokens[29].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[29].value, "123eabc");
+        assert_eq!(tokens[30].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[30].value, "123e-1a");
+        assert_eq!(tokens[31].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[31].value, "0xabcghijklmnopqrstuvwxyz");
+        assert_eq!(tokens[32].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[32].value, "123.abcde");
+        assert_eq!(tokens[33].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[33].value, "123e");
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 12);
+        assert_eq!(errors.len(), 9);
         assert_eq!(
             errors[0].message,
             "Invalid suffix \"abcdef456\" for number literal"
@@ -734,38 +613,26 @@ string"
         );
         assert_eq!(
             errors[2].message,
-            "can only use decimal number for fractional number literal",
-        );
-        assert_eq!(
-            errors[3].message,
-            "can only use decimal number for fractional number literal",
-        );
-        assert_eq!(
-            errors[4].message,
-            "can only use decimal number for fractional number literal",
-        );
-        assert_eq!(
-            errors[5].message,
             "Cannot use '2' in 2-base integer literal",
         );
         assert_eq!(
-            errors[6].message,
+            errors[3].message,
             "Cannot use '3' in 2-base integer literal",
         );
         assert_eq!(
-            errors[7].message,
+            errors[4].message,
             "Invalid suffix \"abc\" for number literal",
         );
-        assert_eq!(errors[8].message, "Invalid suffix \"a\" for number literal",);
+        assert_eq!(errors[5].message, "Invalid suffix \"a\" for number literal",);
         assert_eq!(
-            errors[9].message,
+            errors[6].message,
             "Invalid suffix \"ghijklmnopqrstuvwxyz\" for number literal",
         );
         assert_eq!(
-            errors[10].message,
+            errors[7].message,
             "Invalid suffix \"abcde\" for number literal",
         );
-        assert_eq!(errors[11].message, "The exponent has no digits",);
+        assert_eq!(errors[8].message, "The exponent has no digits",);
     }
 
     #[test]
@@ -855,7 +722,7 @@ string"
         assert_eq!(tokens[67].kind, TokenKind::AtSign);
 
         assert_eq!(tokens[68].kind, TokenKind::Sub);
-        assert_eq!(tokens[69].kind, TokenKind::IntegerLit);
+        assert_eq!(tokens[69].kind, TokenKind::NumberLit);
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);

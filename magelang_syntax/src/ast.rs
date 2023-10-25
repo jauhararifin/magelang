@@ -177,8 +177,7 @@ pub struct FuncTypeNode {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ExprNode {
     Path(PathNode),
-    Integer(Token),
-    Frac(Token),
+    Number(Token),
     Null(Token),
     Bool(Token),
     String(Token),
@@ -196,8 +195,7 @@ pub enum ExprNode {
 impl ExprNode {
     pub fn pos(&self) -> Pos {
         match self {
-            Self::Integer(tok) => tok.pos,
-            Self::Frac(tok) => tok.pos,
+            Self::Number(tok) => tok.pos,
             Self::Null(tok) => tok.pos,
             Self::Bool(tok) => tok.pos,
             Self::String(tok) => tok.pos,

@@ -2,13 +2,12 @@ use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
 use crate::interner::Interner;
 use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr};
-use crate::value::{value_from_num_lit, value_from_string_lit};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
-    BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ErrorReporter, ExprNode,
-    IndexExprNode, PathNode, Pos, SelectionExprNode, StructExprNode, Token, TokenKind,
-    UnaryExprNode,
+    get_raw_string_lit, BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ErrorReporter,
+    ExprNode, IndexExprNode, Number, PathNode, Pos, SelectionExprNode, StructExprNode, Token,
+    TokenKind, UnaryExprNode,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -275,8 +274,7 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
 ) -> Expr<'a> {
     match node {
         ExprNode::Path(node) => get_expr_from_path(ctx, scope, expected_type, node),
-        ExprNode::Integer(token) => get_expr_from_int_lit(ctx, expected_type, token),
-        ExprNode::Frac(token) => get_expr_from_float_lit(ctx, expected_type, token),
+        ExprNode::Number(token) => get_expr_from_number_lit(ctx, expected_type, token),
         ExprNode::Null(..) => Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -431,43 +429,77 @@ fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_int_lit<'a, E: ErrorReporter>(
+fn get_expr_from_number_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     expected_type: Option<&'a Type<'a>>,
     token: &Token,
 ) -> Expr<'a> {
-    let (sign, bit_size) = if let Some(ty) = expected_type {
-        match ty.repr {
-            TypeRepr::Int(sign, bit_size) => (sign, bit_size),
-            TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => (false, BitSize::ISize),
-            _ => (true, BitSize::ISize),
-        }
-    } else {
-        (true, BitSize::ISize)
+    let Ok(num) = Number::from_str(&token.value) else {
+        let ty = expected_type.unwrap_or(ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Int(true, BitSize::ISize),
+        }));
+        return Expr {
+            ty,
+            kind: ExprKind::Invalid,
+            pos: token.pos,
+            assignable: false,
+        };
     };
 
-    let kind = if let Some(number_literal) = value_from_num_lit(&token.value) {
-        let value = match (sign, bit_size) {
-            (true, BitSize::ISize) => number_literal.try_into().map(ExprKind::ConstIsize),
-            (true, BitSize::I64) => number_literal.try_into().map(ExprKind::ConstI64),
-            (true, BitSize::I32) => number_literal.try_into().map(ExprKind::ConstI32),
-            (true, BitSize::I16) => number_literal.try_into().map(ExprKind::ConstI16),
-            (true, BitSize::I8) => number_literal.try_into().map(ExprKind::ConstI8),
-            (false, BitSize::ISize) => number_literal.try_into().map(ExprKind::ConstIsize),
-            (false, BitSize::I64) => number_literal.try_into().map(ExprKind::ConstI64),
-            (false, BitSize::I32) => number_literal.try_into().map(ExprKind::ConstI32),
-            (false, BitSize::I16) => number_literal.try_into().map(ExprKind::ConstI16),
-            (false, BitSize::I8) => number_literal.try_into().map(ExprKind::ConstI8),
-        };
-        match value {
-            Ok(v) => v,
-            Err(..) => {
-                ctx.errors.invalid_int_literal(token.pos);
-                ExprKind::Invalid
+    if let Some(ty) = expected_type {
+        match ty.repr {
+            TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => {
+                return get_expr_from_int_lit(ctx, expected_type, token.pos, num)
             }
+            TypeRepr::Float(..) => return get_expr_from_float_lit(ctx, expected_type, token, num),
+            _ => (),
         }
+    };
+
+    if num.is_int() {
+        get_expr_from_int_lit(ctx, expected_type, token.pos, num)
     } else {
-        ExprKind::Invalid
+        get_expr_from_float_lit(ctx, expected_type, token, num)
+    }
+}
+
+fn get_expr_from_int_lit<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    expected_type: Option<&'a Type<'a>>,
+    pos: Pos,
+    number: Number,
+) -> Expr<'a> {
+    let (mut sign, mut bit_size) = (true, BitSize::ISize);
+    if let Some(ty) = expected_type {
+        if let TypeRepr::Int(s, b) = ty.repr {
+            sign = s;
+            bit_size = b;
+        } else if matches!(ty.repr, TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..)) {
+            sign = false;
+            bit_size = BitSize::ISize;
+        }
+    }
+
+    let value = match (sign, bit_size) {
+        (true, BitSize::ISize) => number.try_into().map(ExprKind::ConstIsize),
+        (true, BitSize::I64) => number.try_into().map(ExprKind::ConstI64),
+        (true, BitSize::I32) => number.try_into().map(ExprKind::ConstI32),
+        (true, BitSize::I16) => number.try_into().map(ExprKind::ConstI16),
+        (true, BitSize::I8) => number.try_into().map(ExprKind::ConstI8),
+        (false, BitSize::ISize) => number.try_into().map(ExprKind::ConstIsize),
+        (false, BitSize::I64) => number.try_into().map(ExprKind::ConstI64),
+        (false, BitSize::I32) => number.try_into().map(ExprKind::ConstI32),
+        (false, BitSize::I16) => number.try_into().map(ExprKind::ConstI16),
+        (false, BitSize::I8) => number.try_into().map(ExprKind::ConstI8),
+    };
+
+    let kind = match value {
+        Ok(v) => v,
+        Err(..) => {
+            ctx.errors.invalid_int_literal(pos);
+            ExprKind::Invalid
+        }
     };
 
     let ty = ctx.define_type(Type {
@@ -477,7 +509,7 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind,
-        pos: token.pos,
+        pos,
         assignable: false,
     }
 }
@@ -486,26 +518,23 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     expected_type: Option<&'a Type<'a>>,
     token: &Token,
+    number: Number,
 ) -> Expr<'a> {
-    let float_type = if let Some(ty) = expected_type {
-        match ty.repr {
-            TypeRepr::Float(float_ty) => float_ty,
-            _ => FloatType::F64,
+    let mut float_type = FloatType::F64;
+    if let Some(ty) = expected_type {
+        if let TypeRepr::Float(float_ty) = ty.repr {
+            float_type = float_ty;
         }
-    } else {
-        FloatType::F64
-    };
+    }
 
-    let value = ctx.define_symbol(&token.value);
+    let value_sym = ctx.define_symbol(&token.value);
     let kind = match float_type {
-        // TODO: fix float parsing
-        FloatType::F32 => value
-            .parse::<f32>()
-            .map(|val| ExprKind::ConstF32(Float::new(value, val))),
-        FloatType::F64 => token
-            .value
-            .parse::<f64>()
-            .map(|val| ExprKind::ConstF64(Float::new(value, val))),
+        FloatType::F32 => number
+            .try_into()
+            .map(|val| ExprKind::ConstF32(Float::new(value_sym, val))),
+        FloatType::F64 => number
+            .try_into()
+            .map(|val| ExprKind::ConstF32(Float::new(value_sym, val))),
     };
 
     let kind = match kind {
@@ -561,7 +590,7 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
         repr: TypeRepr::ArrayPtr(u8_ty),
     });
 
-    let Some(mut bytes) = value_from_string_lit(&token.value) else {
+    let Some(mut bytes) = get_raw_string_lit(&token.value).ok() else {
         return Expr {
             ty,
             kind: ExprKind::Invalid,

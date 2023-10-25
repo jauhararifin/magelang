@@ -6,7 +6,6 @@ mod path;
 mod scope;
 mod statement;
 mod ty;
-mod value;
 
 use interner::Interner;
 use magelang_syntax::Pos;

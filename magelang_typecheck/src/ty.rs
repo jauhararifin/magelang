@@ -262,7 +262,7 @@ impl<'a> Type<'a> {
     }
 
     pub(crate) fn is_arithmetic(&self) -> bool {
-        self.repr.is_arithmetic()
+        self.repr.is_unknown() || self.repr.is_arithmetic()
     }
 
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {

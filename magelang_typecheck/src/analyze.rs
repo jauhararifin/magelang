@@ -8,14 +8,13 @@ use crate::ty::{
     get_typeparams, BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs,
     TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
 };
-use crate::value::value_from_string_lit;
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
 use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
-    PackageNode, Pos, StructNode,
+    get_raw_string_lit, parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode,
+    GlobalNode, ItemNode, PackageNode, Pos, StructNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -286,7 +285,7 @@ fn get_all_package_asts<'a>(
             .items
             .iter()
             .filter_map(ItemNode::as_import)
-            .filter_map(|node| value_from_string_lit(node.path.value.as_str()))
+            .filter_map(|node| get_raw_string_lit(node.path.value.as_str()).ok())
             .filter_map(|bytes| String::from_utf8(bytes).ok());
 
         for import_path in import_paths {
@@ -322,7 +321,7 @@ fn build_imports<'a, E: ErrorReporter>(
                 name: object_name,
             };
 
-            let Some(package_path) = value_from_string_lit(&import_node.path.value) else {
+            let Some(package_path) = get_raw_string_lit(&import_node.path.value).ok() else {
                 ctx.errors.invalid_utf8_package(import_node.path.pos);
                 continue;
             };
@@ -603,7 +602,7 @@ fn build_annotations_from_node<E: ErrorReporter>(
         let mut arguments = Vec::default();
         let mut valid = true;
         for arg in &annotation_node.arguments {
-            let Some(arg_value) = value_from_string_lit(&arg.value) else {
+            let Some(arg_value) = get_raw_string_lit(&arg.value).ok() else {
                 ctx.errors.invalid_utf8_string(arg.pos);
                 valid = false;
                 continue;

@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 indexmap = "1.9.3"
+num = "0.4.1"

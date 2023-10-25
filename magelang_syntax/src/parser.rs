@@ -808,8 +808,7 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         ExprNode::Grouped(node) => {
             TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
         }
-        ExprNode::Integer(tok)
-        | ExprNode::Frac(tok)
+        ExprNode::Number(tok)
         | ExprNode::Null(tok)
         | ExprNode::Bool(tok)
         | ExprNode::String(tok)
@@ -827,8 +826,7 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
 fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
     match f.kind() {
         TokenKind::Ident => parse_path_for_expr(f).map(ExprNode::Path),
-        TokenKind::IntegerLit => f.take(TokenKind::IntegerLit).map(ExprNode::Integer),
-        TokenKind::RealLit => f.take(TokenKind::RealLit).map(ExprNode::Frac),
+        TokenKind::NumberLit => f.take(TokenKind::NumberLit).map(ExprNode::Number),
         TokenKind::StringLit => f.take(TokenKind::StringLit).map(ExprNode::String),
         TokenKind::Null => f.take(TokenKind::Null).map(ExprNode::Null),
         TokenKind::True => f.take(TokenKind::True).map(ExprNode::Bool),
