@@ -434,7 +434,7 @@ fn get_expr_from_number_lit<'a, E: ErrorReporter>(
     expected_type: Option<&'a Type<'a>>,
     token: &Token,
 ) -> Expr<'a> {
-    let Ok(num) = Number::from_str(&token.value) else {
+    let Ok(num) = Number::new_from_str(&token.value) else {
         let ty = expected_type.unwrap_or(ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Int(true, BitSize::ISize),

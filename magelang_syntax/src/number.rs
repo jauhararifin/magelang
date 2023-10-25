@@ -8,7 +8,7 @@ pub struct Number {
 }
 
 impl Number {
-    pub fn from_str(s: &str) -> Result<Self, Vec<NumberError>> {
+    pub fn new_from_str(s: &str) -> Result<Self, Vec<NumberError>> {
         let mut builder = NumberBuilder::default();
         for c in s.chars() {
             if !builder.add(c) {
@@ -325,9 +325,9 @@ impl NumberBuilder {
 
 fn into_digit(c: char) -> u8 {
     match c {
-        '0'..='9' => (c as u8) - ('0' as u8),
-        'a'..='f' => (c as u8) - ('a' as u8) + 10,
-        'A'..='F' => (c as u8) - ('A' as u8) + 10,
+        '0'..='9' => (c as u8) - b'0',
+        'a'..='f' => (c as u8) - b'a' + 10,
+        'A'..='F' => (c as u8) - b'A' + 10,
         _ => unreachable!(),
     }
 }
@@ -340,7 +340,7 @@ mod tests {
     fn parse_number() {
         macro_rules! test_parse_int {
             ($s:expr, $expected:expr) => {
-                let number = Number::from_str($s).expect("cannot parse number");
+                let number = Number::new_from_str($s).expect("cannot parse number");
                 assert_eq!($expected, number.try_into().unwrap(),)
             };
         }

@@ -61,19 +61,19 @@ impl StringBuilder {
             State::AfterBlackslash => match c {
                 'n' => {
                     self.state = State::Normal;
-                    self.raw.push('\n' as u8);
+                    self.raw.push(b'\n');
                 }
                 'r' => {
                     self.state = State::Normal;
-                    self.raw.push('\r' as u8);
+                    self.raw.push(b'\r');
                 }
                 't' => {
                     self.state = State::Normal;
-                    self.raw.push('\t' as u8);
+                    self.raw.push(b'\t');
                 }
                 '\\' => {
                     self.state = State::Normal;
-                    self.raw.push('\\' as u8);
+                    self.raw.push(b'\\');
                 }
                 '0' => {
                     self.state = State::Normal;
@@ -81,11 +81,11 @@ impl StringBuilder {
                 }
                 '"' => {
                     self.state = State::Normal;
-                    self.raw.push('"' as u8);
+                    self.raw.push(b'"');
                 }
                 '\'' => {
                     self.state = State::Normal;
-                    self.raw.push('\'' as u8);
+                    self.raw.push(b'\'');
                 }
                 'x' => self.state = State::ReadHex1,
                 _ => {
