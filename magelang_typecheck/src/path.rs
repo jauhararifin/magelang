@@ -2,7 +2,6 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 const STDLIB_PATH_KEY: &str = "MAGELANG_ROOT";
-const CODE_EXTENSION: &str = "mg";
 
 pub(crate) fn get_stdlib_path() -> PathBuf {
     get_stdlib_path_from_cargo()
@@ -65,9 +64,8 @@ pub(crate) fn get_package_path(stdlib_path: &Path, package_name: &str) -> PathBu
     for segment in package_name.split('/') {
         path.push(segment);
     }
-    // TODO: this is wrong, we should add the extension not changing it. Supposed we want to
-    // compile package `a.b.c`. The correct file of this package should be `a.b.c.mg`, not `a.b.mg`.
-    path.set_extension(CODE_EXTENSION);
+
+    path.as_mut_os_string().push(".mg");
     path
 }
 
@@ -75,7 +73,7 @@ fn get_stdlib_package_path(stdlib_path: &Path, package_name: &str) -> Option<Pat
     let mut package_path = PathBuf::from(stdlib_path);
     let path = PathBuf::from(package_name);
     package_path.push(path);
-    package_path.set_extension(CODE_EXTENSION);
+    package_path.as_mut_os_string().push(".mg");
     if package_path.exists() {
         Some(package_path)
     } else {
