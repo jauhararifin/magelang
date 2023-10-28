@@ -91,12 +91,21 @@ pub fn analyze<'a, 'b: 'a>(
     // TODO: consider materialize all steps done above into a Header IR.
     // This can be useful for incremental compilation.
 
-    generate_global_value(&ctx);
-    monomorphize_statements(&ctx);
-
     // TODO: consider blocking circular import since it makes
     // deciding global initialization harder for incremental
-    // compilation.
+    // compilation. The reason is because in order to calculate
+    // the order of global initialization, we need to calculate
+    // the dependencies of every global and every function. And
+    // in order to calculate the dependency of a function, we
+    // need to walk through all the statements in the function
+    // body. And if we want to have incremental compilation,
+    // we can't have function body of all pacakge (because otherwise,
+    // it won't be an incremental compilation).
+
+    // TODO: block circular global initialization
+
+    generate_global_value(&ctx);
+    monomorphize_statements(&ctx);
 
     let is_valid = !error_manager.has_errors();
     build_module(&ctx, is_valid)
