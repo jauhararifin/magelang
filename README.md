@@ -189,12 +189,3 @@ then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
 
 TBD.
 
-# TODOs
-
-- [ ] Consider following golang way of defining compilation unit (directory based instead of file based)
-- [ ] Check and block circular global initialization
-- [ ] Char literal
-- [ ] For loops
-- [ ] Public and private modifiers
-- [ ] Support incremental compilation
-
