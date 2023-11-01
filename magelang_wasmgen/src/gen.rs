@@ -56,14 +56,13 @@ pub fn generate<'ctx>(
         return None;
     }
 
-    let globals = module.packages.iter().flat_map(|pkg| &pkg.globals);
     let init_func = build_init_function(
         error_manager,
         &data_manager,
         &type_manager,
         &global_manager,
         &func_manager,
-        globals,
+        module,
         func_manager.main_func,
     );
 

@@ -5,7 +5,8 @@ use crate::func::{FuncMapper, Function};
 use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
 use magelang_syntax::ErrorReporter;
-use magelang_typecheck::{Expr, ExprKind, Global, IfStatement, Statement, WhileStatement};
+use magelang_typecheck::{Expr, ExprKind, IfStatement, Module, Statement, WhileStatement};
+use std::collections::HashMap;
 use wasm_helper as wasm;
 
 pub(crate) fn build_function<'a, 'ctx, E: ErrorReporter>(
@@ -50,18 +51,15 @@ pub(crate) fn build_function<'a, 'ctx, E: ErrorReporter>(
     builder.build()
 }
 
-pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter, G>(
+pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
     errors: &'ctx E,
     data_manager: &'a DataManager<'ctx, E>,
     type_manager: &'a TypeManager<'ctx>,
     global_manager: &'a GlobalManager<'ctx>,
     func_manager: &'a FuncMapper<'ctx>,
-    globals: G,
+    module: &'ctx Module<'ctx>,
     main_func: Option<wasm::FuncIdx>,
-) -> wasm::Func
-where
-    G: Iterator<Item = &'ctx Global<'ctx>>,
-{
+) -> wasm::Func {
     let local_manager = LocalManager::new(std::iter::empty());
     let exprs = ExprBuilder {
         errors,
@@ -72,9 +70,19 @@ where
         globals: global_manager,
     };
 
-    let mut body = Vec::default();
+    let globals = module
+        .packages
+        .iter()
+        .flat_map(|pkg| &pkg.globals)
+        .map(|global| (global.name, global))
+        .collect::<HashMap<_, _>>();
 
-    for global in globals {
+    let mut body = Vec::default();
+    for def_id in &module.global_init_order {
+        let Some(global) = globals.get(def_id) else {
+            continue;
+        };
+
         let instrs = if let ExprKind::Zero = global.value.kind {
             if !global.ty.is_byte_array() {
                 continue;

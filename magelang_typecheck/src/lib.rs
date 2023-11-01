@@ -1,6 +1,7 @@
 mod analyze;
 mod errors;
 mod expr;
+mod global_init;
 mod interner;
 mod path;
 mod scope;
@@ -40,6 +41,7 @@ pub use ty::{
 pub struct Module<'a> {
     pub is_valid: bool,
     pub packages: Vec<Package<'a>>,
+    pub global_init_order: Vec<DefId<'a>>,
 }
 
 #[derive(Debug)]

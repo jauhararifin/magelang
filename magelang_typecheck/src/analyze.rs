@@ -1,5 +1,6 @@
 use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprInterner, ExprKind};
+use crate::global_init::check_circular_global_intitialization;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
@@ -102,13 +103,12 @@ pub fn analyze<'a, 'b: 'a>(
     // we can't have function body of all pacakge (because otherwise,
     // it won't be an incremental compilation).
 
-    // TODO: block circular global initialization
-
     generate_global_value(&ctx);
+    let global_init_order = check_circular_global_intitialization(&ctx);
     monomorphize_statements(&ctx);
 
     let is_valid = !error_manager.has_errors();
-    build_module(&ctx, is_valid)
+    build_module(&ctx, is_valid, global_init_order)
 }
 
 pub struct Context<'a, 'syn, E> {
@@ -948,7 +948,11 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     monomorphized_funcs.into_iter().collect()
 }
 
-fn build_module<'a, E>(ctx: &Context<'a, '_, E>, is_valid: bool) -> Module<'a> {
+fn build_module<'a, E>(
+    ctx: &Context<'a, '_, E>,
+    is_valid: bool,
+    global_init_order: Vec<DefId<'a>>,
+) -> Module<'a> {
     let mut packages = Vec::default();
     for (name, scope) in ctx.scopes.iter() {
         let mut globals = Vec::default();
@@ -998,5 +1002,9 @@ fn build_module<'a, E>(ctx: &Context<'a, '_, E>, is_valid: bool) -> Module<'a> {
         })
     }
 
-    Module { packages, is_valid }
+    Module {
+        packages,
+        is_valid,
+        global_init_order,
+    }
 }

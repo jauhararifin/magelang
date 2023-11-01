@@ -184,6 +184,17 @@ pub(crate) trait SemanticError: ErrorReporter {
             ),
         )
     }
+
+    fn circular_initialization(&self, pos: Pos, cycle: &[String]) {
+        self.report(
+            pos,
+            format!(
+                "Found a circular global intialization: {} -> {}",
+                cycle.join(" -> "),
+                cycle[0]
+            ),
+        )
+    }
 }
 
 impl<T> SemanticError for T where T: ErrorReporter {}
