@@ -71,7 +71,8 @@ pub(crate) trait SemanticError: ErrorReporter {
     }
 
     fn invalid_int_literal(&self, pos: Pos) {
-        self.report(pos, String::from("The int literal can't be assigned"));
+        // TODO: report int overflow with different error message.
+        self.report(pos, String::from("Expression is not a valid int literal"));
     }
 
     fn invalid_float_literal(&self, pos: Pos, err: ParseFloatError) {
