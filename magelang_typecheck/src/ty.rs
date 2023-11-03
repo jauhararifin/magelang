@@ -311,9 +311,12 @@ impl<'a> Display for InstType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.def_id, f)?;
         write!(f, "::<")?;
-        for ty in self.type_args.iter() {
+        if let Some(ty) = self.type_args.first() {
             Display::fmt(ty, f)?;
+        }
+        for ty in self.type_args.iter().skip(1) {
             write!(f, ",")?;
+            Display::fmt(ty, f)?;
         }
         write!(f, ">")
     }
