@@ -269,7 +269,11 @@ impl<'a> Type<'a> {
         if self.is_unknown() || other.is_unknown() {
             return true;
         }
-        self.kind.eq(&other.kind) || self.repr.is_assignable_with(&other.repr)
+        if matches!(self.kind, TypeKind::Anonymous) {
+            self.repr.is_assignable_with(&other.repr)
+        } else {
+            self.kind.eq(&other.kind) || self.repr.is_assignable_with(&other.repr)
+        }
     }
 }
 
