@@ -334,6 +334,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                     returns,
                 });
 
+                header.extend(self.build(callee).flatten());
                 header.push(wasm::Instr::CallIndirect(0, wasm_type_id));
             }
         }

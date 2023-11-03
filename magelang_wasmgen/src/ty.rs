@@ -130,10 +130,13 @@ impl<'ctx> TypeManager<'ctx> {
             if curr_mem % align != 0 {
                 curr_mem += align - (curr_mem % align);
             }
-            mem_offset.push(MemComponent {
-                offset: curr_mem,
-                align,
-            });
+
+            for component in &type_layout.components {
+                mem_offset.push(MemComponent {
+                    offset: curr_mem + component.offset,
+                    align: component.align,
+                });
+            }
 
             curr_mem += size;
         }
