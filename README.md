@@ -50,7 +50,7 @@ fn gcd(a: i64, b: i64): i64 {
   return a;
 }
 
-// main is the first function executed.
+// function with `@main()` annotation is the first function executed.
 @main()
 fn main() {
   let a: i64 = 1260;
