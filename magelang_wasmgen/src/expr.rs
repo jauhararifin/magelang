@@ -368,8 +368,16 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Add],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Add],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Add],
-            TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Add],
+            TypeRepr::Int(false, BitSize::I8) => vec![
+                wasm::Instr::I32Add,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
+            TypeRepr::Int(false, BitSize::I16) => vec![
+                wasm::Instr::I32Add,
+                wasm::Instr::I32Const(0xffff),
+                wasm::Instr::I32And,
+            ],
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Add],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Add],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Add],
@@ -400,8 +408,16 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Sub],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Sub],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Sub],
-            TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Sub],
+            TypeRepr::Int(false, BitSize::I8) => vec![
+                wasm::Instr::I32Sub,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
+            TypeRepr::Int(false, BitSize::I16) => vec![
+                wasm::Instr::I32Sub,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Sub],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Sub],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Sub],
@@ -432,8 +448,16 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Mul],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Mul],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Mul],
-            TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Mul],
+            TypeRepr::Int(false, BitSize::I8) => vec![
+                wasm::Instr::I32Mul,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
+            TypeRepr::Int(false, BitSize::I16) => vec![
+                wasm::Instr::I32Mul,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Mul],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Mul],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Mul],
@@ -464,8 +488,16 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32DivS],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64DivS],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32DivU],
-            TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32DivU],
+            TypeRepr::Int(false, BitSize::I8) => vec![
+                wasm::Instr::I32DivU,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
+            TypeRepr::Int(false, BitSize::I16) => vec![
+                wasm::Instr::I32DivU,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32DivU],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32DivU],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64DivU],
@@ -496,8 +528,16 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32RemS],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64RemS],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32RemU],
-            TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32RemU],
+            TypeRepr::Int(false, BitSize::I8) => vec![
+                wasm::Instr::I32RemU,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
+            TypeRepr::Int(false, BitSize::I16) => vec![
+                wasm::Instr::I32RemU,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32RemU],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32RemU],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64RemU],
@@ -515,8 +555,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result.extend(self.build(b).flatten());
 
         let instrs = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Or],
-            TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Or],
+            TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Or, wasm::Instr::I32Extend8S],
+            TypeRepr::Int(true, BitSize::I16) => {
+                vec![wasm::Instr::I32Or, wasm::Instr::I32Extend16S]
+            }
+            TypeRepr::Int(false, BitSize::I8) => vec![wasm::Instr::I32Or],
+            TypeRepr::Int(false, BitSize::I16) => vec![wasm::Instr::I32Or],
             TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Or],
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Or],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Or],
@@ -534,8 +578,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result.extend(self.build(b).flatten());
 
         let instrs = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32And],
-            TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32And],
+            TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32And, wasm::Instr::I32Extend8S],
+            TypeRepr::Int(true, BitSize::I16) => {
+                vec![wasm::Instr::I32And, wasm::Instr::I32Extend16S]
+            }
+            TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32And, wasm::Instr::I32Extend8S],
+            TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32And, wasm::Instr::I32Extend16S],
             TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32And],
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32And],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64And],
@@ -553,8 +601,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result.extend(self.build(b).flatten());
 
         let instrs = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Xor],
-            TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Xor],
+            TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Xor, wasm::Instr::I32Extend8S],
+            TypeRepr::Int(true, BitSize::I16) => {
+                vec![wasm::Instr::I32Xor, wasm::Instr::I32Extend16S]
+            }
+            TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Xor, wasm::Instr::I32Extend8S],
+            TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Xor, wasm::Instr::I32Extend16S],
             TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Xor],
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Xor],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Xor],
@@ -572,8 +624,20 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result.extend(self.build(b).flatten());
 
         let instrs = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8) => vec![wasm::Instr::I32Shl],
-            TypeRepr::Int(_, BitSize::I16) => vec![wasm::Instr::I32Shl],
+            TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Shl, wasm::Instr::I32Extend8S],
+            TypeRepr::Int(true, BitSize::I16) => {
+                vec![wasm::Instr::I32Shl, wasm::Instr::I32Extend16S]
+            }
+            TypeRepr::Int(false, BitSize::I8) => vec![
+                wasm::Instr::I32Shl,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
+            TypeRepr::Int(false, BitSize::I16) => vec![
+                wasm::Instr::I32Shl,
+                wasm::Instr::I32Const(0xff),
+                wasm::Instr::I32And,
+            ],
             TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Shl],
             TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Shl],
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Shl],
@@ -920,6 +984,23 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                         BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
                         TypeRepr::Int(_, BitSize::I64),
                     ) => vec![wasm::Instr::I64ExtendI32U],
+
+                    // u8 -> i8, i16, i32, isize
+                    (
+                        false,
+                        BitSize::I8,
+                        TypeRepr::Int(
+                            true,
+                            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
+                        ),
+                    ) => vec![wasm::Instr::I32Extend8S],
+                    // u16 -> i16, i32, isize
+                    (
+                        false,
+                        BitSize::I16,
+                        TypeRepr::Int(true, BitSize::I16 | BitSize::I32 | BitSize::ISize),
+                    ) => vec![wasm::Instr::I32Extend16S],
+
                     (_, _, TypeRepr::Int(..) | TypeRepr::ArrayPtr(..) | TypeRepr::Ptr(..)) => {
                         vec![]
                     }
