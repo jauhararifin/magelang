@@ -62,9 +62,11 @@ impl<'ctx> TypeManager<'ctx> {
     }
 
     fn get_struct_stack_layout(&self, body: &StructBody<'ctx>) -> Rc<StackLayout> {
+        let mut field_index = Vec::default();
         let mut idx_offset = Vec::default();
         let mut curr_idx = 0;
-        for ty in body.fields.values() {
+        for (i, ty) in body.fields.values().enumerate() {
+            field_index.push(i);
             let type_layout = self.get_stack_layout(ty);
             idx_offset.push(StackComponent {
                 offset: curr_idx,
@@ -74,6 +76,7 @@ impl<'ctx> TypeManager<'ctx> {
         }
         Rc::new(StackLayout {
             size: curr_idx,
+            field_index,
             components: idx_offset,
         })
     }
@@ -116,11 +119,13 @@ impl<'ctx> TypeManager<'ctx> {
     }
 
     fn get_struct_mem_layout(&self, body: &StructBody<'ctx>) -> Option<Rc<MemLayout>> {
+        let mut field_idx = Vec::default();
         let mut mem_offset = Vec::default();
         let mut curr_mem = 0;
         let mut total_align = 1;
 
         for ty in body.fields.values() {
+            field_idx.push(mem_offset.len());
             let type_layout = self.get_mem_layout(ty)?;
 
             let (size, align) = (type_layout.size, type_layout.align);
@@ -149,6 +154,7 @@ impl<'ctx> TypeManager<'ctx> {
         Some(Rc::new(MemLayout {
             size: mem_size,
             align: total_align,
+            field_idx,
             components: mem_offset,
         }))
     }
@@ -158,13 +164,15 @@ impl<'ctx> TypeManager<'ctx> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct MemLayout {
     pub(crate) size: u32,
     pub(crate) align: u32,
+    pub(crate) field_idx: Vec<usize>,
     pub(crate) components: Vec<MemComponent>, // only relevant for struct
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct MemComponent {
     pub(crate) offset: u32,
     pub(crate) align: u32,
@@ -175,6 +183,7 @@ impl MemLayout {
         Self {
             size,
             align,
+            field_idx: vec![0],
             components: vec![MemComponent { offset: 0, align }],
         }
     }
@@ -202,6 +211,7 @@ impl AlignNormalize for u32 {
 #[derive(Debug, Default)]
 pub(crate) struct StackLayout {
     pub(crate) size: u32,
+    pub(crate) field_index: Vec<usize>,
     pub(crate) components: Vec<StackComponent>, // only relevant for struct
 }
 
@@ -215,6 +225,7 @@ impl From<u32> for StackLayout {
     fn from(size: u32) -> Self {
         Self {
             size,
+            field_index: vec![0],
             components: vec![StackComponent { offset: 0, size }],
         }
     }

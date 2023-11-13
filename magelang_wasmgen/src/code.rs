@@ -99,7 +99,7 @@ pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
 
         body.extend(instrs);
         let global_id = global_manager.get(global.name);
-        for i in 0..build_val_type(global.ty).len() {
+        for i in (0..build_val_type(global.ty).len()).rev() {
             body.push(wasm::Instr::GlobalSet(global_id + i as u32))
         }
     }
@@ -337,7 +337,8 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             ExprKind::GetElement(target, field) => {
                 let var = self.get_variable_loc(target)?;
                 let struct_layout = self.types.get_stack_layout(target.ty);
-                let var = var.with_offset(struct_layout.components[*field].offset);
+                let field_idx = struct_layout.field_index[*field];
+                let var = var.with_offset(struct_layout.components[field_idx].offset);
                 Some(var)
             }
             _ => None,
