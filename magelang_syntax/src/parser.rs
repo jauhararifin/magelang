@@ -221,6 +221,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
         TokenKind::Fn => {
             let tok = f.pop();
 
+            // TODO: consider adding optional param name.
             let param_result = parse_sequence(
                 f,
                 TokenKind::OpenBrac,

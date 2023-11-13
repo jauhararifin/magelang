@@ -28,12 +28,18 @@ pub trait ErrorReporter {
 
 #[derive(Default)]
 pub struct ErrorManager {
+    panic_on_error: bool,
     errors: RefCell<IndexSet<Error>>,
 }
 
 impl ErrorReporter for ErrorManager {
     fn report(&self, pos: Pos, message: String) {
-        self.errors.borrow_mut().insert(Error { pos, message });
+        let err = Error { pos, message };
+        if self.panic_on_error {
+            panic!("pos={:?} message={}", err.pos, err.message);
+        } else {
+            self.errors.borrow_mut().insert(err);
+        }
     }
 
     fn has_errors(&self) -> bool {
@@ -42,6 +48,13 @@ impl ErrorReporter for ErrorManager {
 }
 
 impl ErrorManager {
+    pub fn new_for_debug() -> Self {
+        Self {
+            panic_on_error: true,
+            errors: RefCell::default(),
+        }
+    }
+
     pub fn take(&mut self) -> Vec<Error> {
         let mut errs = self.errors.borrow_mut();
         let mut errors: Vec<Error> = errs.drain(..).collect();

@@ -359,5 +359,9 @@ mod tests {
         test_parse_int!("1e9", 1000000000u32);
         test_parse_int!("1.23e2", 123u32);
         test_parse_int!("1.23e3", 1230u32);
+        test_parse_int!("0xfffc", 0xfffcu16);
+        test_parse_int!("0xfffd", 0xfffdu16);
+        test_parse_int!("0xfffe", 0xfffeu16);
+        test_parse_int!("0xffff", 0xffffu16);
     }
 }
