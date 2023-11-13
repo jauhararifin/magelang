@@ -23,11 +23,17 @@ enum Commands {
     Analyze {
         package_name: String,
 
+        #[arg(short)]
+        debug: bool,
+
         #[arg(short, long)]
         output: Option<std::path::PathBuf>,
     },
     Compile {
         package_name: String,
+
+        #[arg(short)]
+        debug: bool,
 
         #[arg(short, long, default_value = "./a.wasm")]
         output: std::path::PathBuf,
@@ -40,12 +46,14 @@ fn main() {
         Commands::Parse { file_name, output } => parse_ast(file_name, output),
         Commands::Analyze {
             package_name,
+            debug,
             output,
-        } => analyze_package(package_name, output),
+        } => analyze_package(package_name, debug, output),
         Commands::Compile {
             package_name,
+            debug,
             output,
-        } => compile(package_name, output),
+        } => compile(package_name, debug, output),
     }
 }
 
@@ -82,8 +90,12 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
     let _ = write!(writer, "{:#?}", node);
 }
 
-fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
-    let mut error_manager = ErrorManager::default();
+fn analyze_package(package_name: String, debug: bool, output: Option<std::path::PathBuf>) {
+    let mut error_manager = if debug {
+        ErrorManager::new_for_debug()
+    } else {
+        ErrorManager::default()
+    };
     let mut file_manager = FileManager::default();
     let arena = Bump::default();
     let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
@@ -105,8 +117,12 @@ fn analyze_package(package_name: String, output: Option<std::path::PathBuf>) {
     }
 }
 
-fn compile(package_name: String, output: std::path::PathBuf) {
-    let mut error_manager = ErrorManager::default();
+fn compile(package_name: String, debug: bool, output: std::path::PathBuf) {
+    let mut error_manager = if debug {
+        ErrorManager::new_for_debug()
+    } else {
+        ErrorManager::default()
+    };
     let mut file_manager = FileManager::default();
 
     let arena = Bump::default();
