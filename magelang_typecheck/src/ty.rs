@@ -29,7 +29,7 @@ impl<'a> PartialEq for Type<'a> {
         match (&self.kind, &other.kind) {
             (TypeKind::User(a), TypeKind::User(b)) => a.eq(b),
             (TypeKind::Inst(a), TypeKind::Inst(b)) => a.eq(b),
-            (TypeKind::Generic(a), TypeKind::Generic(b)) => a.eq(b),
+            (TypeKind::GenericStruct(a), TypeKind::GenericStruct(b)) => a.eq(b),
             (TypeKind::Anonymous, TypeKind::Anonymous) => self.repr.eq(&other.repr),
             _ => false,
         }
@@ -49,7 +49,8 @@ impl<'a> Display for Type<'a> {
         match &self.kind {
             TypeKind::User(ty) => Display::fmt(&ty.def_id, f),
             TypeKind::Inst(ty) => Display::fmt(&ty, f),
-            TypeKind::Generic(ty) => Display::fmt(&ty, f),
+            TypeKind::GenericStruct(ty) => Display::fmt(&ty, f),
+            TypeKind::GenericFunc(ty) => Display::fmt(&ty, f),
             TypeKind::Anonymous => Display::fmt(&self.repr, f),
         }
     }
@@ -57,7 +58,9 @@ impl<'a> Display for Type<'a> {
 
 impl<'a> Debug for Type<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self, f)
+        Debug::fmt(&self.kind, f)?;
+        write!(f, " of ")?;
+        Debug::fmt(&self.repr, f)
     }
 }
 
@@ -74,7 +77,7 @@ impl<'a> Type<'a> {
         let package = def_id.package;
         let package_scope = ctx.scopes.get(package).expect("missing package scope");
 
-        let scope = if let TypeKind::Generic(kind) = &self.kind {
+        let scope = if let TypeKind::GenericStruct(kind) = &self.kind {
             Some(get_typeparam_scope(ctx, package_scope, kind.type_params))
         } else {
             None
@@ -114,7 +117,7 @@ impl<'a> Type<'a> {
 
         struct_type.body.set(body).expect("cannot set struct body");
 
-        if let TypeKind::Generic(kind) = &self.kind {
+        if let TypeKind::GenericStruct(kind) = &self.kind {
             for ty in kind.mono_cache.borrow().values() {
                 let TypeKind::Inst(instanced_type) = &ty.kind else {
                     continue;
@@ -129,25 +132,35 @@ impl<'a> Type<'a> {
         ctx: &Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
-        if let TypeKind::Generic(generic_type) = &self.kind {
-            let mut cache = generic_type.mono_cache.borrow_mut();
-            if let Some(ty) = cache.get(type_args) {
-                return ty;
-            } else {
-                let ty = ctx.define_type(Type {
-                    kind: TypeKind::Inst(InstType {
-                        def_id: generic_type.def_id,
-                        type_args,
-                    }),
-                    repr: TypeRepr::Struct(StructType {
-                        body: OnceCell::default(),
-                    }),
-                });
-                cache.insert(type_args, ty);
+        match &self.kind {
+            TypeKind::GenericStruct(generic_type) => {
+                {
+                    let mut cache = generic_type.mono_cache.borrow_mut();
+                    if let Some(ty) = cache.get(type_args) {
+                        return ty;
+                    } else {
+                        let ty = ctx.define_type(Type {
+                            kind: TypeKind::Inst(InstType {
+                                def_id: generic_type.def_id,
+                                type_args,
+                            }),
+                            repr: TypeRepr::Struct(StructType {
+                                body: OnceCell::default(),
+                            }),
+                        });
+                        cache.insert(type_args, ty);
+                    }
+                }
+                self.monomorphize_repr(ctx, type_args)
             }
+            TypeKind::GenericFunc(generic_type) => {
+                let mut cache = generic_type.mono_cache.borrow_mut();
+                cache
+                    .entry(type_args)
+                    .or_insert_with(|| self.monomorphize_repr(ctx, type_args))
+            }
+            _ => self.monomorphize_repr(ctx, type_args),
         }
-
-        self.monomorphize_repr(ctx, type_args)
     }
 
     fn monomorphize_repr<E: ErrorReporter>(
@@ -158,19 +171,39 @@ impl<'a> Type<'a> {
         match &self.repr {
             TypeRepr::Unknown => self,
             TypeRepr::Struct(struct_type) => {
-                let TypeKind::Generic(generic_type) = &self.kind else {
-                    return self;
-                };
-
-                let ty = ctx.define_type(Type {
-                    kind: TypeKind::Inst(InstType {
+                let kind = match &self.kind {
+                    TypeKind::GenericStruct(generic_type) => TypeKind::Inst(InstType {
                         def_id: generic_type.def_id,
                         type_args,
                     }),
+                    TypeKind::Anonymous => TypeKind::Anonymous,
+                    TypeKind::User(UserType { def_id }) => {
+                        TypeKind::User(UserType { def_id: *def_id })
+                    }
+                    TypeKind::Inst(inst_type) => {
+                        let mut monomorphized_typeargs = Vec::default();
+                        for type_arg in inst_type.type_args {
+                            monomorphized_typeargs.push(type_arg.monomorphize(ctx, type_args));
+                        }
+                        let monomorphized_typeargs = ctx.define_typeargs(&monomorphized_typeargs);
+                        TypeKind::Inst(InstType {
+                            def_id: inst_type.def_id,
+                            type_args: monomorphized_typeargs,
+                        })
+                    }
+                    _ => unreachable!(),
+                };
+
+                let ty = ctx.define_type(Type {
+                    kind,
                     repr: TypeRepr::Struct(StructType {
                         body: OnceCell::default(),
                     }),
                 });
+
+                if ty.repr.as_struct().unwrap().body.get().is_some() {
+                    return ty;
+                }
 
                 if let Some(body) = struct_type.monomorphize(ctx, type_args) {
                     ty.repr
@@ -183,24 +216,53 @@ impl<'a> Type<'a> {
 
                 ty
             }
-            TypeRepr::Func(func_type) => ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Func(func_type.monomorphize(ctx, type_args)),
-            }),
+            TypeRepr::Func(func_type) => {
+                let kind = match &self.kind {
+                    TypeKind::GenericFunc(generic_func) => TypeKind::Inst(InstType {
+                        def_id: generic_func.def_id,
+                        type_args,
+                    }),
+                    TypeKind::Anonymous => TypeKind::Anonymous,
+                    TypeKind::User(UserType { def_id }) => {
+                        TypeKind::User(UserType { def_id: *def_id })
+                    }
+                    TypeKind::Inst(inst_type) => {
+                        let mut monomorphized_typeargs = Vec::default();
+                        for type_arg in inst_type.type_args {
+                            monomorphized_typeargs.push(type_arg.monomorphize(ctx, type_args));
+                        }
+                        let monomorphized_typeargs = ctx.define_typeargs(&monomorphized_typeargs);
+                        TypeKind::Inst(InstType {
+                            def_id: inst_type.def_id,
+                            type_args: monomorphized_typeargs,
+                        })
+                    }
+                    _ => unreachable!(),
+                };
+
+                ctx.define_type(Type {
+                    kind,
+                    repr: TypeRepr::Func(func_type.monomorphize(ctx, type_args)),
+                })
+            }
             TypeRepr::Void => self,
             TypeRepr::Opaque => self,
             TypeRepr::Bool => self,
             TypeRepr::Int(..) => self,
             TypeRepr::Float(..) => self,
-            TypeRepr::Ptr(el) => ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Ptr(el.monomorphize(ctx, type_args)),
-            }),
+            TypeRepr::Ptr(el) => {
+                ctx.define_type(Type {
+                    kind: TypeKind::Anonymous,
+                    repr: TypeRepr::Ptr(el.monomorphize(ctx, type_args)),
+                })
+            }
             TypeRepr::ArrayPtr(el) => ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::ArrayPtr(el.monomorphize(ctx, type_args)),
             }),
-            TypeRepr::TypeArg(arg) => arg.monomorphize(ctx, type_args),
+            TypeRepr::TypeArg(arg) => {
+                arg.monomorphize(ctx, type_args)
+            }
         }
     }
 
@@ -281,7 +343,8 @@ impl<'a> Type<'a> {
 pub enum TypeKind<'a> {
     User(UserType<'a>),
     Inst(InstType<'a>),
-    Generic(GenericType<'a>),
+    GenericStruct(GenericType<'a>),
+    GenericFunc(GenericType<'a>),
     Anonymous,
 }
 
@@ -290,7 +353,8 @@ impl<'a> TypeKind<'a> {
         match self {
             TypeKind::User(ty) => Some(ty.def_id),
             TypeKind::Inst(ty) => Some(ty.def_id),
-            TypeKind::Generic(ty) => Some(ty.def_id),
+            TypeKind::GenericStruct(ty) => Some(ty.def_id),
+            TypeKind::GenericFunc(ty) => Some(ty.def_id),
             TypeKind::Anonymous => None,
         }
     }
@@ -332,9 +396,12 @@ impl<'a> Display for GenericType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.def_id, f)?;
         write!(f, "::<")?;
-        for ty in self.type_params.iter() {
+        if let Some(ty) = self.type_params.first() {
             Display::fmt(ty.name, f)?;
+        }
+        for ty in self.type_params.iter().skip(1) {
             write!(f, ",")?;
+            Display::fmt(ty.name, f)?;
         }
         write!(f, ">")
     }
@@ -539,9 +606,12 @@ impl<'a> FuncType<'a> {
 impl<'a> Display for FuncType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "fn(")?;
-        for ty in self.params {
+        if let Some(ty) = self.params.first() {
             Display::fmt(ty, f)?;
+        }
+        for ty in self.params.iter().skip(1) {
             write!(f, ",")?;
+            Display::fmt(ty, f)?;
         }
         write!(f, "):")?;
         Display::fmt(&self.return_type, f)
@@ -651,7 +721,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
         });
     };
 
-    let TypeKind::Generic(generic_type) = &object.kind else {
+    let TypeKind::GenericStruct(generic_type) = &object.kind else {
         if !node.args.is_empty() {
             ctx.errors.non_generic_value(node.pos());
         }

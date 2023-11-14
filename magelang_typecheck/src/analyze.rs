@@ -397,7 +397,7 @@ fn build_type_scopes<'a, 'syn, E: ErrorReporter>(
             let kind = if type_params.is_empty() {
                 TypeKind::User(UserType { def_id })
             } else {
-                TypeKind::Generic(GenericType {
+                TypeKind::GenericStruct(GenericType {
                     def_id,
                     type_params,
                     mono_cache: RefCell::default(),
@@ -566,6 +566,15 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                         build_annotations_from_node(ctx, &func_node.signature.annotations).into();
 
                     let type_params = get_typeparams(ctx, &func_node.signature.type_params);
+                    let kind = if type_params.is_empty() {
+                        TypeKind::Anonymous
+                    } else {
+                        TypeKind::GenericFunc(GenericType {
+                            def_id,
+                            type_params,
+                            mono_cache: RefCell::default(),
+                        })
+                    };
 
                     let func_type = get_func_type_from_signature(
                         ctx,
@@ -574,7 +583,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                         &func_node.signature,
                     );
                     let ty = ctx.define_type(Type {
-                        kind: TypeKind::Anonymous,
+                        kind,
                         repr: TypeRepr::Func(func_type),
                     });
 

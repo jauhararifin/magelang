@@ -48,7 +48,9 @@ impl<'ctx> Mangle<'ctx> for Type<'ctx> {
 
                 ctx.arena.alloc_str(&result)
             }
-            TypeKind::Generic(..) => unreachable!("found un-monomorphized type"),
+            TypeKind::GenericStruct(..) | TypeKind::GenericFunc(..) => {
+                unreachable!("found un-monomorphized type")
+            }
             TypeKind::Anonymous => ctx.arena.alloc_str(&format!("{}", self.repr)),
         }
     }
