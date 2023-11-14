@@ -673,7 +673,16 @@ fn parse_cast_expr<E: ErrorReporter>(
 ) -> Option<ExprNode> {
     let value = parse_unary_expr(f, allow_struct_lit)?;
     if f.take_if(TokenKind::As).is_some() {
-        let target = parse_type_expr(f)?;
+        let target = match parse_type_expr(f) {
+            Some(t) => t,
+            None => {
+                let pos = f.token().pos;
+                f.skip_until_before(&[TokenKind::SemiColon]);
+                f.errors.missing(pos, "target type");
+                TypeExprNode::Invalid(pos)
+            }
+        };
+
         Some(ExprNode::Cast(CastExprNode {
             value: Box::new(value),
             target: Box::new(target),
