@@ -338,7 +338,7 @@ fn parse_struct<E: ErrorReporter>(
         TokenKind::CloseBlock,
         |parser| {
             let name = parser.take(TokenKind::Ident)?;
-            parser.take(TokenKind::Colon)?;
+            parser.take(TokenKind::Colon);
             let ty = parse_type_expr(parser)?;
             Some(StructFieldNode {
                 pos: name.pos,
@@ -457,7 +457,7 @@ fn parse_signature<E: ErrorReporter>(
 fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterNode> {
     let name = f.take_if(TokenKind::Ident)?;
     let pos = name.pos;
-    let _ = f.take(TokenKind::Colon)?;
+    f.take(TokenKind::Colon);
     let ty = parse_type_expr(f)?;
     Some(ParameterNode { pos, name, ty })
 }
