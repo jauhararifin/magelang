@@ -55,10 +55,14 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
         TokenKind::Struct => parse_struct(f, annotations).map(ItemNode::Struct),
         TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
         TokenKind::Fn => parse_func(f, annotations).map(ItemNode::Function),
-        _ => {
+        TokenKind::Eof => {
             if let Some(annotation) = annotations.last() {
                 f.errors.dangling_annotations(annotation.pos);
             }
+            None
+        }
+        _ => {
+            f.unexpected("top level definition");
             None
         }
     };
