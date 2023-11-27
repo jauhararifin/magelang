@@ -68,19 +68,20 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
     };
 
     if item.is_none() {
-        let stopping_token = &[
-            TokenKind::Let,
-            TokenKind::Fn,
-            TokenKind::Import,
-            TokenKind::Struct,
-            TokenKind::SemiColon,
-        ];
-        f.skip_until_before(stopping_token);
+        f.skip_until_before(TOP_LEVEL_STOPPING_TOKEN);
         f.take_if(TokenKind::SemiColon);
     }
 
     item
 }
+
+const TOP_LEVEL_STOPPING_TOKEN: &'static [TokenKind] = &[
+    TokenKind::Let,
+    TokenKind::Fn,
+    TokenKind::Import,
+    TokenKind::Struct,
+    TokenKind::SemiColon,
+];
 
 fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationNode> {
     let mut result = Vec::default();
@@ -90,6 +91,8 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
         let name = f.take_if(TokenKind::Ident);
         if name.is_none() {
             f.unexpected("annotation identifier");
+            f.skip_until_before(TOP_LEVEL_STOPPING_TOKEN);
+            continue;
         }
 
         let args = parse_sequence(
@@ -101,6 +104,8 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
         );
         if args.is_none() {
             f.unexpected("annotation arguments");
+            f.skip_until_before(TOP_LEVEL_STOPPING_TOKEN);
+            continue;
         }
 
         let Some(name) = name else { continue };
