@@ -33,18 +33,6 @@ pub(crate) trait SemanticError: ErrorReporter {
         );
     }
 
-    fn expr_not_a_path(&self, pos: Pos) {
-        self.report(pos, String::from("The expression is not a path"));
-    }
-
-    fn expr_not_a_type(&self, pos: Pos) {
-        self.report(pos, String::from("The expression is not a type"));
-    }
-
-    fn expr_not_a_value(&self, pos: Pos) {
-        self.report(pos, String::from("The expression is not a value"));
-    }
-
     fn type_arguments_count_mismatch(&self, pos: Pos, expected: usize, found: usize) {
         if found == 0 {
             self.report(
@@ -131,13 +119,6 @@ pub(crate) trait SemanticError: ErrorReporter {
 
     fn not_indexable(&self, pos: Pos) {
         self.report(pos, String::from("Expression is not indexable"));
-    }
-
-    fn unexpected_index_num(&self, pos: Pos, expected: usize, found: usize) {
-        self.report(
-            pos,
-            format!("Unexpected number of index expression, expected {expected}, found {found}"),
-        );
     }
 
     fn non_int_index(&self, pos: Pos) {

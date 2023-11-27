@@ -316,7 +316,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
             })),
             kind: ExprKind::Invalid,
             pos: node.pos(),
-            assignable: false,
+            assignable: true,
         };
     };
 
@@ -680,10 +680,10 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
             }
         }
         TokenKind::Eq | TokenKind::NEq => {
-            if a.ty.is_opaque() {
+            if a.ty.is_strictly_opaque() {
                 let a_is_null = matches!(a.kind, ExprKind::Zero);
                 let b_is_null = matches!(b.kind, ExprKind::Zero);
-                if !a_is_null && !b_is_null {
+                if !a_is_null && !b_is_null && !a.ty.is_unknown() && !b.ty.is_unknown() {
                     ctx.errors.compare_opaque(node.a.pos());
                 }
             }
@@ -784,15 +784,17 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
     let TypeRepr::Ptr(element_ty) = ty.repr else {
-        ctx.errors.deref_non_pointer(node.pos);
+        if !ty.is_unknown() {
+            ctx.errors.deref_non_pointer(node.pos);
+        }
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Unknown,
             }),
-            kind: ExprKind::Invalid,
+            kind: ExprKind::Deref(ctx.arena.alloc(value)),
             pos: node.pos,
-            assignable: false,
+            assignable: true,
         };
     };
 
@@ -841,7 +843,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Unknown,
             }),
-            kind: ExprKind::Invalid,
+            kind,
             pos: node.op.pos,
             assignable: false,
         };
@@ -1036,8 +1038,10 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     }
 
     let Some(struct_type) = ty.as_struct() else {
-        ctx.errors
-            .non_field_type(node.selection.pos, &node.selection.value);
+        if !ty.is_unknown() {
+            ctx.errors
+                .non_field_type(node.selection.pos, &node.selection.value);
+        }
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -1045,7 +1049,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
             }),
             kind: ExprKind::Invalid,
             pos: node.value.pos(),
-            assignable: false,
+            assignable: true,
         };
     };
     let struct_body = struct_type.body.get().expect("missing struct body");
@@ -1061,7 +1065,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
             }),
             kind: ExprKind::Invalid,
             pos: node.value.pos(),
-            assignable: false,
+            assignable: true,
         };
     };
 

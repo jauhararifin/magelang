@@ -319,6 +319,10 @@ impl<'a> Type<'a> {
         self.repr.is_unknown() || self.repr.is_opaque()
     }
 
+    pub fn is_strictly_opaque(&self) -> bool {
+        self.repr.is_opaque()
+    }
+
     pub fn is_unknown(&self) -> bool {
         self.repr.is_unknown()
     }
