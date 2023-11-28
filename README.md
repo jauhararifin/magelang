@@ -388,3 +388,47 @@ fn main() {
 
 In magelang, all variable are mutable. There is no constant variable feature (yet).
 
+## Statements
+
+```
+if a < 10 {
+    return a % 2 == 0;
+} else if a == 15 {
+    return false;
+} else {
+    return a % 3 == 1;
+}
+```
+
+If statement in Magelang is quite straightforward just like other programming languages.
+There is no need to put parenthesis surrounding the condition. Unlike C, the condition expression
+have to be a boolean.
+
+```
+let i = 0;
+let sum = 0;
+while i < 100 {
+    sum = sum + i;
+    i = i + 1;
+}
+
+fmt::print_i32(i);
+```
+
+Use while statement to perform a loop. Magelang doesn't support for statement yet.
+
+```
+let i = 0;
+let sum = 0;
+while i < 100 {
+    if i % 2 == 0 {
+        continue;
+    } else if i % 31 == 0 {
+        break;
+    } else {
+        fmt::print_str("HAHA\n");
+    }
+}
+```
+
+You can use `break` and `continue` just like other programming languages.
