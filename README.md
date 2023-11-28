@@ -185,6 +185,14 @@ Magelang uses the current directory as the base path to find the package. In thi
 "fmt" package is located at `./fmt.mg`. If you put the `fmt.mg` at `./a/b/c/d/fmt.mg`,
 then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
 
+## Comments
+
+```
+// Comments are written using // prefix.
+// Any character after // until the end of the line will be considered as a comment.
+// Multiline comments are not supported yet.
+```
+
 ## Data Types
 
 ### Primitives
@@ -294,4 +302,41 @@ fn print_bar(bar: *Bar) {
     fmt::print_bool(bar.field1.*);
 }
 ```
+
+## Functions
+
+```
+import fmt "std/fmt";
+
+// Here is how you create a function:
+fn gcd(a: i32, b: i32): i32 {
+    if b == 0 {
+        return a;
+    }
+
+    // Here is how you call a function.
+    let result = gcd(b, a % b);
+
+    // Here is how you return from a function.
+    return result;
+}
+
+// function annotated with @main() annotation will be executed on startup.
+// there can only be one function annotated with @main() annotation.
+// a main function shouldn't have any parameter or return value.
+@main()
+fn main() {
+    // Here is how you call a function from different package.
+    fmt::print_str("hello world\n");
+}
+```
+
+Just like C, Magelang's function cannot be associated with any type (it's not a method) and cannot be overloaded.
+But, unlike C, you can declare function in any order. You don't have too declare `foo` before `bar` in order to call it from
+`bar`.
+
+## Visibility
+
+As for now, every top level declaration, and all struct fields are publicly visible and can be accessed from any package.
+
 
