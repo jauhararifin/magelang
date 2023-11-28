@@ -202,6 +202,7 @@ As for now, there are few primitive data types supported by Magelang:
 ```
 i8 i16 i32 i64 isize
 u8 u16 u32 u64 usize
+f32 f64
 bool opaque void
 ```
 
@@ -303,6 +304,14 @@ fn print_bar(bar: *Bar) {
 }
 ```
 
+### Function
+
+You can also have a function type defined like this:
+```
+let some_func: fn(i32, i64): i8 = ...;
+fmt::print_u8(some_func(10, 11));
+```
+
 ## Functions
 
 ```
@@ -339,4 +348,43 @@ But, unlike C, you can declare function in any order. You don't have too declare
 
 As for now, every top level declaration, and all struct fields are publicly visible and can be accessed from any package.
 
+## Variables
+
+```
+// global variable are declared this way:
+// note that you need to explicitly specify the variable type for global variable.
+let foo: i32 = 10;
+
+// However, you don't have to initialize them with any value. In this case, the initial
+// value of a global variable is zero.
+let bar: i32;
+
+@main()
+fn main() {
+    // Local variable are declared this way:
+    let a: i32 = 10;
+    let b = 10;
+    let c: i32;
+
+    // you can assign value to a variable this way:
+    a = 9;
+}
+```
+
+Just like Rust, Magelang support variable shadowing for local variables:
+
+```
+@main()
+fn main() {
+    let a: i32 = 10;
+    fmt::print_i32(a);
+
+    // you can redeclare variable with the same name and invalidate the
+    // previously declared variable with the same name.
+    let a: [*]u8 = "Hello world\n";
+    fmt::print_str(a);
+}
+```
+
+In magelang, all variable are mutable. There is no constant variable feature (yet).
 
