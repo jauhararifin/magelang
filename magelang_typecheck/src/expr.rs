@@ -648,7 +648,9 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         | TokenKind::Gt
         | TokenKind::GEq
         | TokenKind::Lt
-        | TokenKind::LEq => ctx.define_type(Type {
+        | TokenKind::LEq
+        | TokenKind::And
+        | TokenKind::Or => ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Bool,
         }),
