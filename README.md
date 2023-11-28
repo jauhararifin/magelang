@@ -432,3 +432,45 @@ while i < 100 {
 ```
 
 You can use `break` and `continue` just like other programming languages.
+
+## Expressions
+
+Integer literals can be expressed like this:
+```
+100
+1e2
+1_000_000
+0xdeadbeef
+0o1234567
+0b1000_1100
+0777
+```
+
+Floating point literal can be expressed like this:
+```
+1.0
+1.2e-1
+3.1415
+1
+```
+
+You can use `true` and `false` as bool literal.
+
+String literal can be expressed like this:
+```
+"this is a string"
+"new line can be represented like this: \n"
+"tab can be represented by \t"
+"this is a slash \\"
+"you can define raw byte like this: \x00\x01"
+"use \" to write quote"
+```
+
+Magelang's string is kind of similar to C, its null terminated and the type is `[*]u8`.
+
+Similar to other programming languages, Magelang has arithmetic operator such as:
+```
++ - * / % | & ^ << >> && || == > < >= <= ! ~
+```
+
+Magelang also support casting between integer and floating point types.
