@@ -187,5 +187,111 @@ then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
 
 ## Data Types
 
-TBD.
+### Primitives
+
+As for now, there are few primitive data types supported by Magelang:
+
+```
+i8 i16 i32 i64 isize
+u8 u16 u32 u64 usize
+bool opaque void
+```
+
+### Pointers
+
+Magelang supports two kind of pointer: a unit pointer and an array pointer. A unit pointer is
+just an ordinary pointer pointing to a single value. You can dereference a unit pointer and
+get the pointed value. An array pointer is a pointer pointing to zero or more items with the
+same type. A unit pointer to a type `T` is `*T`, whereas an array pointer to `T` is `[*]T`.
+
+To dereference a unit pointer `p`, you can write `p.*`. For eaxmple:
+```
+@main()
+fn main() {
+    let p: *i32 = mem::alloc::<i32>();
+    p.* = 10;
+    fmt::print_i32(p.*);
+}
+```
+
+To deference the `i`-th element of an array pointer `p`, you can write `p[i].*`. Writing `p[i]`
+will give you the address of `i`-th element, adding `.*` will dereference it. For example:
+
+```
+@main()
+fn main() {
+    let p: [*]i32 = mem::alloc_array::<i32>(10);
+    set(p[5]);
+    p[6].* = 10;
+    fmt::print_i32(p[5].*);
+}
+
+fn set(value: *i32) {
+    value.* = 10;
+}
+```
+
+### Structs
+
+You can define a struct using `struct` keyword like this:
+```
+struct Foo {
+    field1: i32,
+    field2: bool,
+    field3: Bar,
+}
+
+struct Bar {
+    field1: bool,
+}
+```
+
+You can embed struct in another struct just like above example where struct `Bar` is embedded inside struct `Foo`.
+However, you can't have circularly embedded struct since they will have infinite size. In order to make a circular
+data structure, you need a pointer for indirection.
+
+Accessing a field of a struct is quite strightforward, you just need to put a dot followed by the field you want to access.
+For example:
+
+```
+struct Foo {
+    field1: i32,
+    field2: bool,
+    field3: Bar,
+}
+
+struct Bar {
+    field1: bool,
+}
+
+fn print_foo(foo: Foo) {
+    fmt::print_i32(foo.field1);
+    fmt::print_bool(foo.bar.field1);
+}
+```
+
+However, accessing a field of a struct behind a pointer is a little bit different. If you have a pointer `p` to a struct.
+`p.field1` won't give you the `field1` value, but it gives you the address of the `field1` field instead. If you want to
+get the actual value, you need to dereference it using `.*`.
+
+```
+struct Foo {
+    field1: i32,
+    field2: bool,
+    field3: Bar,
+}
+
+struct Bar {
+    field1: bool,
+}
+
+fn print_foo(foo: *Foo) {
+    fmt::print_i32(foo.field1.*);
+    fmt::print_bar(foo.bar);
+}
+
+fn print_bar(bar: *Bar) {
+    fmt::print_bool(bar.field1.*);
+}
+```
 
