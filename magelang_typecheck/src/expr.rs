@@ -954,7 +954,9 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     let ty = get_type_from_node(ctx, scope, &node.target);
 
     let Some(struct_type) = ty.as_struct() else {
-        ctx.errors.non_struct_type(node.target.pos());
+        if !ty.is_unknown() {
+            ctx.errors.non_struct_type(node.target.pos());
+        }
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
