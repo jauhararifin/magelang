@@ -163,6 +163,7 @@ pub enum TokenKind {
     Return,
     NumberLit,
     StringLit,
+    CharLit,
     Null,
     True,
     False,
@@ -212,6 +213,7 @@ impl TokenKind {
             | Self::Equal
             | Self::Return
             | Self::NumberLit
+            | Self::CharLit
             | Self::StringLit => false,
 
             Self::Import
@@ -281,6 +283,7 @@ impl Display for TokenKind {
             Self::Equal => write!(f, "'='"),
             Self::Return => write!(f, "'return'"),
             Self::NumberLit => write!(f, "NUMBER_LIT"),
+            Self::CharLit => write!(f, "CHAR_LIT"),
             Self::StringLit => write!(f, "STRING_LIT"),
             Self::Null => write!(f, "'null'"),
             Self::True => write!(f, "'true'"),

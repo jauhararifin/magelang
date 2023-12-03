@@ -1,6 +1,6 @@
 use crate::error::ErrorReporter;
 use crate::number::{NumberBuilder, NumberError};
-use crate::string::{StringBuilder, StringError};
+use crate::string::{CharBuilder, CharError, StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
 
@@ -33,6 +33,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     fn scan(&mut self) -> Option<Token> {
         self.skip_whitespace();
         self.scan_word()
+            .or_else(|| self.scan_char_lit())
             .or_else(|| self.scan_string_lit())
             .or_else(|| self.scan_number_lit())
             .or_else(|| self.scan_comments())
@@ -79,6 +80,46 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         };
 
         Some(Token { kind, value, pos })
+    }
+
+    fn scan_char_lit(&mut self) -> Option<Token> {
+        let mut pos = None;
+
+        let mut builder = CharBuilder::default();
+        while let Some((c, p)) = self.peek() {
+            if !builder.add(c) {
+                break;
+            }
+            self.next();
+            if pos.is_none() {
+                pos = Some(p);
+            }
+        }
+
+        let literal = builder.build_literal();
+        let pos = pos?;
+        for error in literal.errors {
+            match error {
+                CharError::UnknownEscape { offset, c } => {
+                    self.errors.unexpected_char(pos.with_offset(offset), c)
+                }
+                CharError::UnexpectedHex { offset, c } => {
+                    self.errors.unexpected_char(pos.with_offset(offset), c)
+                }
+                CharError::Multichar { offset } => self
+                    .errors
+                    .multiple_char_in_literal(pos.with_offset(offset)),
+                CharError::MissingClosingQuote { offset } => {
+                    self.errors.missing_closing_quote(pos.with_offset(offset))
+                }
+            }
+        }
+
+        Some(Token {
+            kind: TokenKind::CharLit,
+            value: literal.raw,
+            pos,
+        })
     }
 
     fn scan_string_lit(&mut self) -> Option<Token> {
@@ -295,6 +336,13 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 trait ScanningError: ErrorReporter {
     fn unexpected_char(&self, pos: Pos, ch: char) {
         self.report(pos, format!("Unexpected char '{ch}'"));
+    }
+
+    fn multiple_char_in_literal(&self, pos: Pos) {
+        self.report(
+            pos,
+            format!("Character literal may only contain one code point"),
+        );
     }
 
     fn missing_closing_quote(&self, pos: Pos) {

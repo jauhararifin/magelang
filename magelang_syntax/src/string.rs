@@ -174,3 +174,192 @@ impl StringBuilder {
         }
     }
 }
+
+pub fn get_raw_char_lit(literal: &str) -> Result<char, Vec<CharError>> {
+    let mut builder = CharBuilder::default();
+    for c in literal.chars() {
+        if !builder.add(c) {
+            break;
+        }
+    }
+    let literal = builder.build_literal();
+    if literal.errors.is_empty() {
+        Ok(literal.value)
+    } else {
+        Err(literal.errors)
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct CharBuilder {
+    raw: String,
+    value: char,
+    state: CharState,
+    offset: usize,
+    pub(crate) errors: Vec<CharError>,
+}
+
+#[derive(Default)]
+enum CharState {
+    #[default]
+    Init,
+    Normal,
+    AfterBlackslash,
+    ReadHex1,
+    ReadHex2(char),
+    Closing,
+    ClosingError,
+    Closed,
+}
+
+#[derive(Debug)]
+pub enum CharError {
+    UnknownEscape { offset: usize, c: char },
+    UnexpectedHex { offset: usize, c: char },
+    Multichar { offset: usize },
+    MissingClosingQuote { offset: usize },
+}
+
+pub(crate) struct CharLiteral {
+    pub(crate) raw: String,
+    pub(crate) value: char,
+    pub(crate) errors: Vec<CharError>,
+}
+
+impl CharBuilder {
+    pub fn add(&mut self, c: char) -> bool {
+        match self.state {
+            CharState::Init => {
+                if c == '\'' {
+                    self.state = CharState::Normal;
+                } else {
+                    self.value = 0 as char;
+                    return false;
+                }
+            }
+            CharState::Normal => match c {
+                '\\' => self.state = CharState::AfterBlackslash,
+                '\'' => self.state = CharState::Closed,
+                _ => {
+                    self.value = c;
+                    self.state = CharState::Closing;
+                }
+            },
+            CharState::AfterBlackslash => match c {
+                'n' => {
+                    self.state = CharState::Closing;
+                    self.value = '\n';
+                }
+                'r' => {
+                    self.state = CharState::Closing;
+                    self.value = '\r';
+                }
+                't' => {
+                    self.state = CharState::Closing;
+                    self.value = '\t';
+                }
+                '\\' => {
+                    self.state = CharState::Closing;
+                    self.value = '\\';
+                }
+                '0' => {
+                    self.state = CharState::Closing;
+                    self.value = '\0';
+                }
+                '\'' => {
+                    self.state = CharState::Closing;
+                    self.value = '\'';
+                }
+                'x' => self.state = CharState::ReadHex1,
+                _ => {
+                    self.errors.push(CharError::UnknownEscape {
+                        offset: self.offset,
+                        c,
+                    });
+                    self.state = CharState::Closing;
+                }
+            },
+            CharState::ReadHex1 => match c {
+                '0'..='9' | 'a'..='f' | 'A'..='F' => {
+                    self.state = CharState::ReadHex2(c);
+                }
+                '"' => {
+                    self.errors.push(CharError::UnexpectedHex {
+                        offset: self.offset,
+                        c,
+                    });
+                    self.state = CharState::Closed;
+                }
+                _ => {
+                    self.errors.push(CharError::UnexpectedHex {
+                        offset: self.offset,
+                        c,
+                    });
+                    self.state = CharState::Normal;
+                }
+            },
+            CharState::ReadHex2(first_char) => match c {
+                '0'..='9' | 'a'..='f' | 'A'..='F' => {
+                    let into_u8 = |c: char| match c {
+                        '0'..='9' => c as u8 - b'0',
+                        'a'..='f' => c as u8 - b'a' + 0xa,
+                        'A'..='F' => c as u8 - b'A' + 0xa,
+                        _ => unreachable!(),
+                    };
+
+                    let b = (into_u8(first_char) << 4) | (into_u8(c));
+                    self.value = b as char;
+                    self.state = CharState::Closing;
+                }
+                '"' => {
+                    self.errors.push(CharError::UnexpectedHex {
+                        offset: self.offset,
+                        c,
+                    });
+                    self.state = CharState::Closing;
+                }
+                _ => {
+                    self.errors.push(CharError::UnexpectedHex {
+                        offset: self.offset,
+                        c,
+                    });
+                    self.state = CharState::Closing;
+                }
+            },
+            CharState::Closing => {
+                if c == '\'' {
+                    self.state = CharState::Closed;
+                } else {
+                    self.errors.push(CharError::Multichar {
+                        offset: self.offset,
+                    });
+                    self.state = CharState::ClosingError;
+                }
+            }
+            CharState::ClosingError => match c {
+                '\'' => self.state = CharState::Closed,
+                _ => (),
+            },
+            CharState::Closed => return false,
+        }
+
+        self.raw.push(c);
+        self.offset += 1;
+        true
+    }
+
+    pub fn build_literal(self) -> CharLiteral {
+        let mut errors = self.errors;
+        if !matches!(self.state, CharState::Closed) {
+            errors.push(CharError::MissingClosingQuote {
+                offset: self.offset,
+            });
+        }
+
+        CharLiteral {
+            raw: self.raw,
+            value: self.value,
+            errors,
+        }
+    }
+}

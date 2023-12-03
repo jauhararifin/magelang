@@ -5,9 +5,9 @@ use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
-    get_raw_string_lit, BinaryExprNode, CallExprNode, CastExprNode, DerefExprNode, ErrorReporter,
-    ExprNode, IndexExprNode, Number, PathNode, Pos, SelectionExprNode, StructExprNode, Token,
-    TokenKind, UnaryExprNode,
+    get_raw_char_lit, get_raw_string_lit, BinaryExprNode, CallExprNode, CastExprNode,
+    DerefExprNode, ErrorReporter, ExprNode, IndexExprNode, Number, PathNode, Pos,
+    SelectionExprNode, StructExprNode, Token, TokenKind, UnaryExprNode,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -285,6 +285,7 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
             assignable: false,
         },
         ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
+        ExprNode::Char(token) => get_expr_from_char_lit(ctx, expected_type, token),
         ExprNode::String(token) => get_expr_from_string_lit(ctx, token),
         ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, expected_type, node),
         ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, expected_type, node),
@@ -577,6 +578,59 @@ fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
         pos: token.pos,
         assignable: false,
     }
+}
+
+fn get_expr_from_char_lit<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    expected_type: Option<&'a Type<'a>>,
+    token: &Token,
+) -> Expr<'a> {
+    let Ok(ch) = get_raw_char_lit(&token.value) else {
+        let ty = expected_type.unwrap_or(ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Int(false, BitSize::I32),
+        }));
+        return Expr {
+            ty,
+            kind: ExprKind::Invalid,
+            pos: token.pos,
+            assignable: false,
+        };
+    };
+
+    if let Some(ty) = expected_type {
+        if let TypeRepr::Int(sign, bit_size) = ty.repr {
+            let value = match (sign, bit_size) {
+                (true, BitSize::ISize) => ExprKind::ConstIsize(ch as u64),
+                (true, BitSize::I64) => ExprKind::ConstI64(ch as u64),
+                (true, BitSize::I32) => ExprKind::ConstI32(ch as u32),
+                (true, BitSize::I16) => ExprKind::ConstI16(ch as u16),
+                (true, BitSize::I8) => ExprKind::ConstI8(ch as u8),
+                (false, BitSize::ISize) => ExprKind::ConstIsize(ch as u64),
+                (false, BitSize::I64) => ExprKind::ConstI64(ch as u64),
+                (false, BitSize::I32) => ExprKind::ConstI32(ch as u32),
+                (false, BitSize::I16) => ExprKind::ConstI16(ch as u16),
+                (false, BitSize::I8) => ExprKind::ConstI8(ch as u8),
+            };
+            return Expr {
+                ty,
+                kind: value,
+                pos: token.pos,
+                assignable: false,
+            };
+        }
+    };
+
+    let ty = expected_type.unwrap_or(ctx.define_type(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(false, BitSize::I32),
+    }));
+    return Expr {
+        ty,
+        kind: ExprKind::ConstI32(ch as u32),
+        pos: token.pos,
+        assignable: false,
+    };
 }
 
 fn get_expr_from_string_lit<'a, E: ErrorReporter>(

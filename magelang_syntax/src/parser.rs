@@ -838,6 +838,7 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         ExprNode::Number(tok)
         | ExprNode::Null(tok)
         | ExprNode::Bool(tok)
+        | ExprNode::Char(tok)
         | ExprNode::String(tok)
         | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => TypeExprNode::Invalid(tok.pos),
         ExprNode::Selection(..) => TypeExprNode::Invalid(pos),
@@ -854,6 +855,7 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
     match f.kind() {
         TokenKind::Ident => parse_path_for_expr(f).map(ExprNode::Path),
         TokenKind::NumberLit => f.take(TokenKind::NumberLit).map(ExprNode::Number),
+        TokenKind::CharLit => f.take(TokenKind::CharLit).map(ExprNode::Char),
         TokenKind::StringLit => f.take(TokenKind::StringLit).map(ExprNode::String),
         TokenKind::Null => f.take(TokenKind::Null).map(ExprNode::Null),
         TokenKind::True => f.take(TokenKind::True).map(ExprNode::Bool),
