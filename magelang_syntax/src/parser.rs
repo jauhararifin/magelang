@@ -284,7 +284,15 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 Some(TypeExprNode::Invalid(pos))
             }
         }
-        _ => None,
+        _ => {
+            if tok.kind.is_keyword() {
+                f.unexpected("type expression");
+                let tok = f.pop();
+                Some(TypeExprNode::Invalid(tok.pos))
+            } else {
+                None
+            }
+        }
     }
 }
 

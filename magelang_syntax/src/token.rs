@@ -171,6 +171,67 @@ pub enum TokenKind {
     AtSign,
 }
 
+impl TokenKind {
+    pub fn is_keyword(&self) -> bool {
+        match self {
+            Self::Invalid
+            | Self::Eof
+            | Self::Comment
+            | Self::Ident
+            | Self::Add
+            | Self::Sub
+            | Self::Mul
+            | Self::Div
+            | Self::Mod
+            | Self::BitOr
+            | Self::BitAnd
+            | Self::BitXor
+            | Self::BitNot
+            | Self::ShiftLeft
+            | Self::ShiftRight
+            | Self::And
+            | Self::Not
+            | Self::Or
+            | Self::Eq
+            | Self::NEq
+            | Self::Gt
+            | Self::GEq
+            | Self::Lt
+            | Self::LEq
+            | Self::Dot
+            | Self::OpenBrac
+            | Self::CloseBrac
+            | Self::OpenBlock
+            | Self::CloseBlock
+            | Self::OpenSquare
+            | Self::CloseSquare
+            | Self::Comma
+            | Self::DoubleColon
+            | Self::Colon
+            | Self::SemiColon
+            | Self::Equal
+            | Self::Return
+            | Self::NumberLit
+            | Self::StringLit => false,
+
+            Self::Import
+            | Self::Struct
+            | Self::Fn
+            | Self::As
+            | Self::Let
+            | Self::If
+            | Self::Else
+            | Self::While
+            | Self::Null
+            | Self::True
+            | Self::False
+            | Self::Continue
+            | Self::Break
+            | Self::AtSign => false,
+        }
+    }
+}
+
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

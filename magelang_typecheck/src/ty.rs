@@ -250,19 +250,15 @@ impl<'a> Type<'a> {
             TypeRepr::Bool => self,
             TypeRepr::Int(..) => self,
             TypeRepr::Float(..) => self,
-            TypeRepr::Ptr(el) => {
-                ctx.define_type(Type {
-                    kind: TypeKind::Anonymous,
-                    repr: TypeRepr::Ptr(el.monomorphize(ctx, type_args)),
-                })
-            }
+            TypeRepr::Ptr(el) => ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Ptr(el.monomorphize(ctx, type_args)),
+            }),
             TypeRepr::ArrayPtr(el) => ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::ArrayPtr(el.monomorphize(ctx, type_args)),
             }),
-            TypeRepr::TypeArg(arg) => {
-                arg.monomorphize(ctx, type_args)
-            }
+            TypeRepr::TypeArg(arg) => arg.monomorphize(ctx, type_args),
         }
     }
 
