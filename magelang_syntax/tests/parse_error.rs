@@ -133,8 +133,8 @@ const TEST_TYPE_EXPRS_ERRORS: &[(&str, &str)] = &[
     ("testcase.mg:16:19", "Expected IDENT, but found '='"),
     ("testcase.mg:18:26", "Missing closing '>'"),
     ("testcase.mg:19:26", "Missing closing '>'"),
-    ("testcase.mg:21:9", "Expected '*', but found IDENT"),
-    ("testcase.mg:22:10", "Expected ']', but found IDENT"),
+    ("testcase.mg:21:9", "Expected '*', but found 'package'"),
+    ("testcase.mg:22:10", "Expected ']', but found 'package'"),
     ("testcase.mg:24:10", "Missing pointee type"),
 ];
 testcase!(
