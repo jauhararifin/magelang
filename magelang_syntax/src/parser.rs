@@ -529,14 +529,21 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
                 kind: LetKind::TypeOnly { ty },
             })
         }
-    } else {
-        f.take(TokenKind::Equal)?;
+    } else if f.take(TokenKind::Equal).is_some() {
         let value = parse_expr(f, true)?;
         f.take(TokenKind::SemiColon)?;
         Some(LetStatementNode {
             pos,
             name,
             kind: LetKind::ValueOnly { value },
+        })
+    } else {
+        f.unexpected("type or value");
+        f.skip_until_before(&[TokenKind::SemiColon]);
+        Some(LetStatementNode {
+            pos,
+            name,
+            kind: LetKind::Invalid,
         })
     }
 }
@@ -920,8 +927,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
     fn unexpected(&mut self, expected: impl Display) {
         let token = self.token();
-        self.errors
-            .unexpected_parsing(token.pos, expected, token.kind);
+        self.errors.unexpected_parsing(token.pos, expected, token);
     }
 
     fn is_empty(&self) -> bool {
@@ -968,7 +974,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         if token.kind == kind {
             Some(self.pop())
         } else {
-            self.errors.unexpected_parsing(token.pos, kind, token.kind);
+            self.errors.unexpected_parsing(token.pos, kind, token);
             None
         }
     }

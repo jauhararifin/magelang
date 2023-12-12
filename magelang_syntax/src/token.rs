@@ -234,6 +234,15 @@ impl TokenKind {
     }
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            TokenKind::Ident => write!(f, "'{}'", self.value),
+            _ => self.kind.fmt(f),
+        }
+    }
+}
+
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -128,7 +128,7 @@ pub(crate) trait SemanticError: ErrorReporter {
     fn non_field_type(&self, pos: Pos, name: &str) {
         self.report(
             pos,
-            format!("The expression doesn't have a field named {name}"),
+            format!("The expression doesn't have a field named '{name}'"),
         );
     }
 

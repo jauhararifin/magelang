@@ -161,6 +161,18 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
     node: &LetStatementNode,
 ) -> StatementResult<'a> {
     let expr = match &node.kind {
+        LetKind::Invalid => {
+            let type_id = ctx.ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            });
+            Expr {
+                ty: type_id,
+                kind: ExprKind::Zero,
+                pos: node.pos,
+                assignable: false,
+            }
+        }
         LetKind::TypeOnly { ty } => {
             let type_id = get_type_from_node(ctx.ctx, ctx.scope, ty);
             Expr {

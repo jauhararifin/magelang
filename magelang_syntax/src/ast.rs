@@ -316,6 +316,7 @@ pub struct LetStatementNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LetKind {
+    Invalid,
     TypeOnly { ty: TypeExprNode },
     TypeValue { ty: TypeExprNode, value: ExprNode },
     ValueOnly { value: ExprNode },
