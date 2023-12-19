@@ -30,9 +30,9 @@ impl std::cmp::PartialOrd for Pos {
 }
 
 pub struct Location<'a> {
-    path: &'a Path,
-    line: usize,
-    col: usize,
+    pub path: &'a Path,
+    pub line: usize,
+    pub col: usize,
 }
 
 impl<'a> std::fmt::Display for Location<'a> {
