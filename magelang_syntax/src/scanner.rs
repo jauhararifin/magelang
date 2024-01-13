@@ -230,7 +230,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         })
     }
 
-    const SYMBOLS: &[(&'static str, TokenKind)] = &[
+    const SYMBOLS: &'static [(&'static str, TokenKind)] = &[
         ("::", TokenKind::DoubleColon),
         (":", TokenKind::Colon),
         (";", TokenKind::SemiColon),
@@ -341,7 +341,7 @@ trait ScanningError: ErrorReporter {
     fn multiple_char_in_literal(&self, pos: Pos) {
         self.report(
             pos,
-            format!("Character literal may only contain one code point"),
+            "Character literal may only contain one code point".to_string(),
         );
     }
 

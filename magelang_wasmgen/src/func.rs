@@ -133,7 +133,7 @@ fn init_functions<'ctx, E: ErrorReporter>(
                         continue;
                     }
 
-                    let import_module = annotation.arguments.get(0).unwrap();
+                    let import_module = annotation.arguments.first().unwrap();
                     let import_name = annotation.arguments.get(1).unwrap();
                     result.import = Some((import_module, import_name));
                 }
@@ -153,7 +153,7 @@ fn init_functions<'ctx, E: ErrorReporter>(
                         continue;
                     }
 
-                    let export_name = annotation.arguments.get(0).unwrap();
+                    let export_name = annotation.arguments.first().unwrap();
                     result.export = Some(export_name);
                 }
                 INTRINSIC_ANNOTATION => {

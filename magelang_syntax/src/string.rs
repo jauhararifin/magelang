@@ -336,10 +336,11 @@ impl CharBuilder {
                     self.state = CharState::ClosingError;
                 }
             }
-            CharState::ClosingError => match c {
-                '\'' => self.state = CharState::Closed,
-                _ => (),
-            },
+            CharState::ClosingError => {
+                if c == '\'' {
+                    self.state = CharState::Closed
+                }
+            }
             CharState::Closed => return false,
         }
 

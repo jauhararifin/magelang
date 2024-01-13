@@ -75,7 +75,7 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
     item
 }
 
-const TOP_LEVEL_STOPPING_TOKEN: &'static [TokenKind] = &[
+const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] = &[
     TokenKind::Let,
     TokenKind::Fn,
     TokenKind::Import,
