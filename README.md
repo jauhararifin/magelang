@@ -68,13 +68,11 @@ fn main() {
 
 Download and install Go quickly with the steps described here.
 
-----
-OS | Arch | Filename
-----
-macOS | aarch64 | https://blog.jauhar.dev/magelang/release/nightly/magelang-aarch64-apple-darwin.tar.xz
-macOS | x86_64 | https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-apple-darwin.tar.xz
-linux | x86_64 | https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-unknown-linux-gnu.tar.xz
-----
+| OS    | Arch    | Link                                                                                                                                  |
+|-------|---------|---------------------------------------------------------------------------------------------------------------------------------------|
+| macOS | aarch64 | [magelang-aarch64-apple-darwin.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-aarch64-apple-darwin.tar.xz)         |
+| macOS | x86_64  | [magelang-x86_64-apple-darwin.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-apple-darwin.tar.xz)           |
+| linux | x86_64  | [magelang-x86_64-unknown-linux-gnu.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-unknown-linux-gnu.tar.xz) |
 
 After downloading the archive, extract it to `magelang` directory and add `$(pwd)/magelang/bin` to your path:
 
