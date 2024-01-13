@@ -39,6 +39,7 @@ fn get_stdlib_path_from_env() -> Option<PathBuf> {
 fn get_stdlib_path_from_current_exe() -> Option<PathBuf> {
     let mut pathbuf = std::env::current_exe().ok()?;
     pathbuf.pop();
+    pathbuf.pop();
     let pathbuf = pathbuf.join("lib/");
     if !pathbuf.exists() {
         return None;
