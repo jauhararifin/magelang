@@ -66,6 +66,31 @@ fn main() {
 
 ## Installing
 
+Download and install Go quickly with the steps described here.
+
+----
+OS | Arch | Filename
+----
+macOS | aarch64 | https://blog.jauhar.dev/magelang/release/nightly/magelang-aarch64-apple-darwin.tar.xz
+macOS | x86_64 | https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-apple-darwin.tar.xz
+linux | x86_64 | https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-unknown-linux-gnu.tar.xz
+----
+
+After downloading the archive, extract it to `magelang` directory and add `$(pwd)/magelang/bin` to your path:
+
+```
+tar -xf <the_downloaded_archieve>
+export PATH="$PATH:$(pwd)/magelang/bin"
+```
+
+Verify that you've installed Magelang by opening a command prompt and typing the following command:
+
+```
+magelang --version
+```
+
+## Installing From Source
+
 ```
 cargo install --path magelang
 ```
