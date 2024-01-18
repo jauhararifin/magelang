@@ -52,46 +52,46 @@ jobs:
         path: |
           release/nightly/**
 
-  # build-mac:
-  #   runs-on: macos-13-large
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #
-  #   - name: Build For Intel
-  #     run: cargo build --package magelang --release --target=x86_64-apple-darwin
-  #
-  #   - name: Bundle Intel
-  #     run: |
-  #       mkdir -p release/nightly
-  #       rm -rf build
-  #       mkdir -p build/magelang
-  #       mkdir build/magelang/bin
-  #       cp LICENSE ./build/magelang/LICENSE
-  #       cp ./target/x86_64-apple-darwin/release/magelang ./build/magelang/bin/magelang
-  #       cp -r ./magelang/lib build/magelang/
-  #       pushd ./build/
-  #       tar -cJf ../release/nightly/magelang-x86_64-apple-darwin.tar.xz magelang
-  #       popd
-  #
-  #   - name: Build For Arm
-  #     run: cargo build --package magelang --release --target=aarch64-apple-darwin
-  #
-  #   - name: Bundle Intel
-  #     run: |
-  #       mkdir -p release/nightly
-  #       rm -rf build
-  #       mkdir -p build/magelang
-  #       mkdir build/magelang/bin
-  #       cp LICENSE ./build/magelang/LICENSE
-  #       cp ./target/aarch64-apple-darwin/release/magelang ./build/magelang/bin/magelang
-  #       cp -r ./magelang/lib build/magelang/
-  #       pushd ./build/
-  #       tar -cJf ../release/nightly/magelang-aarch64-apple-darwin.tar.xz magelang
-  #       popd
-  #
-  #   - name: Upload Artifacts
-  #     uses: actions/upload-artifact@v3
-  #     with:
-  #       path: |
-  #         release/nightly/**
-  #
+  build-mac:
+    runs-on: macos-13-large
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build For Intel
+      run: cargo build --package magelang --release --target=x86_64-apple-darwin
+
+    - name: Bundle Intel
+      run: |
+        mkdir -p release/nightly
+        rm -rf build
+        mkdir -p build/magelang
+        mkdir build/magelang/bin
+        cp LICENSE ./build/magelang/LICENSE
+        cp ./target/x86_64-apple-darwin/release/magelang ./build/magelang/bin/magelang
+        cp -r ./magelang/lib build/magelang/
+        pushd ./build/
+        tar -cJf ../release/nightly/magelang-x86_64-apple-darwin.tar.xz magelang
+        popd
+
+    - name: Build For Arm
+      run: cargo build --package magelang --release --target=aarch64-apple-darwin
+
+    - name: Bundle Intel
+      run: |
+        mkdir -p release/nightly
+        rm -rf build
+        mkdir -p build/magelang
+        mkdir build/magelang/bin
+        cp LICENSE ./build/magelang/LICENSE
+        cp ./target/aarch64-apple-darwin/release/magelang ./build/magelang/bin/magelang
+        cp -r ./magelang/lib build/magelang/
+        pushd ./build/
+        tar -cJf ../release/nightly/magelang-aarch64-apple-darwin.tar.xz magelang
+        popd
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        path: |
+          release/nightly/**
+
