@@ -30,6 +30,22 @@ jobs:
         tar -cJf ../release/nightly/magelang-x86_64-unknown-linux-gnu.tar.xz magelang
         popd
 
+    - name: Build For X86_64 Musl
+      run: cargo build --package magelang --release --target=x86_64-unknown-linux-musl
+
+    - name: Bundle X64_64 Musl
+      run: |
+        mkdir -p release/nightly
+        rm -rf build
+        mkdir -p build/magelang
+        mkdir build/magelang/bin
+        cp LICENSE ./build/magelang/LICENSE
+        cp ./target/x86_64-unknown-linux-musl/release/magelang ./build/magelang/bin/magelang
+        cp -r ./magelang/lib build/magelang/
+        pushd ./build/
+        tar -cJf ../release/nightly/magelang-x86_64-unknown-linux-musl.tar.xz magelang
+        popd
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v3
       with:
