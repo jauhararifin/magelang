@@ -12,4 +12,6 @@ magelang_typecheck = { path = "../magelang_typecheck" }
 magelang_wasmgen = { path = "../magelang_wasmgen" }
 wasm_helper = { path = "../wasm_helper" }
 clap = { version = "4.0", features = ["derive"] }
+wasmtime = "16.0.0"
+wasmtime-wasi = "16.0.0"
 

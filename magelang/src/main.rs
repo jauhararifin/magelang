@@ -4,6 +4,8 @@ use magelang_syntax::{parse, ErrorManager, FileManager};
 use magelang_typecheck::analyze;
 use magelang_wasmgen::generate;
 use wasm_helper::Serializer;
+use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime_wasi::sync::WasiCtxBuilder;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -38,6 +40,11 @@ enum Commands {
         #[arg(short, long, default_value = "./a.wasm")]
         output: std::path::PathBuf,
     },
+    Run {
+        package_name: String,
+        #[arg(short)]
+        debug: bool,
+    },
 }
 
 fn main() {
@@ -54,6 +61,10 @@ fn main() {
             debug,
             output,
         } => compile(package_name, debug, output),
+        Commands::Run {
+            package_name,
+            debug,
+        } => run(package_name, debug),
     }
 }
 
@@ -149,4 +160,51 @@ fn compile(package_name: String, debug: bool, output: std::path::PathBuf) {
     wasm_module
         .serialize(&mut f)
         .expect("cannot write wasm to target file");
+}
+
+fn run(package_name: String, debug: bool) {
+    let mut error_manager = if debug {
+        ErrorManager::new_for_debug()
+    } else {
+        ErrorManager::default()
+    };
+    let mut file_manager = FileManager::default();
+
+    let arena = Bump::default();
+    let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
+    if !module.is_valid {
+        for error in error_manager.take() {
+            let location = file_manager.location(error.pos);
+            let message = error.message;
+            eprintln!("{location}: {message}");
+        }
+        std::process::exit(-1);
+    };
+
+    let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
+        for error in error_manager.take() {
+            let location = file_manager.location(error.pos);
+            let message = error.message;
+            eprintln!("{location}: {message}");
+        }
+        std::process::exit(-1);
+    };
+
+    let mut module = Vec::<u8>::default();
+    wasm_module
+        .serialize(&mut module)
+        .expect("cannot write wasm to target file");
+
+    let engine = Engine::default();
+
+    let module = Module::from_binary(&engine, &module).expect("cannot load wasm module");
+    let mut linker = Linker::new(&engine);
+    wasmtime_wasi::add_to_linker(&mut linker, |s| s).expect("cannot link wasi to the linker");
+    let wasi = WasiCtxBuilder::new()
+        .inherit_stdio()
+        .inherit_args()
+        .expect("cannot build wasi context")
+        .build();
+    let mut store = Store::new(&engine, wasi);
+    linker.instantiate(&mut store, &module).unwrap();
 }
