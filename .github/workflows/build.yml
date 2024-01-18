@@ -17,7 +17,9 @@ jobs:
       uses: Swatinem/rust-cache@v2
 
     - name: Install toolchain
-      run: rustup target add x86_64-unknown-linux-gnu x86_64-unknown-linux-musl
+      run: |
+        apt-get install musl-tools
+        rustup target add x86_64-unknown-linux-gnu x86_64-unknown-linux-musl
 
     - name: Build For X86_64 GNU
       run: cargo build --package magelang --release --target=x86_64-unknown-linux-gnu
