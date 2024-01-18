@@ -26,6 +26,12 @@ or any other web assembly runtime such as wasmtime. To run the web assembly modu
 wasmtime hello.wasm
 ```
 
+Magelang also supports running package directly without compiling it first:
+
+```
+cargo run -- run examples/hello
+```
+
 ## Brief Syntax
 
 ```
@@ -68,11 +74,12 @@ fn main() {
 
 Download and install Go quickly with the steps described here.
 
-| OS    | Arch    | Link                                                                                                                                  |
-|-------|---------|---------------------------------------------------------------------------------------------------------------------------------------|
-| macOS | aarch64 | [magelang-aarch64-apple-darwin.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-aarch64-apple-darwin.tar.xz)         |
-| macOS | x86_64  | [magelang-x86_64-apple-darwin.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-apple-darwin.tar.xz)           |
-| linux | x86_64  | [magelang-x86_64-unknown-linux-gnu.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-unknown-linux-gnu.tar.xz) |
+| OS           | Arch    | Link                                                                                                                                  |
+|--------------|---------|---------------------------------------------------------------------------------------------------------------------------------------|
+| macOS        | aarch64 | [magelang-aarch64-apple-darwin.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-aarch64-apple-darwin.tar.xz)         |
+| macOS        | x86_64  | [magelang-x86_64-apple-darwin.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-apple-darwin.tar.xz)           |
+| linux (gnu)  | x86_64  | [magelang-x86_64-unknown-linux-gnu.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-unknown-linux-gnu.tar.xz) |
+| linux (musl) | x86_64  | [magelang-x86_64-unknown-linux-musl.tar.xz](https://blog.jauhar.dev/magelang/release/nightly/magelang-x86_64-unknown-linux-musl.tar.xz) |
 
 After downloading the archive, extract it to `magelang` directory and add `$(pwd)/magelang/bin` to your path:
 
@@ -207,6 +214,8 @@ the path to fmt package, which is just "fmt".
 Magelang uses the current directory as the base path to find the package. In this case,
 "fmt" package is located at `./fmt.mg`. If you put the `fmt.mg` at `./a/b/c/d/fmt.mg`,
 then you need to use `import fmt "a/b/c/d/fmt` to import the fmt package.
+
+Alternatively, you can also run the main package directly by running `magelang run hello`.
 
 ## Comments
 
