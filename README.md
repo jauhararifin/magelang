@@ -1,6 +1,6 @@
 # Magelang
 
-Magelang is a toy programming language I build just for fun. As for now, Magelang is only targetting web assembly.
+Magelang is a programming language written in Rust. As for now, Magelang is only targetting web assembly.
 The syntax is similar to Go and Rust. Magelang is in early development stage and doesn't have a lot of features yet.
 
 This project is in WIP state.
