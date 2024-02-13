@@ -677,10 +677,17 @@ fn parse_binary_expr<E: ErrorReporter>(
     while op.contains(&f.kind()) {
         let op_token = f.pop();
         let b = if let Some(next_op) = next_op {
-            parse_binary_expr(f, next_op, allow_struct_lit)?
+            parse_binary_expr(f, next_op, allow_struct_lit)
         } else {
-            parse_cast_expr(f, allow_struct_lit)?
+            parse_cast_expr(f, allow_struct_lit)
         };
+
+        let Some(b) = b else {
+            f.errors
+                .missing(f.token().pos, "second operand".to_string());
+            return None;
+        };
+
         result = ExprNode::Binary(BinaryExprNode {
             a: Box::new(result),
             op: op_token,

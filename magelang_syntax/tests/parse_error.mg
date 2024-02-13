@@ -91,6 +91,8 @@ let a: i32 = pkg::some_func::<i32>(a, b)[1].*;
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
 let a: i32 = a < b;
+//syntax_error line=+1 col=17: Missing second operand
+let a: i32 = a +;
 
 // =====================================================
 // Signatures
