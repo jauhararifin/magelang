@@ -7,7 +7,7 @@ use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     get_raw_char_lit, get_raw_string_lit, BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode,
     CastExprNode, DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number,
-    PathNode, Pos, SelectionExprNode, StringLit, StructExprNode, Token, TokenKind, UnaryExprNode,
+    PathNode, Pos, SelectionExprNode, StringLit, StructExprNode, Token, UnaryExprNode, UnaryOp,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -863,12 +863,11 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
     let ty = value.ty;
 
-    let op_name = match node.op.kind {
-        TokenKind::BitNot => "bit not",
-        TokenKind::Sub => "sub",
-        TokenKind::Add => "add",
-        TokenKind::Not => "not",
-        op => unreachable!("token {op} is not a unary operator"),
+    let op_name = match node.op {
+        UnaryOp::BitNot => "bit not",
+        UnaryOp::Sub => "sub",
+        UnaryOp::Add => "add",
+        UnaryOp::Not => "not",
     };
 
     let is_bool = ty.is_bool();
@@ -876,23 +875,22 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     let is_int = ty.is_int();
 
     let type_id = value.ty;
-    let (kind, is_valid) = match node.op.kind {
-        TokenKind::BitNot => (ExprKind::BitNot(ctx.arena.alloc(value)), is_int),
-        TokenKind::Sub => (ExprKind::Neg(ctx.arena.alloc(value)), is_arithmetic),
-        TokenKind::Add => (value.kind, is_arithmetic),
-        TokenKind::Not => (ExprKind::Not(ctx.arena.alloc(value)), is_bool),
-        op => unreachable!("token {op} is not a unary operator"),
+    let (kind, is_valid) = match node.op {
+        UnaryOp::BitNot => (ExprKind::BitNot(ctx.arena.alloc(value)), is_int),
+        UnaryOp::Sub => (ExprKind::Neg(ctx.arena.alloc(value)), is_arithmetic),
+        UnaryOp::Add => (value.kind, is_arithmetic),
+        UnaryOp::Not => (ExprKind::Not(ctx.arena.alloc(value)), is_bool),
     };
 
     if !is_valid {
-        ctx.errors.unop_type_unsupported(node.op.pos, op_name, ty);
+        ctx.errors.unop_type_unsupported(node.pos, op_name, ty);
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Unknown,
             }),
             kind,
-            pos: node.op.pos,
+            pos: node.pos,
             assignable: false,
         };
     }
@@ -900,7 +898,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     Expr {
         ty: type_id,
         kind,
-        pos: node.op.pos,
+        pos: node.pos,
         assignable: false,
     }
 }

@@ -337,8 +337,29 @@ pub struct DerefExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnaryExprNode {
-    pub op: Token,
+    pub pos: Pos,
+    pub op: UnaryOp,
     pub value: Box<ExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum UnaryOp {
+    BitNot,
+    Sub,
+    Add,
+    Not,
+}
+
+impl From<TokenKind> for UnaryOp {
+    fn from(value: TokenKind) -> Self {
+        match value {
+            TokenKind::BitNot => Self::BitNot,
+            TokenKind::Sub => Self::Sub,
+            TokenKind::Add => Self::Add,
+            TokenKind::Not => Self::Not,
+            _ => unreachable!("{value} is not a unary operator"),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

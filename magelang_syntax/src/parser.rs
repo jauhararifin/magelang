@@ -744,7 +744,8 @@ fn parse_unary_expr<E: ErrorReporter>(
     let mut value = parse_sequence_of_expr(f, allow_struct_lit)?;
     while let Some(op) = ops.pop() {
         value = ExprNode::Unary(UnaryExprNode {
-            op,
+            pos: op.pos,
+            op: op.kind.into(),
             value: Box::new(value),
         })
     }
@@ -850,15 +851,14 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         ExprNode::Grouped(node) => {
             TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
         }
-        ExprNode::Number(tok) | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => {
-            TypeExprNode::Invalid(tok.pos)
-        }
+        ExprNode::Number(tok) => TypeExprNode::Invalid(tok.pos),
         ExprNode::String(string_lit) => TypeExprNode::Invalid(string_lit.pos),
         ExprNode::Null(pos) => TypeExprNode::Invalid(pos),
         ExprNode::Bool(bool_lit) => TypeExprNode::Invalid(bool_lit.pos),
         ExprNode::Char(char_lit) => TypeExprNode::Invalid(char_lit.pos),
         ExprNode::Selection(..) => TypeExprNode::Invalid(pos),
         ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
+        ExprNode::Unary(node) => TypeExprNode::Invalid(node.pos),
         ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
         ExprNode::Call(node) => TypeExprNode::Invalid(node.callee.pos()),
         ExprNode::Cast(node) => TypeExprNode::Invalid(node.value.pos()),
