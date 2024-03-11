@@ -850,12 +850,13 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         ExprNode::Grouped(node) => {
             TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
         }
-        ExprNode::Number(tok)
-        | ExprNode::Null(tok)
-        | ExprNode::Bool(tok)
-        | ExprNode::Char(tok)
-        | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => TypeExprNode::Invalid(tok.pos),
+        ExprNode::Number(tok) | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => {
+            TypeExprNode::Invalid(tok.pos)
+        }
         ExprNode::String(string_lit) => TypeExprNode::Invalid(string_lit.pos),
+        ExprNode::Null(pos) => TypeExprNode::Invalid(pos),
+        ExprNode::Bool(bool_lit) => TypeExprNode::Invalid(bool_lit.pos),
+        ExprNode::Char(char_lit) => TypeExprNode::Invalid(char_lit.pos),
         ExprNode::Selection(..) => TypeExprNode::Invalid(pos),
         ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
         ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
@@ -875,9 +876,15 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
             .take(TokenKind::StringLit)
             .map(StringLit::from)
             .map(ExprNode::String),
-        TokenKind::Null => f.take(TokenKind::Null).map(ExprNode::Null),
-        TokenKind::True => f.take(TokenKind::True).map(ExprNode::Bool),
-        TokenKind::False => f.take(TokenKind::False).map(ExprNode::Bool),
+        TokenKind::Null => f.take(TokenKind::Null).map(|t| ExprNode::Null(t.pos)),
+        TokenKind::True => f
+            .take(TokenKind::True)
+            .map(BoolLiteral::from)
+            .map(ExprNode::Bool),
+        TokenKind::False => f
+            .take(TokenKind::False)
+            .map(BoolLiteral::from)
+            .map(ExprNode::Bool),
         TokenKind::OpenBrac => {
             let _ = f.take(TokenKind::OpenBrac).unwrap();
             let expr = parse_expr(f, true)?;

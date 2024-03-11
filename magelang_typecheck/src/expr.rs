@@ -5,7 +5,7 @@ use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
-    get_raw_char_lit, get_raw_string_lit, BinaryExprNode, CallExprNode, CastExprNode,
+    get_raw_char_lit, get_raw_string_lit, BinaryExprNode, BoolLiteral, CallExprNode, CastExprNode,
     DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number, PathNode, Pos,
     SelectionExprNode, StringLit, StructExprNode, Token, TokenKind, UnaryExprNode,
 };
@@ -562,19 +562,14 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
 
 fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-    token: &Token,
+    token: &BoolLiteral,
 ) -> Expr<'a> {
-    let kind = match token.kind {
-        TokenKind::True => ExprKind::ConstBool(true),
-        TokenKind::False => ExprKind::ConstBool(false),
-        _ => unreachable!("invalid ast: not a boolean literal"),
-    };
     Expr {
         ty: ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Bool,
         }),
-        kind,
+        kind: ExprKind::ConstBool(token.value),
         pos: token.pos,
         assignable: false,
     }

@@ -1,4 +1,4 @@
-use crate::token::{Pos, Token};
+use crate::token::{Pos, Token, TokenKind};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct PackageNode {
@@ -207,8 +207,8 @@ pub struct FuncTypeNode {
 pub enum ExprNode {
     Path(PathNode),
     Number(Token),
-    Null(Token),
-    Bool(Token),
+    Null(Pos),
+    Bool(BoolLiteral),
     Char(Token),
     String(StringLit),
     Binary(BinaryExprNode),
@@ -226,10 +226,10 @@ impl ExprNode {
     pub fn pos(&self) -> Pos {
         match self {
             Self::Number(tok) => tok.pos,
-            Self::Null(tok) => tok.pos,
-            Self::Bool(tok) => tok.pos,
-            Self::Char(tok) => tok.pos,
-            Self::String(tok) => tok.pos,
+            Self::Null(pos) => *pos,
+            Self::Bool(bool_lit) => bool_lit.pos,
+            Self::Char(char_lit) => char_lit.pos,
+            Self::String(str_lit) => str_lit.pos,
             Self::Binary(node) => node.a.pos(),
             Self::Deref(node) => node.value.pos(),
             Self::Unary(node) => node.value.pos(),
@@ -240,6 +240,21 @@ impl ExprNode {
             Self::Selection(node) => node.value.pos(),
             Self::Index(node) => node.value.pos(),
             Self::Grouped(node) => node.pos(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct BoolLiteral {
+    pub value: bool,
+    pub pos: Pos,
+}
+
+impl From<Token> for BoolLiteral {
+    fn from(value: Token) -> Self {
+        Self {
+            value: value.kind == TokenKind::True,
+            pos: value.pos,
         }
     }
 }
