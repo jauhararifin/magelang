@@ -12,7 +12,7 @@ pub fn parse(errors: &impl ErrorReporter, file: &File) -> PackageNode {
     let mut filtered_tokens = VecDeque::default();
     for tok in scan_result.into_iter() {
         if tok.kind == TokenKind::Comment {
-            comments.push(tok);
+            comments.push(tok.into());
         } else {
             filtered_tokens.push_back(tok);
         }

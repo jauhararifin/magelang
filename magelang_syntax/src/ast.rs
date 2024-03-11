@@ -3,7 +3,22 @@ use crate::token::{Pos, Token, TokenKind};
 #[derive(Debug, PartialEq, Eq)]
 pub struct PackageNode {
     pub items: Vec<ItemNode>,
-    pub comments: Vec<Token>,
+    pub comments: Vec<Comment>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Comment {
+    pub value: String,
+    pub pos: Pos,
+}
+
+impl From<Token> for Comment {
+    fn from(value: Token) -> Self {
+        Self {
+            value: value.value,
+            pos: value.pos,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
