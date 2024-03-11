@@ -6,7 +6,7 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     get_raw_char_lit, get_raw_string_lit, BinaryExprNode, CallExprNode, CastExprNode,
-    DerefExprNode, ErrorReporter, ExprNode, IndexExprNode, Number, PathNode, Pos,
+    DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number, PathNode, Pos,
     SelectionExprNode, StructExprNode, Token, TokenKind, UnaryExprNode,
 };
 use std::collections::HashMap;
@@ -398,7 +398,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
 fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
-    names: &[Token],
+    names: &[Identifier],
 ) -> Option<&'b ValueObject<'a>> {
     let name = names.first().expect("path contains empty names");
     let name = ctx.define_symbol(name.value.as_str());
@@ -625,12 +625,12 @@ fn get_expr_from_char_lit<'a, E: ErrorReporter>(
         kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I32),
     }));
-    return Expr {
+    Expr {
         ty,
         kind: ExprKind::ConstI32(ch as u32),
         pos: token.pos,
         assignable: false,
-    };
+    }
 }
 
 fn get_expr_from_string_lit<'a, E: ErrorReporter>(

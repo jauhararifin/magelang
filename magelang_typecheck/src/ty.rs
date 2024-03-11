@@ -5,7 +5,7 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    ErrorReporter, PathNode, Pos, SignatureNode, Token, TypeExprNode, TypeParameterNode,
+    ErrorReporter, Identifier, PathNode, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
@@ -99,7 +99,7 @@ impl<'a> Type<'a> {
         let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
         for field_node in &struct_node.fields {
             let field_name = ctx.define_symbol(field_node.name.value.as_str());
-            let pos = field_node.pos;
+            let pos = field_node.name.pos;
             if let Some(defined_at) = field_pos.get(&field_name) {
                 ctx.errors.redeclared_symbol(
                     pos,
@@ -138,18 +138,17 @@ impl<'a> Type<'a> {
                     let mut cache = generic_type.mono_cache.borrow_mut();
                     if let Some(ty) = cache.get(type_args) {
                         return ty;
-                    } else {
-                        let ty = ctx.define_type(Type {
-                            kind: TypeKind::Inst(InstType {
-                                def_id: generic_type.def_id,
-                                type_args,
-                            }),
-                            repr: TypeRepr::Struct(StructType {
-                                body: OnceCell::default(),
-                            }),
-                        });
-                        cache.insert(type_args, ty);
                     }
+                    let ty = ctx.define_type(Type {
+                        kind: TypeKind::Inst(InstType {
+                            def_id: generic_type.def_id,
+                            type_args,
+                        }),
+                        repr: TypeRepr::Struct(StructType {
+                            body: OnceCell::default(),
+                        }),
+                    });
+                    cache.insert(type_args, ty);
                 }
                 self.monomorphize_repr(ctx, type_args)
             }
@@ -755,7 +754,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
 fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
-    names: &[Token],
+    names: &[Identifier],
 ) -> Option<&'b TypeObject<'a>> {
     assert!(!names.is_empty());
 

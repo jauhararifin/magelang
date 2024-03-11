@@ -46,23 +46,37 @@ impl ItemNode {
 pub struct ImportNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
-    pub name: Token,
+    pub name: Identifier,
     pub path: Token,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Identifier {
+    pub value: String,
+    pub pos: Pos,
+}
+
+impl From<Token> for Identifier {
+    fn from(value: Token) -> Self {
+        Self {
+            value: value.value,
+            pos: value.pos,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
-    pub name: Token,
+    pub name: Identifier,
     pub type_params: Vec<TypeParameterNode>,
     pub fields: Vec<StructFieldNode>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructFieldNode {
-    pub pos: Pos,
-    pub name: Token,
+    pub name: Identifier,
     pub ty: TypeExprNode,
 }
 
@@ -70,7 +84,7 @@ pub struct StructFieldNode {
 pub struct GlobalNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
-    pub name: Token,
+    pub name: Identifier,
     pub ty: TypeExprNode,
     pub value: Option<ExprNode>,
 }
@@ -86,7 +100,7 @@ pub struct FunctionNode {
 pub struct SignatureNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
-    pub name: Token,
+    pub name: Identifier,
     pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<TypeExprNode>,
@@ -96,17 +110,17 @@ pub struct SignatureNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AnnotationNode {
     pub pos: Pos,
-    pub name: Token,
+    pub name: Identifier,
     pub arguments: Vec<Token>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TypeParameterNode {
-    pub name: Token,
+    pub name: Identifier,
 }
 
-impl From<Token> for TypeParameterNode {
-    fn from(name: Token) -> Self {
+impl From<Identifier> for TypeParameterNode {
+    fn from(name: Identifier) -> Self {
         Self { name }
     }
 }
@@ -114,7 +128,7 @@ impl From<Token> for TypeParameterNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParameterNode {
     pub pos: Pos,
-    pub name: Token,
+    pub name: Identifier,
     pub ty: TypeExprNode,
 }
 
@@ -144,7 +158,7 @@ impl TypeExprNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PathNode {
     // TODO: use type system to ensure the names is never empty
-    pub names: Vec<Token>,
+    pub names: Vec<Identifier>,
     pub args: Vec<TypeExprNode>,
 }
 
@@ -257,14 +271,14 @@ pub struct StructExprNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct KeyValue {
     pub pos: Pos,
-    pub key: Token,
+    pub key: Identifier,
     pub value: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SelectionExprNode {
     pub value: Box<ExprNode>,
-    pub selection: Token,
+    pub selection: Identifier,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -310,7 +324,7 @@ impl StatementNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct LetStatementNode {
     pub pos: Pos,
-    pub name: Token,
+    pub name: Identifier,
     pub kind: LetKind,
 }
 

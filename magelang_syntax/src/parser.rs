@@ -108,7 +108,9 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
             continue;
         }
 
-        let Some(name) = name else { continue };
+        let Some(name) = name.map(Identifier::from) else {
+            continue;
+        };
         let Some((_, arguments, _)) = args else {
             continue;
         };
@@ -159,7 +161,7 @@ fn parse_import<E: ErrorReporter>(
 ) -> Option<ImportNode> {
     let import_tok = f.take_if(TokenKind::Import)?;
     let pos = import_tok.pos;
-    let name = f.take(TokenKind::Ident)?;
+    let name = f.take(TokenKind::Ident)?.into();
     let path = f.take(TokenKind::StringLit)?;
     f.take(TokenKind::SemiColon)?;
     Some(ImportNode {
@@ -177,7 +179,7 @@ fn parse_global<E: ErrorReporter>(
     let let_tok = f.take_if(TokenKind::Let)?;
     let pos = let_tok.pos;
 
-    let name = f.take(TokenKind::Ident)?;
+    let name = f.take(TokenKind::Ident)?.into();
     f.take(TokenKind::Colon)?;
     let ty = parse_type_expr(f)?;
     let value = if f.take_if(TokenKind::Equal).is_some() {
@@ -297,11 +299,11 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
 }
 
 fn parse_path_for_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
-    let ident = f.take_if(TokenKind::Ident)?;
+    let ident = f.take_if(TokenKind::Ident)?.into();
 
     let mut names = vec![ident];
     while f.take_if(TokenKind::DoubleColon).is_some() {
-        let ident = f.take(TokenKind::Ident)?;
+        let ident = f.take(TokenKind::Ident)?.into();
         names.push(ident);
     }
 
@@ -328,7 +330,7 @@ fn parse_struct<E: ErrorReporter>(
     let struct_tok = f.take_if(TokenKind::Struct)?;
     let pos = struct_tok.pos;
 
-    let name = f.take(TokenKind::Ident);
+    let name = f.take(TokenKind::Ident).map(Identifier::from);
 
     let type_params = if f.kind() == TokenKind::Lt {
         let result = parse_sequence(
@@ -341,6 +343,7 @@ fn parse_struct<E: ErrorReporter>(
         result.map(|(_, type_params, _)| {
             type_params
                 .into_iter()
+                .map(Identifier::from)
                 .map(TypeParameterNode::from)
                 .collect()
         })
@@ -354,14 +357,10 @@ fn parse_struct<E: ErrorReporter>(
         TokenKind::Comma,
         TokenKind::CloseBlock,
         |parser| {
-            let name = parser.take(TokenKind::Ident)?;
+            let name = parser.take(TokenKind::Ident)?.into();
             parser.take(TokenKind::Colon);
             let ty = parse_type_expr(parser)?;
-            Some(StructFieldNode {
-                pos: name.pos,
-                name,
-                ty,
-            })
+            Some(StructFieldNode { name, ty })
         },
     );
     if fields.is_none() {
@@ -410,7 +409,7 @@ fn parse_signature<E: ErrorReporter>(
 ) -> Option<SignatureNode> {
     let func = f.take(TokenKind::Fn)?;
     let pos = func.pos;
-    let name = f.take(TokenKind::Ident)?;
+    let name: Identifier = f.take(TokenKind::Ident)?.into();
 
     let type_params = if f.kind() == TokenKind::Lt {
         let (_, type_parameters, _) = parse_sequence(
@@ -422,6 +421,7 @@ fn parse_signature<E: ErrorReporter>(
         )?;
         type_parameters
             .into_iter()
+            .map(Identifier::from)
             .map(TypeParameterNode::from)
             .collect()
     } else {
@@ -472,7 +472,7 @@ fn parse_signature<E: ErrorReporter>(
 }
 
 fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterNode> {
-    let name = f.take_if(TokenKind::Ident)?;
+    let name: Identifier = f.take_if(TokenKind::Ident)?.into();
     let pos = name.pos;
     f.take(TokenKind::Colon);
     let ty = parse_type_expr(f)?;
@@ -509,7 +509,7 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
     let let_tok = f.take(TokenKind::Let)?;
     let pos = let_tok.pos;
 
-    let name = f.take(TokenKind::Ident)?;
+    let name: Identifier = f.take(TokenKind::Ident)?.into();
 
     if f.take_if(TokenKind::Colon).is_some() {
         let ty = parse_type_expr(f)?;
@@ -765,7 +765,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                 f.take(TokenKind::Dot)?;
                 match f.kind() {
                     TokenKind::Ident => {
-                        let selection = f.take(TokenKind::Ident)?;
+                        let selection: Identifier = f.take(TokenKind::Ident)?.into();
                         ExprNode::Selection(SelectionExprNode {
                             value: Box::new(target),
                             selection,
@@ -815,7 +815,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                     TokenKind::Comma,
                     TokenKind::CloseBlock,
                     |parser| {
-                        let key = parser.take(TokenKind::Ident)?;
+                        let key: Identifier = parser.take(TokenKind::Ident)?.into();
                         parser.take(TokenKind::Colon)?;
                         let value = parse_expr(parser, true)?;
                         Some(KeyValue {
@@ -890,14 +890,14 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
 }
 
 fn parse_path_for_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
-    let ident = f.take_if(TokenKind::Ident)?;
+    let ident = f.take_if(TokenKind::Ident)?.into();
 
     let mut names = vec![ident];
     let mut args = Vec::default();
     while f.take_if(TokenKind::DoubleColon).is_some() {
         match f.kind() {
             TokenKind::Ident => {
-                let ident = f.take(TokenKind::Ident).unwrap();
+                let ident = f.take(TokenKind::Ident).unwrap().into();
                 names.push(ident);
             }
             TokenKind::Lt => {
