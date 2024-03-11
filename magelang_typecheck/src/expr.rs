@@ -7,7 +7,7 @@ use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     get_raw_char_lit, get_raw_string_lit, BinaryExprNode, CallExprNode, CastExprNode,
     DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number, PathNode, Pos,
-    SelectionExprNode, StructExprNode, Token, TokenKind, UnaryExprNode,
+    SelectionExprNode, StringLit, StructExprNode, Token, TokenKind, UnaryExprNode,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -286,7 +286,7 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
         },
         ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
         ExprNode::Char(token) => get_expr_from_char_lit(ctx, expected_type, token),
-        ExprNode::String(token) => get_expr_from_string_lit(ctx, token),
+        ExprNode::String(string_lit) => get_expr_from_string_lit(ctx, string_lit),
         ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, expected_type, node),
         ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, expected_type, node),
         ExprNode::Unary(node) => get_expr_from_unary_node(ctx, scope, expected_type, node),
@@ -635,7 +635,7 @@ fn get_expr_from_char_lit<'a, E: ErrorReporter>(
 
 fn get_expr_from_string_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-    token: &Token,
+    token: &StringLit,
 ) -> Expr<'a> {
     let u8_ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,

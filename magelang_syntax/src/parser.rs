@@ -114,6 +114,7 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
         let Some((_, arguments, _)) = args else {
             continue;
         };
+        let arguments = arguments.into_iter().map(StringLit::from).collect();
         result.push(AnnotationNode {
             pos,
             name,
@@ -162,7 +163,7 @@ fn parse_import<E: ErrorReporter>(
     let import_tok = f.take_if(TokenKind::Import)?;
     let pos = import_tok.pos;
     let name = f.take(TokenKind::Ident)?.into();
-    let path = f.take(TokenKind::StringLit)?;
+    let path = f.take(TokenKind::StringLit)?.into();
     f.take(TokenKind::SemiColon)?;
     Some(ImportNode {
         pos,
@@ -853,8 +854,8 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         | ExprNode::Null(tok)
         | ExprNode::Bool(tok)
         | ExprNode::Char(tok)
-        | ExprNode::String(tok)
         | ExprNode::Unary(UnaryExprNode { op: tok, value: _ }) => TypeExprNode::Invalid(tok.pos),
+        ExprNode::String(string_lit) => TypeExprNode::Invalid(string_lit.pos),
         ExprNode::Selection(..) => TypeExprNode::Invalid(pos),
         ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
         ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
@@ -870,7 +871,10 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
         TokenKind::Ident => parse_path_for_expr(f).map(ExprNode::Path),
         TokenKind::NumberLit => f.take(TokenKind::NumberLit).map(ExprNode::Number),
         TokenKind::CharLit => f.take(TokenKind::CharLit).map(ExprNode::Char),
-        TokenKind::StringLit => f.take(TokenKind::StringLit).map(ExprNode::String),
+        TokenKind::StringLit => f
+            .take(TokenKind::StringLit)
+            .map(StringLit::from)
+            .map(ExprNode::String),
         TokenKind::Null => f.take(TokenKind::Null).map(ExprNode::Null),
         TokenKind::True => f.take(TokenKind::True).map(ExprNode::Bool),
         TokenKind::False => f.take(TokenKind::False).map(ExprNode::Bool),

@@ -47,7 +47,22 @@ pub struct ImportNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
-    pub path: Token,
+    pub path: StringLit,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct StringLit {
+    pub value: String,
+    pub pos: Pos,
+}
+
+impl From<Token> for StringLit {
+    fn from(value: Token) -> Self {
+        Self {
+            value: value.value,
+            pos: value.pos,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -111,7 +126,7 @@ pub struct SignatureNode {
 pub struct AnnotationNode {
     pub pos: Pos,
     pub name: Identifier,
-    pub arguments: Vec<Token>,
+    pub arguments: Vec<StringLit>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -195,7 +210,7 @@ pub enum ExprNode {
     Null(Token),
     Bool(Token),
     Char(Token),
-    String(Token),
+    String(StringLit),
     Binary(BinaryExprNode),
     Deref(DerefExprNode),
     Unary(UnaryExprNode),
