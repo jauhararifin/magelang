@@ -5,9 +5,9 @@ use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
-    get_raw_char_lit, get_raw_string_lit, BinaryExprNode, BoolLiteral, CallExprNode, CastExprNode,
-    DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number, PathNode, Pos,
-    SelectionExprNode, StringLit, StructExprNode, Token, TokenKind, UnaryExprNode,
+    get_raw_char_lit, get_raw_string_lit, BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode,
+    CastExprNode, DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number,
+    PathNode, Pos, SelectionExprNode, StringLit, StructExprNode, Token, TokenKind, UnaryExprNode,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -669,37 +669,36 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     let a = get_expr_from_node(ctx, scope, expected_type, &node.a);
     let b = get_expr_from_node(ctx, scope, Some(a.ty), &node.b);
 
-    let op_name = match node.op.kind {
-        TokenKind::Add => "add",
-        TokenKind::Sub => "sub",
-        TokenKind::Mul => "mul",
-        TokenKind::Div => "div",
-        TokenKind::Mod => "mod",
-        TokenKind::BitOr => "bitwise or",
-        TokenKind::BitAnd => "bitwise and",
-        TokenKind::BitXor => "bitwise xor",
-        TokenKind::ShiftLeft => "shift left",
-        TokenKind::ShiftRight => "shift right",
-        TokenKind::And => "and",
-        TokenKind::Or => "or",
-        TokenKind::Eq => "eq",
-        TokenKind::NEq => "neq",
-        TokenKind::Gt => "gt",
-        TokenKind::GEq => "geq",
-        TokenKind::Lt => "lt",
-        TokenKind::LEq => "leq",
-        _ => unreachable!("found invalid token for binary operator"),
+    let op_name = match node.op {
+        BinaryOp::Add => "add",
+        BinaryOp::Sub => "sub",
+        BinaryOp::Mul => "mul",
+        BinaryOp::Div => "div",
+        BinaryOp::Mod => "mod",
+        BinaryOp::BitOr => "bitwise or",
+        BinaryOp::BitAnd => "bitwise and",
+        BinaryOp::BitXor => "bitwise xor",
+        BinaryOp::ShiftLeft => "shift left",
+        BinaryOp::ShiftRight => "shift right",
+        BinaryOp::And => "and",
+        BinaryOp::Or => "or",
+        BinaryOp::Eq => "eq",
+        BinaryOp::NEq => "neq",
+        BinaryOp::Gt => "gt",
+        BinaryOp::GEq => "geq",
+        BinaryOp::Lt => "lt",
+        BinaryOp::LEq => "leq",
     };
 
-    let estimated_type = match node.op.kind {
-        TokenKind::Eq
-        | TokenKind::NEq
-        | TokenKind::Gt
-        | TokenKind::GEq
-        | TokenKind::Lt
-        | TokenKind::LEq
-        | TokenKind::And
-        | TokenKind::Or => ctx.define_type(Type {
+    let estimated_type = match node.op {
+        BinaryOp::Eq
+        | BinaryOp::NEq
+        | BinaryOp::Gt
+        | BinaryOp::GEq
+        | BinaryOp::Lt
+        | BinaryOp::LEq
+        | BinaryOp::And
+        | BinaryOp::Or => ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Bool,
         }),
@@ -717,8 +716,8 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         };
     }
 
-    let result_ty = match node.op.kind {
-        TokenKind::Add | TokenKind::Sub | TokenKind::Mul | TokenKind::Div => {
+    let result_ty = match node.op {
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
             if a.ty.is_arithmetic() {
                 a.ty
             } else {
@@ -730,7 +729,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
                 })
             }
         }
-        TokenKind::Eq | TokenKind::NEq => {
+        BinaryOp::Eq | BinaryOp::NEq => {
             if a.ty.is_strictly_opaque() {
                 let a_is_null = matches!(a.kind, ExprKind::Zero);
                 let b_is_null = matches!(b.kind, ExprKind::Zero);
@@ -744,7 +743,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
                 repr: TypeRepr::Bool,
             })
         }
-        TokenKind::Gt | TokenKind::GEq | TokenKind::Lt | TokenKind::LEq => {
+        BinaryOp::Gt | BinaryOp::GEq | BinaryOp::Lt | BinaryOp::LEq => {
             if a.ty.is_arithmetic() {
                 ctx.define_type(Type {
                     kind: TypeKind::Anonymous,
@@ -759,12 +758,12 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
                 })
             }
         }
-        TokenKind::Mod
-        | TokenKind::BitOr
-        | TokenKind::BitAnd
-        | TokenKind::BitXor
-        | TokenKind::ShiftLeft
-        | TokenKind::ShiftRight => {
+        BinaryOp::Mod
+        | BinaryOp::BitOr
+        | BinaryOp::BitAnd
+        | BinaryOp::BitXor
+        | BinaryOp::ShiftLeft
+        | BinaryOp::ShiftRight => {
             if a.ty.is_int() {
                 a.ty
             } else {
@@ -776,7 +775,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
                 })
             }
         }
-        TokenKind::And | TokenKind::Not | TokenKind::Or => {
+        BinaryOp::And | BinaryOp::Or => {
             if a.ty.is_bool() {
                 ctx.define_type(Type {
                     kind: TypeKind::Anonymous,
@@ -791,31 +790,29 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
                 })
             }
         }
-        op => unreachable!("token {op} is not a binary operator"),
     };
 
     let a = ctx.arena.alloc(a);
     let b = ctx.arena.alloc(b);
-    let expr_kind = match node.op.kind {
-        TokenKind::Add => ExprKind::Add(a, b),
-        TokenKind::Sub => ExprKind::Sub(a, b),
-        TokenKind::Mul => ExprKind::Mul(a, b),
-        TokenKind::Div => ExprKind::Div(a, b),
-        TokenKind::Mod => ExprKind::Mod(a, b),
-        TokenKind::BitOr => ExprKind::BitOr(a, b),
-        TokenKind::BitAnd => ExprKind::BitAnd(a, b),
-        TokenKind::BitXor => ExprKind::BitXor(a, b),
-        TokenKind::ShiftLeft => ExprKind::ShiftLeft(a, b),
-        TokenKind::ShiftRight => ExprKind::ShiftRight(a, b),
-        TokenKind::And => ExprKind::And(a, b),
-        TokenKind::Or => ExprKind::Or(a, b),
-        TokenKind::Eq => ExprKind::Eq(a, b),
-        TokenKind::NEq => ExprKind::NEq(a, b),
-        TokenKind::Gt => ExprKind::Gt(a, b),
-        TokenKind::GEq => ExprKind::GEq(a, b),
-        TokenKind::Lt => ExprKind::Lt(a, b),
-        TokenKind::LEq => ExprKind::LEq(a, b),
-        op => unreachable!("token {op} is not a binary operator"),
+    let expr_kind = match node.op {
+        BinaryOp::Add => ExprKind::Add(a, b),
+        BinaryOp::Sub => ExprKind::Sub(a, b),
+        BinaryOp::Mul => ExprKind::Mul(a, b),
+        BinaryOp::Div => ExprKind::Div(a, b),
+        BinaryOp::Mod => ExprKind::Mod(a, b),
+        BinaryOp::BitOr => ExprKind::BitOr(a, b),
+        BinaryOp::BitAnd => ExprKind::BitAnd(a, b),
+        BinaryOp::BitXor => ExprKind::BitXor(a, b),
+        BinaryOp::ShiftLeft => ExprKind::ShiftLeft(a, b),
+        BinaryOp::ShiftRight => ExprKind::ShiftRight(a, b),
+        BinaryOp::And => ExprKind::And(a, b),
+        BinaryOp::Or => ExprKind::Or(a, b),
+        BinaryOp::Eq => ExprKind::Eq(a, b),
+        BinaryOp::NEq => ExprKind::NEq(a, b),
+        BinaryOp::Gt => ExprKind::Gt(a, b),
+        BinaryOp::GEq => ExprKind::GEq(a, b),
+        BinaryOp::Lt => ExprKind::Lt(a, b),
+        BinaryOp::LEq => ExprKind::LEq(a, b),
     };
 
     Expr {

@@ -277,8 +277,56 @@ impl From<Token> for BoolLiteral {
 #[derive(Debug, PartialEq, Eq)]
 pub struct BinaryExprNode {
     pub a: Box<ExprNode>,
-    pub op: Token,
+    pub op: BinaryOp,
     pub b: Box<ExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    BitOr,
+    BitAnd,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
+    And,
+    Or,
+    Eq,
+    NEq,
+    Gt,
+    GEq,
+    Lt,
+    LEq,
+}
+
+impl From<TokenKind> for BinaryOp {
+    fn from(value: TokenKind) -> Self {
+        match value {
+            TokenKind::Add => Self::Add,
+            TokenKind::Sub => Self::Sub,
+            TokenKind::Mul => Self::Mul,
+            TokenKind::Div => Self::Div,
+            TokenKind::Mod => Self::Mod,
+            TokenKind::BitOr => Self::BitOr,
+            TokenKind::BitAnd => Self::BitAnd,
+            TokenKind::BitXor => Self::BitXor,
+            TokenKind::ShiftLeft => Self::ShiftLeft,
+            TokenKind::ShiftRight => Self::ShiftRight,
+            TokenKind::And => Self::And,
+            TokenKind::Or => Self::Or,
+            TokenKind::Eq => Self::Eq,
+            TokenKind::NEq => Self::NEq,
+            TokenKind::Gt => Self::Gt,
+            TokenKind::GEq => Self::GEq,
+            TokenKind::Lt => Self::Lt,
+            TokenKind::LEq => Self::LEq,
+            _ => unreachable!("{value} is not a binary operator"),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

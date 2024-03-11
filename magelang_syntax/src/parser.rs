@@ -691,7 +691,7 @@ fn parse_binary_expr<E: ErrorReporter>(
 
         result = ExprNode::Binary(BinaryExprNode {
             a: Box::new(result),
-            op: op_token,
+            op: op_token.kind.into(),
             b: Box::new(b),
         });
     }
