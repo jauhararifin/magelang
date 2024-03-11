@@ -37,9 +37,8 @@ impl ErrorReporter for ErrorManager {
         let err = Error { pos, message };
         if self.panic_on_error {
             panic!("pos={:?} message={}", err.pos, err.message);
-        } else {
-            self.errors.borrow_mut().insert(err);
         }
+        self.errors.borrow_mut().insert(err);
     }
 
     fn has_errors(&self) -> bool {

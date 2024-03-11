@@ -485,8 +485,8 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
         TokenKind::If => StatementNode::If(parse_if_stmt(f)?),
         TokenKind::While => StatementNode::While(parse_while_stmt(f)?),
         TokenKind::OpenBlock => StatementNode::Block(parse_block_stmt(f)?),
-        TokenKind::Continue => StatementNode::Continue(f.take(TokenKind::Continue).unwrap()),
-        TokenKind::Break => StatementNode::Break(f.take(TokenKind::Break).unwrap()),
+        TokenKind::Continue => StatementNode::Continue(f.take(TokenKind::Continue).unwrap().pos),
+        TokenKind::Break => StatementNode::Break(f.take(TokenKind::Break).unwrap().pos),
         TokenKind::Return => StatementNode::Return(parse_return_stmt(f)?),
         _ => {
             let expr = parse_expr(f, true)?;

@@ -7,7 +7,7 @@ use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
     AssignStatementNode, BlockStatementNode, ErrorReporter, IfStatementNode, LetKind,
-    LetStatementNode, ReturnStatementNode, StatementNode, Token, TokenKind, WhileStatementNode,
+    LetStatementNode, Pos, ReturnStatementNode, StatementNode, WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -143,9 +143,8 @@ pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
         StatementNode::Block(node) => get_statement_from_block(ctx, node),
         StatementNode::If(node) => get_statement_from_if(ctx, node),
         StatementNode::While(node) => get_statement_from_while(ctx, node),
-        StatementNode::Continue(token) | StatementNode::Break(token) => {
-            get_statement_from_keyword(ctx, token)
-        }
+        StatementNode::Continue(pos) => get_statement_from_continue(ctx, *pos),
+        StatementNode::Break(pos) => get_statement_from_break(ctx, *pos),
         StatementNode::Return(node) => get_statement_from_return(ctx, node),
         StatementNode::Expr(node) => StatementResult {
             statement: Statement::Expr(get_expr_from_node(ctx.ctx, ctx.scope, None, node)),
@@ -375,34 +374,33 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_keyword<'a, E: ErrorReporter>(
+pub(crate) fn get_statement_from_continue<'a, E: ErrorReporter>(
     ctx: &StatementContext<'a, '_, '_, E>,
-    token: &Token,
+    pos: Pos,
 ) -> StatementResult<'a> {
-    match token.kind {
-        TokenKind::Continue => {
-            if !ctx.is_inside_loop {
-                ctx.ctx.errors.operation_outside_loop(token.pos, "continue");
-            }
-            StatementResult {
-                statement: Statement::Continue,
-                new_scope: None,
-                is_returning: false,
-                last_unused_local: ctx.last_unused_local,
-            }
-        }
-        TokenKind::Break => {
-            if !ctx.is_inside_loop {
-                ctx.ctx.errors.operation_outside_loop(token.pos, "break");
-            }
-            StatementResult {
-                statement: Statement::Break,
-                new_scope: None,
-                is_returning: false,
-                last_unused_local: ctx.last_unused_local,
-            }
-        }
-        _ => unreachable!("the keyword is not a statement"),
+    if !ctx.is_inside_loop {
+        ctx.ctx.errors.operation_outside_loop(pos, "continue");
+    }
+    StatementResult {
+        statement: Statement::Continue,
+        new_scope: None,
+        is_returning: false,
+        last_unused_local: ctx.last_unused_local,
+    }
+}
+
+pub(crate) fn get_statement_from_break<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, '_, E>,
+    pos: Pos,
+) -> StatementResult<'a> {
+    if !ctx.is_inside_loop {
+        ctx.ctx.errors.operation_outside_loop(pos, "break");
+    }
+    StatementResult {
+        statement: Statement::Break,
+        new_scope: None,
+        is_returning: false,
+        last_unused_local: ctx.last_unused_local,
     }
 }
 

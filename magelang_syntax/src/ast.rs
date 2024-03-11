@@ -285,8 +285,8 @@ pub enum StatementNode {
     Block(BlockStatementNode),
     If(IfStatementNode),
     While(WhileStatementNode),
-    Continue(Token),
-    Break(Token),
+    Continue(Pos),
+    Break(Pos),
     Return(ReturnStatementNode),
     Expr(ExprNode),
 }
@@ -299,8 +299,8 @@ impl StatementNode {
             Self::Block(node) => node.pos,
             Self::If(node) => node.pos,
             Self::While(node) => node.pos,
-            Self::Continue(node) => node.pos,
-            Self::Break(node) => node.pos,
+            Self::Continue(pos) => *pos,
+            Self::Break(pos) => *pos,
             Self::Return(node) => node.pos,
             Self::Expr(node) => node.pos(),
         }
