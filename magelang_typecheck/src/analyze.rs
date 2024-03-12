@@ -14,8 +14,8 @@ use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    get_raw_string_lit, parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode,
-    GlobalNode, ItemNode, PackageNode, Pos, StructNode,
+    parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
+    PackageNode, Pos, StructNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -294,8 +294,7 @@ fn get_all_package_asts<'a>(
             .items
             .iter()
             .filter_map(ItemNode::as_import)
-            .filter_map(|node| get_raw_string_lit(node.path.value.as_str()).ok())
-            .filter_map(|bytes| String::from_utf8(bytes).ok());
+            .filter_map(|node| std::str::from_utf8(&node.path.value).ok());
 
         for import_path in import_paths {
             let package_path = symbols.define(&import_path);
@@ -330,19 +329,14 @@ fn build_imports<'a, E: ErrorReporter>(
                 name: object_name,
             };
 
-            let Some(package_path) = get_raw_string_lit(&import_node.path.value).ok() else {
-                ctx.errors.invalid_utf8_package(import_node.path.pos);
-                continue;
-            };
-
-            let package_path = match String::from_utf8(package_path) {
+            let package_path = match std::str::from_utf8(&import_node.path.value) {
                 Ok(v) => v,
                 Err(..) => {
                     ctx.errors.invalid_utf8_package(import_node.path.pos);
                     continue;
                 }
             };
-            let package = ctx.define_symbol(package_path.as_str());
+            let package = ctx.define_symbol(package_path);
 
             let pos = item.pos();
             if let Some(declared_at) = object_pos.get(&object_id) {
@@ -620,19 +614,13 @@ fn build_annotations_from_node<E: ErrorReporter>(
         let mut arguments = Vec::default();
         let mut valid = true;
         for arg in &annotation_node.arguments {
-            let Some(arg_value) = get_raw_string_lit(&arg.value).ok() else {
+            let Some(arg_value) = std::str::from_utf8(&arg.value).ok() else {
                 ctx.errors.invalid_utf8_string(arg.pos);
                 valid = false;
                 continue;
             };
 
-            let Ok(arg_value) = String::from_utf8(arg_value) else {
-                ctx.errors.invalid_utf8_string(arg.pos);
-                valid = false;
-                continue;
-            };
-
-            arguments.push(arg_value);
+            arguments.push(arg_value.to_string());
         }
         if valid {
             annotations.push(Annotation {

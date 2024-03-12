@@ -871,7 +871,10 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
     match f.kind() {
         TokenKind::Ident => parse_path_for_expr(f).map(ExprNode::Path),
         TokenKind::NumberLit => f.take(TokenKind::NumberLit).map(ExprNode::Number),
-        TokenKind::CharLit => f.take(TokenKind::CharLit).map(ExprNode::Char),
+        TokenKind::CharLit => f
+            .take(TokenKind::CharLit)
+            .map(CharLit::from)
+            .map(ExprNode::Char),
         TokenKind::StringLit => f
             .take(TokenKind::StringLit)
             .map(StringLit::from)
@@ -958,7 +961,9 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         } else {
             Token {
                 kind: TokenKind::Eof,
-                value: "".into(),
+                value_str: "".into(),
+                value_bytes: Vec::default(),
+                char_value: '\0',
                 pos: self.last_pos,
             }
         }
@@ -977,7 +982,9 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         } else {
             Token {
                 kind: TokenKind::Eof,
-                value: "".into(),
+                value_str: "".into(),
+                value_bytes: Vec::default(),
+                char_value: '\0',
                 pos: self.last_pos,
             }
         }
@@ -1021,12 +1028,16 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             let pos = tok.pos;
             self.tokens.push_front(Token {
                 kind: TokenKind::Gt,
-                value: ">".to_string(),
+                value_str: ">".to_string(),
+                value_bytes: Vec::default(),
+                char_value: '\0',
                 pos: pos.with_offset(1),
             });
             self.tokens.push_front(Token {
                 kind: TokenKind::Gt,
-                value: ">".to_string(),
+                value_str: ">".to_string(),
+                value_bytes: Vec::default(),
+                char_value: '\0',
                 pos,
             });
         }

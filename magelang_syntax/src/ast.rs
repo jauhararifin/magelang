@@ -15,7 +15,7 @@ pub struct Comment {
 impl From<Token> for Comment {
     fn from(value: Token) -> Self {
         Self {
-            value: value.value,
+            value: value.value_str,
             pos: value.pos,
         }
     }
@@ -67,14 +67,14 @@ pub struct ImportNode {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StringLit {
-    pub value: String,
+    pub value: Vec<u8>,
     pub pos: Pos,
 }
 
 impl From<Token> for StringLit {
     fn from(value: Token) -> Self {
         Self {
-            value: value.value,
+            value: value.value_bytes,
             pos: value.pos,
         }
     }
@@ -89,7 +89,7 @@ pub struct Identifier {
 impl From<Token> for Identifier {
     fn from(value: Token) -> Self {
         Self {
-            value: value.value,
+            value: value.value_str,
             pos: value.pos,
         }
     }
@@ -224,7 +224,7 @@ pub enum ExprNode {
     Number(Token),
     Null(Pos),
     Bool(BoolLiteral),
-    Char(Token),
+    Char(CharLit),
     String(StringLit),
     Binary(BinaryExprNode),
     Deref(DerefExprNode),
@@ -255,6 +255,21 @@ impl ExprNode {
             Self::Selection(node) => node.value.pos(),
             Self::Index(node) => node.value.pos(),
             Self::Grouped(node) => node.pos(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct CharLit {
+    pub value: char,
+    pub pos: Pos,
+}
+
+impl From<Token> for CharLit {
+    fn from(value: Token) -> Self {
+        Self {
+            value: value.char_value,
+            pos: value.pos,
         }
     }
 }

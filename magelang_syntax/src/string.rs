@@ -1,13 +1,3 @@
-pub fn get_raw_string_lit(literal: &str) -> Result<Vec<u8>, Vec<StringError>> {
-    let mut builder = StringBuilder::default();
-    for c in literal.chars() {
-        if !builder.add(c) {
-            break;
-        }
-    }
-    builder.build_raw()
-}
-
 #[derive(Default)]
 pub(crate) struct StringBuilder {
     value: String,
@@ -29,19 +19,19 @@ enum State {
 }
 
 #[derive(Debug)]
-pub enum StringError {
+pub(crate) enum StringError {
     UnknownEscape { offset: usize, c: char },
     UnexpectedHex { offset: usize, c: char },
     MissingClosingQuote { offset: usize },
 }
 
 pub(crate) struct StringLiteral {
-    pub(crate) value: String,
+    pub(crate) value: Vec<u8>,
     pub(crate) errors: Vec<StringError>,
 }
 
 impl StringBuilder {
-    pub fn add(&mut self, c: char) -> bool {
+    pub(crate) fn add(&mut self, c: char) -> bool {
         match self.state {
             State::Init => {
                 if c == '"' {
@@ -152,7 +142,7 @@ impl StringBuilder {
         true
     }
 
-    pub fn build_literal(self) -> StringLiteral {
+    pub(crate) fn build_literal(self) -> StringLiteral {
         let mut errors = self.errors;
         if !matches!(self.state, State::Closed) {
             errors.push(StringError::MissingClosingQuote {
@@ -161,32 +151,9 @@ impl StringBuilder {
         }
 
         StringLiteral {
-            value: self.value,
+            value: self.raw,
             errors,
         }
-    }
-
-    pub fn build_raw(self) -> Result<Vec<u8>, Vec<StringError>> {
-        if !self.errors.is_empty() {
-            Err(self.errors)
-        } else {
-            Ok(self.raw)
-        }
-    }
-}
-
-pub fn get_raw_char_lit(literal: &str) -> Result<char, Vec<CharError>> {
-    let mut builder = CharBuilder::default();
-    for c in literal.chars() {
-        if !builder.add(c) {
-            break;
-        }
-    }
-    let literal = builder.build_literal();
-    if literal.errors.is_empty() {
-        Ok(literal.value)
-    } else {
-        Err(literal.errors)
     }
 }
 
@@ -213,7 +180,7 @@ enum CharState {
 }
 
 #[derive(Debug)]
-pub enum CharError {
+pub(crate) enum CharError {
     UnknownEscape { offset: usize, c: char },
     UnexpectedHex { offset: usize, c: char },
     Multichar { offset: usize },
@@ -221,13 +188,12 @@ pub enum CharError {
 }
 
 pub(crate) struct CharLiteral {
-    pub(crate) raw: String,
     pub(crate) value: char,
     pub(crate) errors: Vec<CharError>,
 }
 
 impl CharBuilder {
-    pub fn add(&mut self, c: char) -> bool {
+    pub(crate) fn add(&mut self, c: char) -> bool {
         match self.state {
             CharState::Init => {
                 if c == '\'' {
@@ -349,7 +315,7 @@ impl CharBuilder {
         true
     }
 
-    pub fn build_literal(self) -> CharLiteral {
+    pub(crate) fn build_literal(self) -> CharLiteral {
         let mut errors = self.errors;
         if !matches!(self.state, CharState::Closed) {
             errors.push(CharError::MissingClosingQuote {
@@ -358,7 +324,6 @@ impl CharBuilder {
         }
 
         CharLiteral {
-            raw: self.raw,
             value: self.value,
             errors,
         }

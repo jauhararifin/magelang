@@ -78,8 +78,19 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             "break" => TokenKind::Break,
             _ => TokenKind::Ident,
         };
+        let value_str = if kind == TokenKind::Ident {
+            value
+        } else {
+            String::default()
+        };
 
-        Some(Token { kind, value, pos })
+        Some(Token {
+            kind,
+            value_str,
+            value_bytes: Vec::default(),
+            char_value: '\0',
+            pos,
+        })
     }
 
     fn scan_char_lit(&mut self) -> Option<Token> {
@@ -117,7 +128,9 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::CharLit,
-            value: literal.raw,
+            value_str: String::default(),
+            value_bytes: Vec::default(),
+            char_value: literal.value,
             pos,
         })
     }
@@ -154,7 +167,9 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::StringLit,
-            value: literal.value,
+            value_str: String::default(),
+            value_bytes: literal.value,
+            char_value: '\0',
             pos,
         })
     }
@@ -198,7 +213,9 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::NumberLit,
-            value: literal.value,
+            value_str: literal.value,
+            value_bytes: Vec::default(),
+            char_value: '\0',
             pos,
         })
     }
@@ -225,7 +242,9 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::Comment,
-            value,
+            value_str: value,
+            value_bytes: Vec::default(),
+            char_value: '\0',
             pos,
         })
     }
@@ -271,7 +290,6 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let top = self.peek()?;
         let pos = top.1;
 
-        let mut value = String::new();
         let mut sym = String::new();
         let mut kind = TokenKind::Invalid;
 
@@ -286,14 +304,19 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 break;
             }
 
-            value.push(c);
             self.next();
         }
 
         if let TokenKind::Invalid = kind {
             None
         } else {
-            Some(Token { kind, value, pos })
+            Some(Token {
+                kind,
+                value_str: String::default(),
+                value_bytes: Vec::default(),
+                char_value: '\0',
+                pos,
+            })
         }
     }
 
@@ -302,7 +325,9 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         self.errors.unexpected_char(pos, c);
         Some(Token {
             kind: TokenKind::Invalid,
-            value: c.to_string(),
+            value_str: c.to_string(),
+            value_bytes: Vec::default(),
+            char_value: '\0',
             pos,
         })
     }
@@ -417,14 +442,14 @@ string"
         let tokens = scan(&error_manager, &file);
 
         assert_eq!(tokens[0].kind, TokenKind::Comment);
-        assert_eq!(&tokens[0].value, "// a simple comment\n");
+        assert_eq!(&tokens[0].value_str, "// a simple comment\n");
 
         assert_eq!(tokens[1].kind, TokenKind::Comment);
-        assert_eq!(&tokens[1].value, "// another comment\n");
+        assert_eq!(&tokens[1].value_str, "// another comment\n");
         assert_eq!(tokens[2].kind, TokenKind::Comment);
-        assert_eq!(&tokens[2].value, "// with multiline\n");
+        assert_eq!(&tokens[2].value_str, "// with multiline\n");
         assert_eq!(tokens[3].kind, TokenKind::Comment);
-        assert_eq!(&tokens[3].value, "// grouped comment\n");
+        assert_eq!(&tokens[3].value_str, "// grouped comment\n");
 
         assert_eq!(tokens[4].kind, TokenKind::Let);
         assert_eq!(tokens[5].kind, TokenKind::Ident);
@@ -432,27 +457,30 @@ string"
         assert_eq!(tokens[7].kind, TokenKind::NumberLit);
         assert_eq!(tokens[8].kind, TokenKind::SemiColon);
         assert_eq!(tokens[9].kind, TokenKind::Comment);
-        assert_eq!(&tokens[9].value, "// comment in the end\n");
+        assert_eq!(&tokens[9].value_str, "// comment in the end\n");
 
         assert_eq!(tokens[10].kind, TokenKind::Comment);
         assert_eq!(
-            &tokens[10].value,
+            &tokens[10].value_str,
             "// nested comment // is considered a single comment\n"
         );
 
-        assert_eq!(&tokens[11].value, "// unicode\n");
-        assert_eq!(&tokens[12].value, "// a۰۱۸\n");
-        assert_eq!(&tokens[13].value, "// foo६४\n");
-        assert_eq!(&tokens[14].value, "// ŝ\n");
-        assert_eq!(&tokens[15].value, "// ŝfoo\n");
+        assert_eq!(&tokens[11].value_str, "// unicode\n");
+        assert_eq!(&tokens[12].value_str, "// a۰۱۸\n");
+        assert_eq!(&tokens[13].value_str, "// foo६४\n");
+        assert_eq!(&tokens[14].value_str, "// ŝ\n");
+        assert_eq!(&tokens[15].value_str, "// ŝfoo\n");
 
         assert_eq!(tokens[16].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[16].value, r#""this is a string // not a comment""#);
+        assert_eq!(
+            std::str::from_utf8(&tokens[16].value_bytes).unwrap(),
+            r#"this is a string // not a comment"#
+        );
 
         assert_eq!(tokens[17].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[17].value,
-            "\"this is\na multi line // not a comment\nstring\""
+            std::str::from_utf8(&tokens[17].value_bytes).unwrap(),
+            "this is\na multi line // not a comment\nstring"
         );
 
         assert!(!error_manager.has_errors());
@@ -480,36 +508,48 @@ string"
         let tokens = scan(&error_manager, &file);
 
         assert_eq!(tokens[0].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[0].value, r#""basic string""#);
+        assert_eq!(
+            std::str::from_utf8(&tokens[0].value_bytes).unwrap(),
+            r#"basic string"#
+        );
         assert_eq!(tokens[1].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[1].value,
-            r#""this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly""#
+            std::str::from_utf8(&tokens[1].value_bytes).unwrap(),
+            r#"this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly"#
         );
         assert_eq!(tokens[2].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[2].value, r#""this is a string // not a comment""#);
+        assert_eq!(
+            std::str::from_utf8(&tokens[2].value_bytes).unwrap(),
+            r#"this is a string // not a comment"#
+        );
         assert_eq!(tokens[3].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[3].value,
-            r#""hex escape like \x00\x12\xAb\xCd\xef\xEF are fine""#
+            tokens[3].value_bytes.as_slice(),
+            b"hex escape like \x00\x12\xAb\xCd\xef\xEF are fine",
         );
         assert_eq!(tokens[4].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[4].value, r#""\n\r\t\\\0\"\''""#);
+        assert_eq!(&tokens[4].value_bytes, b"\n\r\t\\\0\"\''",);
         assert_eq!(tokens[5].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[5].value,
-            r#""multiline
-            string""#
+            std::str::from_utf8(&tokens[5].value_bytes).unwrap(),
+            r#"multiline
+            string"#
         );
         assert_eq!(tokens[6].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[6].value,
-            r#""invalid escape \a\b\c\d\e\f\g\h\i\j\k\l\m\o\p\q\s\u\v\w\y\z""#
+            &tokens[6].value_bytes,
+            b"invalid escape ",
         );
         assert_eq!(tokens[7].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[7].value, r#""invalid hex \xgh\x\\x""#);
+        assert_eq!(
+            &tokens[7].value_bytes,
+            b"invalid hex h",
+        );
         assert_eq!(tokens[8].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[8].value, r#""missing closing quote"#);
+        assert_eq!(
+            std::str::from_utf8(&tokens[8].value_bytes).unwrap(),
+            r#"missing closing quote"#
+        );
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 26);
@@ -589,66 +629,66 @@ string"
         assert!(tokens[0..8]
             .iter()
             .all(|token| token.kind == TokenKind::NumberLit));
-        assert_eq!(&tokens[0].value, "0");
-        assert_eq!(&tokens[1].value, "1");
-        assert_eq!(&tokens[2].value, "12345678_90123455561_090");
-        assert_eq!(&tokens[3].value, "01234_567");
-        assert_eq!(&tokens[4].value, "0xabc___def01234567890deadbeef0__10_");
-        assert_eq!(&tokens[5].value, "0_o012345670123_4567");
-        assert_eq!(&tokens[6].value, "0b_11010101001010101010");
-        assert_eq!(&tokens[7].value, "0_b11010101001010101010");
-        assert_eq!(&tokens[8].value, "0__b__11010101001010101010");
+        assert_eq!(&tokens[0].value_str, "0");
+        assert_eq!(&tokens[1].value_str, "1");
+        assert_eq!(&tokens[2].value_str, "12345678_90123455561_090");
+        assert_eq!(&tokens[3].value_str, "01234_567");
+        assert_eq!(&tokens[4].value_str, "0xabc___def01234567890deadbeef0__10_");
+        assert_eq!(&tokens[5].value_str, "0_o012345670123_4567");
+        assert_eq!(&tokens[6].value_str, "0b_11010101001010101010");
+        assert_eq!(&tokens[7].value_str, "0_b11010101001010101010");
+        assert_eq!(&tokens[8].value_str, "0__b__11010101001010101010");
 
         assert_eq!(tokens[9].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[9].value, "123.123");
+        assert_eq!(&tokens[9].value_str, "123.123");
         assert_eq!(tokens[10].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[10].value, "123e123");
+        assert_eq!(&tokens[10].value_str, "123e123");
         assert_eq!(tokens[11].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[11].value, "123e-123");
+        assert_eq!(&tokens[11].value_str, "123e-123");
         assert_eq!(tokens[12].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[12].value, "123E123");
+        assert_eq!(&tokens[12].value_str, "123E123");
         assert_eq!(tokens[13].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[13].value, "123E-123");
+        assert_eq!(&tokens[13].value_str, "123E-123");
         assert_eq!(tokens[14].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[14].value, "1.23e123");
+        assert_eq!(&tokens[14].value_str, "1.23e123");
         assert_eq!(tokens[15].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[15].value, "0.123");
+        assert_eq!(&tokens[15].value_str, "0.123");
         assert_eq!(tokens[16].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[16].value, "0e123");
+        assert_eq!(&tokens[16].value_str, "0e123");
 
         assert_eq!(tokens[17].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[17].value, "0123abcdef456");
+        assert_eq!(&tokens[17].value_str, "0123abcdef456");
         assert_eq!(tokens[18].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[18].value, "0abcde");
+        assert_eq!(&tokens[18].value_str, "0abcde");
         assert_eq!(tokens[19].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[19].value, "0x123");
+        assert_eq!(&tokens[19].value_str, "0x123");
         assert_eq!(tokens[20].kind, TokenKind::Dot);
         assert_eq!(tokens[21].kind, TokenKind::Ident);
 
         assert_eq!(tokens[22].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[22].value, "0b101");
+        assert_eq!(&tokens[22].value_str, "0b101");
         assert_eq!(tokens[23].kind, TokenKind::Dot);
         assert_eq!(tokens[24].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[24].value, "101");
+        assert_eq!(&tokens[24].value_str, "101");
 
         assert_eq!(tokens[25].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[25].value, "0o123");
+        assert_eq!(&tokens[25].value_str, "0o123");
         assert_eq!(tokens[26].kind, TokenKind::Dot);
         assert_eq!(tokens[27].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[27].value, "123");
+        assert_eq!(&tokens[27].value_str, "123");
 
         assert_eq!(tokens[28].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[28].value, "0b123");
+        assert_eq!(&tokens[28].value_str, "0b123");
         assert_eq!(tokens[29].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[29].value, "123eabc");
+        assert_eq!(&tokens[29].value_str, "123eabc");
         assert_eq!(tokens[30].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[30].value, "123e-1a");
+        assert_eq!(&tokens[30].value_str, "123e-1a");
         assert_eq!(tokens[31].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[31].value, "0xabcghijklmnopqrstuvwxyz");
+        assert_eq!(&tokens[31].value_str, "0xabcghijklmnopqrstuvwxyz");
         assert_eq!(tokens[32].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[32].value, "123.abcde");
+        assert_eq!(&tokens[32].value_str, "123.abcde");
         assert_eq!(tokens[33].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[33].value, "123e");
+        assert_eq!(&tokens[33].value_str, "123e");
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 9);

@@ -107,10 +107,17 @@ impl FileManager {
     }
 }
 
+// TODO: make the impossible state unrepresentable.
+// Currently, the `char_value` field only applicable for TokenKind::CharLit, and the `value`
+// field only applicable for StringLit, Identifier and Comment. We could use `TokenKind`
+// as an enum with an entry for those kinds, but it will make the parsing logic more verbose
+// since it will be hard for us to compare `TokenKind`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
-    pub value: String,
+    pub value_str: String,
+    pub value_bytes: Vec<u8>,
+    pub char_value: char,
     pub pos: Pos,
 }
 
@@ -237,7 +244,7 @@ impl TokenKind {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
-            TokenKind::Ident => write!(f, "'{}'", self.value),
+            TokenKind::Ident => write!(f, "'{}'", self.value_str),
             _ => self.kind.fmt(f),
         }
     }

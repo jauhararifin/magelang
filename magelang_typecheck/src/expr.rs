@@ -5,9 +5,9 @@ use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
-    get_raw_char_lit, get_raw_string_lit, BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode,
-    CastExprNode, DerefExprNode, ErrorReporter, ExprNode, Identifier, IndexExprNode, Number,
-    PathNode, Pos, SelectionExprNode, StringLit, StructExprNode, Token, UnaryExprNode, UnaryOp,
+    BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode, CastExprNode, CharLit, DerefExprNode,
+    ErrorReporter, ExprNode, Identifier, IndexExprNode, Number, PathNode, Pos, SelectionExprNode,
+    StringLit, StructExprNode, Token, UnaryExprNode, UnaryOp,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -285,7 +285,7 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
             assignable: false,
         },
         ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
-        ExprNode::Char(token) => get_expr_from_char_lit(ctx, expected_type, token),
+        ExprNode::Char(char_lit) => get_expr_from_char_lit(ctx, expected_type, char_lit),
         ExprNode::String(string_lit) => get_expr_from_string_lit(ctx, string_lit),
         ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, expected_type, node),
         ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, expected_type, node),
@@ -435,7 +435,7 @@ fn get_expr_from_number_lit<'a, E: ErrorReporter>(
     expected_type: Option<&'a Type<'a>>,
     token: &Token,
 ) -> Expr<'a> {
-    let Ok(num) = Number::new_from_str(&token.value) else {
+    let Ok(num) = Number::new_from_str(&token.value_str) else {
         let ty = expected_type.unwrap_or(ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Int(true, BitSize::ISize),
@@ -530,7 +530,7 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
         }
     }
 
-    let value_sym = ctx.define_symbol(&token.value);
+    let value_sym = ctx.define_symbol(&token.value_str);
     let kind = match float_type {
         FloatType::F32 => number
             .try_into()
@@ -578,21 +578,9 @@ fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
 fn get_expr_from_char_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     expected_type: Option<&'a Type<'a>>,
-    token: &Token,
+    char_lit: &CharLit,
 ) -> Expr<'a> {
-    let Ok(ch) = get_raw_char_lit(&token.value) else {
-        let ty = expected_type.unwrap_or(ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Int(false, BitSize::I32),
-        }));
-        return Expr {
-            ty,
-            kind: ExprKind::Invalid,
-            pos: token.pos,
-            assignable: false,
-        };
-    };
-
+    let ch = char_lit.value;
     if let Some(ty) = expected_type {
         if let TypeRepr::Int(sign, bit_size) = ty.repr {
             let value = match (sign, bit_size) {
@@ -610,7 +598,7 @@ fn get_expr_from_char_lit<'a, E: ErrorReporter>(
             return Expr {
                 ty,
                 kind: value,
-                pos: token.pos,
+                pos: char_lit.pos,
                 assignable: false,
             };
         }
@@ -623,7 +611,7 @@ fn get_expr_from_char_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind: ExprKind::ConstI32(ch as u32),
-        pos: token.pos,
+        pos: char_lit.pos,
         assignable: false,
     }
 }
@@ -641,14 +629,7 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
         repr: TypeRepr::ArrayPtr(u8_ty),
     });
 
-    let Some(mut bytes) = get_raw_string_lit(&token.value).ok() else {
-        return Expr {
-            ty,
-            kind: ExprKind::Invalid,
-            pos: token.pos,
-            assignable: false,
-        };
-    };
+    let mut bytes = token.value.clone();
     bytes.push(0);
 
     let bytes = ctx.arena.alloc_slice_copy(&bytes);
