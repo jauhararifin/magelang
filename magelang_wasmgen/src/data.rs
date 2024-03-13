@@ -148,7 +148,7 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
     fn init(&mut self) {
         let globals = self.ctx.module.packages.iter().flat_map(|pkg| &pkg.globals);
         for global in globals.clone() {
-            self.init_from_expr(global.value);
+            self.init_from_expr(&global.value);
         }
         for global in globals {
             self.init_from_annotations(&global.annotations);

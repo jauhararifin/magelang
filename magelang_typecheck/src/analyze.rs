@@ -1,5 +1,5 @@
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprInterner, ExprKind};
+use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::global_init::check_circular_global_intitialization;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
@@ -31,13 +31,11 @@ pub fn analyze<'a, 'b: 'a>(
     let symbols = SymbolInterner::new(arena);
     let types = TypeInterner::new(arena);
     let typeargs = TypeArgsInterner::new(arena);
-    let exprs = ExprInterner::new(arena);
     let statements = StatementInterner::new(arena);
     let interners = Interners {
         symbols,
         types,
         typeargs,
-        exprs,
         statements,
     };
 
@@ -108,7 +106,7 @@ pub fn analyze<'a, 'b: 'a>(
     monomorphize_statements(&ctx);
 
     let is_valid = !error_manager.has_errors();
-    build_module(&ctx, is_valid, global_init_order)
+    build_module(ctx, is_valid, global_init_order)
 }
 
 pub struct Context<'a, 'syn, E> {
@@ -131,10 +129,6 @@ impl<'a, 'syn, E> Context<'a, 'syn, E> {
 
     pub(crate) fn define_typeargs(&self, typeargs: &TypeArgs<'a>) -> &'a TypeArgs<'a> {
         self.interners.typeargs.define(typeargs)
-    }
-
-    pub(crate) fn define_expr(&self, expr: Expr<'a>) -> &'a Expr<'a> {
-        self.interners.exprs.define(expr)
     }
 
     pub(crate) fn define_statement(&self, stmt: Statement<'a>) -> &'a Statement<'a> {
@@ -170,7 +164,6 @@ pub struct Interners<'a> {
     symbols: SymbolInterner<'a>,
     types: TypeInterner<'a>,
     typeargs: TypeArgsInterner<'a>,
-    exprs: ExprInterner<'a>,
     statements: StatementInterner<'a>,
 }
 
@@ -233,7 +226,7 @@ pub struct GlobalObject<'a> {
     pub(crate) def_id: DefId<'a>,
     pub ty: &'a Type<'a>,
     pub(crate) node: GlobalNode,
-    pub value: OnceCell<&'a Expr<'a>>,
+    pub value: OnceCell<Expr<'a>>,
     pub annotations: Rc<[Annotation]>,
 }
 
@@ -667,10 +660,9 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
                 ctx.errors.type_mismatch(pos, ty, value_expr.ty);
             }
 
-            let value = ctx.define_expr(value_expr);
             global_object
                 .value
-                .set(value)
+                .set(value_expr)
                 .expect("cannot set global value expression");
         }
     }
@@ -946,22 +938,22 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
 }
 
 fn build_module<'a, E>(
-    ctx: &Context<'a, '_, E>,
+    ctx: Context<'a, '_, E>,
     is_valid: bool,
     global_init_order: Vec<DefId<'a>>,
 ) -> Module<'a> {
     let mut packages = Vec::default();
-    for (name, scope) in ctx.scopes.iter() {
+    for (name, scope) in ctx.scopes.into_iter() {
         let mut globals = Vec::default();
         let mut functions = Vec::default();
-        for (_, value_object) in scope.value_scopes.iter() {
+        for (_, value_object) in scope.value_scopes.into_iter() {
             match value_object {
-                ValueObject::Global(global_object) => globals.push(Global {
+                ValueObject::Global(mut global_object) => globals.push(Global {
                     name: global_object.def_id,
                     ty: global_object.ty,
                     value: global_object
                         .value
-                        .get()
+                        .take()
                         .expect("missing global value expr"),
                     annotations: global_object.annotations.clone(),
                 }),

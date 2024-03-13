@@ -94,7 +94,7 @@ pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
             let ptr = data_manager.get_file(path).expect("missing path");
             vec![wasm::Instr::I32Const(ptr as i32)]
         } else {
-            exprs.build(global.value).flatten()
+            exprs.build(&global.value).flatten()
         };
 
         body.extend(instrs);

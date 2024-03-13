@@ -52,9 +52,8 @@ impl<'a, T> Scope<'a, T> {
         while let Some(s) = internal {
             if let Some(object) = s.table.get(&name) {
                 return Some(object);
-            } else {
-                internal = s.parent.as_ref();
             }
+            internal = s.parent.as_ref();
         }
 
         None
@@ -62,5 +61,9 @@ impl<'a, T> Scope<'a, T> {
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &T)> {
         self.internal.table.iter().map(|(sym, item)| (*sym, item))
+    }
+
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = (Symbol<'a>, T)> {
+        Rc::into_inner(self.internal).unwrap().table.into_iter()
     }
 }

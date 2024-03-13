@@ -1,6 +1,5 @@
 use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::interner::Interner;
 use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
@@ -12,8 +11,6 @@ use magelang_syntax::{
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::zip;
-
-pub(crate) type ExprInterner<'a> = Interner<'a, Expr<'a>>;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Expr<'a> {

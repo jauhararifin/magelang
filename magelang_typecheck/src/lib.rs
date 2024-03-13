@@ -55,7 +55,7 @@ pub struct Package<'a> {
 pub struct Global<'a> {
     pub name: DefId<'a>,
     pub ty: &'a Type<'a>,
-    pub value: &'a Expr<'a>,
+    pub value: Expr<'a>,
     pub annotations: Rc<[Annotation]>,
 }
 

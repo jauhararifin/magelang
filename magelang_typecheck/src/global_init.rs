@@ -73,9 +73,9 @@ fn build_initialization_dependency_list<'a, E: ErrorReporter>(
         .map(|(_, obj)| obj);
 
     for value_object in global_objects {
-        enum Item<'a> {
+        enum Item<'a, 'b> {
             Statement(&'a Statement<'a>),
-            Expr(&'a Expr<'a>),
+            Expr(&'b Expr<'a>),
         }
 
         let mut stack = vec![];
