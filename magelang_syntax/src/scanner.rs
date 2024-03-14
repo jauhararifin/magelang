@@ -1,6 +1,6 @@
 use crate::error::ErrorReporter;
 use crate::number::{Number, NumberBuilder, NumberError};
-use crate::string::{CharBuilder, CharError, StringBuilder, StringError};
+use crate::string::{StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
 
 pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
@@ -94,46 +94,121 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn scan_char_lit(&mut self) -> Option<Token> {
-        let mut pos = None;
+        let (_, pos) = self.next_if(|c| c == '\'')?;
+        let raw = String::from("\'");
 
-        let mut builder = CharBuilder::default();
-        while let Some((c, p)) = self.peek() {
-            if !builder.add(c) {
-                break;
+        if let Some((c, _)) = self.peek() {
+            match c {
+                '\\' => self.scan_char_after_backslash(pos, raw),
+                '\'' => self.scan_char_closing(pos, raw, 0 as char),
+                _ => {
+                    self.next();
+                    self.scan_char_closing(pos, raw, c)
+                }
             }
-            self.next();
-            if pos.is_none() {
-                pos = Some(p);
+        } else {
+            self.scan_char_closing(pos, raw, 0 as char)
+        }
+    }
+
+    fn scan_char_after_backslash(&mut self, pos: Pos, mut raw: String) -> Option<Token> {
+        self.next();
+        raw.push('\\');
+
+        let Some((c, p)) = self.next() else {
+            return self.scan_char_closing(pos, raw, 0 as char);
+        };
+
+        raw.push(c);
+        match c {
+            'n' => self.scan_char_closing(pos, raw, '\n'),
+            'r' => self.scan_char_closing(pos, raw, '\r'),
+            't' => self.scan_char_closing(pos, raw, '\t'),
+            '\\' => self.scan_char_closing(pos, raw, '\\'),
+            '0' => self.scan_char_closing(pos, raw, 0 as char),
+            '\'' => self.scan_char_closing(pos, raw, '\''),
+            'x' => self.scan_char_hex(pos, raw),
+            _ => {
+                self.errors.unexpected_char(p, c);
+                self.scan_char_closing(pos, raw, 0 as char)
             }
         }
+    }
 
-        let literal = builder.build_literal();
-        let pos = pos?;
-        for error in literal.errors {
-            match error {
-                CharError::UnknownEscape { offset, c } => {
-                    self.errors.unexpected_char(pos.with_offset(offset), c)
-                }
-                CharError::UnexpectedHex { offset, c } => {
-                    self.errors.unexpected_char(pos.with_offset(offset), c)
-                }
-                CharError::Multichar { offset } => self
-                    .errors
-                    .multiple_char_in_literal(pos.with_offset(offset)),
-                CharError::MissingClosingQuote { offset } => {
-                    self.errors.missing_closing_quote(pos.with_offset(offset))
+    fn scan_char_hex(&mut self, pos: Pos, mut raw: String) -> Option<Token> {
+        let Some((c, p)) = self.next() else {
+            return self.scan_char_closing(pos, raw, 0 as char);
+        };
+        raw.push(c);
+
+        match c {
+            '0'..='9' | 'a'..='f' | 'A'..='F' => {
+                let value = Self::hex_to_int(c);
+
+                let Some((c, p)) = self.next() else {
+                    return self.scan_char_closing(pos, raw, 0 as char);
+                };
+                raw.push(c);
+
+                match c {
+                    '0'..='9' | 'a'..='f' | 'A'..='F' => {
+                        let value = value << 4 | Self::hex_to_int(c);
+                        self.scan_char_closing(pos, raw, value as char)
+                    }
+                    _ => {
+                        self.errors.unexpected_char(p, c);
+                        self.scan_char_closing(pos, raw, 0 as char)
+                    }
                 }
             }
+            _ => {
+                self.errors.unexpected_char(p, c);
+                self.scan_char_closing(pos, raw, 0 as char)
+            }
         }
+    }
 
-        Some(Token {
-            kind: TokenKind::CharLit,
-            value_str: literal.raw,
-            value_bytes: Vec::default(),
-            char_value: literal.value,
-            value_number: Number::default(),
-            pos,
-        })
+    fn hex_to_int(c: char) -> u8 {
+        match c {
+            '0'..='9' => c as u8 - b'0',
+            'a'..='f' => c as u8 - b'a' + 0xa,
+            'A'..='F' => c as u8 - b'A' + 0xa,
+            _ => 0,
+        }
+    }
+
+    fn scan_char_closing(&mut self, pos: Pos, mut raw: String, value: char) -> Option<Token> {
+        let mut found_multichar = false;
+        loop {
+            let Some((c, p)) = self.next() else {
+                self.errors.missing_closing_quote(self.get_pos());
+                return Some(Token {
+                    kind: TokenKind::CharLit,
+                    value_str: raw,
+                    value_bytes: Vec::default(),
+                    char_value: value,
+                    value_number: Number::default(),
+                    pos,
+                });
+            };
+            raw.push(c);
+
+            if c == '\'' {
+                return Some(Token {
+                    kind: TokenKind::CharLit,
+                    value_str: raw,
+                    value_bytes: Vec::default(),
+                    char_value: value,
+                    value_number: Number::default(),
+                    pos,
+                });
+            }
+
+            if !found_multichar {
+                self.errors.multiple_char_in_literal(p);
+                found_multichar = true;
+            }
+        }
     }
 
     fn scan_string_lit(&mut self) -> Option<Token> {
