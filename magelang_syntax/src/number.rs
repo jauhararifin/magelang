@@ -117,7 +117,7 @@ pub(crate) struct NumberResult {
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
-pub enum Base {
+pub(crate) enum Base {
     Bin = 2,
     #[default]
     Dec = 10,
@@ -138,11 +138,11 @@ enum State {
 }
 
 #[derive(Default)]
-pub struct NumberBuilder {
+pub(crate) struct NumberBuilder {
     state: State,
 
     offset: usize,
-    pub text: String,
+    text: String,
     invalid_suffix: String,
     errors: Vec<NumberError>,
 
@@ -153,7 +153,7 @@ pub struct NumberBuilder {
 }
 
 #[derive(Debug)]
-pub enum NumberError {
+pub(crate) enum NumberError {
     InvalidSuffix {
         offset: usize,
     },
@@ -168,7 +168,7 @@ pub enum NumberError {
 }
 
 impl NumberBuilder {
-    pub fn add(&mut self, c: char) -> bool {
+    pub(crate) fn add(&mut self, c: char) -> bool {
         self.offset += 1;
         if c == '_' {
             self.text.push(c);

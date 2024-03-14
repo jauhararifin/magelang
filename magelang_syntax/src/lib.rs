@@ -8,7 +8,6 @@ mod token;
 
 pub use ast::*;
 pub use error::{Error, ErrorManager, ErrorReporter};
-pub use number::{Number, NumberBuilder};
+pub use number::Number;
 pub use parser::parse;
-pub use scanner::scan;
-pub use token::{File, FileManager, Location, Pos, Token, TokenKind};
+pub use token::{File, FileManager, Location, Pos};

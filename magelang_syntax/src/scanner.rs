@@ -4,7 +4,7 @@ use crate::string::{CharBuilder, CharError, StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
 
-pub fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
+pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
     let mut scanner = Scanner::new(errors, file);
     let mut tokens = Vec::default();
     while let Some(token) = scanner.scan() {

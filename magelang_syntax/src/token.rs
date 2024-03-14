@@ -114,17 +114,17 @@ impl FileManager {
 // as an enum with an entry for those kinds, but it will make the parsing logic more verbose
 // since it will be hard for us to compare `TokenKind`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub value_str: String,
-    pub value_bytes: Vec<u8>,
-    pub char_value: char,
-    pub value_number: Number,
-    pub pos: Pos,
+pub(crate) struct Token {
+    pub(crate) kind: TokenKind,
+    pub(crate) value_str: String,
+    pub(crate) value_bytes: Vec<u8>,
+    pub(crate) char_value: char,
+    pub(crate) value_number: Number,
+    pub(crate) pos: Pos,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TokenKind {
+pub(crate) enum TokenKind {
     Invalid,
     Eof,
     Comment,
