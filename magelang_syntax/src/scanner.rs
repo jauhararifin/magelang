@@ -2,7 +2,6 @@ use crate::error::ErrorReporter;
 use crate::number::{Number, NumberBuilder, NumberError};
 use crate::string::{CharBuilder, CharError, StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
-use std::collections::VecDeque;
 
 pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
     let mut scanner = Scanner::new(errors, file);
@@ -16,16 +15,16 @@ pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
 struct Scanner<'a, Error> {
     errors: &'a Error,
     file_offset: Pos,
-    text: VecDeque<char>,
+    text: &'a str,
     offset: usize,
 }
 
 impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
-    fn new(errors: &'a Error, file: &File) -> Self {
+    fn new(errors: &'a Error, file: &'a File) -> Self {
         Self {
             errors,
             file_offset: file.offset,
-            text: file.text.chars().collect(),
+            text: &file.text,
             offset: 0,
         }
     }
@@ -42,7 +41,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.text.front() {
+        while let Some((ch, _)) = self.peek() {
             if ch.is_whitespace() {
                 self.next();
             } else {
@@ -225,7 +224,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         if self.text.len() < 2 {
             return None;
         }
-        if self.text[0] != '/' || self.text[1] != '/' {
+        if self.peek_n(2) != "//" {
             return None;
         }
 
@@ -337,8 +336,8 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn next_if(&mut self, func: impl FnOnce(char) -> bool) -> Option<(char, Pos)> {
-        let ch = self.text.front()?;
-        if func(*ch) {
+        let ch = self.peek()?.0;
+        if func(ch) {
             self.next()
         } else {
             None
@@ -346,10 +345,11 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn next(&mut self) -> Option<(char, Pos)> {
-        let c = self.text.pop_front()?;
+        let c = self.text.chars().next()?;
+        let len = c.len_utf8();
+        self.text = &self.text[len..];
         let pos = self.get_pos();
-
-        self.offset += 1;
+        self.offset += len;
         Some((c, pos))
     }
 
@@ -358,7 +358,22 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn peek(&self) -> Option<(char, Pos)> {
-        self.text.front().map(|c| (*c, self.get_pos()))
+        let c = self.text.chars().next()?;
+        let pos = self.get_pos();
+        Some((c, pos))
+    }
+
+    fn peek_n(&self, n: usize) -> &str {
+        let mut total_len = 0;
+        let mut chars = self.text.chars();
+        for _ in 0..n {
+            let Some(c) = chars.next() else {
+                break;
+            };
+            total_len += c.len_utf8();
+        }
+
+        &self.text[..total_len]
     }
 }
 
