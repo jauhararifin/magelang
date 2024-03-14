@@ -1,35 +1,62 @@
 use num::{bigint::TryFromBigIntError, traits::Signed, BigInt, Zero};
 use std::num::ParseFloatError;
 
-#[derive(Debug, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Hash)]
 pub struct Number {
     pub val: BigInt,
     pub exp: BigInt,
 }
 
 impl Number {
-    pub fn new_from_str(s: &str) -> Result<Self, Vec<NumberError>> {
-        let mut builder = NumberBuilder::default();
-        for c in s.chars() {
-            if !builder.add(c) {
-                break;
-            }
+    pub fn new<T>(base: T, exp: T) -> Self
+    where
+        T: Into<BigInt>,
+    {
+        Self {
+            val: base.into(),
+            exp: exp.into(),
         }
-        builder.build_number()
     }
 
     pub fn is_int(&self) -> bool {
         let mut exp = self.exp.clone();
-        let mut x = self.val.clone();
-        while x.is_positive() && (&x % 10u8).is_zero() {
-            x /= 10;
+        let mut base = self.val.clone();
+        while (&base % 10u8).is_zero() {
+            base /= 10;
             exp += 1;
         }
-        exp.is_positive() || exp.is_zero()
+
+        !exp.is_negative()
     }
 
-    fn is_too_big(&self) -> bool {
-        self.exp.ge(&BigInt::from(20))
+    pub fn to_string(&self) -> String {
+        format!("{}e{}", self.val, self.exp)
+    }
+
+    fn to_int(&self) -> Result<BigInt, TryFromNumberError> {
+        let mut exp = self.exp.clone();
+        let mut base = self.val.clone();
+        while !base.is_zero() && (&base % 10u8).is_zero() {
+            base /= 10;
+            exp += 1;
+        }
+
+        if base.is_zero() {
+            return Ok(BigInt::zero());
+        }
+
+        if exp.is_negative() {
+            return Err(TryFromNumberError::NotInt);
+        }
+
+        let Ok(exp) = u32::try_from(exp) else {
+            return Err(TryFromNumberError::OutOfRange);
+        };
+        if exp > 20 {
+            return Err(TryFromNumberError::OutOfRange);
+        }
+
+        Ok(base * BigInt::from(10).pow(exp))
     }
 }
 
@@ -47,21 +74,11 @@ impl<T> From<TryFromBigIntError<T>> for TryFromNumberError {
 
 macro_rules! number_try_into {
     ($target: ty) => {
-        impl TryInto<$target> for Number {
+        impl TryFrom<&Number> for $target {
             type Error = TryFromNumberError;
-            fn try_into(self) -> Result<$target, Self::Error> {
-                if !self.is_int() {
-                    return Err(TryFromNumberError::NotInt);
-                }
-                if self.is_too_big() {
-                    return Err(TryFromNumberError::OutOfRange);
-                }
-
-                let exp: u32 = self.exp.try_into().expect("cannot parse exponent");
-
-                let value = self.val * BigInt::from(10).pow(exp);
-                let value: $target = value.try_into()?;
-                Ok(value)
+            fn try_from(value: &Number) -> Result<Self, Self::Error> {
+                let val = value.to_int()?;
+                <$target>::try_from(val).map_err(|_| TryFromNumberError::OutOfRange)
             }
         }
     };
@@ -78,10 +95,10 @@ number_try_into!(u64);
 
 macro_rules! number_try_into_float {
     ($target: ty) => {
-        impl TryInto<$target> for Number {
+        impl TryFrom<&Number> for $target {
             type Error = ParseFloatError;
-            fn try_into(self) -> Result<$target, Self::Error> {
-                let s = format!("{}e{}", self.val, self.exp);
+            fn try_from(value: &Number) -> Result<Self, Self::Error> {
+                let s = format!("{}e{}", value.val, value.exp);
                 s.parse::<$target>()
             }
         }
@@ -91,8 +108,9 @@ macro_rules! number_try_into_float {
 number_try_into_float!(f32);
 number_try_into_float!(f64);
 
-pub(crate) struct Literal {
-    pub(crate) value: String,
+pub(crate) struct NumberResult {
+    pub(crate) raw: String,
+    pub(crate) value: Number,
     pub(crate) invalid_suffix: String,
     pub(crate) errors: Vec<NumberError>,
 }
@@ -137,9 +155,6 @@ pub struct NumberBuilder {
 #[derive(Debug)]
 pub enum NumberError {
     InvalidSuffix {
-        offset: usize,
-    },
-    NonDecimalFraction {
         offset: usize,
     },
     InvalidDigit {
@@ -294,9 +309,9 @@ impl NumberBuilder {
         true
     }
 
-    pub fn build_number(self) -> Result<Number, Vec<NumberError>> {
-        if !self.errors.is_empty() {
-            return Err(self.errors);
+    pub(crate) fn build(self) -> Option<NumberResult> {
+        if self.text.is_empty() {
+            return None;
         }
 
         let mut exp = self.exp;
@@ -305,18 +320,12 @@ impl NumberBuilder {
         }
         exp -= self.frac_digit;
 
-        Ok(Number {
-            val: self.value,
-            exp,
-        })
-    }
-
-    pub(crate) fn build_token(self) -> Option<Literal> {
-        if self.text.is_empty() {
-            return None;
-        }
-        Some(Literal {
-            value: self.text,
+        Some(NumberResult {
+            raw: self.text,
+            value: Number {
+                val: self.value,
+                exp,
+            },
             invalid_suffix: self.invalid_suffix,
             errors: self.errors,
         })
@@ -334,14 +343,14 @@ fn into_digit(c: char) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::Number;
+    use super::{Number, NumberBuilder};
 
     #[test]
     fn parse_number() {
         macro_rules! test_parse_int {
             ($s:expr, $expected:expr) => {
-                let number = Number::new_from_str($s).expect("cannot parse number");
-                assert_eq!($expected, number.try_into().unwrap(),)
+                let number = number_from_str($s);
+                assert_eq!($expected, (&number).try_into().unwrap())
             };
         }
 
@@ -363,5 +372,16 @@ mod tests {
         test_parse_int!("0xfffd", 0xfffdu16);
         test_parse_int!("0xfffe", 0xfffeu16);
         test_parse_int!("0xffff", 0xffffu16);
+    }
+
+    fn number_from_str(s: &str) -> Number {
+        let mut builder = NumberBuilder::default();
+        for c in s.chars() {
+            if !builder.add(c) {
+                break;
+            }
+        }
+
+        builder.build().unwrap().value
     }
 }

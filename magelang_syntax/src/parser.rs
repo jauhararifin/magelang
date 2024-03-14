@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::error::ErrorReporter;
+use crate::number::Number;
 use crate::scanner::scan;
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
@@ -870,7 +871,10 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
 fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
     match f.kind() {
         TokenKind::Ident => parse_path_for_expr(f).map(ExprNode::Path),
-        TokenKind::NumberLit => f.take(TokenKind::NumberLit).map(ExprNode::Number),
+        TokenKind::NumberLit => f
+            .take(TokenKind::NumberLit)
+            .map(NumberLit::from)
+            .map(ExprNode::Number),
         TokenKind::CharLit => f
             .take(TokenKind::CharLit)
             .map(CharLit::from)
@@ -964,6 +968,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 value_str: "".into(),
                 value_bytes: Vec::default(),
                 char_value: '\0',
+                value_number: Number::default(),
                 pos: self.last_pos,
             }
         }
@@ -985,6 +990,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 value_str: "".into(),
                 value_bytes: Vec::default(),
                 char_value: '\0',
+                value_number: Number::default(),
                 pos: self.last_pos,
             }
         }
@@ -1031,6 +1037,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 value_str: ">".to_string(),
                 value_bytes: Vec::default(),
                 char_value: '\0',
+                value_number: Number::default(),
                 pos: pos.with_offset(1),
             });
             self.tokens.push_front(Token {
@@ -1038,6 +1045,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 value_str: ">".to_string(),
                 value_bytes: Vec::default(),
                 char_value: '\0',
+                value_number: Number::default(),
                 pos,
             });
         }

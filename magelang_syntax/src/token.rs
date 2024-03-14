@@ -1,3 +1,4 @@
+use crate::number::Number;
 use std::fmt::Display;
 use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
@@ -118,6 +119,7 @@ pub struct Token {
     pub value_str: String,
     pub value_bytes: Vec<u8>,
     pub char_value: char,
+    pub value_number: Number,
     pub pos: Pos,
 }
 

@@ -1,3 +1,4 @@
+use crate::number::Number;
 use crate::token::{Pos, Token, TokenKind};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -67,6 +68,7 @@ pub struct ImportNode {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StringLit {
+    pub raw: String,
     pub value: Vec<u8>,
     pub pos: Pos,
 }
@@ -74,6 +76,7 @@ pub struct StringLit {
 impl From<Token> for StringLit {
     fn from(value: Token) -> Self {
         Self {
+            raw: value.value_str,
             value: value.value_bytes,
             pos: value.pos,
         }
@@ -221,7 +224,7 @@ pub struct FuncTypeNode {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ExprNode {
     Path(PathNode),
-    Number(Token),
+    Number(NumberLit),
     Null(Pos),
     Bool(BoolLiteral),
     Char(CharLit),
@@ -260,7 +263,25 @@ impl ExprNode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub struct NumberLit {
+    pub raw: String,
+    pub value: Number,
+    pub pos: Pos,
+}
+
+impl From<Token> for NumberLit {
+    fn from(value: Token) -> Self {
+        Self {
+            raw: value.value_str,
+            value: value.value_number,
+            pos: value.pos,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CharLit {
+    pub raw: String,
     pub value: char,
     pub pos: Pos,
 }
@@ -268,6 +289,7 @@ pub struct CharLit {
 impl From<Token> for CharLit {
     fn from(value: Token) -> Self {
         Self {
+            raw: value.value_str,
             value: value.char_value,
             pos: value.pos,
         }

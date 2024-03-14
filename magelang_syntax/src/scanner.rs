@@ -1,5 +1,5 @@
 use crate::error::ErrorReporter;
-use crate::number::{NumberBuilder, NumberError};
+use crate::number::{Number, NumberBuilder, NumberError};
 use crate::string::{CharBuilder, CharError, StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
@@ -89,6 +89,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             value_str,
             value_bytes: Vec::default(),
             char_value: '\0',
+            value_number: Number::default(),
             pos,
         })
     }
@@ -128,9 +129,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::CharLit,
-            value_str: String::default(),
+            value_str: literal.raw,
             value_bytes: Vec::default(),
             char_value: literal.value,
+            value_number: Number::default(),
             pos,
         })
     }
@@ -167,9 +169,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::StringLit,
-            value_str: String::default(),
+            value_str: literal.raw,
             value_bytes: literal.value,
             char_value: '\0',
+            value_number: Number::default(),
             pos,
         })
     }
@@ -187,17 +190,14 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             self.next();
         }
 
-        let literal = builder.build_token()?;
+        let result = builder.build()?;
         let pos = pos?;
 
-        for err in literal.errors {
+        for err in result.errors {
             match err {
                 NumberError::InvalidSuffix { offset } => self
                     .errors
-                    .invalid_number_suffix(pos.with_offset(offset), &literal.invalid_suffix),
-                NumberError::NonDecimalFraction { offset } => {
-                    self.errors.non_decimal_fraction(pos.with_offset(offset))
-                }
+                    .invalid_number_suffix(pos.with_offset(offset), &result.invalid_suffix),
                 NumberError::InvalidDigit {
                     offset,
                     base,
@@ -213,9 +213,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         Some(Token {
             kind: TokenKind::NumberLit,
-            value_str: literal.value,
+            value_str: result.raw,
             value_bytes: Vec::default(),
             char_value: '\0',
+            value_number: result.value,
             pos,
         })
     }
@@ -245,6 +246,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             value_str: value,
             value_bytes: Vec::default(),
             char_value: '\0',
+            value_number: Number::default(),
             pos,
         })
     }
@@ -315,6 +317,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 value_str: String::default(),
                 value_bytes: Vec::default(),
                 char_value: '\0',
+                value_number: Number::default(),
                 pos,
             })
         }
@@ -328,6 +331,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             value_str: c.to_string(),
             value_bytes: Vec::default(),
             char_value: '\0',
+            value_number: Number::default(),
             pos,
         })
     }
@@ -372,13 +376,6 @@ trait ScanningError: ErrorReporter {
 
     fn missing_closing_quote(&self, pos: Pos) {
         self.report(pos, String::from("Missing closing quote in string literal"));
-    }
-
-    fn non_decimal_fraction(&self, pos: Pos) {
-        self.report(
-            pos,
-            String::from("can only use decimal number for fractional number literal"),
-        );
     }
 
     fn invalid_digit_in_base(&self, pos: Pos, digit: char, base: u8) {
@@ -536,15 +533,9 @@ string"
             string"#
         );
         assert_eq!(tokens[6].kind, TokenKind::StringLit);
-        assert_eq!(
-            &tokens[6].value_bytes,
-            b"invalid escape ",
-        );
+        assert_eq!(&tokens[6].value_bytes, b"invalid escape ",);
         assert_eq!(tokens[7].kind, TokenKind::StringLit);
-        assert_eq!(
-            &tokens[7].value_bytes,
-            b"invalid hex h",
-        );
+        assert_eq!(&tokens[7].value_bytes, b"invalid hex h",);
         assert_eq!(tokens[8].kind, TokenKind::StringLit);
         assert_eq!(
             std::str::from_utf8(&tokens[8].value_bytes).unwrap(),

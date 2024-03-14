@@ -1,7 +1,7 @@
 #[derive(Default)]
 pub(crate) struct StringBuilder {
-    value: String,
-    raw: Vec<u8>,
+    raw: String,
+    value: Vec<u8>,
     state: State,
     errors: Vec<StringError>,
     offset: usize,
@@ -26,6 +26,7 @@ pub(crate) enum StringError {
 }
 
 pub(crate) struct StringLiteral {
+    pub(crate) raw: String,
     pub(crate) value: Vec<u8>,
     pub(crate) errors: Vec<StringError>,
 }
@@ -46,37 +47,37 @@ impl StringBuilder {
                 _ => {
                     let mut buff: [u8; 8] = [0; 8];
                     let len = c.encode_utf8(&mut buff).len();
-                    self.raw.extend_from_slice(&buff[..len]);
+                    self.value.extend_from_slice(&buff[..len]);
                 }
             },
             State::AfterBlackslash => match c {
                 'n' => {
                     self.state = State::Normal;
-                    self.raw.push(b'\n');
+                    self.value.push(b'\n');
                 }
                 'r' => {
                     self.state = State::Normal;
-                    self.raw.push(b'\r');
+                    self.value.push(b'\r');
                 }
                 't' => {
                     self.state = State::Normal;
-                    self.raw.push(b'\t');
+                    self.value.push(b'\t');
                 }
                 '\\' => {
                     self.state = State::Normal;
-                    self.raw.push(b'\\');
+                    self.value.push(b'\\');
                 }
                 '0' => {
                     self.state = State::Normal;
-                    self.raw.push(0);
+                    self.value.push(0);
                 }
                 '"' => {
                     self.state = State::Normal;
-                    self.raw.push(b'"');
+                    self.value.push(b'"');
                 }
                 '\'' => {
                     self.state = State::Normal;
-                    self.raw.push(b'\'');
+                    self.value.push(b'\'');
                 }
                 'x' => self.state = State::ReadHex1,
                 _ => {
@@ -116,7 +117,7 @@ impl StringBuilder {
                     };
 
                     let b = (into_u8(first_char) << 4) | (into_u8(c));
-                    self.raw.push(b);
+                    self.value.push(b);
                     self.state = State::Normal;
                 }
                 '"' => {
@@ -137,7 +138,7 @@ impl StringBuilder {
             State::Closed => return false,
         }
 
-        self.value.push(c);
+        self.raw.push(c);
         self.offset += 1;
         true
     }
@@ -151,7 +152,8 @@ impl StringBuilder {
         }
 
         StringLiteral {
-            value: self.raw,
+            raw: self.raw,
+            value: self.value,
             errors,
         }
     }
@@ -188,6 +190,7 @@ pub(crate) enum CharError {
 }
 
 pub(crate) struct CharLiteral {
+    pub(crate) raw: String,
     pub(crate) value: char,
     pub(crate) errors: Vec<CharError>,
 }
@@ -324,6 +327,7 @@ impl CharBuilder {
         }
 
         CharLiteral {
+            raw: self.raw,
             value: self.value,
             errors,
         }
