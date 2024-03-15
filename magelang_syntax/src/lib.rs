@@ -3,7 +3,6 @@ mod error;
 mod number;
 mod parser;
 mod scanner;
-mod string;
 mod token;
 
 pub use ast::*;

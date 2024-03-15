@@ -1,6 +1,5 @@
 use crate::error::ErrorReporter;
 use crate::number::{Number, NumberBuilder, NumberError};
-use crate::string::{StringBuilder, StringError};
 use crate::token::{File, Pos, Token, TokenKind};
 
 pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
@@ -212,39 +211,101 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn scan_string_lit(&mut self) -> Option<Token> {
-        let mut pos = None;
+        let (_, pos) = self.next_if(|c| c == '"')?;
+        let raw = String::from("\"");
+        let value = Vec::default();
 
-        let mut builder = StringBuilder::default();
-        while let Some((c, p)) = self.peek() {
-            if !builder.add(c) {
-                break;
-            }
-            self.next();
-            if pos.is_none() {
-                pos = Some(p);
-            }
-        }
+        self.scan_string_internal(pos, raw, value)
+    }
 
-        let literal = builder.build_literal();
-        let pos = pos?;
-        for error in literal.errors {
-            match error {
-                StringError::UnknownEscape { offset, c } => {
-                    self.errors.unexpected_char(pos.with_offset(offset), c)
-                }
-                StringError::UnexpectedHex { offset, c } => {
-                    self.errors.unexpected_char(pos.with_offset(offset), c)
-                }
-                StringError::MissingClosingQuote { offset } => {
-                    self.errors.missing_closing_quote(pos.with_offset(offset));
+    fn scan_string_internal(
+        &mut self,
+        pos: Pos,
+        mut raw: String,
+        mut value: Vec<u8>,
+    ) -> Option<Token> {
+        while let Some((c, _)) = self.peek() {
+            match c {
+                '\\' => self.scan_string_after_backslash(&mut raw, &mut value),
+                '"' => return self.scan_string_closing(pos, raw, value),
+                _ => {
+                    self.next();
+                    let buff = &mut [0u8; 4];
+                    value.extend_from_slice(c.encode_utf8(buff).as_bytes());
                 }
             }
         }
+        self.scan_string_closing(pos, raw, value)
+    }
+
+    fn scan_string_after_backslash(&mut self, raw: &mut String, value: &mut Vec<u8>) {
+        let (c, _) = self.next().unwrap();
+        assert_eq!(c, '\\');
+        raw.push('\\');
+
+        let Some((c, p)) = self.next() else {
+            return;
+        };
+
+        raw.push(c);
+        match c {
+            'n' => value.push('\n' as u8),
+            'r' => value.push('\r' as u8),
+            't' => value.push('\t' as u8),
+            '\\' => value.push('\\' as u8),
+            '0' => value.push(0),
+            '\'' => value.push('\'' as u8),
+            '"' => value.push('"' as u8),
+            'x' => self.scan_string_hex(raw, value),
+            _ => self.errors.unexpected_char(p, c),
+        }
+    }
+
+    fn scan_string_hex(&mut self, raw: &mut String, value: &mut Vec<u8>) {
+        let Some((c, p)) = self.peek() else { return };
+
+        if !matches!(c, '0'..='9' | 'a'..='f' | 'A'..='F') {
+            self.errors.unexpected_char(p, c);
+            return;
+        }
+
+        raw.push(c);
+        self.next();
+        let char_val = Self::hex_to_int(c);
+
+        let Some((c, p)) = self.peek() else { return };
+
+        if !matches!(c, '0'..='9' | 'a'..='f' | 'A'..='F') {
+            self.errors.unexpected_char(p, c);
+            return;
+        }
+
+        raw.push(c);
+        self.next();
+        let char_val = char_val << 4 | Self::hex_to_int(c);
+
+        value.push(char_val);
+    }
+
+    fn scan_string_closing(&mut self, pos: Pos, mut raw: String, value: Vec<u8>) -> Option<Token> {
+        let Some((c, _)) = self.next() else {
+            self.errors.missing_closing_quote(self.get_pos());
+            return Some(Token {
+                kind: TokenKind::StringLit,
+                value_str: raw,
+                value_bytes: value,
+                char_value: '\0',
+                value_number: Number::default(),
+                pos,
+            });
+        };
+        raw.push(c);
+        assert_eq!(c, '\"');
 
         Some(Token {
             kind: TokenKind::StringLit,
-            value_str: literal.raw,
-            value_bytes: literal.value,
+            value_str: raw,
+            value_bytes: value,
             char_value: '\0',
             value_number: Number::default(),
             pos,
@@ -625,7 +686,7 @@ string"
         assert_eq!(tokens[6].kind, TokenKind::StringLit);
         assert_eq!(&tokens[6].value_bytes, b"invalid escape ",);
         assert_eq!(tokens[7].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[7].value_bytes, b"invalid hex h",);
+        assert_eq!(&tokens[7].value_bytes, b"invalid hex gh\\x",);
         assert_eq!(tokens[8].kind, TokenKind::StringLit);
         assert_eq!(
             std::str::from_utf8(&tokens[8].value_bytes).unwrap(),
@@ -633,7 +694,7 @@ string"
         );
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 26);
+        assert_eq!(errors.len(), 25);
         assert_eq!(errors[0].message, "Unexpected char 'a'");
         assert_eq!(errors[1].message, "Unexpected char 'b'");
         assert_eq!(errors[2].message, "Unexpected char 'c'");
@@ -658,9 +719,8 @@ string"
         assert_eq!(errors[21].message, "Unexpected char 'z'");
         assert_eq!(errors[22].message, "Unexpected char 'g'");
         assert_eq!(errors[23].message, "Unexpected char '\\'");
-        assert_eq!(errors[24].message, "Unexpected char '\"'");
         assert_eq!(
-            errors[25].message,
+            errors[24].message,
             "Missing closing quote in string literal"
         );
     }

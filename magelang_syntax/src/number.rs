@@ -21,16 +21,12 @@ impl Number {
     pub fn is_int(&self) -> bool {
         let mut exp = self.exp.clone();
         let mut base = self.val.clone();
-        while (&base % 10u8).is_zero() {
+        while !base.is_zero() && (&base % 10u8).is_zero() {
             base /= 10;
             exp += 1;
         }
 
         !exp.is_negative()
-    }
-
-    pub fn to_string(&self) -> String {
-        format!("{}e{}", self.val, self.exp)
     }
 
     fn to_int(&self) -> Result<BigInt, TryFromNumberError> {
