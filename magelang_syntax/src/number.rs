@@ -88,6 +88,7 @@ number_try_into!(u8);
 number_try_into!(u16);
 number_try_into!(u32);
 number_try_into!(u64);
+number_try_into!(BigInt);
 
 macro_rules! number_try_into_float {
     ($target: ty) => {
