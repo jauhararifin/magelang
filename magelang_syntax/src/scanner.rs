@@ -1,6 +1,7 @@
 use crate::error::ErrorReporter;
-use crate::number::{Number, NumberBuilder, NumberError};
+use crate::number::Number;
 use crate::token::{File, Pos, Token, TokenKind};
+use num::BigInt;
 
 pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
     let mut scanner = Scanner::new(errors, file);
@@ -142,7 +143,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         match c {
             '0'..='9' | 'a'..='f' | 'A'..='F' => {
-                let value = Self::hex_to_int(c);
+                let value = Self::char_to_int(c);
 
                 let Some((c, p)) = self.next() else {
                     return self.scan_char_closing(pos, raw, 0 as char);
@@ -151,7 +152,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
                 match c {
                     '0'..='9' | 'a'..='f' | 'A'..='F' => {
-                        let value = value << 4 | Self::hex_to_int(c);
+                        let value = value << 4 | Self::char_to_int(c);
                         self.scan_char_closing(pos, raw, value as char)
                     }
                     _ => {
@@ -167,7 +168,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
     }
 
-    fn hex_to_int(c: char) -> u8 {
+    fn char_to_int(c: char) -> u8 {
         match c {
             '0'..='9' => c as u8 - b'0',
             'a'..='f' => c as u8 - b'a' + 0xa,
@@ -272,7 +273,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         raw.push(c);
         self.next();
-        let char_val = Self::hex_to_int(c);
+        let char_val = Self::char_to_int(c);
 
         let Some((c, p)) = self.peek() else { return };
 
@@ -283,7 +284,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         raw.push(c);
         self.next();
-        let char_val = char_val << 4 | Self::hex_to_int(c);
+        let char_val = char_val << 4 | Self::char_to_int(c);
 
         value.push(char_val);
     }
@@ -314,45 +315,296 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn scan_number_lit(&mut self) -> Option<Token> {
-        let mut pos = None;
-        let mut builder = NumberBuilder::default();
-        while let Some((c, char_pos)) = self.peek() {
-            if pos.is_none() {
-                pos = Some(char_pos);
+        let (c, _) = self.peek()?;
+        match c {
+            '0' => self.scan_number_prefix(),
+            '1'..='9' => {
+                let mut raw = String::default();
+                let mut value = Number::default();
+
+                let (c, pos) = self.next().unwrap();
+                raw.push(c);
+                value.val = BigInt::from(Self::char_to_int(c));
+                self.scan_number_base(Base::Dec, pos, raw, value)
             }
-            if !builder.add(c) {
+            _ => None,
+        }
+    }
+
+    fn scan_number_prefix(&mut self) -> Option<Token> {
+        let (c, pos) = self.next().unwrap();
+        assert_eq!(c, '0');
+
+        let mut raw = String::from("0");
+        let mut value = Number::new(BigInt::default(), BigInt::default());
+
+        let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
+            return Some(Token {
+                kind: TokenKind::NumberLit,
+                value_str: raw,
+                value_bytes: Vec::default(),
+                char_value: 0 as char,
+                value_number: value,
+                pos,
+            });
+        };
+
+        match c {
+            'x' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                self.scan_number_base(Base::Hex, pos, raw, value)
+            }
+            'b' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                self.scan_number_base(Base::Bin, pos, raw, value)
+            }
+            'o' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                self.scan_number_base(Base::Oct, pos, raw, value)
+            }
+            '0'..='7' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                value.val = value.val * 8 + Self::char_to_int(c);
+                self.scan_number_base(Base::Oct, pos, raw, value)
+            }
+            'e' | 'E' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                self.scan_number_exponent(pos, raw, value)
+            }
+            '.' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                self.scan_number_fraction(pos, raw, value)
+            }
+            'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
+            _ => Some(Token {
+                kind: TokenKind::NumberLit,
+                value_str: raw,
+                value_bytes: Vec::default(),
+                char_value: 0 as char,
+                value_number: value,
+                pos,
+            }),
+        }
+    }
+
+    fn scan_number_peek_with_skip_underscore(&mut self, raw: &mut String) -> Option<(char, Pos)> {
+        while let Some((c, _)) = self.peek() {
+            if c != '_' {
                 break;
             }
             self.next();
+            raw.push(c);
         }
 
-        let result = builder.build()?;
-        let pos = pos?;
+        self.peek()
+    }
 
-        for err in result.errors {
-            match err {
-                NumberError::InvalidSuffix { offset } => self
-                    .errors
-                    .invalid_number_suffix(pos.with_offset(offset), &result.invalid_suffix),
-                NumberError::InvalidDigit {
-                    offset,
-                    base,
-                    digit,
-                } => self
-                    .errors
-                    .invalid_digit_in_base(pos.with_offset(offset), digit, base as u8),
-                NumberError::MissingExponent { offset } => {
-                    self.errors.missing_exponent_digits(pos.with_offset(offset))
+    fn scan_number_base(
+        &mut self,
+        base: Base,
+        pos: Pos,
+        mut raw: String,
+        mut value: Number,
+    ) -> Option<Token> {
+        while let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
+            match (base, c) {
+                (Base::Dec, 'e' | 'E') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    return self.scan_number_exponent(pos, raw, value);
                 }
+                (Base::Dec, '.') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    return self.scan_number_fraction(pos, raw, value);
+                }
+                (_, '.') => break,
+                (Base::Bin, '0' | '1') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    value.val = value.val * 2 + Self::char_to_int(c);
+                }
+                (Base::Dec, '0'..='9') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    value.val = value.val * 10 + Self::char_to_int(c);
+                }
+                (Base::Oct, '0'..='7') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    value.val = value.val * 8 + Self::char_to_int(c);
+                }
+                (Base::Hex, '0'..='9' | 'a'..='f' | 'A'..='F') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    value.val = value.val * 16 + Self::char_to_int(c);
+                }
+                (Base::Bin, '2'..='9') | (Base::Oct, '8'..='9') => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    self.errors.invalid_digit_in_base(p, c, base as u8);
+                }
+                (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z')
+                | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
+                    return self.scan_number_invalid_suffix(pos, raw, value);
+                }
+                _ => break,
             }
         }
 
         Some(Token {
             kind: TokenKind::NumberLit,
-            value_str: result.raw,
+            value_str: raw,
             value_bytes: Vec::default(),
-            char_value: '\0',
-            value_number: result.value,
+            char_value: 0 as char,
+            value_number: value,
+            pos,
+        })
+    }
+
+    fn scan_number_fraction(
+        &mut self,
+        pos: Pos,
+        mut raw: String,
+        mut value: Number,
+    ) -> Option<Token> {
+        while let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
+            match c {
+                'e' | 'E' => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    return self.scan_number_exponent(pos, raw, value);
+                }
+                '0'..='9' => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    value.val = value.val * 10 + Self::char_to_int(c);
+                    value.exp -= 1;
+                }
+                'a'..='z' | 'A'..='Z' => return self.scan_number_invalid_suffix(pos, raw, value),
+                _ => break,
+            }
+        }
+
+        Some(Token {
+            kind: TokenKind::NumberLit,
+            value_str: raw,
+            value_bytes: Vec::default(),
+            char_value: 0 as char,
+            value_number: value,
+            pos,
+        })
+    }
+
+    fn scan_number_exponent(&mut self, pos: Pos, mut raw: String, value: Number) -> Option<Token> {
+        let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
+            self.errors.missing_exponent_digits(self.get_pos());
+            return Some(Token {
+                kind: TokenKind::NumberLit,
+                value_str: raw,
+                value_bytes: Vec::default(),
+                char_value: 0 as char,
+                value_number: value,
+                pos,
+            });
+        };
+
+        match c {
+            '-' => {
+                let (c, _) = self.next().unwrap();
+                raw.push(c);
+                self.scan_number_exponent_after_sign(true, pos, raw, value)
+            }
+            '0'..='9' => self.scan_number_exponent_after_sign(false, pos, raw, value),
+            'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
+            _ => {
+                self.errors.missing_exponent_digits(p);
+                Some(Token {
+                    kind: TokenKind::NumberLit,
+                    value_str: raw,
+                    value_bytes: Vec::default(),
+                    char_value: 0 as char,
+                    value_number: value,
+                    pos,
+                })
+            }
+        }
+    }
+
+    fn scan_number_exponent_after_sign(
+        &mut self,
+        is_negative_exp: bool,
+        pos: Pos,
+        mut raw: String,
+        mut value: Number,
+    ) -> Option<Token> {
+        let multiplier = if is_negative_exp { -1 } else { 1 };
+        let mut has_exponent = false;
+
+        let mut exp_after_e = BigInt::default();
+
+        while let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
+            match c {
+                '0'..='9' => {
+                    let (c, _) = self.next().unwrap();
+                    raw.push(c);
+                    exp_after_e = exp_after_e * 10 + (Self::char_to_int(c) as i8) * multiplier;
+                    has_exponent = true;
+                }
+                'a'..='z' | 'A'..='Z' => {
+                    value.exp += exp_after_e;
+                    return self.scan_number_invalid_suffix(pos, raw, value);
+                }
+                _ => break,
+            }
+        }
+
+        if !has_exponent {
+            self.errors.missing_exponent_digits(self.get_pos());
+        }
+
+        value.exp += exp_after_e;
+        Some(Token {
+            kind: TokenKind::NumberLit,
+            value_str: raw,
+            value_bytes: Vec::default(),
+            char_value: 0 as char,
+            value_number: value,
+            pos,
+        })
+    }
+
+    fn scan_number_invalid_suffix(
+        &mut self,
+        pos: Pos,
+        mut raw: String,
+        value: Number,
+    ) -> Option<Token> {
+        let mut invalid_suffix = String::default();
+
+        let (c, invalid_suffix_pos) = self.next().unwrap();
+        raw.push(c);
+        invalid_suffix.push(c);
+
+        while let Some((c, _)) = self.next_if(|c| matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z')) {
+            raw.push(c);
+            invalid_suffix.push(c);
+        }
+
+        self.errors
+            .invalid_number_suffix(invalid_suffix_pos, &invalid_suffix);
+        Some(Token {
+            kind: TokenKind::NumberLit,
+            value_str: raw,
+            value_bytes: Vec::default(),
+            char_value: 0 as char,
+            value_number: value,
             pos,
         })
     }
@@ -512,6 +764,16 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         &self.text[..total_len]
     }
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+enum Base {
+    Bin = 2,
+    #[default]
+    Dec = 10,
+    Oct = 8,
+    Hex = 16,
 }
 
 trait ScanningError: ErrorReporter {
@@ -798,6 +1060,7 @@ string""#
             0xabcghijklmnopqrstuvwxyz
             123.abcde
             123e
+            123e-
         "#
         .to_string();
         let file = files.add_file(path, source);
@@ -917,9 +1180,11 @@ string""#
         assert_eq!(&tokens[32].value_str, "123.abcde");
         assert_eq!(tokens[33].kind, TokenKind::NumberLit);
         assert_eq!(&tokens[33].value_str, "123e");
+        assert_eq!(tokens[34].kind, TokenKind::NumberLit);
+        assert_eq!(&tokens[34].value_str, "123e-");
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 9);
+        assert_eq!(errors.len(), 10);
         assert_eq!(
             errors[0].message,
             "Invalid suffix \"abcdef456\" for number literal"
@@ -950,6 +1215,7 @@ string""#
             "Invalid suffix \"abcde\" for number literal",
         );
         assert_eq!(errors[8].message, "The exponent has no digits",);
+        assert_eq!(errors[9].message, "The exponent has no digits",);
     }
 
     #[test]
