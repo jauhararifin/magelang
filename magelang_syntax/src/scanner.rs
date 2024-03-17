@@ -231,13 +231,13 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         raw.push(c);
         match c {
-            'n' => value.push('\n' as u8),
-            'r' => value.push('\r' as u8),
-            't' => value.push('\t' as u8),
-            '\\' => value.push('\\' as u8),
+            'n' => value.push(b'\n'),
+            'r' => value.push(b'\r'),
+            't' => value.push(b'\t'),
+            '\\' => value.push(b'\\'),
             '0' => value.push(0),
-            '\'' => value.push('\'' as u8),
-            '"' => value.push('"' as u8),
+            '\'' => value.push(b'\''),
+            '"' => value.push(b'"'),
             'x' => self.scan_string_hex(raw, value),
             _ => self.errors.unexpected_char(p, c),
         }
@@ -246,7 +246,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     fn scan_string_hex(&mut self, raw: &mut String, value: &mut Vec<u8>) {
         let Some((c, p)) = self.peek() else { return };
 
-        if !matches!(c, '0'..='9' | 'a'..='f' | 'A'..='F') {
+        if !c.is_ascii_hexdigit() {
             self.errors.unexpected_char(p, c);
             return;
         }
@@ -257,7 +257,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         let Some((c, p)) = self.peek() else { return };
 
-        if !matches!(c, '0'..='9' | 'a'..='f' | 'A'..='F') {
+        if !c.is_ascii_hexdigit() {
             self.errors.unexpected_char(p, c);
             return;
         }

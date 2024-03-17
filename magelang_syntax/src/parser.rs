@@ -409,7 +409,7 @@ fn parse_signature<E: ErrorReporter>(
 ) -> Option<SignatureNode> {
     let func = f.take(TokenKind::Fn)?;
     let pos = func.pos;
-    let name: Identifier = f.take_ident()?.into();
+    let name: Identifier = f.take_ident()?;
 
     let type_params = if f.kind() == &TokenKind::Lt {
         let (_, type_parameters, _) = parse_sequence(
@@ -509,7 +509,7 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
     let let_tok = f.take(TokenKind::Let)?;
     let pos = let_tok.pos;
 
-    let name: Identifier = f.take_ident()?.into();
+    let name: Identifier = f.take_ident()?;
 
     if f.take_if(&TokenKind::Colon).is_some() {
         let ty = parse_type_expr(f)?;
@@ -674,7 +674,7 @@ fn parse_binary_expr<E: ErrorReporter>(
     };
 
     let mut result = a;
-    while op.contains(&f.kind()) {
+    while op.contains(f.kind()) {
         let op_token = f.pop();
         let b = if let Some(next_op) = next_op {
             parse_binary_expr(f, next_op, allow_struct_lit)
@@ -735,7 +735,7 @@ fn parse_unary_expr<E: ErrorReporter>(
     allow_struct_lit: bool,
 ) -> Option<ExprNode> {
     let mut ops = vec![];
-    while UNARY_OP.contains(&f.kind()) {
+    while UNARY_OP.contains(f.kind()) {
         let op = f.tokens.pop_front().unwrap();
         ops.push(op);
     }
@@ -766,7 +766,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                 f.take(TokenKind::Dot)?;
                 match f.kind() {
                     TokenKind::Ident { .. } => {
-                        let selection: Identifier = f.take_ident()?.into();
+                        let selection: Identifier = f.take_ident()?;
                         ExprNode::Selection(SelectionExprNode {
                             value: Box::new(target),
                             selection,
@@ -816,7 +816,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                     TokenKind::Comma,
                     TokenKind::CloseBlock,
                     |parser| {
-                        let key: Identifier = parser.take_ident()?.into();
+                        let key: Identifier = parser.take_ident()?;
                         parser.take(TokenKind::Colon)?;
                         let value = parse_expr(parser, true)?;
                         Some(KeyValue {
@@ -904,7 +904,7 @@ fn parse_path_for_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNo
     while f.take_if(&TokenKind::DoubleColon).is_some() {
         match f.kind() {
             TokenKind::Ident { .. } => {
-                let ident = f.take_ident().unwrap().into();
+                let ident = f.take_ident().unwrap();
                 names.push(ident);
             }
             TokenKind::Lt => {

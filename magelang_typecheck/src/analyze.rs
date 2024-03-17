@@ -290,7 +290,7 @@ fn get_all_package_asts<'a>(
             .filter_map(|node| std::str::from_utf8(&node.path.value).ok());
 
         for import_path in import_paths {
-            let package_path = symbols.define(&import_path);
+            let package_path = symbols.define(import_path);
             if !in_stack.contains(&package_path) {
                 stack.push(package_path);
                 in_stack.insert(package_path);

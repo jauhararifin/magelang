@@ -20,7 +20,7 @@ fn test_parsing_error() {
         };
 
         let s = s.strip_prefix("line=").expect("missing line argument");
-        let (line_opt, s) = s.split_once(" ").expect("missing line argument");
+        let (line_opt, s) = s.split_once(' ').expect("missing line argument");
         let s = s.strip_prefix("col=").expect("missing column argument");
         println!("s = {s:?}");
         println!("s = {}", s.matches(char::is_numeric).next().unwrap());
@@ -49,7 +49,7 @@ fn test_parsing_error() {
             _ => col_opt.parse().expect("malformed col info"),
         };
 
-        let (_, message) = s.split_once(":").expect("missing error message");
+        let (_, message) = s.split_once(':').expect("missing error message");
         let message = message.trim();
 
         let loc = Location {
