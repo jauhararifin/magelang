@@ -75,22 +75,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             "false" => TokenKind::False,
             "continue" => TokenKind::Continue,
             "break" => TokenKind::Break,
-            _ => TokenKind::Ident,
-        };
-        let value_str = if kind == TokenKind::Ident {
-            value
-        } else {
-            String::default()
+            _ => TokenKind::Ident(value),
         };
 
-        Some(Token {
-            kind,
-            value_str,
-            value_bytes: Vec::default(),
-            char_value: '\0',
-            value_number: Number::default(),
-            pos,
-        })
+        Some(Token { kind, pos })
     }
 
     fn scan_char_lit(&mut self) -> Option<Token> {
@@ -183,11 +171,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             let Some((c, p)) = self.next() else {
                 self.errors.missing_closing_quote(self.get_pos());
                 return Some(Token {
-                    kind: TokenKind::CharLit,
-                    value_str: raw,
-                    value_bytes: Vec::default(),
-                    char_value: value,
-                    value_number: Number::default(),
+                    kind: TokenKind::CharLit { raw, value },
                     pos,
                 });
             };
@@ -195,11 +179,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
             if c == '\'' {
                 return Some(Token {
-                    kind: TokenKind::CharLit,
-                    value_str: raw,
-                    value_bytes: Vec::default(),
-                    char_value: value,
-                    value_number: Number::default(),
+                    kind: TokenKind::CharLit { raw, value },
                     pos,
                 });
             }
@@ -293,11 +273,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let Some((c, _)) = self.next() else {
             self.errors.missing_closing_quote(self.get_pos());
             return Some(Token {
-                kind: TokenKind::StringLit,
-                value_str: raw,
-                value_bytes: value,
-                char_value: '\0',
-                value_number: Number::default(),
+                kind: TokenKind::StringLit { raw, value },
                 pos,
             });
         };
@@ -305,11 +281,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         assert_eq!(c, '\"');
 
         Some(Token {
-            kind: TokenKind::StringLit,
-            value_str: raw,
-            value_bytes: value,
-            char_value: '\0',
-            value_number: Number::default(),
+            kind: TokenKind::StringLit { raw, value },
             pos,
         })
     }
@@ -340,11 +312,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
             return Some(Token {
-                kind: TokenKind::NumberLit,
-                value_str: raw,
-                value_bytes: Vec::default(),
-                char_value: 0 as char,
-                value_number: value,
+                kind: TokenKind::NumberLit { raw, value },
                 pos,
             });
         };
@@ -383,11 +351,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             }
             'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
             _ => Some(Token {
-                kind: TokenKind::NumberLit,
-                value_str: raw,
-                value_bytes: Vec::default(),
-                char_value: 0 as char,
-                value_number: value,
+                kind: TokenKind::NumberLit { raw, value },
                 pos,
             }),
         }
@@ -459,11 +423,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         Some(Token {
-            kind: TokenKind::NumberLit,
-            value_str: raw,
-            value_bytes: Vec::default(),
-            char_value: 0 as char,
-            value_number: value,
+            kind: TokenKind::NumberLit { raw, value },
             pos,
         })
     }
@@ -493,11 +453,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         Some(Token {
-            kind: TokenKind::NumberLit,
-            value_str: raw,
-            value_bytes: Vec::default(),
-            char_value: 0 as char,
-            value_number: value,
+            kind: TokenKind::NumberLit { raw, value },
             pos,
         })
     }
@@ -506,11 +462,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
             self.errors.missing_exponent_digits(self.get_pos());
             return Some(Token {
-                kind: TokenKind::NumberLit,
-                value_str: raw,
-                value_bytes: Vec::default(),
-                char_value: 0 as char,
-                value_number: value,
+                kind: TokenKind::NumberLit { raw, value },
                 pos,
             });
         };
@@ -526,11 +478,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             _ => {
                 self.errors.missing_exponent_digits(p);
                 Some(Token {
-                    kind: TokenKind::NumberLit,
-                    value_str: raw,
-                    value_bytes: Vec::default(),
-                    char_value: 0 as char,
-                    value_number: value,
+                    kind: TokenKind::NumberLit { raw, value },
                     pos,
                 })
             }
@@ -571,11 +519,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
         value.exp += exp_after_e;
         Some(Token {
-            kind: TokenKind::NumberLit,
-            value_str: raw,
-            value_bytes: Vec::default(),
-            char_value: 0 as char,
-            value_number: value,
+            kind: TokenKind::NumberLit { raw, value },
             pos,
         })
     }
@@ -600,11 +544,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         self.errors
             .invalid_number_suffix(invalid_suffix_pos, &invalid_suffix);
         Some(Token {
-            kind: TokenKind::NumberLit,
-            value_str: raw,
-            value_bytes: Vec::default(),
-            char_value: 0 as char,
-            value_number: value,
+            kind: TokenKind::NumberLit { raw, value },
             pos,
         })
     }
@@ -630,11 +570,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         Some(Token {
-            kind: TokenKind::Comment,
-            value_str: value,
-            value_bytes: Vec::default(),
-            char_value: '\0',
-            value_number: Number::default(),
+            kind: TokenKind::Comment(value),
             pos,
         })
     }
@@ -681,14 +617,14 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let pos = top.1;
 
         let mut sym = String::new();
-        let mut kind = TokenKind::Invalid;
+        let mut kind = None;
 
         while let Some((c, _)) = self.peek() {
             sym.push(c);
             let mut found = false;
             for (_, k) in Self::SYMBOLS.iter().filter(|(op, _)| op.starts_with(&sym)) {
                 found = true;
-                kind = *k;
+                kind = Some(k.clone());
             }
             if !found {
                 break;
@@ -697,29 +633,14 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             self.next();
         }
 
-        if let TokenKind::Invalid = kind {
-            None
-        } else {
-            Some(Token {
-                kind,
-                value_str: String::default(),
-                value_bytes: Vec::default(),
-                char_value: '\0',
-                value_number: Number::default(),
-                pos,
-            })
-        }
+        Some(Token { kind: kind?, pos })
     }
 
     fn scan_invalid(&mut self) -> Option<Token> {
         let (c, pos) = self.next()?;
         self.errors.unexpected_char(pos, c);
         Some(Token {
-            kind: TokenKind::Invalid,
-            value_str: c.to_string(),
-            value_bytes: Vec::default(),
-            char_value: '\0',
-            value_number: Number::default(),
+            kind: TokenKind::Invalid(c),
             pos,
         })
     }
@@ -819,7 +740,6 @@ mod test {
     use crate::error::ErrorManager;
     use crate::token::FileManager;
     use core::str::FromStr;
-    use num::BigInt;
     use std::path::PathBuf;
 
     #[test]
@@ -854,56 +774,74 @@ string"
 
         let tokens = scan(&error_manager, &file);
 
-        assert_eq!(tokens[0].kind, TokenKind::Comment);
-        assert_eq!(&tokens[0].value_str, "// a simple comment\n");
+        assert_eq!(
+            tokens[0].kind,
+            TokenKind::Comment("// a simple comment\n".to_string())
+        );
 
-        assert_eq!(tokens[1].kind, TokenKind::Comment);
-        assert_eq!(&tokens[1].value_str, "// another comment\n");
-        assert_eq!(tokens[2].kind, TokenKind::Comment);
-        assert_eq!(&tokens[2].value_str, "// with multiline\n");
-        assert_eq!(tokens[3].kind, TokenKind::Comment);
-        assert_eq!(&tokens[3].value_str, "// grouped comment\n");
+        assert_eq!(
+            tokens[1].kind,
+            TokenKind::Comment("// another comment\n".to_string())
+        );
+        assert_eq!(
+            tokens[2].kind,
+            TokenKind::Comment("// with multiline\n".to_string())
+        );
+        assert_eq!(
+            tokens[3].kind,
+            TokenKind::Comment("// grouped comment\n".to_string())
+        );
 
         assert_eq!(tokens[4].kind, TokenKind::Let);
-        assert_eq!(tokens[5].kind, TokenKind::Ident);
+        assert_eq!(tokens[5].kind, TokenKind::Ident("a".to_string()));
         assert_eq!(tokens[6].kind, TokenKind::Equal);
-        assert_eq!(tokens[7].kind, TokenKind::NumberLit);
+        assert_eq!(
+            tokens[7].kind,
+            TokenKind::NumberLit {
+                raw: "10".to_string(),
+                value: Number::new(10, 0)
+            }
+        );
         assert_eq!(tokens[8].kind, TokenKind::SemiColon);
-        assert_eq!(tokens[9].kind, TokenKind::Comment);
-        assert_eq!(&tokens[9].value_str, "// comment in the end\n");
-
-        assert_eq!(tokens[10].kind, TokenKind::Comment);
         assert_eq!(
-            &tokens[10].value_str,
-            "// nested comment // is considered a single comment\n"
+            tokens[9].kind,
+            TokenKind::Comment("// comment in the end\n".to_string())
         );
 
-        assert_eq!(&tokens[11].value_str, "// unicode\n");
-        assert_eq!(&tokens[12].value_str, "// a۰۱۸\n");
-        assert_eq!(&tokens[13].value_str, "// foo६४\n");
-        assert_eq!(&tokens[14].value_str, "// ŝ\n");
-        assert_eq!(&tokens[15].value_str, "// ŝfoo\n");
-
-        assert_eq!(tokens[16].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[16].value_str,
-            r#""this is a string // not a comment""#
-        );
-        assert_eq!(
-            std::str::from_utf8(&tokens[16].value_bytes).unwrap(),
-            r#"this is a string // not a comment"#
+            tokens[10].kind,
+            TokenKind::Comment("// nested comment // is considered a single comment\n".to_string())
         );
 
-        assert_eq!(tokens[17].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[17].value_str,
-            r#""this is
+            tokens[11].kind,
+            TokenKind::Comment("// unicode\n".to_string())
+        );
+        assert_eq!(tokens[12].kind, TokenKind::Comment("// a۰۱۸\n".to_string()));
+        assert_eq!(
+            tokens[13].kind,
+            TokenKind::Comment("// foo६४\n".to_string())
+        );
+        assert_eq!(tokens[14].kind, TokenKind::Comment("// ŝ\n".to_string()));
+        assert_eq!(tokens[15].kind, TokenKind::Comment("// ŝfoo\n".to_string()));
+
+        assert_eq!(
+            tokens[16].kind,
+            TokenKind::StringLit {
+                raw: r#""this is a string // not a comment""#.to_string(),
+                value: b"this is a string // not a comment".to_vec(),
+            }
+        );
+
+        assert_eq!(
+            tokens[17].kind,
+            TokenKind::StringLit {
+                raw: r#""this is
 a multi line // not a comment
 string""#
-        );
-        assert_eq!(
-            std::str::from_utf8(&tokens[17].value_bytes).unwrap(),
-            "this is\na multi line // not a comment\nstring"
+                    .to_string(),
+                value: b"this is\na multi line // not a comment\nstring".to_vec(),
+            }
         );
 
         assert!(!error_manager.has_errors());
@@ -930,67 +868,75 @@ string""#
 
         let tokens = scan(&error_manager, &file);
 
-        assert_eq!(tokens[0].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[0].value_str, r#""basic string""#);
         assert_eq!(
-            std::str::from_utf8(&tokens[0].value_bytes).unwrap(),
-            r#"basic string"#
-        );
-        assert_eq!(tokens[1].kind, TokenKind::StringLit);
-        assert_eq!(
-            &tokens[1].value_str,
-            r#""this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly""#
+            tokens[0].kind,
+            TokenKind::StringLit {
+                raw: r#""basic string""#.to_string(),
+                value: b"basic string".to_vec(),
+            }
         );
         assert_eq!(
-            std::str::from_utf8(&tokens[1].value_bytes).unwrap(),
-            r#"this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly"#
-        );
-        assert_eq!(tokens[2].kind, TokenKind::StringLit);
-        assert_eq!(
-            &tokens[2].value_str,
-            r#""this is a string // not a comment""#
-        );
-        assert_eq!(
-            std::str::from_utf8(&tokens[2].value_bytes).unwrap(),
-            r#"this is a string // not a comment"#
-        );
-        assert_eq!(tokens[3].kind, TokenKind::StringLit);
-        assert_eq!(
-            &tokens[3].value_str,
-            r#""hex escape like \x00\x12\xAb\xCd\xef\xEF are fine""#,
+            tokens[1].kind,
+            TokenKind::StringLit {
+                raw: r#""this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly""#
+                    .to_string(),
+                value: "this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly"
+                    .bytes()
+                    .collect(),
+            }
         );
         assert_eq!(
-            tokens[3].value_bytes.as_slice(),
-            b"hex escape like \x00\x12\xAb\xCd\xef\xEF are fine",
+            tokens[2].kind,
+            TokenKind::StringLit {
+                raw: r#""this is a string // not a comment""#.to_string(),
+                value: b"this is a string // not a comment".to_vec(),
+            }
         );
-        assert_eq!(tokens[4].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[4].value_str, r#""\n\r\t\\\0\"\''""#);
-        assert_eq!(&tokens[4].value_bytes, b"\n\r\t\\\0\"\''",);
-        assert_eq!(tokens[5].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[5].value_str,
-            r#""multiline
+            tokens[3].kind,
+            TokenKind::StringLit {
+                raw: r#""hex escape like \x00\x12\xAb\xCd\xef\xEF are fine""#.to_string(),
+                value: b"hex escape like \x00\x12\xAb\xCd\xef\xEF are fine".to_vec(),
+            }
+        );
+        assert_eq!(
+            tokens[4].kind,
+            TokenKind::StringLit {
+                raw: r#""\n\r\t\\\0\"\''""#.to_string(),
+                value: b"\n\r\t\\\0\"\''".to_vec(),
+            }
+        );
+        assert_eq!(
+            tokens[5].kind,
+            TokenKind::StringLit {
+                raw: r#""multiline
             string""#
+                    .to_string(),
+                value: b"multiline
+            string"
+                    .to_vec()
+            }
         );
         assert_eq!(
-            std::str::from_utf8(&tokens[5].value_bytes).unwrap(),
-            r#"multiline
-            string"#
+            tokens[6].kind,
+            TokenKind::StringLit {
+                raw: r#""invalid escape \a\b\c\d\e\f\g\h\i\j\k\l\m\o\p\q\s\u\v\w\y\z""#.to_string(),
+                value: b"invalid escape ".to_vec(),
+            }
         );
-        assert_eq!(tokens[6].kind, TokenKind::StringLit);
         assert_eq!(
-            &tokens[6].value_str,
-            r#""invalid escape \a\b\c\d\e\f\g\h\i\j\k\l\m\o\p\q\s\u\v\w\y\z""#
+            tokens[7].kind,
+            TokenKind::StringLit {
+                raw: r#""invalid hex \xgh\x\\x""#.to_string(),
+                value: b"invalid hex gh\\x".to_vec(),
+            }
         );
-        assert_eq!(&tokens[6].value_bytes, b"invalid escape ",);
-        assert_eq!(tokens[7].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[7].value_str, r#""invalid hex \xgh\x\\x""#);
-        assert_eq!(&tokens[7].value_bytes, b"invalid hex gh\\x",);
-        assert_eq!(tokens[8].kind, TokenKind::StringLit);
-        assert_eq!(&tokens[8].value_str, r#""missing closing quote"#);
         assert_eq!(
-            std::str::from_utf8(&tokens[8].value_bytes).unwrap(),
-            r#"missing closing quote"#
+            tokens[8].kind,
+            TokenKind::StringLit {
+                raw: r#""missing closing quote"#.to_string(),
+                value: b"missing closing quote".to_vec(),
+            }
         );
 
         let errors = error_manager.take();
@@ -1070,118 +1016,233 @@ string""#
 
         assert!(tokens[0..8]
             .iter()
-            .all(|token| token.kind == TokenKind::NumberLit));
-        assert_eq!(&tokens[0].value_str, "0");
-        assert_eq!(u8::try_from(&tokens[0].value_number).unwrap(), 0u8);
-        assert_eq!(&tokens[1].value_str, "1");
-        assert_eq!(u8::try_from(&tokens[1].value_number).unwrap(), 1u8);
-        assert_eq!(&tokens[2].value_str, "12345678_90123455561_090");
+            .all(|token| matches!(token.kind, TokenKind::NumberLit { .. })));
         assert_eq!(
-            BigInt::try_from(&tokens[2].value_number).unwrap(),
-            BigInt::from_str("1234567890123455561090").unwrap(),
+            tokens[0].kind,
+            TokenKind::NumberLit {
+                raw: "0".to_string(),
+                value: Number::new(0, 0)
+            }
         );
-        assert_eq!(&tokens[3].value_str, "01234_567");
         assert_eq!(
-            i32::try_from(&tokens[3].value_number).unwrap(),
-            0o1234567i32
+            tokens[1].kind,
+            TokenKind::NumberLit {
+                raw: "1".to_string(),
+                value: Number::new(1, 0),
+            }
         );
-        assert_eq!(&tokens[4].value_str, "0xabc___def01234567890deadbeef0__10_");
         assert_eq!(
-            BigInt::try_from(&tokens[4].value_number).unwrap(),
-            BigInt::from_str("3484607783832696065538794497962000").unwrap(),
+            tokens[2].kind,
+            TokenKind::NumberLit {
+                raw: "12345678_90123455561_090".to_string(),
+                value: number_from_str("1234567890123455561090", "0"),
+            }
         );
-        assert_eq!(&tokens[5].value_str, "0_o012345670123_4567");
         assert_eq!(
-            i64::try_from(&tokens[5].value_number).unwrap(),
-            5744368105847i64,
+            tokens[3].kind,
+            TokenKind::NumberLit {
+                raw: "01234_567".to_string(),
+                value: Number::new(0o1234567, 0),
+            }
         );
-        assert_eq!(&tokens[6].value_str, "0b_11010101001010101010");
-        assert_eq!(i32::try_from(&tokens[6].value_number).unwrap(), 873130);
-        assert_eq!(&tokens[7].value_str, "0_b11010101001010101010");
-        assert_eq!(i32::try_from(&tokens[7].value_number).unwrap(), 873130);
-        assert_eq!(&tokens[8].value_str, "0__b__11010101001010101010");
-        assert_eq!(i32::try_from(&tokens[8].value_number).unwrap(), 873130);
+        assert_eq!(
+            tokens[4].kind,
+            TokenKind::NumberLit {
+                raw: "0xabc___def01234567890deadbeef0__10_".to_string(),
+                value: number_from_str("3484607783832696065538794497962000", "0"),
+            },
+        );
+        assert_eq!(
+            tokens[5].kind,
+            TokenKind::NumberLit {
+                raw: "0_o012345670123_4567".to_string(),
+                value: Number::new(5744368105847i64, 0),
+            }
+        );
+        assert_eq!(
+            tokens[6].kind,
+            TokenKind::NumberLit {
+                raw: "0b_11010101001010101010".to_string(),
+                value: Number::new(873130, 0),
+            }
+        );
+        assert_eq!(
+            tokens[7].kind,
+            TokenKind::NumberLit {
+                raw: "0_b11010101001010101010".to_string(),
+                value: Number::new(873130, 0),
+            }
+        );
+        assert_eq!(
+            tokens[8].kind,
+            TokenKind::NumberLit {
+                raw: "0__b__11010101001010101010".to_string(),
+                value: Number::new(873130, 0),
+            }
+        );
 
-        assert_eq!(tokens[9].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[9].value_str, "123.123");
-        assert_eq!(f32::try_from(&tokens[9].value_number).unwrap(), 123.123f32);
-        assert_eq!(tokens[10].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[10].value_str, "123e123");
         assert_eq!(
-            f32::try_from(&tokens[10].value_number).unwrap(),
-            f32::INFINITY
+            tokens[9].kind,
+            TokenKind::NumberLit {
+                raw: "123.123".to_string(),
+                value: Number::new(123123, -3),
+            }
         );
-        assert_eq!(tokens[11].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[11].value_str, "123e-123");
         assert_eq!(
-            f32::try_from(&tokens[11].value_number).unwrap(),
-            123e-123f32
+            tokens[10].kind,
+            TokenKind::NumberLit {
+                raw: "123e123".to_string(),
+                value: Number::new(123, 123),
+            }
         );
-        assert_eq!(tokens[12].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[12].value_str, "123E123");
         assert_eq!(
-            f32::try_from(&tokens[12].value_number).unwrap(),
-            f32::INFINITY
+            tokens[11].kind,
+            TokenKind::NumberLit {
+                raw: "123e-123".to_string(),
+                value: Number::new(123, -123),
+            }
         );
-        assert_eq!(tokens[13].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[13].value_str, "123E-123");
         assert_eq!(
-            f32::try_from(&tokens[13].value_number).unwrap(),
-            123e-123f32
+            tokens[12].kind,
+            TokenKind::NumberLit {
+                raw: "123E123".to_string(),
+                value: Number::new(123, 123),
+            }
         );
-        assert_eq!(tokens[14].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[14].value_str, "1.23e123");
         assert_eq!(
-            f32::try_from(&tokens[14].value_number).unwrap(),
-            f32::INFINITY,
+            tokens[13].kind,
+            TokenKind::NumberLit {
+                raw: "123E-123".to_string(),
+                value: Number::new(123, -123),
+            }
         );
-        assert_eq!(tokens[15].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[15].value_str, "0.123");
-        assert_eq!(f32::try_from(&tokens[15].value_number).unwrap(), 0.123,);
-        assert_eq!(tokens[16].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[16].value_str, "0e123");
-        assert_eq!(f32::try_from(&tokens[16].value_number).unwrap(), 0f32);
+        assert_eq!(
+            tokens[14].kind,
+            TokenKind::NumberLit {
+                raw: "1.23e123".to_string(),
+                value: Number::new(123, 121),
+            }
+        );
+        assert_eq!(
+            tokens[15].kind,
+            TokenKind::NumberLit {
+                raw: "0.123".to_string(),
+                value: Number::new(123, -3),
+            }
+        );
+        assert_eq!(
+            tokens[16].kind,
+            TokenKind::NumberLit {
+                raw: "0e123".to_string(),
+                value: Number::new(0, 123),
+            }
+        );
 
-        assert_eq!(tokens[17].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[17].value_str, "0123abcdef456");
-        assert_eq!(tokens[18].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[18].value_str, "0abcde");
-        assert_eq!(tokens[19].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[19].value_str, "0x123");
-        assert_eq!(i32::try_from(&tokens[19].value_number).unwrap(), 291);
+        assert_eq!(
+            tokens[17].kind,
+            TokenKind::NumberLit {
+                raw: "0123abcdef456".to_string(),
+                value: Number::new(0o123, 0),
+            }
+        );
+        assert_eq!(
+            tokens[18].kind,
+            TokenKind::NumberLit {
+                raw: "0abcde".to_string(),
+                value: Number::new(0, 0),
+            }
+        );
+        assert_eq!(
+            tokens[19].kind,
+            TokenKind::NumberLit {
+                raw: "0x123".to_string(),
+                value: Number::new(291, 0),
+            }
+        );
         assert_eq!(tokens[20].kind, TokenKind::Dot);
-        assert_eq!(tokens[21].kind, TokenKind::Ident);
+        assert_eq!(tokens[21].kind, TokenKind::Ident("abcd".to_string()));
 
-        assert_eq!(tokens[22].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[22].value_str, "0b101");
-        assert_eq!(i32::try_from(&tokens[22].value_number).unwrap(), 5);
+        assert_eq!(
+            tokens[22].kind,
+            TokenKind::NumberLit {
+                raw: "0b101".to_string(),
+                value: Number::new(5, 0),
+            }
+        );
         assert_eq!(tokens[23].kind, TokenKind::Dot);
-        assert_eq!(tokens[24].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[24].value_str, "101");
-        assert_eq!(i32::try_from(&tokens[24].value_number).unwrap(), 101);
+        assert_eq!(
+            tokens[24].kind,
+            TokenKind::NumberLit {
+                raw: "101".to_string(),
+                value: Number::new(101, 0),
+            }
+        );
 
-        assert_eq!(tokens[25].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[25].value_str, "0o123");
-        assert_eq!(i32::try_from(&tokens[25].value_number).unwrap(), 83);
+        assert_eq!(
+            tokens[25].kind,
+            TokenKind::NumberLit {
+                raw: "0o123".to_string(),
+                value: Number::new(83, 0),
+            }
+        );
         assert_eq!(tokens[26].kind, TokenKind::Dot);
-        assert_eq!(tokens[27].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[27].value_str, "123");
-        assert_eq!(i32::try_from(&tokens[27].value_number).unwrap(), 123);
+        assert_eq!(
+            tokens[27].kind,
+            TokenKind::NumberLit {
+                raw: "123".to_string(),
+                value: Number::new(123, 0),
+            }
+        );
 
-        assert_eq!(tokens[28].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[28].value_str, "0b123");
-        assert_eq!(tokens[29].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[29].value_str, "123eabc");
-        assert_eq!(tokens[30].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[30].value_str, "123e-1a");
-        assert_eq!(tokens[31].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[31].value_str, "0xabcghijklmnopqrstuvwxyz");
-        assert_eq!(tokens[32].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[32].value_str, "123.abcde");
-        assert_eq!(tokens[33].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[33].value_str, "123e");
-        assert_eq!(tokens[34].kind, TokenKind::NumberLit);
-        assert_eq!(&tokens[34].value_str, "123e-");
+        assert_eq!(
+            tokens[28].kind,
+            TokenKind::NumberLit {
+                raw: "0b123".to_string(),
+                value: Number::new(1, 0)
+            }
+        );
+        assert_eq!(
+            tokens[29].kind,
+            TokenKind::NumberLit {
+                raw: "123eabc".to_string(),
+                value: Number::new(123, 0)
+            }
+        );
+        assert_eq!(
+            tokens[30].kind,
+            TokenKind::NumberLit {
+                raw: "123e-1a".to_string(),
+                value: Number::new(123, -1)
+            }
+        );
+        assert_eq!(
+            tokens[31].kind,
+            TokenKind::NumberLit {
+                raw: "0xabcghijklmnopqrstuvwxyz".to_string(),
+                value: Number::new(0xabc, 0),
+            }
+        );
+        assert_eq!(
+            tokens[32].kind,
+            TokenKind::NumberLit {
+                raw: "123.abcde".to_string(),
+                value: Number::new(123, 0),
+            }
+        );
+        assert_eq!(
+            tokens[33].kind,
+            TokenKind::NumberLit {
+                raw: "123e".to_string(),
+                value: Number::new(123, 0),
+            }
+        );
+        assert_eq!(
+            tokens[34].kind,
+            TokenKind::NumberLit {
+                raw: "123e-".to_string(),
+                value: Number::new(123, 0),
+            }
+        );
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 10);
@@ -1305,10 +1366,23 @@ string""#
         assert_eq!(tokens[67].kind, TokenKind::AtSign);
 
         assert_eq!(tokens[68].kind, TokenKind::Sub);
-        assert_eq!(tokens[69].kind, TokenKind::NumberLit);
+        assert_eq!(
+            tokens[69].kind,
+            TokenKind::NumberLit {
+                raw: "1".to_string(),
+                value: Number::new(1, 0)
+            }
+        );
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].message, "Unexpected char '#'");
+    }
+
+    fn number_from_str(base: &str, exp: &str) -> Number {
+        Number {
+            val: BigInt::from_str(base).unwrap(),
+            exp: BigInt::from_str(exp).unwrap(),
+        }
     }
 }

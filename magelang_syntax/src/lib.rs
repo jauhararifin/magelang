@@ -1,3 +1,5 @@
+#![feature(assert_matches)]
+
 mod ast;
 mod error;
 mod number;

@@ -104,3 +104,51 @@ macro_rules! number_try_into_float {
 
 number_try_into_float!(f32);
 number_try_into_float!(f64);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::str::FromStr;
+
+    macro_rules! test {
+        ($name:ident, $base:expr, $exp:expr, $expected:expr, BigInt) => {
+            #[test]
+            fn $name() {
+                let n = Number::new($base, $exp);
+                let expected = BigInt::from_str($expected).unwrap();
+                assert_eq!(expected, BigInt::try_from(&n).unwrap());
+            }
+        };
+        ($name:ident, $base:expr, $exp:expr, $expected:expr, $type:ident) => {
+            #[test]
+            fn $name() {
+                let n = Number::new($base, $exp);
+                let expected: $type = $expected;
+                assert_eq!(expected, $type::try_from(&n).unwrap());
+            }
+        };
+    }
+
+    test!(test_0e0, 0, 0, 0, u8);
+    test!(test_1e0, 1, 0, 1, u8);
+    test!(
+        test_1234567890123455561090e0,
+        BigInt::from_str("1234567890123455561090").unwrap(),
+        BigInt::from(0),
+        "1234567890123455561090",
+        BigInt
+    );
+    test!(
+        test_5744368105847e0,
+        5744368105847i64,
+        0,
+        5744368105847i64,
+        i64
+    );
+
+    test!(test_123_p_123, 123123, -3, 123.123f64, f64);
+    test!(test_123e123, 123, 123, 123e123, f64);
+    test!(test_123e_neg123, 123, -123, 123e-123, f64);
+    test!(test_0e123, 0, 123, 0f64, f64);
+    test!(test_123e_neg1, 123, -1, 123e-1f64, f64);
+}

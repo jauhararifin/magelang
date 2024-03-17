@@ -13,15 +13,6 @@ pub struct Comment {
     pub pos: Pos,
 }
 
-impl From<Token> for Comment {
-    fn from(value: Token) -> Self {
-        Self {
-            value: value.value_str,
-            pos: value.pos,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum ItemNode {
     Import(ImportNode),
@@ -74,11 +65,15 @@ pub struct StringLit {
 }
 
 impl From<Token> for StringLit {
-    fn from(value: Token) -> Self {
-        Self {
-            raw: value.value_str,
-            value: value.value_bytes,
-            pos: value.pos,
+    fn from(token: Token) -> Self {
+        if let TokenKind::StringLit { raw, value } = token.kind {
+            Self {
+                raw,
+                value,
+                pos: token.pos,
+            }
+        } else {
+            panic!("token is not a string literal");
         }
     }
 }
@@ -90,10 +85,14 @@ pub struct Identifier {
 }
 
 impl From<Token> for Identifier {
-    fn from(value: Token) -> Self {
-        Self {
-            value: value.value_str,
-            pos: value.pos,
+    fn from(token: Token) -> Self {
+        if let TokenKind::Ident(value) = token.kind {
+            Self {
+                value,
+                pos: token.pos,
+            }
+        } else {
+            panic!("token is not an ident")
         }
     }
 }
@@ -269,31 +268,11 @@ pub struct NumberLit {
     pub pos: Pos,
 }
 
-impl From<Token> for NumberLit {
-    fn from(value: Token) -> Self {
-        Self {
-            raw: value.value_str,
-            value: value.value_number,
-            pos: value.pos,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CharLit {
     pub raw: String,
     pub value: char,
     pub pos: Pos,
-}
-
-impl From<Token> for CharLit {
-    fn from(value: Token) -> Self {
-        Self {
-            raw: value.value_str,
-            value: value.char_value,
-            pos: value.pos,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

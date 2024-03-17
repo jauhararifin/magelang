@@ -116,18 +116,15 @@ impl FileManager {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Token {
     pub(crate) kind: TokenKind,
-    pub(crate) value_str: String,
-    pub(crate) value_bytes: Vec<u8>,
-    pub(crate) char_value: char,
-    pub(crate) value_number: Number,
     pub(crate) pos: Pos,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(u8)]
 pub(crate) enum TokenKind {
-    Invalid,
+    Invalid(char),
     Eof,
-    Comment,
+    Comment(String),
     Import,
     Struct,
     Fn,
@@ -135,7 +132,7 @@ pub(crate) enum TokenKind {
     If,
     Else,
     While,
-    Ident,
+    Ident(String),
     As,
     Add,
     Sub,
@@ -170,9 +167,9 @@ pub(crate) enum TokenKind {
     SemiColon,
     Equal,
     Return,
-    NumberLit,
-    StringLit,
-    CharLit,
+    NumberLit { raw: String, value: Number },
+    StringLit { raw: String, value: Vec<u8> },
+    CharLit { raw: String, value: char },
     Null,
     True,
     False,
@@ -182,12 +179,12 @@ pub(crate) enum TokenKind {
 }
 
 impl TokenKind {
-    pub fn is_keyword(&self) -> bool {
+    pub(crate) fn is_keyword(&self) -> bool {
         match self {
-            Self::Invalid
+            Self::Invalid(..)
             | Self::Eof
-            | Self::Comment
-            | Self::Ident
+            | Self::Comment(..)
+            | Self::Ident(..)
             | Self::Add
             | Self::Sub
             | Self::Mul
@@ -221,9 +218,9 @@ impl TokenKind {
             | Self::SemiColon
             | Self::Equal
             | Self::Return
-            | Self::NumberLit
-            | Self::CharLit
-            | Self::StringLit => false,
+            | Self::NumberLit { .. }
+            | Self::CharLit { .. }
+            | Self::StringLit { .. } => false,
 
             Self::Import
             | Self::Struct
@@ -245,8 +242,8 @@ impl TokenKind {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind {
-            TokenKind::Ident => write!(f, "'{}'", self.value_str),
+        match &self.kind {
+            TokenKind::Ident(raw) => write!(f, "'{raw}'"),
             _ => self.kind.fmt(f),
         }
     }
@@ -255,9 +252,9 @@ impl Display for Token {
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Invalid => write!(f, "INVALID"),
+            Self::Invalid(..) => write!(f, "INVALID"),
             Self::Eof => write!(f, "EOF"),
-            Self::Comment => write!(f, "COMMENT"),
+            Self::Comment(..) => write!(f, "COMMENT"),
             Self::Import => write!(f, "'import'"),
             Self::Struct => write!(f, "'struct'"),
             Self::Fn => write!(f, "'fn'"),
@@ -265,7 +262,7 @@ impl Display for TokenKind {
             Self::If => write!(f, "'if'"),
             Self::Else => write!(f, "'else'"),
             Self::While => write!(f, "'while'"),
-            Self::Ident => write!(f, "IDENT"),
+            Self::Ident(..) => write!(f, "IDENT"),
             Self::As => write!(f, "'as'"),
             Self::Add => write!(f, "'+'"),
             Self::Sub => write!(f, "'-'"),
@@ -300,9 +297,9 @@ impl Display for TokenKind {
             Self::SemiColon => write!(f, "';'"),
             Self::Equal => write!(f, "'='"),
             Self::Return => write!(f, "'return'"),
-            Self::NumberLit => write!(f, "NUMBER_LIT"),
-            Self::CharLit => write!(f, "CHAR_LIT"),
-            Self::StringLit => write!(f, "STRING_LIT"),
+            Self::NumberLit { .. } => write!(f, "NUMBER_LIT"),
+            Self::CharLit { .. } => write!(f, "CHAR_LIT"),
+            Self::StringLit { .. } => write!(f, "STRING_LIT"),
             Self::Null => write!(f, "'null'"),
             Self::True => write!(f, "'true'"),
             Self::False => write!(f, "'false'"),
