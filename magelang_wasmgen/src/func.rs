@@ -149,7 +149,7 @@ fn init_functions<'ctx, E: ErrorReporter>(
                     }
 
                     if func.typeargs.is_some() {
-                        ctx.errors.import_generic_func(func.pos);
+                        ctx.errors.export_generic_func(func.pos);
                         continue;
                     }
 

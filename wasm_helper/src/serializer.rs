@@ -6,14 +6,6 @@ pub trait Serializer {
         W: std::io::Write + ?Sized;
 }
 
-trait WriterExt: std::io::Write {
-    fn byte(&mut self, opcode: u8) -> std::io::Result<()> {
-        self.write_all(&[opcode])
-    }
-}
-
-impl<T: std::io::Write + ?Sized> WriterExt for &mut T {}
-
 static MAGIC_NUMBER: &[u8] = &[0x00, 0x61, 0x73, 0x6d];
 static VERSION: &[u8] = &[0x01, 0x00, 0x00, 0x00];
 
