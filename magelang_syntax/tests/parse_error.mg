@@ -62,6 +62,10 @@ let _: [*]package = 10;
 //syntax_error line=+1 col=10: Missing pointee type
 let _: [*] = 10;
 let _: i32;
+//syntax_error line=+1 col=8: Missing type expression
+let _: 123 = 10;
+//syntax_error line=+1 col=7: Missing type expression
+let _:;
 
 // =====================================================
 // Struct definitions

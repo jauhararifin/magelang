@@ -22,8 +22,6 @@ fn test_parsing_error() {
         let s = s.strip_prefix("line=").expect("missing line argument");
         let (line_opt, s) = s.split_once(' ').expect("missing line argument");
         let s = s.strip_prefix("col=").expect("missing column argument");
-        println!("s = {s:?}");
-        println!("s = {}", s.matches(char::is_numeric).next().unwrap());
         let end = s
             .find(|c: char| !c.is_numeric())
             .expect("missing error message");

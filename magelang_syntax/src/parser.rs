@@ -104,15 +104,13 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
             TokenKind::CloseBrac,
             |this| this.take_if_string_lit(),
         );
-        if args.is_none() {
+
+        let Some((_, arguments, _)) = args else {
             f.unexpected("annotation arguments");
             f.skip_until_before(TOP_LEVEL_STOPPING_TOKEN);
             continue;
-        }
-
-        let Some((_, arguments, _)) = args else {
-            continue;
         };
+
         let arguments = arguments.into_iter().map(StringLit::from).collect();
         result.push(AnnotationNode {
             pos,
@@ -180,8 +178,17 @@ fn parse_global<E: ErrorReporter>(
     let pos = let_tok.pos;
 
     let name = f.take_ident()?;
+
     f.take(TokenKind::Colon)?;
-    let ty = parse_type_expr(f)?;
+    let ty = if let Some(ty) = parse_type_expr(f) {
+        ty
+    } else {
+        let pos = f.token().pos;
+        f.errors.missing(pos, "type expression");
+        TypeExprNode::Invalid(pos)
+    };
+
+    f.skip_until_before(&[TokenKind::SemiColon, TokenKind::Equal]);
     let value = if f.take_if(&TokenKind::Equal).is_some() {
         parse_expr(f, true)
     } else {
@@ -203,8 +210,12 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
     match &tok.kind {
         TokenKind::OpenSquare => {
             let tok = f.pop();
-            f.take(TokenKind::Mul)?;
-            let close_tok = f.take(TokenKind::CloseSquare)?;
+            if f.take(TokenKind::Mul).is_none() {
+                return Some(TypeExprNode::Invalid(tok.pos));
+            }
+            let Some(close_tok) = f.take(TokenKind::CloseSquare) else {
+                return Some(TypeExprNode::Invalid(tok.pos));
+            };
             let ty = if let Some(ty) = parse_type_expr(f) {
                 ty
             } else {
@@ -286,6 +297,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 Some(TypeExprNode::Invalid(pos))
             }
         }
+        TokenKind::SemiColon => None,
         _ => {
             if tok.kind.is_keyword() {
                 f.unexpected("type expression");
@@ -474,7 +486,7 @@ fn parse_signature<E: ErrorReporter>(
 fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterNode> {
     let name = f.take_if_ident()?;
     let pos = name.pos;
-    f.take(TokenKind::Colon);
+    f.take(TokenKind::Colon)?;
     let ty = parse_type_expr(f)?;
     Some(ParameterNode { pos, name, ty })
 }
@@ -1003,8 +1015,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 pos: token.pos,
             })
         } else {
-            self.errors
-                .unexpected_parsing(token.pos, "IDENT", token);
+            self.errors.unexpected_parsing(token.pos, "IDENT", token);
             None
         }
     }
@@ -1060,8 +1071,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 pos: token.pos,
             })
         } else {
-            self.errors
-                .unexpected_parsing(token.pos, "CHAR_LIT", token);
+            self.errors.unexpected_parsing(token.pos, "CHAR_LIT", token);
             None
         }
     }
