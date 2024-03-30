@@ -1,10 +1,13 @@
 use crate::errors::SemanticError;
 use crate::generic_ty::{
-    GenericStructType, GenericType, GenericTypeInterner, GenericTypeKind, GenericTypeRepr,
+    get_typeparams, GenericStructType, GenericType, GenericTypeInterner, GenericTypeKind,
+    GenericTypeRepr, TypeArgsInterner,
 };
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
-use crate::ty::{BitSize, FloatType, StructType, Type, TypeInterner, TypeKind, TypeRepr};
+use crate::ty::{
+    check_circular_type, BitSize, FloatType, StructType, Type, TypeInterner, TypeKind, TypeRepr,
+};
 use crate::{DefId, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use indexmap::IndexMap;
@@ -48,6 +51,7 @@ pub fn analyze<'a>(
     }
 
     let types = TypeInterner::new(arena);
+    let typeargs = TypeArgsInterner::new(arena);
     let generic_types = GenericTypeInterner::new(arena);
 
     let mut ctx = Context {
@@ -56,6 +60,7 @@ pub fn analyze<'a>(
         errors: error_manager,
         symbols,
         types,
+        typeargs,
         generic_types,
         package_scopes: IndexMap::default(),
     };
@@ -65,6 +70,15 @@ pub fn analyze<'a>(
         let s = ctx.package_scopes.entry(package).or_default();
         s.import_scopes = scope;
     }
+
+    let type_scopes = build_type_scopes(&ctx, struct_items);
+    for (package, scope) in type_scopes {
+        let s = ctx.package_scopes.entry(package).or_default();
+        s.type_scopes = scope;
+    }
+
+    generate_type_body(&ctx);
+    check_circular_type(&ctx);
 }
 
 fn get_all_package_asts<'a>(
@@ -119,6 +133,7 @@ pub(crate) struct Context<'a, E> {
 
     pub(crate) symbols: SymbolInterner<'a>,
     pub(crate) types: TypeInterner<'a>,
+    pub(crate) typeargs: TypeArgsInterner<'a>,
     pub(crate) generic_types: GenericTypeInterner<'a>,
 
     pub(crate) package_scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
@@ -149,6 +164,15 @@ impl<'a> From<&'a Type<'a>> for TypeObject<'a> {
         Self {
             kind: TypeObjectKind::Regular(ty),
             node: None,
+        }
+    }
+}
+
+impl<'a> TypeObject<'a> {
+    fn init_body<E: ErrorReporter>(&self, ctx: &Context<'a, E>) {
+        match self.kind {
+            TypeObjectKind::Regular(ty) => ty.init_body(ctx),
+            TypeObjectKind::Generic(generic_ty) => generic_ty.init_body(ctx),
         }
     }
 }
@@ -245,8 +269,10 @@ fn build_type_scopes<'a, E: ErrorReporter>(
 
                 table.insert(object_name, object);
             } else {
+                let params = get_typeparams(ctx, &struct_node.type_params);
                 let generic_ty = ctx.generic_types.define(GenericType {
                     kind: GenericTypeKind::User(def_id),
+                    params,
                     repr: GenericTypeRepr::Struct(GenericStructType {
                         body: OnceCell::default(),
                     }),
@@ -349,4 +375,26 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, Ty
     ]));
 
     builtin_scope
+}
+
+fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, E>) {
+    for scopes in ctx.package_scopes.values() {
+        for (_, type_object) in scopes.type_scopes.iter() {
+            let TypeObjectKind::Regular(ty) = &type_object.kind else {
+                continue;
+            };
+            ty.init_body(ctx);
+            assert!(ty.as_struct().unwrap().body.get().is_some());
+        }
+    }
+
+    for scopes in ctx.package_scopes.values() {
+        for (_, type_object) in scopes.type_scopes.iter() {
+            let TypeObjectKind::Generic(generic_ty) = &type_object.kind else {
+                continue;
+            };
+            generic_ty.init_body(ctx);
+            assert!(generic_ty.as_struct().unwrap().body.get().is_some());
+        }
+    }
 }
