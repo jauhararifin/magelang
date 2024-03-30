@@ -1,12 +1,16 @@
 use crate::errors::SemanticError;
+use crate::generic_ty::{
+    GenericStructType, GenericType, GenericTypeInterner, GenericTypeKind, GenericTypeRepr,
+};
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
+use crate::ty::{BitSize, FloatType, StructType, Type, TypeInterner, TypeKind, TypeRepr};
 use crate::{DefId, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use indexmap::IndexMap;
-use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos};
+use magelang_syntax::{parse, ErrorReporter, FileManager, ItemNode, PackageNode, Pos, StructNode};
+use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
-use std::marker::PhantomData;
 use std::path::Path;
 
 pub fn analyze<'a>(
@@ -43,11 +47,16 @@ pub fn analyze<'a>(
         }
     }
 
+    let types = TypeInterner::new(arena);
+    let generic_types = GenericTypeInterner::new(arena);
+
     let mut ctx = Context {
         arena,
         files: file_manager,
         errors: error_manager,
         symbols,
+        types,
+        generic_types,
         package_scopes: IndexMap::default(),
     };
 
@@ -109,6 +118,8 @@ pub(crate) struct Context<'a, E> {
     pub(crate) errors: &'a E,
 
     pub(crate) symbols: SymbolInterner<'a>,
+    pub(crate) types: TypeInterner<'a>,
+    pub(crate) generic_types: GenericTypeInterner<'a>,
 
     pub(crate) package_scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
 }
@@ -124,7 +135,22 @@ pub(crate) struct ImportObject<'a> {
 }
 
 pub(crate) struct TypeObject<'a> {
-    pub(crate) _phantom: PhantomData<&'a ()>,
+    pub(crate) kind: TypeObjectKind<'a>,
+    pub(crate) node: Option<StructNode>,
+}
+
+pub(crate) enum TypeObjectKind<'a> {
+    Regular(&'a Type<'a>),
+    Generic(&'a GenericType<'a>),
+}
+
+impl<'a> From<&'a Type<'a>> for TypeObject<'a> {
+    fn from(ty: &'a Type<'a>) -> Self {
+        Self {
+            kind: TypeObjectKind::Regular(ty),
+            node: None,
+        }
+    }
 }
 
 fn build_imports<'a, E: ErrorReporter>(
@@ -173,4 +199,154 @@ fn build_imports<'a, E: ErrorReporter>(
     }
 
     package_scopes
+}
+
+fn build_type_scopes<'a, E: ErrorReporter>(
+    ctx: &Context<'a, E>,
+    package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
+) -> IndexMap<Symbol<'a>, Scope<'a, TypeObject<'a>>> {
+    let mut package_scopes = IndexMap::<Symbol, Scope<TypeObject<'a>>>::default();
+
+    let builtin_scope = get_builtin_scope(ctx);
+    for (package_name, items) in package_asts {
+        let mut table = IndexMap::<Symbol, TypeObject>::default();
+        let mut object_pos = HashMap::<DefId, Pos>::default();
+
+        for item in items {
+            let ItemNode::Struct(struct_node) = item else {
+                continue;
+            };
+
+            let object_name = ctx.symbols.define(&struct_node.name.value);
+            let def_id = DefId {
+                package: package_name,
+                name: object_name,
+            };
+
+            let pos = struct_node.pos;
+            if let Some(declared_at) = object_pos.get(&def_id) {
+                let declared_at = ctx.files.location(*declared_at);
+                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
+                continue;
+            }
+            object_pos.insert(def_id, pos);
+
+            if struct_node.type_params.is_empty() {
+                let ty = ctx.types.define(Type {
+                    kind: TypeKind::User(def_id),
+                    repr: TypeRepr::Struct(StructType {
+                        body: OnceCell::default(),
+                    }),
+                });
+                let object = TypeObject {
+                    kind: TypeObjectKind::Regular(ty),
+                    node: Some(struct_node),
+                };
+
+                table.insert(object_name, object);
+            } else {
+                let generic_ty = ctx.generic_types.define(GenericType {
+                    kind: GenericTypeKind::User(def_id),
+                    repr: GenericTypeRepr::Struct(GenericStructType {
+                        body: OnceCell::default(),
+                    }),
+                });
+
+                let object = TypeObject {
+                    kind: TypeObjectKind::Generic(generic_ty),
+                    node: Some(struct_node),
+                };
+
+                table.insert(object_name, object);
+            }
+        }
+
+        let scope = builtin_scope.new_child(table);
+        package_scopes.insert(package_name, scope);
+    }
+
+    package_scopes
+}
+
+fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, E>) -> Scope<'a, TypeObject<'a>> {
+    let i8_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(true, BitSize::I8),
+    });
+    let i16_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(true, BitSize::I16),
+    });
+    let i32_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(true, BitSize::I32),
+    });
+    let i64_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(true, BitSize::I64),
+    });
+    let isize_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(true, BitSize::ISize),
+    });
+    let u8_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(false, BitSize::I8),
+    });
+    let u16_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(false, BitSize::I16),
+    });
+    let u32_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(false, BitSize::I32),
+    });
+    let u64_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(false, BitSize::I64),
+    });
+    let usize_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Int(false, BitSize::ISize),
+    });
+    let f32_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Float(FloatType::F32),
+    });
+    let f64_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Float(FloatType::F64),
+    });
+    let void_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Void,
+    });
+    let opaque_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Opaque,
+    });
+    let bool_type = ctx.types.define(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Bool,
+    });
+
+    let builtin_scope = Scope::new(IndexMap::from([
+        (ctx.symbols.define("i8"), i8_type.into()),
+        (ctx.symbols.define("i16"), i16_type.into()),
+        (ctx.symbols.define("i32"), i32_type.into()),
+        (ctx.symbols.define("i64"), i64_type.into()),
+        (ctx.symbols.define("isize"), isize_type.into()),
+        (ctx.symbols.define("u8"), u8_type.into()),
+        (ctx.symbols.define("u16"), u16_type.into()),
+        (ctx.symbols.define("u32"), u32_type.into()),
+        (ctx.symbols.define("u64"), u64_type.into()),
+        (ctx.symbols.define("f32"), f32_type.into()),
+        (ctx.symbols.define("f64"), f64_type.into()),
+        (ctx.symbols.define("usize"), usize_type.into()),
+        (ctx.symbols.define("void"), void_type.into()),
+        (ctx.symbols.define("opaque"), opaque_type.into()),
+        (ctx.symbols.define("bool"), bool_type.into()),
+    ]));
+
+    builtin_scope
 }

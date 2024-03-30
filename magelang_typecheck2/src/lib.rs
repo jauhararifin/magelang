@@ -1,8 +1,10 @@
 mod analyze;
 mod errors;
+mod generic_ty;
 mod interner;
 mod path;
 mod scope;
+mod ty;
 
 use interner::Interner;
 use std::fmt::Display;
