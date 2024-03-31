@@ -257,7 +257,7 @@ fn get_type_from_path<'a, E: ErrorReporter>(
             }
             let type_args = ctx.typeargs.define(&type_args);
 
-            generic_ty.monomorphize(type_args)
+            generic_ty.monomorphize_shallow(ctx, type_args)
         }
     }
 }

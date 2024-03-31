@@ -270,13 +270,13 @@ fn build_type_scopes<'a, E: ErrorReporter>(
                 table.insert(object_name, object);
             } else {
                 let params = get_typeparams(ctx, &struct_node.type_params);
-                let generic_ty = ctx.generic_types.define(GenericType {
-                    kind: GenericTypeKind::User(def_id),
+                let generic_ty = ctx.generic_types.define(GenericType::new(
+                    GenericTypeKind::User(def_id),
                     params,
-                    repr: GenericTypeRepr::Struct(GenericStructType {
+                    GenericTypeRepr::Struct(GenericStructType {
                         body: OnceCell::default(),
                     }),
-                });
+                ));
 
                 let object = TypeObject {
                     kind: TypeObjectKind::Generic(generic_ty),

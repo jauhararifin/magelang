@@ -1,12 +1,12 @@
 use crate::analyze::Context;
 use crate::errors::SemanticError;
 use crate::interner::Interner;
-use crate::ty::{BitSize, FloatType, IntSign, Type};
+use crate::ty::{BitSize, FloatType, FuncType, IntSign, StructType, Type, TypeKind, TypeRepr};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{ErrorReporter, Pos, TypeParameterNode};
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -18,10 +18,12 @@ pub type TypeArgs<'a> = [&'a Type<'a>];
 pub(crate) type TypeArgsInterner<'a> = Interner<'a, TypeArgs<'a>>;
 
 #[derive(PartialEq, Eq)]
-pub struct GenericType<'a> {
-    pub kind: GenericTypeKind<'a>,
-    pub params: &'a [TypeArg<'a>],
-    pub repr: GenericTypeRepr<'a>,
+pub(crate) struct GenericType<'a> {
+    pub(crate) kind: GenericTypeKind<'a>,
+    pub(crate) params: &'a [TypeArg<'a>],
+    pub(crate) repr: GenericTypeRepr<'a>,
+
+    mono_cache: RefCell<HashMap<&'a TypeArgs<'a>, &'a Type<'a>>>,
 }
 
 impl<'a> Hash for GenericType<'a> {
@@ -31,6 +33,19 @@ impl<'a> Hash for GenericType<'a> {
 }
 
 impl<'a> GenericType<'a> {
+    pub(crate) fn new(
+        kind: GenericTypeKind<'a>,
+        params: &'a [TypeArg<'a>],
+        repr: GenericTypeRepr<'a>,
+    ) -> Self {
+        Self {
+            kind,
+            params,
+            repr,
+            mono_cache: RefCell::default(),
+        }
+    }
+
     pub(crate) fn init_body<E: ErrorReporter>(&'a self, ctx: &Context<'a, E>) {
         todo!();
     }
@@ -39,8 +54,64 @@ impl<'a> GenericType<'a> {
         self.repr.as_struct()
     }
 
-    pub(crate) fn monomorphize(&self, type_args: &'a TypeArgs<'a>) -> &'a Type<'a> {
-        todo!();
+    pub(crate) fn monomorphize_shallow<E: ErrorReporter>(
+        &self,
+        ctx: &Context<'a, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
+        {
+            let mut mono_cache = self.mono_cache.borrow_mut();
+            if let Some(ty) = mono_cache.get(type_args) {
+                return ty;
+            }
+
+            if let GenericTypeRepr::Struct(..) = &self.repr {
+                let GenericTypeKind::User(def_id) = self.kind else {
+                    unreachable!("generic struct must be defined by the user");
+                };
+
+                let ty = ctx.types.define(Type {
+                    kind: TypeKind::Inst(def_id, type_args),
+                    repr: TypeRepr::Struct(StructType {
+                        body: OnceCell::default(),
+                    }),
+                });
+
+                mono_cache.insert(type_args, ty);
+                return ty;
+            }
+        }
+
+        let kind = match self.kind {
+            GenericTypeKind::User(def_id) => TypeKind::Inst(def_id, type_args),
+            GenericTypeKind::Anonymous => TypeKind::Anonymous,
+        };
+
+        let repr = match &self.repr {
+            GenericTypeRepr::Unknown => TypeRepr::Unknown,
+            GenericTypeRepr::Struct(..) => {
+                unreachable!("generic struct already handled specially")
+            }
+            GenericTypeRepr::Func(func_type) => {
+                TypeRepr::Func(func_type.monomorphize(ctx, type_args))
+            }
+            GenericTypeRepr::Void => TypeRepr::Void,
+            GenericTypeRepr::Opaque => TypeRepr::Opaque,
+            GenericTypeRepr::Bool => TypeRepr::Bool,
+            GenericTypeRepr::Int(sign, size) => TypeRepr::Int(*sign, *size),
+            GenericTypeRepr::Float(float_ty) => TypeRepr::Float(*float_ty),
+            GenericTypeRepr::Ptr(el) => TypeRepr::Ptr(el.monomorphize_shallow(ctx, type_args)),
+            GenericTypeRepr::ArrayPtr(el) => {
+                TypeRepr::ArrayPtr(el.monomorphize_shallow(ctx, type_args))
+            }
+            GenericTypeRepr::TypeArg(arg) => {
+                return type_args
+                    .get(arg.index)
+                    .expect("missing type arg at the index")
+            }
+        };
+
+        ctx.types.define(Type { kind, repr })
     }
 }
 
@@ -89,6 +160,24 @@ pub struct GenericStructBody<'a> {
 pub struct GenericFuncType<'a> {
     pub params: &'a [&'a GenericType<'a>],
     pub return_type: &'a GenericType<'a>,
+}
+
+impl<'a> GenericFuncType<'a> {
+    pub(crate) fn monomorphize<E: ErrorReporter>(
+        &self,
+        ctx: &Context<'a, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> FuncType<'a> {
+        let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
+        for ty in self.params {
+            params.push(ty.monomorphize_shallow(ctx, type_args));
+        }
+        let return_type = self.return_type.monomorphize_shallow(ctx, type_args);
+        FuncType {
+            params: params.into_bump_slice(),
+            return_type,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
