@@ -1,6 +1,6 @@
 use crate::analyze::{Context, Scopes, TypeObject, TypeObjectKind};
 use crate::errors::SemanticError;
-use crate::generic_ty::TypeArgs;
+use crate::generic_ty::{GenericTypeRepr, TypeArgs};
 use crate::interner::Interner;
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
@@ -262,7 +262,7 @@ fn get_type_from_path<'a, E: ErrorReporter>(
     }
 }
 
-fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
+pub(crate) fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, E>,
     scope: &'b Scopes<'a>,
     names: &[Identifier],
@@ -381,28 +381,50 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
         .map(|(_, obj)| obj);
 
     for type_object in type_objects {
-        let TypeObjectKind::Regular(ty) = type_object.kind else {
-            unreachable!("found generic type when initialize non-generic type")
+        let dependencies = match type_object.kind {
+            TypeObjectKind::Regular(ty) => {
+                let Some(def_id) = ty.kind.get_def_id() else {
+                    continue;
+                };
+
+                let TypeRepr::Struct(struct_type) = &ty.repr else {
+                    continue;
+                };
+
+                let Some(def_id) = ty.kind.get_def_id() else {
+                    continue;
+                };
+
+                let dependencies = struct_type
+                    .body
+                    .get()
+                    .expect("missing struct body")
+                    .fields
+                    .values()
+                    .filter_map(|ty| ty.kind.get_def_id())
+                    .collect::<IndexSet<_>>();
+                adjlist.insert(def_id, dependencies);
+            }
+            TypeObjectKind::Generic(ty) => {
+                let Some(def_id) = ty.kind.get_def_id() else {
+                    continue;
+                };
+
+                let GenericTypeRepr::Struct(struct_type) = &ty.repr else {
+                    continue;
+                };
+
+                let dependencies = struct_type
+                    .body
+                    .get()
+                    .expect("missing struct body")
+                    .fields
+                    .values()
+                    .filter_map(|ty| ty.kind.get_def_id())
+                    .collect::<IndexSet<_>>();
+                adjlist.insert(def_id, dependencies);
+            }
         };
-
-        let TypeRepr::Struct(struct_type) = &ty.repr else {
-            continue;
-        };
-
-        let Some(def_id) = ty.kind.get_def_id() else {
-            continue;
-        };
-
-        let dependencies = struct_type
-            .body
-            .get()
-            .expect("missing struct body")
-            .fields
-            .values()
-            .filter_map(|ty| ty.kind.get_def_id())
-            .collect::<IndexSet<_>>();
-
-        adjlist.insert(def_id, dependencies);
     }
 
     adjlist

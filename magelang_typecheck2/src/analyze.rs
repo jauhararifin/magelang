@@ -1,7 +1,7 @@
 use crate::errors::SemanticError;
 use crate::generic_ty::{
-    get_typeparams, GenericStructType, GenericType, GenericTypeInterner, GenericTypeKind,
-    GenericTypeRepr, TypeArgsInterner,
+    get_typeparams, GenericStructType, GenericType, GenericTypeArgsInterner, GenericTypeInterner,
+    GenericTypeKind, GenericTypeRepr, TypeArgsInterner,
 };
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
@@ -53,6 +53,7 @@ pub fn analyze<'a>(
     let types = TypeInterner::new(arena);
     let typeargs = TypeArgsInterner::new(arena);
     let generic_types = GenericTypeInterner::new(arena);
+    let generic_typeargs = GenericTypeArgsInterner::new(arena);
 
     let mut ctx = Context {
         arena,
@@ -61,6 +62,7 @@ pub fn analyze<'a>(
         symbols,
         types,
         typeargs,
+        generic_typeargs,
         generic_types,
         package_scopes: IndexMap::default(),
     };
@@ -135,6 +137,7 @@ pub(crate) struct Context<'a, E> {
     pub(crate) types: TypeInterner<'a>,
     pub(crate) typeargs: TypeArgsInterner<'a>,
     pub(crate) generic_types: GenericTypeInterner<'a>,
+    pub(crate) generic_typeargs: GenericTypeArgsInterner<'a>,
 
     pub(crate) package_scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
 }
@@ -143,6 +146,15 @@ pub(crate) struct Context<'a, E> {
 pub(crate) struct Scopes<'a> {
     pub(crate) import_scopes: Scope<'a, ImportObject<'a>>,
     pub(crate) type_scopes: Scope<'a, TypeObject<'a>>,
+}
+
+impl<'a> Scopes<'a> {
+    pub(crate) fn with_type_scope(&self, type_scopes: Scope<'a, TypeObject<'a>>) -> Self {
+        Self {
+            import_scopes: self.import_scopes.clone(),
+            type_scopes,
+        }
+    }
 }
 
 pub(crate) struct ImportObject<'a> {
