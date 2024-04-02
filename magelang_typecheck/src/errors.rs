@@ -160,8 +160,8 @@ pub(crate) trait SemanticError: ErrorReporter {
         self.report(
             pos,
             format!(
-                "Found a circular type: {} -> {}",
-                cycle.join(" -> "),
+                "Invalid recursive type:\n\t{} refers to\n\t{}",
+                cycle.join(" refers to\n\t"),
                 cycle[0]
             ),
         )
@@ -171,8 +171,8 @@ pub(crate) trait SemanticError: ErrorReporter {
         self.report(
             pos,
             format!(
-                "Found a circular global intialization: {} -> {}",
-                cycle.join(" -> "),
+                "Found a circular global intialization:\n\t{} depends on\n\t{}",
+                cycle.join(" depends on\n\t"),
                 cycle[0]
             ),
         )
