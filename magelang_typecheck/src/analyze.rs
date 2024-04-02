@@ -22,7 +22,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 
-pub fn analyze<'a, 'b: 'a>(
+pub fn analyze<'a, 'b>(
     arena: &'a Bump,
     file_manager: &mut FileManager,
     error_manager: &'b impl ErrorReporter,
@@ -109,6 +109,10 @@ pub fn analyze<'a, 'b: 'a>(
     build_module(ctx, is_valid, global_init_order)
 }
 
+// The 'syn lifetime represent anything allocated not by the arena
+// It is important to differentiate the lifetime of interned types, expr,
+// etc from file manager and error manager because we don't want to infer
+// that the interned objects borrow file manager and error manager.
 pub struct Context<'a, 'syn, E> {
     pub(crate) arena: &'a Bump,
     pub(crate) files: &'syn FileManager,
