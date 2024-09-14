@@ -108,11 +108,6 @@ impl FileManager {
     }
 }
 
-// TODO: make the impossible state unrepresentable.
-// Currently, the `char_value` field only applicable for TokenKind::CharLit, and the `value`
-// field only applicable for StringLit, Identifier and Comment. We could use `TokenKind`
-// as an enum with an entry for those kinds, but it will make the parsing logic more verbose
-// since it will be hard for us to compare `TokenKind`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Token {
     pub(crate) kind: TokenKind,

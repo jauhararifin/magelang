@@ -189,14 +189,33 @@ impl TypeExprNode {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PathNode {
-    // TODO: use type system to ensure the names is never empty
-    pub names: Vec<Identifier>,
+    pub path: PathName,
     pub args: Vec<TypeExprNode>,
 }
 
 impl PathNode {
     pub fn pos(&self) -> Pos {
-        self.names.first().unwrap().pos
+        self.path.pos()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum PathName {
+    Local(Identifier),
+    Package {
+        package: Identifier,
+        name: Identifier,
+    },
+    Invalid(Identifier, Vec<Identifier>),
+}
+
+impl PathName {
+    pub fn pos(&self) -> Pos {
+        match self {
+            Self::Local(ident) => ident.pos,
+            Self::Package{package, name: _} => package.pos,
+            Self::Invalid(ident, _) => ident.pos,
+        }
     }
 }
 

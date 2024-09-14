@@ -313,7 +313,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
 fn parse_path_for_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
     let ident = f.take_if_ident()?;
 
-    let mut names = vec![ident];
+    let mut names = vec![];
     while f.take_if(&TokenKind::DoubleColon).is_some() {
         let ident = f.take_ident()?;
         names.push(ident);
@@ -332,7 +332,19 @@ fn parse_path_for_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNo
         Vec::default()
     };
 
-    Some(PathNode { names, args })
+    let path = if names.is_empty() {
+        PathName::Local(ident)
+    } else if names.len() == 1 {
+        PathName::Package {
+            package: ident,
+            name: names.into_iter().next().unwrap(),
+        }
+    } else {
+        f.errors.invalid_path(ident.pos);
+        PathName::Invalid(ident, names)
+    };
+
+    Some(PathNode { path, args })
 }
 
 fn parse_struct<E: ErrorReporter>(
@@ -911,7 +923,7 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
 fn parse_path_for_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
     let ident = f.take_if_ident()?;
 
-    let mut names = vec![ident];
+    let mut names = vec![];
     let mut args = Vec::default();
     while f.take_if(&TokenKind::DoubleColon).is_some() {
         match f.kind() {
@@ -939,7 +951,19 @@ fn parse_path_for_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNo
         };
     }
 
-    Some(PathNode { names, args })
+    let path = if names.is_empty() {
+        PathName::Local(ident)
+    } else if names.len() == 1 {
+        PathName::Package {
+            package: ident,
+            name: names.into_iter().next().unwrap(),
+        }
+    } else {
+        f.errors.invalid_path(ident.pos);
+        PathName::Invalid(ident, names)
+    };
+
+    Some(PathNode { path, args })
 }
 
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
@@ -1154,6 +1178,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 }
 
 trait ParsingError: ErrorReporter {
+    fn invalid_path(&self, pos: Pos) {
+        self.report(pos, format!("Path should be either a symbol identifier or package_identifier::symbol_identifier"));
+    }
+
     fn unexpected_parsing(&self, pos: Pos, expected: impl Display, found: impl Display) {
         self.report(pos, format!("Expected {expected}, but found {found}"));
     }

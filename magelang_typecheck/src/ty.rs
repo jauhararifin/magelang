@@ -5,7 +5,7 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    ErrorReporter, Identifier, PathNode, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
+    ErrorReporter, PathName, PathNode, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
@@ -713,7 +713,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     scope: &'b Scopes<'a>,
     node: &PathNode,
 ) -> &'a Type<'a> {
-    let Some(object) = get_type_object_from_path(ctx, scope, &node.names) else {
+    let Some(object) = get_type_object_from_path(ctx, scope, &node.path) else {
         return ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Unknown,
@@ -754,37 +754,38 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
 fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
-    names: &[Identifier],
+    path: &PathName,
 ) -> Option<&'b TypeObject<'a>> {
-    assert!(!names.is_empty());
+    match path {
+        PathName::Local(name) => {
+            let name_symbol = ctx.define_symbol(name.value.as_str());
+            let Some(object) = scope.type_scopes.lookup(name_symbol) else {
+                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                return None;
+            };
+            Some(object)
+        }
+        PathName::Package { package, name } => {
+            let package_symbol = ctx.define_symbol(package.value.as_str());
+            let Some(import_object) = scope.import_scopes.lookup(package_symbol) else {
+                ctx.errors.undeclared_symbol(package.pos, &package.value);
+                return None;
+            };
 
-    let name = names.first().expect("path contains empty names");
-    let name = ctx.define_symbol(name.value.as_str());
+            let Some(scope) = ctx.scopes.get(&import_object.package) else {
+                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                return None;
+            };
 
-    if names.len() == 1 {
-        let Some(object) = scope.type_scopes.lookup(name) else {
-            ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
-            return None;
-        };
-        Some(object)
-    } else {
-        let Some(import_object) = scope.import_scopes.lookup(name) else {
-            ctx.errors.undeclared_symbol(names[0].pos, &names[0].value);
-            return None;
-        };
+            let name_symbol = ctx.define_symbol(name.value.as_str());
+            let Some(object) = scope.type_scopes.lookup(name_symbol) else {
+                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                return None;
+            };
 
-        let Some(scope) = ctx.scopes.get(&import_object.package) else {
-            ctx.errors.undeclared_symbol(names[1].pos, &names[1].value);
-            return None;
-        };
-
-        let name = ctx.define_symbol(names[1].value.as_ref());
-        let Some(object) = scope.type_scopes.lookup(name) else {
-            ctx.errors.undeclared_symbol(names[1].pos, &names[1].value);
-            return None;
-        };
-
-        Some(object)
+            Some(object)
+        }
+        PathName::Invalid(..) => None,
     }
 }
 
