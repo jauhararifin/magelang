@@ -213,7 +213,7 @@ impl PathName {
     pub fn pos(&self) -> Pos {
         match self {
             Self::Local(ident) => ident.pos,
-            Self::Package{package, name: _} => package.pos,
+            Self::Package { package, name: _ } => package.pos,
             Self::Invalid(ident, _) => ident.pos,
         }
     }
@@ -234,9 +234,16 @@ pub struct ArrayPtrTypeNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FuncTypeNode {
     pub pos: Pos,
-    pub params: Vec<TypeExprNode>,
+    pub params: Vec<FuncTypeParam>,
     pub return_type: Option<Box<TypeExprNode>>,
     pub end_pos: Pos,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FuncTypeParam {
+    pub pos: Pos,
+    pub name: Option<Identifier>,
+    pub ty: TypeExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -684,7 +684,7 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
         TypeExprNode::Func(node) => {
             let mut params = BumpVec::with_capacity_in(node.params.len(), ctx.arena);
             for param_node in &node.params {
-                params.push(get_type_from_node(ctx, scope, param_node));
+                params.push(get_type_from_node(ctx, scope, &param_node.ty));
             }
 
             let return_type = if let Some(expr) = &node.return_type {

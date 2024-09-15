@@ -243,13 +243,12 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
         TokenKind::Fn => {
             let tok = f.pop();
 
-            // TODO: consider adding optional param name.
             let param_result = parse_sequence(
                 f,
                 TokenKind::OpenBrac,
                 TokenKind::Comma,
                 TokenKind::CloseBrac,
-                parse_type_expr,
+                parse_func_type_parameter,
             );
             if param_result.is_none() {
                 f.errors.missing(tok.pos, "function parameter list");
@@ -308,6 +307,23 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             }
         }
     }
+}
+
+fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<FuncTypeParam> {
+    let name = if f.tokens.len() >= 2
+        && matches!(f.tokens[0].kind, TokenKind::Ident(..))
+        && matches!(f.tokens[1].kind, TokenKind::Colon)
+    {
+        let name = f.take_ident()?;
+        f.take(TokenKind::Colon)?;
+        Some(name)
+    } else {
+        None
+    };
+
+    let ty = parse_type_expr(f)?;
+    let pos = name.as_ref().map(|t| t.pos).unwrap_or_else(|| ty.pos());
+    Some(FuncTypeParam { pos, name, ty })
 }
 
 fn parse_path_for_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
