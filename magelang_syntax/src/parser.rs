@@ -533,12 +533,14 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
             let pos = expr.pos();
             if f.take_if(&TokenKind::Equal).is_some() {
                 let value = parse_expr(f, true)?;
+                f.take(TokenKind::SemiColon);
                 StatementNode::Assign(AssignStatementNode {
                     pos,
                     receiver: expr,
                     value,
                 })
             } else {
+                f.take(TokenKind::SemiColon);
                 StatementNode::Expr(expr)
             }
         }
