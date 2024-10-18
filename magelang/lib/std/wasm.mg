@@ -18,3 +18,6 @@ fn table_get(id: usize): opaque;
 
 @intrinsic("table.set")
 fn table_set(id: usize, val: opaque);
+
+@intrinsic("unreachable")
+fn unreachable();

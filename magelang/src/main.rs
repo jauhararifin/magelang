@@ -79,7 +79,7 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
                 "Cannot open file {}: {err}",
                 displayed_path.to_string_lossy()
             );
-            return;
+            std::process::exit(-1);
         }
     };
 
@@ -97,8 +97,13 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
             let message = error.message;
             eprintln!("{location}: {message}");
         }
+        std::process::exit(-1);
     }
-    let _ = write!(writer, "{:#?}", node);
+
+    if let Err(err) = write!(writer, "{:#?}", node) {
+        eprintln!("Cannot write output: {err}",);
+        std::process::exit(-1);
+    }
 }
 
 fn analyze_package(package_name: String, debug: bool, output: Option<std::path::PathBuf>) {
