@@ -15,7 +15,7 @@ pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Statement<'a> {
     Native,
-    NewLocal(usize, Expr<'a>),
+    NewLocal { id: usize, value: Expr<'a> },
     Block(&'a [Statement<'a>]),
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
@@ -36,9 +36,9 @@ impl<'a> Statement<'a> {
             Statement::Native => Statement::Native,
             Statement::Continue => Statement::Continue,
             Statement::Break => Statement::Break,
-            Statement::NewLocal(id, value) => {
+            Statement::NewLocal { id, value } => {
                 let value = value.monomorphize(ctx, type_args);
-                Statement::NewLocal(*id, value)
+                Statement::NewLocal{id: *id, value}
             }
             Statement::Block(statements) => {
                 let mut result = BumpVec::with_capacity_in(statements.len(), ctx.arena);
@@ -208,7 +208,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
     let new_scope = ctx.scope.with_value_scope(new_scope);
 
     StatementResult {
-        statement: Statement::NewLocal(id, expr),
+        statement: Statement::NewLocal{id, value: expr},
         new_scope: Some(new_scope),
         is_returning: false,
         last_unused_local: ctx.last_unused_local + 1,

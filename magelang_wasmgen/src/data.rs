@@ -185,8 +185,8 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
                     self.init_from_stmt(stmt);
                 }
             }
-            Statement::NewLocal(_, expr) => {
-                self.init_from_expr(expr);
+            Statement::NewLocal { id: _, value } => {
+                self.init_from_expr(value);
             }
             Statement::If(if_stmt) => {
                 self.init_from_expr(&if_stmt.cond);

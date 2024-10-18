@@ -101,8 +101,8 @@ fn build_initialization_dependency_list<'a, E: ErrorReporter>(
         while let Some(item) = stack.pop() {
             match item {
                 Item::Statement(stmt) => match stmt {
-                    Statement::NewLocal(_, expr) => {
-                        stack.push(Item::Expr(expr));
+                    Statement::NewLocal { id: _, value } => {
+                        stack.push(Item::Expr(value));
                     }
                     Statement::Block(statements) => {
                         for stmt in statements.iter() {

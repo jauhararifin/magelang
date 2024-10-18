@@ -876,7 +876,9 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, type_args)),
             },
             Source::Statement(stmt, type_args) => match stmt {
-                Statement::NewLocal(_, expr) => queue.push_back(Source::Expr(expr, type_args)),
+                Statement::NewLocal { id: _, value } => {
+                    queue.push_back(Source::Expr(value, type_args))
+                }
                 Statement::Block(stmts) => {
                     for stmt in stmts.iter() {
                         queue.push_back(Source::Statement(stmt, type_args));

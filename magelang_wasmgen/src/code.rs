@@ -152,7 +152,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
     ) -> Vec<wasm::Instr> {
         match stmt {
             Statement::Native => unreachable!("native function should be handled specially"),
-            Statement::NewLocal(id, value) => self.build_new_local_stmt(*id, value),
+            Statement::NewLocal { id, value } => self.build_new_local_stmt(*id, value),
             Statement::Block(statements) => {
                 self.build_block_stmt(continue_label, break_label, statements)
             }
