@@ -22,11 +22,11 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 
-pub fn analyze<'a, 'b>(
+pub fn analyze<'a>(
     arena: &'a Bump,
     file_manager: &mut FileManager,
-    error_manager: &'b impl ErrorReporter,
-    main_package: &'b str,
+    error_manager: &impl ErrorReporter,
+    main_package: &str,
 ) -> Module<'a> {
     let symbols = SymbolInterner::new(arena);
     let types = TypeInterner::new(arena);

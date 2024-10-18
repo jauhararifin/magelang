@@ -59,8 +59,14 @@ pub(crate) trait SemanticError: ErrorReporter {
     }
 
     fn invalid_int_literal(&self, pos: Pos) {
-        // TODO: report int overflow with different error message.
         self.report(pos, String::from("Expression is not a valid int literal"));
+    }
+
+    fn overflowed_int_literal(&self, pos: Pos) {
+        self.report(
+            pos,
+            String::from("The integer value is too large to fit in the desired type"),
+        );
     }
 
     fn invalid_float_literal(&self, pos: Pos, err: ParseFloatError) {

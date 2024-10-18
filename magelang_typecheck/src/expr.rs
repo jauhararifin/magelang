@@ -6,7 +6,7 @@ use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode, CastExprNode, CharLit, DerefExprNode,
     ErrorReporter, ExprNode, IndexExprNode, NumberLit, PathName, PathNode, Pos, SelectionExprNode,
-    StringLit, StructExprNode, UnaryExprNode, UnaryOp,
+    StringLit, StructExprNode, TryFromNumberError, UnaryExprNode, UnaryOp,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -495,6 +495,10 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
 
     let kind = match value {
         Ok(v) => v,
+        Err(TryFromNumberError::OutOfRange) => {
+            ctx.errors.overflowed_int_literal(number_lit.pos);
+            ExprKind::Invalid
+        }
         Err(..) => {
             ctx.errors.invalid_int_literal(number_lit.pos);
             ExprKind::Invalid
