@@ -11,6 +11,14 @@ fn test_precedence() {
   assert_equal::<i32>(3, 1+2);
   assert_equal::<i32>(10, 2*3+4);
   assert_equal::<i32>(14, 2+3*4);
+
+  assert_equal::<u8>(0xff, -1 as u8);
+  assert_equal::<u16>(0xffff, -1 as u16);
+  assert_equal::<u32>(0xffffffff, -1 as u32);
+  assert_equal::<u64>(0xffffffffffffffff, -1 as u64);
+
+  assert_equal::<i32>(-4, 1-2-3); // make sure it's (1-2)-3, not 1-(2-3)
+  assert_equal::<i32>(2, 1-2+3);  // make sure it's (1-2)+3, not 1-(2+3)
   
   // testing precendence between && and ||
   assert_equal::<bool>(false, false && false || false && false);

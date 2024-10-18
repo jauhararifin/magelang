@@ -912,6 +912,38 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(_, BitSize::I64) => {
                 vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Mul]
             }
+
+            TypeRepr::Int(true, BitSize::I8) => {
+                vec![
+                    wasm::Instr::I32Const(-1),
+                    wasm::Instr::I32Mul,
+                    wasm::Instr::I32Extend8S,
+                ]
+            }
+            TypeRepr::Int(true, BitSize::I16) => {
+                vec![
+                    wasm::Instr::I32Const(-1),
+                    wasm::Instr::I32Mul,
+                    wasm::Instr::I32Extend16S,
+                ]
+            }
+            TypeRepr::Int(false, BitSize::I8) => {
+                vec![
+                    wasm::Instr::I32Const(-1),
+                    wasm::Instr::I32Mul,
+                    wasm::Instr::I32Const(0xff),
+                    wasm::Instr::I32And,
+                ]
+            }
+            TypeRepr::Int(false, BitSize::I16) => {
+                vec![
+                    wasm::Instr::I32Const(-1),
+                    wasm::Instr::I32Mul,
+                    wasm::Instr::I32Const(0xffff),
+                    wasm::Instr::I32And,
+                ]
+            }
+
             TypeRepr::Int(..) => {
                 vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Mul]
             }
