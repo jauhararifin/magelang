@@ -1,8 +1,10 @@
+use binaryen;
 use bumpalo::Bump;
 use clap::{Parser, Subcommand};
 use magelang_syntax::{parse, ErrorManager, FileManager};
 use magelang_typecheck::analyze;
 use magelang_wasmgen::generate;
+use std::io::Write;
 use wasm_helper::Serializer;
 use wasmtime::{Engine, Linker, Module, Store};
 use wasmtime_wasi::sync::WasiCtxBuilder;
@@ -152,7 +154,6 @@ fn compile(package_name: String, debug: bool, output: std::path::PathBuf) {
         std::process::exit(-1);
     };
 
-    let mut f = std::fs::File::create(output).expect("cannot create output file");
     let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
         for error in error_manager.take() {
             let location = file_manager.location(error.pos);
@@ -162,9 +163,21 @@ fn compile(package_name: String, debug: bool, output: std::path::PathBuf) {
         std::process::exit(-1);
     };
 
+    let mut raw_module = Vec::<u8>::default();
     wasm_module
-        .serialize(&mut f)
-        .expect("cannot write wasm to target file");
+        .serialize(&mut raw_module)
+        .expect("cannot serialize wasm module");
+    let mut wasm_module =
+        binaryen::Module::read(&raw_module).expect("can't read wasm module for optimization");
+    wasm_module.optimize(&binaryen::CodegenConfig {
+        shrink_level: 2,
+        optimization_level: 2,
+        debug_info: true,
+    });
+
+    let mut f = std::fs::File::create(output).expect("cannot create output file");
+    f.write_all(&wasm_module.write())
+        .expect("cannot write wasm module to output file");
 }
 
 fn run(package_name: String, debug: bool) {
