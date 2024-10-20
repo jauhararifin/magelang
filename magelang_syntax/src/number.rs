@@ -18,6 +18,16 @@ impl Number {
         }
     }
 
+    pub fn from_int<T>(number: T) -> Self
+    where
+        T: Into<BigInt>,
+    {
+        Self {
+            val: number.into(),
+            exp: BigInt::zero(),
+        }
+    }
+
     pub fn is_int(&self) -> bool {
         let mut exp = self.exp.clone();
         let mut base = self.val.clone();
@@ -53,6 +63,102 @@ impl Number {
         }
 
         Ok(base * BigInt::from(10).pow(exp))
+    }
+}
+
+impl std::ops::Add for Number {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Sub for Number {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Mul for Number {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Div for Number {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Rem for Number {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::BitOr for Number {
+    type Output = Option<Self>;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::BitAnd for Number {
+    type Output = Option<Self>;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::BitXor for Number {
+    type Output = Option<Self>;
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Shl for Number {
+    type Output = Option<Self>;
+    fn shl(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Shr for Number {
+    type Output = Option<Self>;
+    fn shr(self, rhs: Self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Not for Number {
+    type Output = Option<Self>;
+    fn not(self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl std::ops::Neg for Number {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        todo!();
+    }
+}
+
+impl PartialOrd for Number {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        todo!();
+    }
+}
+
+impl Ord for Number {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        todo!();
     }
 }
 

@@ -16,6 +16,10 @@ fn test_precedence() {
   assert_equal::<u16>(0xffff, -1 as u16);
   assert_equal::<u32>(0xffffffff, -1 as u32);
   assert_equal::<u64>(0xffffffffffffffff, -1 as u64);
+  assert_equal::<i8>(-128, -1 as i8);
+  assert_equal::<i16>(-32768, -1 as i16);
+  assert_equal::<i32>(-2147483648, -1 as i32);
+  assert_equal::<i64>(-9223372036854775808, -1 as i64);
 
   assert_equal::<i32>(-4, 1-2-3); // make sure it's (1-2)-3, not 1-(2-3)
   assert_equal::<i32>(2, 1-2+3);  // make sure it's (1-2)+3, not 1-(2+3)

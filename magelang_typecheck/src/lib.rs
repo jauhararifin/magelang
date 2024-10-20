@@ -1,4 +1,5 @@
 mod analyze;
+mod constant;
 mod errors;
 mod expr;
 mod global_init;
