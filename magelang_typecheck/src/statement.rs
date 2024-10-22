@@ -12,6 +12,10 @@ use magelang_syntax::{
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
 
+// TODO: consider the following:
+// * Use Loop instead of while. We can construct while using loop + if
+// * Add id to block, then we can continue and break by specifying the id
+// * Merge merge and continue. Continue can be simulated using break
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Statement<'a> {
     Native,

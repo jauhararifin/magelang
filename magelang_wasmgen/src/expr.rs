@@ -100,11 +100,11 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             ExprKind::Mul(a, b) => self.build_mul(expr.ty, a, b),
             ExprKind::Div(a, b) => self.build_div(expr.ty, a, b),
             ExprKind::Mod(a, b) => self.build_mod(expr.ty, a, b),
-            ExprKind::BitOr(a, b) => self.build_bit_or(expr.ty, a, b),
-            ExprKind::BitAnd(a, b) => self.build_bit_and(expr.ty, a, b),
-            ExprKind::BitXor(a, b) => self.build_bit_xor(expr.ty, a, b),
-            ExprKind::ShiftLeft(a, b) => self.build_bit_shl(expr.ty, a, b),
-            ExprKind::ShiftRight(a, b) => self.build_bit_shr(expr.ty, a, b),
+            ExprKind::BitOr(a, b) => self.build_bit_or(expr.ty, a, b), // ?
+            ExprKind::BitAnd(a, b) => self.build_bit_and(expr.ty, a, b), // ?
+            ExprKind::BitXor(a, b) => self.build_bit_xor(expr.ty, a, b), // ?
+            ExprKind::ShiftLeft(a, b) => self.build_bit_shl(expr.ty, a, b), // ?
+            ExprKind::ShiftRight(a, b) => self.build_bit_shr(expr.ty, a, b), // ?
             ExprKind::And(a, b) => self.build_and(a, b),
             ExprKind::Or(a, b) => self.build_or(a, b),
             ExprKind::Eq(a, b) => self.build_eq(a, b),
@@ -114,9 +114,9 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             ExprKind::Lt(a, b) => self.build_lt(a, b),
             ExprKind::LEq(a, b) => self.build_le(a, b),
             ExprKind::Neg(value) => self.build_neg(expr.ty, value),
-            ExprKind::BitNot(value) => self.build_bit_not(expr.ty, value),
+            ExprKind::BitNot(value) => self.build_bit_not(expr.ty, value), // ?
             ExprKind::Not(value) => self.build_not(value),
-            ExprKind::Cast(value, ty) => self.build_cast(ty, value),
+            ExprKind::Cast(value, ty) => self.build_cast(ty, value), // ?
         }
     }
 

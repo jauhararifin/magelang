@@ -269,6 +269,61 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     expected_type: Option<&'a Type<'a>>,
     node: &ExprNode,
 ) -> Expr<'a> {
+    // TODO: do it more efficiently. Doing this way will make the
+    // constant evaluation performed in O(N^2), whereas we actually
+    // can do it in O(N).
+    if let Some(constant) = get_const_from_node(node) {
+        match constant {
+            Constant::Number(val) => {
+                if let Some(expected_type) = expected_type {
+                    match expected_type.repr {
+                        TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => {
+                            return get_expr_from_int_lit(
+                                ctx,
+                                Some(expected_type),
+                                node.pos(),
+                                &val,
+                            );
+                        }
+                        TypeRepr::Float(..) => {
+                            return get_expr_from_float_lit(
+                                ctx,
+                                Some(expected_type),
+                                node.pos(),
+                                &val.string_repr(),
+                                &val,
+                            );
+                        }
+                        _ => (),
+                    }
+                } else {
+                    if val.is_int() {
+                        return get_expr_from_int_lit(ctx, None, node.pos(), &val);
+                    } else {
+                        return get_expr_from_float_lit(
+                            ctx,
+                            None,
+                            node.pos(),
+                            &val.string_repr(),
+                            &val,
+                        );
+                    }
+                }
+            }
+            Constant::Boolean(val) => {
+                return Expr {
+                    ty: ctx.define_type(Type {
+                        kind: TypeKind::Anonymous,
+                        repr: TypeRepr::Bool,
+                    }),
+                    kind: ExprKind::ConstBool(val),
+                    pos: node.pos(),
+                    assignable: false,
+                };
+            }
+        }
+    }
+
     match node {
         ExprNode::Path(node) => get_expr_from_path(ctx, scope, expected_type, node),
         ExprNode::Number(num_lit) => get_expr_from_number_lit(ctx, expected_type, num_lit),
@@ -438,26 +493,44 @@ fn get_expr_from_number_lit<'a, E: ErrorReporter>(
     if let Some(ty) = expected_type {
         match ty.repr {
             TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => {
-                return get_expr_from_int_lit(ctx, expected_type, number_lit);
+                return get_expr_from_int_lit(
+                    ctx,
+                    expected_type,
+                    number_lit.pos,
+                    &number_lit.value,
+                );
             }
             TypeRepr::Float(..) => {
-                return get_expr_from_float_lit(ctx, expected_type, number_lit);
+                return get_expr_from_float_lit(
+                    ctx,
+                    expected_type,
+                    number_lit.pos,
+                    &number_lit.raw,
+                    &number_lit.value,
+                );
             }
             _ => (),
         }
     };
 
     if number_lit.value.is_int() {
-        get_expr_from_int_lit(ctx, expected_type, number_lit)
+        get_expr_from_int_lit(ctx, expected_type, number_lit.pos, &number_lit.value)
     } else {
-        get_expr_from_float_lit(ctx, expected_type, number_lit)
+        get_expr_from_float_lit(
+            ctx,
+            expected_type,
+            number_lit.pos,
+            &number_lit.raw,
+            &number_lit.value,
+        )
     }
 }
 
 fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     expected_type: Option<&'a Type<'a>>,
-    number_lit: &NumberLit,
+    pos: Pos,
+    number_value: &Number,
 ) -> Expr<'a> {
     let (mut sign, mut bit_size) = (true, BitSize::ISize);
     if let Some(ty) = expected_type {
@@ -471,36 +544,36 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     }
 
     let value = match (sign, bit_size) {
-        (true, BitSize::ISize) => i64::try_from(&number_lit.value)
+        (true, BitSize::ISize) => i64::try_from(number_value)
             .map(|v| v as u64)
             .map(ExprKind::ConstIsize),
-        (true, BitSize::I64) => i64::try_from(&number_lit.value)
+        (true, BitSize::I64) => i64::try_from(number_value)
             .map(|v| v as u64)
             .map(ExprKind::ConstI64),
-        (true, BitSize::I32) => i32::try_from(&number_lit.value)
+        (true, BitSize::I32) => i32::try_from(number_value)
             .map(|v| v as u32)
             .map(ExprKind::ConstI32),
-        (true, BitSize::I16) => i16::try_from(&number_lit.value)
+        (true, BitSize::I16) => i16::try_from(number_value)
             .map(|v| v as u16)
             .map(ExprKind::ConstI16),
-        (true, BitSize::I8) => i8::try_from(&number_lit.value)
+        (true, BitSize::I8) => i8::try_from(number_value)
             .map(|v| v as u8)
             .map(ExprKind::ConstI8),
-        (false, BitSize::ISize) => u64::try_from(&number_lit.value).map(ExprKind::ConstIsize),
-        (false, BitSize::I64) => u64::try_from(&number_lit.value).map(ExprKind::ConstI64),
-        (false, BitSize::I32) => u32::try_from(&number_lit.value).map(ExprKind::ConstI32),
-        (false, BitSize::I16) => u16::try_from(&number_lit.value).map(ExprKind::ConstI16),
-        (false, BitSize::I8) => u8::try_from(&number_lit.value).map(ExprKind::ConstI8),
+        (false, BitSize::ISize) => u64::try_from(number_value).map(ExprKind::ConstIsize),
+        (false, BitSize::I64) => u64::try_from(number_value).map(ExprKind::ConstI64),
+        (false, BitSize::I32) => u32::try_from(number_value).map(ExprKind::ConstI32),
+        (false, BitSize::I16) => u16::try_from(number_value).map(ExprKind::ConstI16),
+        (false, BitSize::I8) => u8::try_from(number_value).map(ExprKind::ConstI8),
     };
 
     let kind = match value {
         Ok(v) => v,
         Err(TryFromNumberError::OutOfRange) => {
-            ctx.errors.overflowed_int_literal(number_lit.pos);
+            ctx.errors.overflowed_int_literal(pos);
             ExprKind::Invalid
         }
         Err(..) => {
-            ctx.errors.invalid_int_literal(number_lit.pos);
+            ctx.errors.invalid_int_literal(pos);
             ExprKind::Invalid
         }
     };
@@ -512,7 +585,7 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind,
-        pos: number_lit.pos,
+        pos,
         assignable: false,
     }
 }
@@ -520,7 +593,9 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
 fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     expected_type: Option<&'a Type<'a>>,
-    number_lit: &NumberLit,
+    pos: Pos,
+    raw: &str,
+    number_value: &Number,
 ) -> Expr<'a> {
     let mut float_type = FloatType::F64;
     if let Some(ty) = expected_type {
@@ -529,18 +604,19 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
         }
     }
 
-    let value_sym = ctx.define_symbol(&number_lit.raw);
-    let kind = match float_type {
-        FloatType::F32 => f32::try_from(&number_lit.value)
-            .map(|val| ExprKind::ConstF32(Float::new(value_sym, val))),
-        FloatType::F64 => f64::try_from(&number_lit.value)
-            .map(|val| ExprKind::ConstF64(Float::new(value_sym, val))),
-    };
+    let value_sym = ctx.define_symbol(raw);
+    let kind =
+        match float_type {
+            FloatType::F32 => f32::try_from(number_value)
+                .map(|val| ExprKind::ConstF32(Float::new(value_sym, val))),
+            FloatType::F64 => f64::try_from(number_value)
+                .map(|val| ExprKind::ConstF64(Float::new(value_sym, val))),
+        };
 
     let kind = match kind {
         Ok(v) => v,
         Err(err) => {
-            ctx.errors.invalid_float_literal(number_lit.pos, err);
+            ctx.errors.invalid_float_literal(pos, err);
             ExprKind::Invalid
         }
     };
@@ -552,7 +628,7 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     Expr {
         ty,
         kind,
-        pos: number_lit.pos,
+        pos,
         assignable: false,
     }
 }

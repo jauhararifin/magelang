@@ -87,6 +87,8 @@ pub fn analyze<'a>(
 
     generate_func_bodies(&ctx);
 
+    // TODO: it will be handy to support generic constant like int and bool
+
     // TODO: consider materialize all steps done above into a Header IR.
     // This can be useful for incremental compilation.
 
@@ -104,6 +106,9 @@ pub fn analyze<'a>(
     generate_global_value(&ctx);
     let global_init_order = check_circular_global_intitialization(&ctx);
     monomorphize_statements(&ctx);
+
+    // TODO: asserts that everything is monomorphized and there is no
+    // more generic types
 
     let is_valid = !error_manager.has_errors();
     build_module(ctx, is_valid, global_init_order)
