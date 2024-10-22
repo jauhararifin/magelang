@@ -12,6 +12,26 @@ fn test_precedence() {
   assert_equal::<i32>(10, 2*3+4);
   assert_equal::<i32>(14, 2+3*4);
 
+  // Tests these:
+  // * assign -128 to i8
+  // * assign -128 to u8
+  // * assign -128 as u8 to a variable
+  // * assign -128 as i8 to a variable
+  // * assign 0b10000000 to i8
+  // * assign 0b10000000 to u8
+  // * assign '\x80' to i8
+  // * assign '\x80' to u8
+  // * assign '\x80' as u8 to a variable
+  // * assign '\x80' as i8 to a variable
+  // * try to store it on linear memory, and check raw bytes
+  // I think the way we should do a constant evaluation
+  // is by assuming all constant have infinite number
+  // of bits. And when we need to collapse it to a type,
+  // we just strip the bits.
+
+  let x: i8 = -128;
+  assert_equal::<i8>(0b10000000, x);
+
   assert_equal::<u8>(0xff, -1 as u8);
   assert_equal::<u16>(0xffff, -1 as u16);
   assert_equal::<u32>(0xffffffff, -1 as u32);
