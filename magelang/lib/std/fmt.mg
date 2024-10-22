@@ -14,8 +14,8 @@ fn print_str(p: [*]u8) {
   mem::dealloc::<wasi::IoVec>(iovec);
 }
 
-fn strlen(p: [*]u8): i32 {
-  let i: i32 = 0;
+fn strlen(p: [*]u8): usize {
+  let i: usize = 0;
   while p[i].* != 0 {
     i = i + 1;
   }
