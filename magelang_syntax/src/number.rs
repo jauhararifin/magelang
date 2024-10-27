@@ -74,7 +74,17 @@ macro_rules! number_try_into {
             type Error = TryFromNumberError;
             fn try_from(value: &Number) -> Result<Self, Self::Error> {
                 let val = value.to_int()?;
-                <$target>::try_from(val).map_err(|_| TryFromNumberError::OutOfRange)
+
+                let mut digits = val.iter_u64_digits();
+                if let Some(digit) = digits.next() {
+                    let mut d = digit as i64;
+                    if val.is_negative() {
+                        d = d.wrapping_mul(-1);
+                    }
+                    Ok(d as $target)
+                } else {
+                    Ok(0 as $target)
+                }
             }
         }
     };
@@ -88,7 +98,6 @@ number_try_into!(u8);
 number_try_into!(u16);
 number_try_into!(u32);
 number_try_into!(u64);
-number_try_into!(BigInt);
 
 macro_rules! number_try_into_float {
     ($target: ty) => {
@@ -108,17 +117,8 @@ number_try_into_float!(f64);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::str::FromStr;
 
     macro_rules! test {
-        ($name:ident, $base:expr, $exp:expr, $expected:expr, BigInt) => {
-            #[test]
-            fn $name() {
-                let n = Number::new($base, $exp);
-                let expected = BigInt::from_str($expected).unwrap();
-                assert_eq!(expected, BigInt::try_from(&n).unwrap());
-            }
-        };
         ($name:ident, $base:expr, $exp:expr, $expected:expr, $type:ident) => {
             #[test]
             fn $name() {
@@ -131,13 +131,6 @@ mod tests {
 
     test!(test_0e0, 0, 0, 0, u8);
     test!(test_1e0, 1, 0, 1, u8);
-    test!(
-        test_1234567890123455561090e0,
-        BigInt::from_str("1234567890123455561090").unwrap(),
-        BigInt::from(0),
-        "1234567890123455561090",
-        BigInt
-    );
     test!(
         test_5744368105847e0,
         5744368105847i64,
