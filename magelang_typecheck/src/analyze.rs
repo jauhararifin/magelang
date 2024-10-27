@@ -107,6 +107,11 @@ pub fn analyze<'a>(
 
     let is_valid = !error_manager.has_errors();
     build_module(ctx, is_valid, global_init_order)
+
+    // TODO: asserts that if there is no compilation error, then the module doesn't have:
+    // * type arguments
+    // * untyped expression
+    // * all binop expressions have correct operand type and result type
 }
 
 // The 'syn lifetime represent anything allocated not by the arena
@@ -808,11 +813,13 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
         match item {
             Source::Expr(expr, type_args) => match &expr.kind {
                 ExprKind::Invalid
+                | ExprKind::ConstInt(..)
                 | ExprKind::ConstI8(..)
                 | ExprKind::ConstI16(..)
                 | ExprKind::ConstI32(..)
                 | ExprKind::ConstI64(..)
                 | ExprKind::ConstIsize(..)
+                | ExprKind::ConstFloat(..)
                 | ExprKind::ConstF32(..)
                 | ExprKind::ConstF64(..)
                 | ExprKind::ConstBool(..)

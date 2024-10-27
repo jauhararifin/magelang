@@ -94,6 +94,14 @@ pub(crate) trait SemanticError: ErrorReporter {
         );
     }
 
+    fn division_by_zero(&self, pos: Pos) {
+        self.report(pos, format!("Cannot perform division by zero"));
+    }
+
+    fn mod_by_zero(&self, pos: Pos) {
+        self.report(pos, format!("Cannot perform modulo by zero"));
+    }
+
     fn binop_type_mismatch(&self, pos: Pos, op: impl Display, a: impl Display, b: impl Display) {
         self.report(
             pos,

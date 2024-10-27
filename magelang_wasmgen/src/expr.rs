@@ -71,13 +71,15 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
     pub(crate) fn build(&self, expr: &Expr<'ctx>) -> ExprInstr {
         match &expr.kind {
             ExprKind::Invalid => unreachable!("found invalid expr"),
+            ExprKind::ConstInt(..) => unreachable!("found untyped integer constant expression"),
             ExprKind::ConstI8(val) => wasm::Instr::I32Const(*val as i32).into(),
             ExprKind::ConstI16(val) => wasm::Instr::I32Const(*val as i32).into(),
             ExprKind::ConstI32(val) => wasm::Instr::I32Const(*val as i32).into(),
             ExprKind::ConstI64(val) => wasm::Instr::I64Const(*val as i64).into(),
             ExprKind::ConstIsize(val) => wasm::Instr::I32Const(*val as i32).into(),
-            ExprKind::ConstF32(val) => wasm::Instr::F32Const(**val).into(),
-            ExprKind::ConstF64(val) => wasm::Instr::F64Const(**val).into(),
+            ExprKind::ConstFloat(..) => unreachable!("found untyped float constant expression"),
+            ExprKind::ConstF32(val) => wasm::Instr::F32Const(val.get()).into(),
+            ExprKind::ConstF64(val) => wasm::Instr::F64Const(val.get()).into(),
             ExprKind::ConstBool(val) => wasm::Instr::I32Const(*val as i32).into(),
             ExprKind::Zero => build_zero_type(expr.ty).into(),
 
@@ -1153,7 +1155,9 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
 
 fn build_zero_type(ty: &Type<'_>) -> Vec<Vec<wasm::Instr>> {
     match &ty.repr {
-        TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type"),
+        TypeRepr::Unknown | TypeRepr::UntypedInt | TypeRepr::UntypedFloat | TypeRepr::TypeArg(..) => {
+            unreachable!("found invalid type")
+        }
         TypeRepr::Struct(struct_type) => struct_type
             .body
             .get()

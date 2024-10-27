@@ -247,7 +247,9 @@ impl<'a> Type<'a> {
             TypeRepr::Void => self,
             TypeRepr::Opaque => self,
             TypeRepr::Bool => self,
+            TypeRepr::UntypedInt => self,
             TypeRepr::Int(..) => self,
+            TypeRepr::UntypedFloat => self,
             TypeRepr::Float(..) => self,
             TypeRepr::Ptr(el) => ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -285,8 +287,16 @@ impl<'a> Type<'a> {
         self.repr.is_unknown() || self.repr.is_float()
     }
 
+    pub fn is_signed_int(&self) -> bool {
+        self.repr.is_signed_int()
+    }
+
     pub fn is_int(&self) -> bool {
         self.repr.is_unknown() || self.repr.is_int()
+    }
+
+    pub fn is_untyped_int(&self) -> bool {
+        self.repr.is_unknown() || self.repr.is_int() || self.repr.is_untyped_int()
     }
 
     pub fn is_f32(&self) -> bool {
@@ -435,7 +445,9 @@ pub enum TypeRepr<'a> {
     Void,
     Opaque,
     Bool,
+    UntypedInt,
     Int(IntSign, BitSize),
+    UntypedFloat,
     Float(FloatType),
     Ptr(&'a Type<'a>),
     ArrayPtr(&'a Type<'a>),
@@ -459,6 +471,14 @@ impl<'a> TypeRepr<'a> {
         }
     }
 
+    pub fn is_untyped(&self) -> bool {
+        matches!(self, Self::UntypedFloat | Self::UntypedInt)
+    }
+
+    pub fn is_untyped_int(&self) -> bool {
+        matches!(self, Self::UntypedInt)
+    }
+
     pub(crate) fn is_opaque(&self) -> bool {
         matches!(self, Self::Opaque)
     }
@@ -480,6 +500,10 @@ impl<'a> TypeRepr<'a> {
 
     pub(crate) fn is_float(&self) -> bool {
         matches!(self, Self::Float(..))
+    }
+
+    pub(crate) fn is_signed_int(&self) -> bool {
+        matches!(self, Self::Int(true, ..))
     }
 
     pub(crate) fn is_int(&self) -> bool {
@@ -518,6 +542,7 @@ impl<'a> Display for TypeRepr<'a> {
             TypeRepr::Void => write!(f, "void"),
             TypeRepr::Opaque => write!(f, "opaque"),
             TypeRepr::Bool => write!(f, "bool"),
+            TypeRepr::UntypedInt => write!(f, "untyped int"),
             TypeRepr::Int(sign, size) => {
                 write!(
                     f,
@@ -532,6 +557,7 @@ impl<'a> Display for TypeRepr<'a> {
                     }
                 )
             }
+            TypeRepr::UntypedFloat => write!(f, "untyped float"),
             TypeRepr::Float(float_ty) => match float_ty {
                 FloatType::F32 => write!(f, "f32"),
                 FloatType::F64 => write!(f, "f64"),

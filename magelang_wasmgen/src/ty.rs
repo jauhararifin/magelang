@@ -30,6 +30,8 @@ impl<'ctx> TypeManager<'ctx> {
 
         match &ty.repr {
             TypeRepr::Unknown => unreachable!("found unknown type"),
+            TypeRepr::UntypedInt => unreachable!("found untyped int type"),
+            TypeRepr::UntypedFloat => unreachable!("found untyped float type"),
             TypeRepr::TypeArg(..) => unreachable!("found typearg type"),
             TypeRepr::Struct(struct_type) => {
                 {
@@ -87,6 +89,8 @@ impl<'ctx> TypeManager<'ctx> {
 
         Some(match &ty.repr {
             TypeRepr::Unknown => unreachable!("found unknown type"),
+            TypeRepr::UntypedInt => unreachable!("found untyped int type"),
+            TypeRepr::UntypedFloat => unreachable!("found untyped float type"),
             TypeRepr::TypeArg(..) => unreachable!("found typearg type"),
             TypeRepr::Opaque => return None,
             TypeRepr::Struct(struct_type) => {
@@ -233,7 +237,9 @@ impl From<u32> for StackLayout {
 
 pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<PrimitiveType> {
     match &ty.repr {
-        TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type {ty}"),
+        TypeRepr::Unknown | TypeRepr::UntypedInt | TypeRepr::UntypedFloat | TypeRepr::TypeArg(..) => {
+            unreachable!("found invalid type {ty}")
+        }
         TypeRepr::Struct(struct_type) => {
             let mut fields = vec![];
             for field_ty in struct_type
