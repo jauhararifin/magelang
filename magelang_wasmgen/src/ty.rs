@@ -63,21 +63,29 @@ impl<'ctx> TypeManager<'ctx> {
 
     fn get_struct_stack_layout(&self, body: &StructBody<'ctx>) -> Rc<StackLayout> {
         let mut field_index = Vec::default();
-        let mut idx_offset = Vec::default();
-        let mut curr_idx = 0;
-        for (i, ty) in body.fields.values().enumerate() {
-            field_index.push(i);
+        let mut components = Vec::default();
+        let mut curr_offset = 0;
+        let mut last_index = 0usize;
+        for ty in body.fields.values() {
             let type_layout = self.get_stack_layout(ty);
-            idx_offset.push(StackComponent {
-                offset: curr_idx,
+
+            components.push(StackComponent {
+                offset: curr_offset,
                 size: type_layout.size,
             });
-            curr_idx += type_layout.size;
+            curr_offset += type_layout.size;
+
+            if type_layout.size == 0 {
+                field_index.push(None);
+            } else {
+                field_index.push(Some(last_index));
+            }
+            last_index += type_layout.size as usize;
         }
         Rc::new(StackLayout {
-            size: curr_idx,
+            size: curr_offset,
             field_index,
-            components: idx_offset,
+            components,
         })
     }
 
@@ -210,8 +218,26 @@ impl AlignNormalize for u32 {
 
 #[derive(Debug, Default)]
 pub(crate) struct StackLayout {
+    // size is the number of primitive types in this type representation including
+    // all of its embedded structs
     pub(crate) size: u32,
-    pub(crate) field_index: Vec<usize>,
+    // field_index is a map from struct's original field index into the first index
+    // of its type. For example, if let's say you have a struct Foo like this:
+    // Foo{a: i32, b: void, c: Bar, d: i32}
+    // Bar{a: f32, b: f64}
+    // field_index would be: [Some(0), None, Some(1), Some(2), Some(3)]
+    // the struct Foo itself is represented as these primitives:
+    // [i32,   f32,      f64,      i32]
+    // ^Foo.a  ^Foo.c.a  ^Foo.c.b  ^Foo.d
+    pub(crate) field_index: Vec<Option<usize>>,
+    // components is a map from struct's original field index into the type layout
+    // In the Foo and Bar example above, components will look like this:
+    // [
+    //      {offset:0,size:1}, // Foo.a
+    //      {offset:1,size:0}, // Foo.b
+    //      {offset:1,size:2}, // Foo.c
+    //      {offset:3,size:1}, // Foo.d
+    // ]
     pub(crate) components: Vec<StackComponent>, // only relevant for struct
 }
 
@@ -225,7 +251,7 @@ impl From<u32> for StackLayout {
     fn from(size: u32) -> Self {
         Self {
             size,
-            field_index: vec![0],
+            field_index: vec![if size > 0 { Some(0) } else { None }],
             components: vec![StackComponent { offset: 0, size }],
         }
     }

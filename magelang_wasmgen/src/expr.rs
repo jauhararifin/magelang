@@ -195,7 +195,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
 
     fn build_get_element(&self, struct_expr: &Expr<'ctx>, field: usize) -> ExprInstr {
         let struct_layout = self.types.get_stack_layout(struct_expr.ty);
-        let field_idx = struct_layout.field_index[field];
+        let Some(field_idx) = struct_layout.field_index[field] else {
+            return ExprInstr {
+                header: vec![],
+                components: vec![vec![]],
+            };
+        };
         let StackComponent { offset, size } = struct_layout.components[field_idx];
         let offset = offset as usize;
         let size = size as usize;

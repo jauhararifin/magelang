@@ -168,15 +168,19 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
 
     fn build_new_local_stmt(&self, id: usize, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
         let val_types = build_val_type(value.ty);
+
         let id = self.locals.new_local(id, val_types.into_iter());
         let var = VariableLoc::Local(id);
 
         let exprs = self.exprs.build(value);
 
+        let layout = self.types.get_stack_layout(value.ty);
         let mut result = exprs.header;
         for (i, val) in exprs.components.into_iter().enumerate() {
             result.extend(val);
-            result.push(var.get_set_instr(i));
+            if let Some(field_idx) = layout.field_index[i] {
+                result.push(var.get_set_instr(field_idx));
+            }
         }
 
         result
@@ -271,11 +275,18 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             };
 
             let exprs = self.exprs.build(expr);
+            let layout = self.types.get_stack_layout(target.ty);
+
+            println!("assign expr={:#?}", expr.kind);
+            println!("assign layout={layout:?}");
+            println!("assign exprs={exprs:?}");
 
             let mut result = exprs.header;
             for (i, value) in exprs.components.into_iter().enumerate() {
                 result.extend(value);
-                result.push(variable.get_set_instr(i));
+                if let Some(field_idx) = layout.field_index[i] {
+                    result.push(variable.get_set_instr(field_idx));
+                }
             }
             result
         }
@@ -337,7 +348,9 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             ExprKind::GetElement(target, field) => {
                 let var = self.get_variable_loc(target)?;
                 let struct_layout = self.types.get_stack_layout(target.ty);
-                let field_idx = struct_layout.field_index[*field];
+                let Some(field_idx) = struct_layout.field_index[*field] else {
+                    return None;
+                };
                 let var = var.with_offset(struct_layout.components[field_idx].offset);
                 Some(var)
             }
