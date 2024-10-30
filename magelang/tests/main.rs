@@ -8,7 +8,7 @@ use wasm_helper::Serializer;
 use wasmtime::{Engine, Linker, Module, Store};
 use wasmtime_wasi::sync::WasiCtxBuilder;
 
-macro_rules! test_success {
+macro_rules! testcase {
     ($name:ident) => {
         #[test]
         fn $name() {
@@ -17,12 +17,11 @@ macro_rules! test_success {
     };
 }
 
-test_success!(test_000);
-// TODO: test_001 is still failing for now
-test_success!(test_001);
-test_success!(test_002);
-test_success!(test_003);
-test_success!(test_001_fail);
+testcase!(test_000);
+testcase!(test_001);
+testcase!(test_002);
+testcase!(test_003);
+testcase!(test_001_fail);
 
 fn test_package(name: &str) {
     unsafe {

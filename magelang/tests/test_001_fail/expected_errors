@@ -1,3 +1,5 @@
 tests/test_001_fail/main.mg:3:1: Expected ';', but found '}'
 tests/test_001_fail/main.mg:5:1: Missing return statement
 tests/test_001_fail/main.mg:7:3: Expected ';', but found 'return'
+tests/test_001_fail/main.mg:23:42: Symbol T is not declared yet
+tests/test_001_fail/main.mg:28:11: Cannot perform eq operation for tests/test_001_fail/main::A::<i32> and u8

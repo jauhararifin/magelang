@@ -322,6 +322,14 @@ impl<'a> Type<'a> {
         self.repr.is_unknown()
     }
 
+    pub fn contains_unknown(&self) -> bool {
+        if let TypeKind::Anonymous = self.kind {
+            self.repr.contains_unknown()
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn is_arithmetic(&self) -> bool {
         self.repr.is_unknown() || self.repr.is_arithmetic()
     }
@@ -467,6 +475,26 @@ impl<'a> TypeRepr<'a> {
         matches!(self, Self::Unknown)
     }
 
+    pub(crate) fn contains_unknown(&self) -> bool {
+        match self {
+            Self::Unknown => true,
+            Self::Struct(struct_ty) => struct_ty
+                .body
+                .get()
+                .expect("struct body should be calculated by now")
+                .fields
+                .values()
+                .any(|ty| ty.contains_unknown()),
+            Self::Func(func_type) => {
+                func_type.params.iter().any(|ty| ty.contains_unknown())
+                    || func_type.return_type.contains_unknown()
+            }
+            Self::Void | Self::Opaque | Self::Bool | Self::Int(..) | Self::Float(..) => false,
+            Self::Ptr(ty) | Self::ArrayPtr(ty) => ty.contains_unknown(),
+            Self::TypeArg(..) => false,
+        }
+    }
+
     pub(crate) fn is_arithmetic(&self) -> bool {
         matches!(
             self,
@@ -495,6 +523,9 @@ impl<'a> TypeRepr<'a> {
     }
 
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
+        // TODO: If one of the type has unknown component, we should
+        // treat them as assignable. For example, *i32 and *{unknown}
+        // should be considered as assignable
         self.eq(other)
     }
 }

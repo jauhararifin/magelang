@@ -185,7 +185,9 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
             let mut value_expr = get_expr_from_node(ctx.ctx, ctx.scope, Some(ty), value);
             if !ty.is_assignable_with(value_expr.ty) {
-                ctx.ctx.errors.type_mismatch(value.pos(), ty, value_expr.ty);
+                if !ty.contains_unknown() && !value_expr.ty.contains_unknown() {
+                    ctx.ctx.errors.type_mismatch(value.pos(), ty, value_expr.ty);
+                }
                 value_expr.kind = ExprKind::Invalid
             }
             value_expr
@@ -226,9 +228,11 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
 
     let value = get_expr_from_node(ctx.ctx, ctx.scope, Some(receiver.ty), &node.value);
     if !receiver.ty.is_assignable_with(value.ty) {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.value.pos(), receiver.ty, value.ty);
+        if !receiver.ty.contains_unknown() && !value.ty.contains_unknown() {
+            ctx.ctx
+                .errors
+                .type_mismatch(node.value.pos(), receiver.ty, value.ty);
+        }
     }
 
     StatementResult {
@@ -293,9 +297,11 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
     let cond = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !cond.ty.is_bool() {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.condition.pos(), TypeRepr::Bool, cond.ty);
+        if !cond.ty.contains_unknown() {
+            ctx.ctx
+                .errors
+                .type_mismatch(node.condition.pos(), TypeRepr::Bool, cond.ty);
+        }
     }
 
     let result = get_statement_from_block(ctx, &node.body);
@@ -347,9 +353,11 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     let condition = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !condition.ty.is_bool() {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.condition.pos(), TypeRepr::Bool, condition.ty);
+        if !condition.ty.is_unknown() {
+            ctx.ctx
+                .errors
+                .type_mismatch(node.condition.pos(), TypeRepr::Bool, condition.ty);
+        }
     }
 
     let body_stmt = get_statement_from_block(
@@ -424,9 +432,11 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
         }));
 
     if !return_type.is_assignable_with(value_ty) {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.pos, return_type, value_ty);
+        if !return_type.is_unknown() && !value_ty.is_unknown() {
+            ctx.ctx
+                .errors
+                .type_mismatch(node.pos, return_type, value_ty);
+        }
     };
 
     StatementResult {

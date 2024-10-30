@@ -921,8 +921,10 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
 
     for (i, (arg, param)) in zip(&arguments, func_type.params).enumerate() {
         if !param.is_assignable_with(arg.ty) {
-            ctx.errors
-                .type_mismatch(node.arguments[i].pos(), param, arg.ty);
+            if !param.contains_unknown() && !arg.ty.contains_unknown() {
+                ctx.errors
+                    .type_mismatch(node.arguments[i].pos(), param, arg.ty);
+            }
         }
     }
 
@@ -1009,7 +1011,9 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
         let value = get_expr_from_node(ctx, scope, Some(ty), &element.value);
 
         let value = if !ty.is_assignable_with(value.ty) {
-            ctx.errors.type_mismatch(element.value.pos(), ty, value.ty);
+            if !ty.contains_unknown() && !value.ty.contains_unknown() {
+                ctx.errors.type_mismatch(element.value.pos(), ty, value.ty);
+            }
             Expr {
                 ty: ctx.define_type(Type {
                     kind: TypeKind::Anonymous,

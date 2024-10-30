@@ -661,7 +661,9 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
                     .as_ref()
                     .map(|expr| expr.pos())
                     .unwrap_or(global_object.node.pos);
-                ctx.errors.type_mismatch(pos, ty, value_expr.ty);
+                if !ty.contains_unknown() && !value_expr.ty.contains_unknown() {
+                    ctx.errors.type_mismatch(pos, ty, value_expr.ty);
+                }
             }
 
             global_object
