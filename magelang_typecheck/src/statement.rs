@@ -38,7 +38,7 @@ impl<'a> Statement<'a> {
             Statement::Break => Statement::Break,
             Statement::NewLocal { id, value } => {
                 let value = value.monomorphize(ctx, type_args);
-                Statement::NewLocal{id: *id, value}
+                Statement::NewLocal { id: *id, value }
             }
             Statement::Block(statements) => {
                 let mut result = BumpVec::with_capacity_in(statements.len(), ctx.arena);
@@ -208,7 +208,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
     let new_scope = ctx.scope.with_value_scope(new_scope);
 
     StatementResult {
-        statement: Statement::NewLocal{id, value: expr},
+        statement: Statement::NewLocal { id, value: expr },
         new_scope: Some(new_scope),
         is_returning: false,
         last_unused_local: ctx.last_unused_local + 1,

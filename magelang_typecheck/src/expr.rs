@@ -601,13 +601,13 @@ fn get_expr_from_char_lit<'a, E: ErrorReporter>(
         }
     };
 
-    let ty = expected_type.unwrap_or(ctx.define_type(Type {
+    let ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::I32),
-    }));
+        repr: TypeRepr::Int(false, BitSize::I8),
+    });
     Expr {
         ty,
-        kind: ExprKind::ConstI32(ch as u32),
+        kind: ExprKind::ConstI8(ch as u8),
         pos: char_lit.pos,
         assignable: false,
     }
