@@ -1197,7 +1197,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
 trait ParsingError: ErrorReporter {
     fn invalid_path(&self, pos: Pos) {
-        self.report(pos, format!("Path should be either a symbol identifier or package_identifier::symbol_identifier"));
+        self.report(pos, "Path should be either a symbol identifier or package_identifier::symbol_identifier".to_string());
     }
 
     fn unexpected_parsing(&self, pos: Pos, expected: impl Display, found: impl Display) {
