@@ -119,13 +119,12 @@ impl<'ctx> TypeManager<'ctx> {
     }
 
     fn get_struct_mem_layout(&self, body: &StructBody<'ctx>) -> Option<Rc<MemLayout>> {
-        let mut field_idx = Vec::default();
-        let mut mem_offset = Vec::default();
+        let mut field_layout = Vec::default();
+        let mut components = Vec::default();
         let mut curr_mem = 0;
         let mut total_align = 1;
 
         for ty in body.fields.values() {
-            field_idx.push(mem_offset.len());
             let type_layout = self.get_mem_layout(ty)?;
 
             let (size, align) = (type_layout.size, type_layout.align);
@@ -136,8 +135,10 @@ impl<'ctx> TypeManager<'ctx> {
                 curr_mem += align - (curr_mem % align);
             }
 
+            field_layout.push((curr_mem, size));
+
             for component in &type_layout.components {
-                mem_offset.push(MemComponent {
+                components.push(MemComponent {
                     offset: curr_mem + component.offset,
                     align: component.align,
                 });
@@ -154,8 +155,8 @@ impl<'ctx> TypeManager<'ctx> {
         Some(Rc::new(MemLayout {
             size: mem_size,
             align: total_align,
-            field_idx,
-            components: mem_offset,
+            fields: field_layout,
+            components,
         }))
     }
 
@@ -168,7 +169,11 @@ impl<'ctx> TypeManager<'ctx> {
 pub(crate) struct MemLayout {
     pub(crate) size: u32,
     pub(crate) align: u32,
-    pub(crate) field_idx: Vec<usize>,
+    pub(crate) fields: Vec<(u32, u32)>, // (offset, size)
+
+    // components contains the memory offset and alignment for each component
+    // of a struct. If we flatten the struct, one component will be one primitive
+    // of the flattened struct.
     pub(crate) components: Vec<MemComponent>, // only relevant for struct
 }
 
@@ -183,7 +188,7 @@ impl MemLayout {
         Self {
             size,
             align,
-            field_idx: vec![0],
+            fields: vec![(0, size)],
             components: vec![MemComponent { offset: 0, align }],
         }
     }

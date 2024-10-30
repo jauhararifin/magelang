@@ -1,7 +1,7 @@
 use crate::data::DataManager;
 use crate::errors::CodegenError;
 use crate::func::{FuncId, FuncMapper};
-use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, StackComponent, TypeManager};
+use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
 use magelang_syntax::ErrorReporter;
 use magelang_typecheck::{BitSize, DefId, Expr, ExprKind, FloatType, Type, TypeArgs, TypeRepr};
@@ -17,71 +17,21 @@ pub(crate) struct ExprBuilder<'a, 'ctx, E> {
     pub(crate) globals: &'a GlobalManager<'ctx>,
 }
 
-#[derive(Debug)]
-pub(crate) struct ExprInstr {
-    pub(crate) header: Vec<wasm::Instr>,
-    pub(crate) components: Vec<Vec<wasm::Instr>>,
-}
-
-impl From<wasm::Instr> for ExprInstr {
-    fn from(instr: wasm::Instr) -> Self {
-        Self {
-            header: Vec::default(),
-            components: vec![vec![instr]],
-        }
-    }
-}
-
-impl From<Vec<wasm::Instr>> for ExprInstr {
-    fn from(instrs: Vec<wasm::Instr>) -> Self {
-        Self {
-            header: Vec::default(),
-            components: vec![instrs],
-        }
-    }
-}
-
-impl From<Vec<Vec<wasm::Instr>>> for ExprInstr {
-    fn from(components: Vec<Vec<wasm::Instr>>) -> Self {
-        Self {
-            header: Vec::default(),
-            components,
-        }
-    }
-}
-
-impl ExprInstr {
-    pub(crate) fn flatten(self) -> Vec<wasm::Instr> {
-        let mut result = self.header;
-        for instrs in self.components {
-            result.extend(instrs);
-        }
-        result
-    }
-
-    pub(crate) fn slice(self, from: usize, len: usize) -> Self {
-        Self {
-            header: self.header,
-            components: self.components.into_iter().skip(from).take(len).collect(),
-        }
-    }
-}
-
 impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
-    pub(crate) fn build(&self, expr: &Expr<'ctx>) -> ExprInstr {
+    pub(crate) fn build(&self, expr: &Expr<'ctx>) -> Vec<wasm::Instr> {
         match &expr.kind {
             ExprKind::Invalid => unreachable!("found invalid expr"),
-            ExprKind::ConstI8(val) => wasm::Instr::I32Const(*val as i32).into(),
-            ExprKind::ConstI16(val) => wasm::Instr::I32Const(*val as i32).into(),
-            ExprKind::ConstI32(val) => wasm::Instr::I32Const(*val as i32).into(),
-            ExprKind::ConstI64(val) => wasm::Instr::I64Const(*val as i64).into(),
-            ExprKind::ConstIsize(val) => wasm::Instr::I32Const(*val as i32).into(),
-            ExprKind::ConstF32(val) => wasm::Instr::F32Const(**val).into(),
-            ExprKind::ConstF64(val) => wasm::Instr::F64Const(**val).into(),
-            ExprKind::ConstBool(val) => wasm::Instr::I32Const(*val as i32).into(),
-            ExprKind::Zero => build_zero_type(expr.ty).into(),
+            ExprKind::ConstI8(val) => vec![wasm::Instr::I32Const(*val as i32)],
+            ExprKind::ConstI16(val) => vec![wasm::Instr::I32Const(*val as i32)],
+            ExprKind::ConstI32(val) => vec![wasm::Instr::I32Const(*val as i32)],
+            ExprKind::ConstI64(val) => vec![wasm::Instr::I64Const(*val as i64)],
+            ExprKind::ConstIsize(val) => vec![wasm::Instr::I32Const(*val as i32)],
+            ExprKind::ConstF32(val) => vec![wasm::Instr::F32Const(**val)],
+            ExprKind::ConstF64(val) => vec![wasm::Instr::F64Const(**val)],
+            ExprKind::ConstBool(val) => vec![wasm::Instr::I32Const(*val as i32)],
+            ExprKind::Zero => build_zero_type(expr.ty),
 
-            ExprKind::StructLit(_, values) => self.build_struct_lit(expr.ty, values),
+            ExprKind::StructLit(_, values) => self.build_struct_lit(values),
             ExprKind::Bytes(bytes) => self.build_bytes(bytes),
 
             ExprKind::Local(idx) => self.build_local(expr.ty, *idx),
@@ -120,119 +70,115 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         }
     }
 
-    fn build_struct_lit(&self, ty: &Type, values: &[Expr<'ctx>]) -> ExprInstr {
-        let mut header = values
-            .iter()
-            .flat_map(|expr| self.build(expr).flatten())
-            .collect::<Vec<_>>();
-
-        let types = build_val_type(ty);
-        let temps = self.locals.get_temporary_locals(types);
-        for id in temps.iter().rev() {
-            header.push(wasm::Instr::LocalSet(*id));
+    fn build_struct_lit(&self, values: &[Expr<'ctx>]) -> Vec<wasm::Instr> {
+        let mut result = Vec::default();
+        for expr in values {
+            result.extend(self.build(expr));
         }
-
-        let mut components = Vec::default();
-        for id in temps.iter() {
-            components.push(vec![wasm::Instr::LocalGet(*id)]);
-        }
-
-        ExprInstr { header, components }
+        result
     }
 
-    fn build_bytes(&self, bytes: &[u8]) -> ExprInstr {
-        vec![vec![wasm::Instr::I32Const(
-            self.data.get_bytes(bytes).unwrap() as i32,
-        )]]
-        .into()
+    fn build_bytes(&self, bytes: &[u8]) -> Vec<wasm::Instr> {
+        vec![wasm::Instr::I32Const(
+            self.data.get_bytes(bytes).unwrap() as i32
+        )]
     }
 
-    fn build_local(&self, ty: &Type, idx: usize) -> ExprInstr {
+    fn build_local(&self, ty: &Type, idx: usize) -> Vec<wasm::Instr> {
         let wasm_id = self.locals.get_local(idx);
-
         let types = build_val_type(ty);
         let mut result = Vec::default();
         for i in 0..types.len() {
-            result.push(vec![wasm::Instr::LocalGet(wasm_id + i as u32)]);
+            result.push(wasm::Instr::LocalGet(wasm_id + i as u32));
         }
-
-        result.into()
+        result
     }
 
-    fn build_global(&self, ty: &Type, def_id: DefId<'ctx>) -> ExprInstr {
+    fn build_global(&self, ty: &Type, def_id: DefId<'ctx>) -> Vec<wasm::Instr> {
         let id = self.globals.get(def_id);
-
         let types = build_val_type(ty);
         let mut result = Vec::default();
         for i in 0..types.len() {
-            result.push(vec![wasm::Instr::GlobalGet(id + i as u32)]);
+            result.push(wasm::Instr::GlobalGet(id + i as u32));
         }
-
-        result.into()
+        result
     }
 
-    fn build_func(&self, def_id: DefId<'ctx>) -> ExprInstr {
+    fn build_func(&self, def_id: DefId<'ctx>) -> Vec<wasm::Instr> {
         let func_id = FuncId {
             def_id,
             typeargs: None,
         };
-        vec![vec![wasm::Instr::I32Const(
+        vec![wasm::Instr::I32Const(
             *self.funcs.func_map.get(&func_id).unwrap() as i32,
-        )]]
-        .into()
+        )]
     }
 
-    fn build_func_inst(&self, def_id: DefId<'ctx>, typeargs: &'ctx TypeArgs<'ctx>) -> ExprInstr {
+    fn build_func_inst(
+        &self,
+        def_id: DefId<'ctx>,
+        typeargs: &'ctx TypeArgs<'ctx>,
+    ) -> Vec<wasm::Instr> {
         let func_id = FuncId {
             def_id,
             typeargs: Some(typeargs),
         };
-        vec![vec![wasm::Instr::I32Const(
+        vec![wasm::Instr::I32Const(
             *self.funcs.func_map.get(&func_id).unwrap() as i32,
-        )]]
-        .into()
+        )]
     }
 
-    fn build_get_element(&self, struct_expr: &Expr<'ctx>, field: usize) -> ExprInstr {
-        let struct_layout = self.types.get_stack_layout(struct_expr.ty);
-        let field_idx = struct_layout.field_index[field];
-        let StackComponent { offset, size } = struct_layout.components[field_idx];
-        let offset = offset as usize;
-        let size = size as usize;
-        let expr_instr = self.build(struct_expr);
-        expr_instr.slice(offset, size)
+    fn build_get_element(&self, struct_expr: &Expr<'ctx>, field: usize) -> Vec<wasm::Instr> {
+        let mut result = self.build(struct_expr);
+        let types = build_val_type(struct_expr.ty);
+        let temps = self.locals.get_temporary_locals(types);
+        for id in temps.iter().rev() {
+            result.push(wasm::Instr::LocalSet(*id));
+        }
+
+        let layout = self.types.get_stack_layout(struct_expr.ty);
+        let field_layout = layout.components[field];
+        for id in temps
+            .iter()
+            .skip(field_layout.offset as usize)
+            .take(field_layout.size as usize)
+            .copied()
+        {
+            result.push(wasm::Instr::LocalGet(id));
+        }
+
+        result
     }
 
-    fn build_get_element_addr(&self, addr: &Expr<'ctx>, field: usize) -> ExprInstr {
+    fn build_get_element_addr(&self, addr: &Expr<'ctx>, field: usize) -> Vec<wasm::Instr> {
         let TypeRepr::Ptr(element_type) = addr.ty.repr else {
             unreachable!()
         };
         let Some(struct_layout) = self.types.get_mem_layout(element_type) else {
             self.errors.dereferencing_opaque(addr.pos);
-            return vec![wasm::Instr::Unreachable].into();
+            return vec![wasm::Instr::Unreachable];
         };
-        let field_idx = struct_layout.field_idx[field];
-        let offset = struct_layout.components[field_idx].offset;
+        let offset = struct_layout.fields[field].0;
 
-        let mut result = self.build(addr).flatten();
+        let mut result = self.build(addr);
         result.push(wasm::Instr::I32Const(offset as i32));
         result.push(wasm::Instr::I32Add);
-        result.into()
+        result
     }
 
-    fn build_get_index(&self, arr: &Expr<'ctx>, index: &Expr<'ctx>) -> ExprInstr {
+    fn build_get_index(&self, arr: &Expr<'ctx>, index: &Expr<'ctx>) -> Vec<wasm::Instr> {
         let TypeRepr::ArrayPtr(element_type) = arr.ty.repr else {
             unreachable!()
         };
         let Some(layout) = self.types.get_mem_layout(element_type) else {
             self.errors.dereferencing_opaque(arr.pos);
-            return vec![wasm::Instr::Unreachable].into();
+            return vec![wasm::Instr::Unreachable];
         };
         let size = layout.size;
 
-        let mut result = self.build(arr).flatten();
+        let mut result = self.build(arr);
         result.push(wasm::Instr::I32Const(size as i32));
-        result.extend(self.build(index).flatten());
+        result.extend(self.build(index));
 
         if let TypeRepr::Int(_, bit_size) = index.ty.repr {
             if bit_size == BitSize::I64 {
@@ -242,27 +188,26 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
 
         result.push(wasm::Instr::I32Mul);
         result.push(wasm::Instr::I32Add);
-        result.into()
+        result
     }
 
-    fn build_deref(&self, addr: &Expr<'ctx>) -> ExprInstr {
+    fn build_deref(&self, addr: &Expr<'ctx>) -> Vec<wasm::Instr> {
         let TypeRepr::Ptr(element_type) = &addr.ty.repr else {
             unreachable!()
         };
 
         let Some(layout) = self.types.get_mem_layout(element_type) else {
             self.errors.dereferencing_opaque(addr.pos);
-            return vec![wasm::Instr::Unreachable].into();
+            return vec![wasm::Instr::Unreachable];
         };
         let val_types = build_val_type(element_type);
         assert_eq!(layout.components.len(), val_types.len());
 
-        let mut header = self.build(addr).flatten();
+        let mut result = self.build(addr);
         let temp = self.locals.get_temporary_locals(vec![PrimitiveType::U32]);
         let temp_var = *temp.first().unwrap();
-        header.push(wasm::Instr::LocalSet(temp_var));
+        result.push(wasm::Instr::LocalSet(temp_var));
 
-        let mut components = Vec::default();
         for (component_layout, val_type) in zip(&layout.components, val_types) {
             let mem_arg = wasm::MemArg {
                 offset: component_layout.offset,
@@ -279,22 +224,22 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 PrimitiveType::F64 => wasm::Instr::F64Load,
                 PrimitiveType::Extern => {
                     self.errors.dereferencing_opaque(addr.pos);
-                    return vec![wasm::Instr::Unreachable].into();
+                    return vec![wasm::Instr::Unreachable];
                 }
             };
             let load_instr = load_instr(mem_arg);
 
-            components.push(vec![wasm::Instr::LocalGet(temp_var), load_instr]);
+            result.push(wasm::Instr::LocalGet(temp_var));
+            result.push(load_instr);
         }
-
-        ExprInstr { header, components }
+        result
     }
 
-    fn build_call(&self, callee: &Expr<'ctx>, arguments: &[Expr<'ctx>]) -> ExprInstr {
-        let mut header = Vec::default();
+    fn build_call(&self, callee: &Expr<'ctx>, arguments: &[Expr<'ctx>]) -> Vec<wasm::Instr> {
+        let mut result = Vec::default();
 
         for arg in arguments.iter() {
-            header.extend(self.build(arg).flatten());
+            result.extend(self.build(arg));
         }
 
         let ty = callee.ty;
@@ -308,7 +253,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                     def_id,
                     typeargs: None,
                 };
-                header.push(wasm::Instr::Call(
+                result.push(wasm::Instr::Call(
                     *self.funcs.func_map.get(&func_id).unwrap(),
                 ))
             }
@@ -317,7 +262,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                     def_id,
                     typeargs: Some(typeargs),
                 };
-                header.push(wasm::Instr::Call(
+                result.push(wasm::Instr::Call(
                     *self.funcs.func_map.get(&func_id).unwrap(),
                 ))
             }
@@ -336,28 +281,17 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                     returns,
                 });
 
-                header.extend(self.build(callee).flatten());
-                header.push(wasm::Instr::CallIndirect(0, wasm_type_id));
+                result.extend(self.build(callee));
+                result.push(wasm::Instr::CallIndirect(0, wasm_type_id));
             }
         }
 
-        let return_types = build_val_type(func_type.return_type);
-        let temps = self.locals.get_temporary_locals(return_types);
-        for id in temps.iter().rev() {
-            header.push(wasm::Instr::LocalSet(*id));
-        }
-
-        let mut components = Vec::default();
-        for id in temps.iter() {
-            components.push(vec![wasm::Instr::LocalGet(*id)]);
-        }
-
-        ExprInstr { header, components }
+        result
     }
 
-    fn build_add(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_add(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => {
@@ -392,12 +326,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_sub(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_sub(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => {
@@ -432,12 +366,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_mul(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_mul(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => {
@@ -472,12 +406,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_div(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_div(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => {
@@ -512,12 +446,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_mod(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_mod(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => {
@@ -549,12 +483,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_bit_or(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_bit_or(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Or, wasm::Instr::I32Extend8S],
@@ -572,12 +506,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_bit_and(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_bit_and(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32And, wasm::Instr::I32Extend8S],
@@ -595,12 +529,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_bit_xor(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_bit_xor(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Xor, wasm::Instr::I32Extend8S],
@@ -618,12 +552,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_bit_shl(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_bit_shl(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Shl, wasm::Instr::I32Extend8S],
@@ -649,12 +583,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_bit_shr(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_bit_shr(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32ShrS],
@@ -677,38 +611,38 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_and(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
+    fn build_and(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
 
         result.push(wasm::Instr::I32Eqz);
         result.push(wasm::Instr::If(
             wasm::BlockType::ValTy(wasm::ValType::Num(wasm::NumType::I32)),
             vec![wasm::Instr::I32Const(0)],
-            self.build(b).flatten(),
+            self.build(b),
         ));
 
-        result.into()
+        result
     }
 
-    fn build_or(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
+    fn build_or(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
 
         result.push(wasm::Instr::I32Eqz);
         result.push(wasm::Instr::If(
             wasm::BlockType::ValTy(wasm::ValType::Num(wasm::NumType::I32)),
-            self.build(b).flatten(),
+            self.build(b),
             vec![wasm::Instr::I32Const(1)],
         ));
 
-        result.into()
+        result
     }
 
-    fn build_eq(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let a_instr = self.build(a).flatten();
-        let b_instr = self.build(b).flatten();
+    fn build_eq(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let a_instr = self.build(a);
+        let b_instr = self.build(b);
 
         let ty = a.ty;
         let op_instr = match ty.repr {
@@ -734,7 +668,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 } else {
                     result.push(wasm::Instr::I32Const(1));
                 }
-                return result.into();
+                return result;
             }
 
             _ => {
@@ -746,12 +680,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result.extend(a_instr);
         result.extend(b_instr);
         result.extend(op_instr);
-        result.into()
+        result
     }
 
-    fn build_ne(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let a_instr = self.build(a).flatten();
-        let b_instr = self.build(b).flatten();
+    fn build_ne(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let a_instr = self.build(a);
+        let b_instr = self.build(b);
 
         let ty = a.ty;
         let op_instr = match ty.repr {
@@ -780,7 +714,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                     result.push(wasm::Instr::I32Const(1));
                 }
                 result.push(wasm::Instr::I32Eqz);
-                return result.into();
+                return result;
             }
 
             _ => {
@@ -793,12 +727,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result.extend(b_instr);
         result.extend(op_instr);
         result.push(wasm::Instr::I32Eqz);
-        result.into()
+        result
     }
 
-    fn build_gt(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_gt(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let ty = a.ty;
         let instrs = match ty.repr {
@@ -820,12 +754,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_ge(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_ge(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let ty = a.ty;
         let instrs = match ty.repr {
@@ -847,12 +781,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_lt(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_lt(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let ty = a.ty;
         let instrs = match ty.repr {
@@ -876,12 +810,12 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_le(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(a).flatten();
-        result.extend(self.build(b).flatten());
+    fn build_le(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(a);
+        result.extend(self.build(b));
 
         let ty = a.ty;
         let instrs = match ty.repr {
@@ -903,11 +837,11 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_neg(&self, ty: &Type, value: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(value).flatten();
+    fn build_neg(&self, ty: &Type, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(value);
         let instrs = match ty.repr {
             TypeRepr::Int(_, BitSize::I64) => {
                 vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Mul]
@@ -958,11 +892,11 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             }
         };
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_bit_not(&self, ty: &Type, value: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(value).flatten();
+    fn build_bit_not(&self, ty: &Type, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(value);
         let instrs = match ty.repr {
             TypeRepr::Int(_, BitSize::I64) => {
                 vec![wasm::Instr::I64Const(-1), wasm::Instr::I64Xor]
@@ -975,17 +909,17 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             }
         };
         result.extend(instrs);
-        result.into()
+        result
     }
 
-    fn build_not(&self, value: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(value).flatten();
+    fn build_not(&self, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(value);
         result.push(wasm::Instr::I32Eqz);
-        result.into()
+        result
     }
 
-    fn build_cast(&self, ty: &Type, value: &Expr<'ctx>) -> ExprInstr {
-        let mut result = self.build(value).flatten();
+    fn build_cast(&self, ty: &Type, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = self.build(value);
 
         let source_type = value.ty;
         let target_type = ty;
@@ -1147,11 +1081,11 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
         result.extend(instrs);
 
-        result.into()
+        result
     }
 }
 
-fn build_zero_type(ty: &Type<'_>) -> Vec<Vec<wasm::Instr>> {
+fn build_zero_type(ty: &Type<'_>) -> Vec<wasm::Instr> {
     match &ty.repr {
         TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type"),
         TypeRepr::Struct(struct_type) => struct_type
@@ -1162,16 +1096,16 @@ fn build_zero_type(ty: &Type<'_>) -> Vec<Vec<wasm::Instr>> {
             .values()
             .flat_map(|ty| build_zero_type(ty))
             .collect(),
-        TypeRepr::Func(..) => vec![vec![wasm::Instr::I32Const(0)]],
-        TypeRepr::Void => vec![vec![]],
-        TypeRepr::Opaque => vec![vec![wasm::Instr::RefNull(wasm::RefType::ExternRef)]],
-        TypeRepr::Bool => vec![vec![wasm::Instr::I32Const(0)]],
+        TypeRepr::Func(..) => vec![wasm::Instr::I32Const(0)],
+        TypeRepr::Void => vec![],
+        TypeRepr::Opaque => vec![wasm::Instr::RefNull(wasm::RefType::ExternRef)],
+        TypeRepr::Bool => vec![wasm::Instr::I32Const(0)],
         TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
-            vec![vec![wasm::Instr::I32Const(0)]]
+            vec![wasm::Instr::I32Const(0)]
         }
-        TypeRepr::Int(_, BitSize::I64) => vec![vec![wasm::Instr::I64Const(0)]],
-        TypeRepr::Float(FloatType::F32) => vec![vec![wasm::Instr::F32Const(0f32)]],
-        TypeRepr::Float(FloatType::F64) => vec![vec![wasm::Instr::F64Const(0f64)]],
-        TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => vec![vec![wasm::Instr::I32Const(0)]],
+        TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Const(0)],
+        TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Const(0f32)],
+        TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Const(0f64)],
+        TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => vec![wasm::Instr::I32Const(0)],
     }
 }

@@ -1,4 +1,3 @@
-use binaryen;
 use bumpalo::Bump;
 use clap::{Parser, Subcommand};
 use magelang_syntax::{parse, ErrorManager, FileManager};

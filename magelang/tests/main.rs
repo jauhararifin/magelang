@@ -19,8 +19,9 @@ macro_rules! test_success {
 
 test_success!(test_000);
 // TODO: test_001 is still failing for now
-// test_success!(test_001);
+test_success!(test_001);
 test_success!(test_002);
+test_success!(test_003);
 test_success!(test_001_fail);
 
 fn test_package(name: &str) {

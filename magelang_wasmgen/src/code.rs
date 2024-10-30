@@ -94,7 +94,7 @@ pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
             let ptr = data_manager.get_file(path).expect("missing path");
             vec![wasm::Instr::I32Const(ptr as i32)]
         } else {
-            exprs.build(&global.value).flatten()
+            exprs.build(&global.value)
         };
 
         body.extend(instrs);
@@ -168,17 +168,13 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
 
     fn build_new_local_stmt(&self, id: usize, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
         let val_types = build_val_type(value.ty);
+        let size = val_types.len();
         let id = self.locals.new_local(id, val_types.into_iter());
         let var = VariableLoc::Local(id);
-
-        let exprs = self.exprs.build(value);
-
-        let mut result = exprs.header;
-        for (i, val) in exprs.components.into_iter().enumerate() {
-            result.extend(val);
+        let mut result = self.exprs.build(value);
+        for i in (0..size).rev() {
             result.push(var.get_set_instr(i));
         }
-
         result
     }
 
@@ -201,7 +197,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         break_label: u32,
         if_stmt: &'ctx IfStatement<'ctx>,
     ) -> Vec<wasm::Instr> {
-        let mut result = self.exprs.build(&if_stmt.cond).flatten();
+        let mut result = self.exprs.build(&if_stmt.cond);
         let body = self.build_statement(continue_label + 1, break_label + 1, &if_stmt.body);
 
         let else_body = if let Some(ref else_body) = if_stmt.else_stmt {
@@ -215,7 +211,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
     }
 
     fn build_while_stmt(&self, while_stmt: &'ctx WhileStatement<'ctx>) -> Vec<wasm::Instr> {
-        let cond = self.exprs.build(&while_stmt.cond).flatten();
+        let cond = self.exprs.build(&while_stmt.cond);
         let body = self.build_statement(0, 1, &while_stmt.body);
 
         let mut inner_block = cond;
@@ -233,14 +229,14 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
     fn build_return_stmt(&self, value: &Option<Expr<'ctx>>) -> Vec<wasm::Instr> {
         let mut result = vec![];
         if let Some(val) = value {
-            result.extend(self.exprs.build(val).flatten());
+            result.extend(self.exprs.build(val));
         }
         result.push(wasm::Instr::Return);
         result
     }
 
     fn build_expr_stmt(&self, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.exprs.build(value).flatten();
+        let mut result = self.exprs.build(value);
         let types = build_val_type(value.ty);
         for _ in types {
             result.push(wasm::Instr::Drop);
@@ -256,33 +252,30 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         if let ExprKind::Deref(ptr) = &target.kind {
             self.build_mem_assign_stmt(ptr, expr)
         } else {
-            let Some(variable) = self.get_variable_loc(target) else {
+            let types = build_val_type(expr.ty);
+            let mut result = self.exprs.build(expr);
+
+            if let Some(variable) = self.get_variable_loc(target) {
+                for i in (0..types.len()).rev() {
+                    result.push(variable.get_set_instr(i));
+                }
+            } else {
                 // it's possible that the target is non-local. For example:
                 // let a: *SomeStruct = ...;
                 // a.*.b.c = ...
                 // in this case, this expression doesn't have to be assigned.
                 // only the value should be executed.
-                let mut result = self.exprs.build(expr).flatten();
-                let types = build_val_type(expr.ty);
                 for _ in types {
                     result.push(wasm::Instr::Drop);
                 }
-                return result;
-            };
-
-            let exprs = self.exprs.build(expr);
-
-            let mut result = exprs.header;
-            for (i, value) in exprs.components.into_iter().enumerate() {
-                result.extend(value);
-                result.push(variable.get_set_instr(i));
             }
+
             result
         }
     }
 
     fn build_mem_assign_stmt(&self, ptr: &Expr<'ctx>, value: &'ctx Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.exprs.build(ptr).flatten();
+        let mut result = self.exprs.build(ptr);
 
         let tmp = self.locals.get_temporary_locals(vec![PrimitiveType::U32]);
         let ptr_tmp = *tmp.first().unwrap();
@@ -295,17 +288,12 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         };
 
         let exprs = self.exprs.build(value);
-        result.extend(exprs.header);
+        result.extend(exprs);
 
-        assert_eq!(val_types.len(), exprs.components.len());
         assert_eq!(val_types.len(), mem_layout.components.len());
 
-        for (i, instrs) in exprs.components.into_iter().enumerate() {
-            let component = mem_layout.components[i];
+        for (i, component) in mem_layout.components.iter().enumerate().rev() {
             let ty = val_types[i];
-
-            result.push(wasm::Instr::LocalGet(ptr_tmp));
-            result.extend(instrs);
 
             let mem_arg = wasm::MemArg {
                 offset: component.offset,
@@ -324,6 +312,11 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
                 }
             };
 
+            let tmp = self.locals.get_temporary_locals(vec![ty]);
+            let value_temp_id = *tmp.first().unwrap();
+            result.push(wasm::Instr::LocalSet(value_temp_id));
+            result.push(wasm::Instr::LocalGet(ptr_tmp));
+            result.push(wasm::Instr::LocalGet(value_temp_id));
             result.push(store_instr(mem_arg));
         }
 
