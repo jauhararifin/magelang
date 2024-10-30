@@ -1,7 +1,6 @@
 import wasm "std/wasm";
 
 @main()
-@wasm_export("_start")
 fn main() {
   test_precedence();
 }

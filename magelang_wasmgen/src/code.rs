@@ -109,7 +109,7 @@ pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
     }
 
     wasm::Func {
-        name: "__init".to_string(),
+        name: "_start".to_string(),
         ty: type_manager.get_func_type(wasm::FuncType {
             parameters: vec![],
             returns: vec![],

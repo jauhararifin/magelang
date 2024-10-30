@@ -70,7 +70,7 @@ pub fn generate<'ctx>(
         return None;
     }
 
-    let start = Some(functions.len() as wasm::FuncIdx);
+    let start = functions.len() as wasm::FuncIdx;
     module_functions.push(init_func);
 
     let func_elems = func_manager.func_elems;
@@ -102,6 +102,10 @@ pub fn generate<'ctx>(
     });
     exports.extend(func_manager.exports);
     exports.push(wasm::Export {
+        name: "_start".into(),
+        desc: wasm::ExportDesc::Func(start),
+    });
+    exports.push(wasm::Export {
         name: "func_table".into(),
         desc: wasm::ExportDesc::Table(0),
     });
@@ -114,7 +118,7 @@ pub fn generate<'ctx>(
         globals: global_manager.take(),
         elems: func_elems,
         datas: data.datas,
-        start,
+        start: Some(start),
         imports: func_manager.imports,
         exports,
     })

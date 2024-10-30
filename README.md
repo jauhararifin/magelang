@@ -59,8 +59,6 @@ fn gcd(a: i64, b: i64): i64 {
 }
 
 // function with `@main()` annotation is the first function executed.
-// However, in several wasm runtime, this wasn't supported. Instead, we need to export the main
-// function as `_start` using `@wasm_export("_start")` to mark it as main function.
 @main()
 fn main() {
   let a: i64 = 1260;
@@ -110,9 +108,6 @@ cargo install --path magelang
 // the main functino should be annotated with @main() annotation.
 // You can call your main function anything you want, as long as it has
 // @main() annotation, it will be treated as a main function.
-//
-// However, in several wasm runtime, this wasn't supported. Instead, we need to export the main
-// function as `_start` using `@wasm_export("_start")` to mark it as main function.
 @main()
 fn the_main_function() {
   // use let to define a variable.
@@ -372,9 +367,6 @@ fn gcd(a: i32, b: i32): i32 {
 // function annotated with @main() annotation will be executed on startup.
 // there can only be one function annotated with @main() annotation.
 // a main function shouldn't have any parameter or return value.
-//
-// However, in several wasm runtime, this wasn't supported. Instead, we need to export the main
-// function as `_start` using `@wasm_export("_start")` to mark it as main function.
 @main()
 fn main() {
     // Here is how you call a function from different package.
