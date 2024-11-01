@@ -30,6 +30,7 @@ impl<'a> PartialEq for Type<'a> {
             (TypeKind::User(a), TypeKind::User(b)) => a.eq(b),
             (TypeKind::Inst(a), TypeKind::Inst(b)) => a.eq(b),
             (TypeKind::GenericStruct(a), TypeKind::GenericStruct(b)) => a.eq(b),
+            (TypeKind::GenericFunc(a), TypeKind::GenericFunc(b)) => a.eq(b),
             (TypeKind::Anonymous, TypeKind::Anonymous) => self.repr.eq(&other.repr),
             _ => false,
         }
@@ -118,132 +119,180 @@ impl<'a> Type<'a> {
         struct_type.body.set(body).expect("cannot set struct body");
 
         if let TypeKind::GenericStruct(kind) = &self.kind {
-            for ty in kind.mono_cache.borrow().values() {
-                let TypeKind::Inst(instanced_type) = &ty.kind else {
-                    continue;
-                };
-                self.monomorphize_repr(ctx, instanced_type.type_args);
+            // TODO: I think we don't really need to do this. we can just do dfs normally
+            let instanced_types: Vec<&TypeArgs> = kind
+                .mono_cache
+                .borrow()
+                .values()
+                .filter_map(|ty| {
+                    if let TypeKind::Inst(inst) = ty.kind {
+                        Some(inst.type_args)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for type_args in instanced_types {
+                self.specialize(ctx, type_args);
             }
         };
     }
 
-    pub(crate) fn monomorphize<E: ErrorReporter>(
+    pub(crate) fn specialize<E: ErrorReporter>(
         &'a self,
         ctx: &Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
         match &self.kind {
             TypeKind::GenericStruct(generic_type) => {
-                {
-                    let mut cache = generic_type.mono_cache.borrow_mut();
-                    if let Some(ty) = cache.get(type_args) {
-                        return ty;
-                    }
-                    let ty = ctx.define_type(Type {
-                        kind: TypeKind::Inst(InstType {
-                            def_id: generic_type.def_id,
-                            type_args,
-                        }),
-                        repr: TypeRepr::Struct(StructType {
-                            body: OnceCell::default(),
-                        }),
-                    });
-                    cache.insert(type_args, ty);
-                }
-                self.monomorphize_repr(ctx, type_args)
-            }
-            TypeKind::GenericFunc(generic_type) => {
+                // TODO: maybe it's better to put the cache in the ctx instead of type itself.
+                // It's better because the cache won't leaked to the codegen phase. But, I'm
+                // not entirely sure yet.
+                // Or maybe, we can omit the cache entirely and just rely on the type integer.
+                // The type interner use the type kind as the identifier. Which means, instantiated
+                // type with the same name will always refer to the same object. We can utilize
+                // this behavior to get the caching benefit.
                 let mut cache = generic_type.mono_cache.borrow_mut();
-                cache
-                    .entry(type_args)
-                    .or_insert_with(|| self.monomorphize_repr(ctx, type_args))
-            }
-            _ => self.monomorphize_repr(ctx, type_args),
-        }
-    }
-
-    fn monomorphize_repr<E: ErrorReporter>(
-        &'a self,
-        ctx: &Context<'a, '_, E>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> &'a Type<'a> {
-        match &self.repr {
-            TypeRepr::Unknown => self,
-            TypeRepr::Struct(struct_type) => {
-                let kind = match &self.kind {
-                    TypeKind::GenericStruct(generic_type) => TypeKind::Inst(InstType {
+                if let Some(ty) = cache.get(type_args) {
+                    return ty;
+                }
+                let ty = ctx.define_type(Type {
+                    kind: TypeKind::Inst(InstType {
                         def_id: generic_type.def_id,
                         type_args,
                     }),
-                    TypeKind::Anonymous => TypeKind::Anonymous,
-                    TypeKind::User(UserType { def_id }) => {
-                        TypeKind::User(UserType { def_id: *def_id })
-                    }
-                    TypeKind::Inst(inst_type) => {
-                        let mut monomorphized_typeargs = Vec::default();
-                        for type_arg in inst_type.type_args {
-                            monomorphized_typeargs.push(type_arg.monomorphize(ctx, type_args));
-                        }
-                        let monomorphized_typeargs = ctx.define_typeargs(&monomorphized_typeargs);
-                        TypeKind::Inst(InstType {
-                            def_id: inst_type.def_id,
-                            type_args: monomorphized_typeargs,
-                        })
-                    }
-                    _ => unreachable!(),
-                };
-
-                let ty = ctx.define_type(Type {
-                    kind,
                     repr: TypeRepr::Struct(StructType {
                         body: OnceCell::default(),
                     }),
                 });
+                cache.insert(type_args, ty);
+                drop(cache);
 
-                if ty.repr.as_struct().unwrap().body.get().is_some() {
-                    return ty;
-                }
-
-                if let Some(body) = struct_type.monomorphize(ctx, type_args) {
-                    ty.repr
-                        .as_struct()
-                        .unwrap()
-                        .body
-                        .set(body)
-                        .expect("cannot set struct body");
+                // it is important to call initialize the body after the cache is inserted and
+                // dropped to avoid infinite loop due to circular traversal in the type graph.
+                if let Some(body) = self
+                    .repr
+                    .as_struct()
+                    .expect("generic structs have struct repr")
+                    .body
+                    .get()
+                {
+                    let TypeRepr::Struct(ref instanced_repr) = ty.repr else {
+                        unreachable!()
+                    };
+                    instanced_repr.body.get_or_init(|| {
+                        let fields = body
+                            .fields
+                            .iter()
+                            .map(|(name, ty)| (*name, ty.substitute(ctx, type_args)))
+                            .collect::<IndexMap<_, _>>();
+                        StructBody { fields }
+                    });
                 }
 
                 ty
             }
-            TypeRepr::Func(func_type) => {
-                let kind = match &self.kind {
-                    TypeKind::GenericFunc(generic_func) => TypeKind::Inst(InstType {
-                        def_id: generic_func.def_id,
-                        type_args,
-                    }),
-                    TypeKind::Anonymous => TypeKind::Anonymous,
-                    TypeKind::User(UserType { def_id }) => {
-                        TypeKind::User(UserType { def_id: *def_id })
-                    }
-                    TypeKind::Inst(inst_type) => {
-                        let mut monomorphized_typeargs = Vec::default();
-                        for type_arg in inst_type.type_args {
-                            monomorphized_typeargs.push(type_arg.monomorphize(ctx, type_args));
-                        }
-                        let monomorphized_typeargs = ctx.define_typeargs(&monomorphized_typeargs);
-                        TypeKind::Inst(InstType {
-                            def_id: inst_type.def_id,
-                            type_args: monomorphized_typeargs,
-                        })
-                    }
-                    _ => unreachable!(),
+            TypeKind::GenericFunc(generic_type) => {
+                let TypeRepr::Func(ref func_type) = self.repr else {
+                    unreachable!()
                 };
-
-                ctx.define_type(Type {
-                    kind,
-                    repr: TypeRepr::Func(func_type.monomorphize(ctx, type_args)),
+                let mut cache = generic_type.mono_cache.borrow_mut();
+                // it is ok to not prefilled the cache like the one we have for generic struct
+                // because generic function type is never circular
+                cache.entry(type_args).or_insert_with(|| {
+                    ctx.define_type(Type {
+                        kind: TypeKind::Inst(InstType {
+                            def_id: generic_type.def_id,
+                            type_args,
+                        }),
+                        repr: TypeRepr::Func(func_type.substitute(ctx, type_args)),
+                    })
                 })
             }
+            _ => unreachable!("can't specialize non generic type"),
+        }
+    }
+
+    pub(crate) fn substitute<E: ErrorReporter>(
+        &'a self,
+        ctx: &Context<'a, '_, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> &'a Type<'a> {
+        assert!(
+            !matches!(
+                self.kind,
+                TypeKind::GenericFunc(..) | TypeKind::GenericStruct(..)
+            ),
+            "a struct field can't contain generic type. generic type is only defined in top level"
+        );
+
+        match &self.repr {
+            TypeRepr::Unknown => self,
+            TypeRepr::Struct(struct_type) => match self.kind {
+                TypeKind::GenericStruct(..) | TypeKind::GenericFunc(..) => unreachable!(),
+                TypeKind::Inst(inst_type) => {
+                    let object = ctx
+                        .scopes
+                        .get(&inst_type.def_id.package)
+                        .expect("package scope is populated")
+                        .type_scopes
+                        .lookup(inst_type.def_id.name)
+                        .expect("generic type is defined");
+                    let mut substituted_typeargs =
+                        BumpVec::with_capacity_in(inst_type.type_args.len(), ctx.arena);
+                    for type_arg in inst_type.type_args {
+                        substituted_typeargs.push(type_arg.substitute(ctx, type_args));
+                    }
+                    let substituted_typeargs =
+                        ctx.define_typeargs(substituted_typeargs.into_bump_slice());
+                    object.ty.specialize(ctx, substituted_typeargs)
+                }
+                TypeKind::User(..) => self,
+                TypeKind::Anonymous => {
+                    let fields = struct_type
+                        .body
+                        .get()
+                        .expect("all anonymous struct body should've been resolved")
+                        .fields
+                        .iter()
+                        .map(|(name, ty)| (*name, ty.substitute(ctx, type_args)))
+                        .collect::<IndexMap<_, _>>();
+                    ctx.define_type(Type {
+                        kind: TypeKind::Anonymous,
+                        repr: TypeRepr::Struct(StructType {
+                            body: OnceCell::from(StructBody { fields }),
+                        }),
+                    })
+                }
+            },
+            TypeRepr::Func(func_type) => match self.kind {
+                TypeKind::GenericFunc(..) | TypeKind::GenericStruct(..) => {
+                    unreachable!("a function in a struct field must not be a generic type")
+                }
+                TypeKind::User(..) => self,
+                TypeKind::Inst(inst_type) => {
+                    let mut substituted_typeargs =
+                        BumpVec::with_capacity_in(inst_type.type_args.len(), ctx.arena);
+                    for type_arg in inst_type.type_args {
+                        substituted_typeargs.push(type_arg.substitute(ctx, type_args));
+                    }
+                    let substituted_typeargs =
+                        ctx.define_typeargs(substituted_typeargs.into_bump_slice());
+
+                    ctx.define_type(Type {
+                        kind: TypeKind::Inst(InstType {
+                            def_id: inst_type.def_id,
+                            type_args: substituted_typeargs,
+                        }),
+                        repr: TypeRepr::Func(func_type.substitute(ctx, substituted_typeargs)),
+                    })
+                }
+                TypeKind::Anonymous => ctx.define_type(Type {
+                    kind: TypeKind::Anonymous,
+                    repr: TypeRepr::Func(func_type.substitute(ctx, type_args)),
+                }),
+            },
             TypeRepr::Void => self,
             TypeRepr::Opaque => self,
             TypeRepr::Bool => self,
@@ -251,13 +300,13 @@ impl<'a> Type<'a> {
             TypeRepr::Float(..) => self,
             TypeRepr::Ptr(el) => ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
-                repr: TypeRepr::Ptr(el.monomorphize(ctx, type_args)),
+                repr: TypeRepr::Ptr(el.substitute(ctx, type_args)),
             }),
             TypeRepr::ArrayPtr(el) => ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
-                repr: TypeRepr::ArrayPtr(el.monomorphize(ctx, type_args)),
+                repr: TypeRepr::ArrayPtr(el.substitute(ctx, type_args)),
             }),
-            TypeRepr::TypeArg(arg) => arg.monomorphize(ctx, type_args),
+            TypeRepr::TypeArg(arg) => arg.substitute(type_args),
         }
     }
 
@@ -554,23 +603,6 @@ pub struct StructType<'a> {
     pub body: OnceCell<StructBody<'a>>,
 }
 
-impl<'a> StructType<'a> {
-    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
-        &self,
-        ctx: &'b Context<'a, '_, E>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> Option<StructBody<'a>> {
-        let fields = self
-            .body
-            .get()?
-            .fields
-            .iter()
-            .map(|(name, ty)| (*name, ty.monomorphize(ctx, type_args)))
-            .collect::<IndexMap<_, _>>();
-        Some(StructBody { fields })
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructBody<'a> {
     pub fields: IndexMap<Symbol<'a>, &'a Type<'a>>,
@@ -585,16 +617,16 @@ pub struct FuncType<'a> {
 }
 
 impl<'a> FuncType<'a> {
-    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+    pub(crate) fn substitute<'b, E: ErrorReporter>(
         &self,
         ctx: &'b Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> FuncType<'a> {
         let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
         for ty in self.params {
-            params.push(ty.monomorphize(ctx, type_args));
+            params.push(ty.substitute(ctx, type_args));
         }
-        let return_type = self.return_type.monomorphize(ctx, type_args);
+        let return_type = self.return_type.substitute(ctx, type_args);
         FuncType {
             params: params.into_bump_slice(),
             return_type,
@@ -645,11 +677,7 @@ impl<'a> TypeArg<'a> {
         Self { index, name }
     }
 
-    pub(crate) fn monomorphize<'b, E>(
-        &self,
-        _: &'b Context<'a, '_, E>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> &'a Type<'a> {
+    pub(crate) fn substitute(&self, type_args: &'a TypeArgs<'a>) -> &'a Type<'a> {
         type_args
             .get(self.index)
             .expect("missing type arg at the index")
@@ -748,7 +776,7 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     }
     let type_args = ctx.define_typeargs(&type_args);
 
-    object.monomorphize(ctx, type_args)
+    object.specialize(ctx, type_args)
 }
 
 fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(

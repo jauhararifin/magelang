@@ -754,7 +754,7 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
         );
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
-            let ty = generic_func.ty.monomorphize(ctx, typeargs);
+            let ty = generic_func.ty.specialize(ctx, typeargs);
             let monomorphized_body = body.monomorphize(ctx, typeargs);
             let monomorphized_body = ctx.define_statement(monomorphized_body);
             monomorphized.push((typeargs, ty, monomorphized_body));
@@ -829,7 +829,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 ExprKind::FuncInst(def_id, inner_typeargs) => {
                     let substituted_typeargs = inner_typeargs
                         .iter()
-                        .map(|ty| ty.monomorphize(ctx, type_args))
+                        .map(|ty| ty.substitute(ctx, type_args))
                         .collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
                     queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));

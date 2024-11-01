@@ -26,7 +26,7 @@ impl<'a> Expr<'a> {
         ctx: &'b Context<'a, '_, E>,
         type_args: &'a TypeArgs<'a>,
     ) -> Expr<'a> {
-        let ty = self.ty.monomorphize(ctx, type_args);
+        let ty = self.ty.substitute(ctx, type_args);
 
         let kind = match &self.kind {
             ExprKind::Invalid => ExprKind::Invalid,
@@ -40,7 +40,7 @@ impl<'a> Expr<'a> {
             ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
             ExprKind::Zero => ExprKind::Zero,
             ExprKind::StructLit(ty, values) => {
-                let ty = ty.monomorphize(ctx, type_args);
+                let ty = ty.substitute(ctx, type_args);
                 let mut fields = BumpVec::with_capacity_in(values.len(), ctx.arena);
                 for val in values.iter() {
                     fields.push(val.monomorphize(ctx, type_args));
@@ -54,7 +54,7 @@ impl<'a> Expr<'a> {
             ExprKind::FuncInst(def_id, inner_typeargs) => {
                 let typeargs = inner_typeargs
                     .iter()
-                    .map(|ty| ty.monomorphize(ctx, type_args))
+                    .map(|ty| ty.substitute(ctx, type_args))
                     .collect::<Vec<_>>();
                 let typeargs = ctx.define_typeargs(&typeargs);
                 ExprKind::FuncInst(*def_id, typeargs)
@@ -165,7 +165,7 @@ impl<'a> Expr<'a> {
             }
             ExprKind::Cast(value, into_type) => ExprKind::Cast(
                 ctx.arena.alloc(value.monomorphize(ctx, type_args)),
-                into_type.monomorphize(ctx, type_args),
+                into_type.substitute(ctx, type_args),
             ),
         };
 
@@ -357,7 +357,7 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                 }
                 let type_args = ctx.define_typeargs(&type_args);
 
-                let instance_ty = func_obj.ty.monomorphize(ctx, type_args);
+                let instance_ty = func_obj.ty.specialize(ctx, type_args);
 
                 Expr {
                     ty: instance_ty,
