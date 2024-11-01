@@ -1,8 +1,13 @@
 fn main() {
-  foo()
+  test_1()
 }
 
-fn foo(): i32 {
+fn test_1(): i32 {
   let a = 10
   return a;
+}
+
+fn test_2() {
+  let a: i32;
+  a..a;
 }

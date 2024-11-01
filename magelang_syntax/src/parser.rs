@@ -821,7 +821,11 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                             value: Box::new(target),
                         })
                     }
-                    _ => break,
+                    _ => {
+                        f.unexpected("ident or '*'");
+                        f.skip_until_before(&[TokenKind::SemiColon]);
+                        break;
+                    }
                 }
             }
             TokenKind::OpenSquare => {
@@ -1197,7 +1201,11 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
 trait ParsingError: ErrorReporter {
     fn invalid_path(&self, pos: Pos) {
-        self.report(pos, "Path should be either a symbol identifier or package_identifier::symbol_identifier".to_string());
+        self.report(
+            pos,
+            "Path should be either a symbol identifier or package_identifier::symbol_identifier"
+                .to_string(),
+        );
     }
 
     fn unexpected_parsing(&self, pos: Pos, expected: impl Display, found: impl Display) {

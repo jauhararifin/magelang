@@ -1,0 +1,4 @@
+tests/test_002_fail/main.mg:1:1: Invalid recursive type:
+	tests/test_002_fail/main::A refers to
+	tests/test_002_fail/main::B refers to
+	tests/test_002_fail/main::A

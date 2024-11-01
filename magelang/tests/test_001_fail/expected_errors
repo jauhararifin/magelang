@@ -1,3 +1,4 @@
 tests/test_001_fail/main.mg:3:1: Expected ';', but found '}'
 tests/test_001_fail/main.mg:5:1: Missing return statement
 tests/test_001_fail/main.mg:7:3: Expected ';', but found 'return'
+tests/test_001_fail/main.mg:12:5: Expected ident or '*', but found '.'
