@@ -732,8 +732,8 @@ fn get_expr_from_binary_node_v2<'a, E: ErrorReporter>(
         BinaryOp::Add => get_binary_equality_exprs::<BinopAdd, E>(ctx, node.a.pos(), a, b),
         BinaryOp::Sub => get_binary_equality_exprs::<BinopSub, E>(ctx, node.a.pos(), a, b),
         BinaryOp::Mul => get_binary_equality_exprs::<BinopMul, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Div => todo!(),
-        BinaryOp::Mod => todo!(),
+        BinaryOp::Div => get_binary_div_exprs(ctx, node.a.pos(), a, b),
+        BinaryOp::Mod => get_binary_mod_exprs(ctx, node.a.pos(), a, b),
         BinaryOp::BitOr => todo!(),
         BinaryOp::BitAnd => todo!(),
         BinaryOp::BitXor => todo!(),
@@ -1041,6 +1041,33 @@ impl BinopEvaluator for BinopDiv {
     }
 }
 
+struct BinopMod;
+
+impl BinopEvaluator for BinopMod {
+    fn name() -> &'static str {
+        "mod"
+    }
+    fn eval_ii(a: &BigInt, b: &BigInt) -> BinopEvaluation {
+        if b.is_zero() {
+            BinopEvaluation::Illegal("illegal operation: mod by zero")
+        } else {
+            BinopEvaluation::Int(a % b)
+        }
+    }
+    fn eval_if(a: &BigInt, b: f64) -> BinopEvaluation {
+        BinopEvaluation::Invalid
+    }
+    fn eval_fi(a: f64, b: &BigInt) -> BinopEvaluation {
+        BinopEvaluation::Invalid
+    }
+    fn eval_ff(a: f64, b: f64) -> BinopEvaluation {
+        BinopEvaluation::Invalid
+    }
+    fn build<'a>(a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a> {
+        ExprKind::Mod(a, b)
+    }
+}
+
 fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     pos: Pos,
@@ -1175,8 +1202,8 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
 
     if !a.ty.is_arithmetic() {
         assert!(
-            b.ty.is_arithmetic(),
-            "if a airthmetic, then b must be arithmetic as well"
+            !b.ty.is_arithmetic(),
+            "if a is not arithmetic, then b must be not arithmetic as well"
         );
         return Expr {
             ty: bool_ty,
@@ -1248,8 +1275,8 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
 
     if !a.ty.is_arithmetic() {
         assert!(
-            b.ty.is_arithmetic(),
-            "if a airthmetic, then b must be arithmetic as well"
+            !b.ty.is_arithmetic(),
+            "if a is not arithmetic, then b must be not arithmetic as well"
         );
         return Expr {
             ty: expected_ty,
@@ -1262,6 +1289,186 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     Expr {
         ty: expected_ty,
         kind: T::build(a, b),
+        pos,
+        assignable: false,
+    }
+}
+
+fn get_binary_div_exprs<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Expr<'a> {
+    if let Some(expr) = evaluate_untyped_const::<BinopDiv, E>(ctx, pos, a, b) {
+        return expr;
+    }
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+
+    let (a, b) = cast_untyped_const(ctx, a, b);
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+
+    let expected_ty = if a.ty.is_unknown() { b.ty } else { a.ty };
+
+    if a.ty.is_unknown() || b.ty.is_unknown() {
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    assert!(
+        !a.ty.is_unknown() && !b.ty.is_unknown(),
+        "neither a nor b should have unknown type"
+    );
+
+    if a.ty != b.ty {
+        ctx.errors
+            .binop_type_mismatch(pos, BinopDiv::name(), a.ty, b.ty);
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    if !a.ty.is_arithmetic() {
+        assert!(
+            !b.ty.is_arithmetic(),
+            "if a is not arithmetic, then b must be not arithmetic as well"
+        );
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    Expr {
+        ty: expected_ty,
+        kind: BinopDiv::build(a, b),
+        pos,
+        assignable: false,
+    }
+}
+
+fn get_binary_mod_exprs<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Expr<'a> {
+    if let Some(expr) = evaluate_untyped_const::<BinopMod, E>(ctx, pos, a, b) {
+        return expr;
+    }
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+
+    let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
+    let b_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
+    if a_is_untyped_float || b_is_untyped_float {
+        let pos = if a_is_untyped_float { a.pos } else { b.pos };
+        ctx.errors.report(
+            pos,
+            "Cannot perform mod binary operation on floating number".to_string(),
+        );
+        return Expr {
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
+    let b_is_untyped_float = matches!(b.ty.repr, TypeRepr::UntypedFloat);
+    assert!(
+        !a_is_untyped_float && !b_is_untyped_float,
+        "neither a nor b can be a float"
+    );
+    let a_is_untyped_float = matches!(a.kind, ExprKind::ConstFloat(..));
+    let b_is_untyped_float = matches!(b.kind, ExprKind::ConstFloat(..));
+    assert!(
+        !a_is_untyped_float && !b_is_untyped_float,
+        "neither a nor b can be a float"
+    );
+
+    let (a, b) = cast_untyped_const(ctx, a, b);
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+
+    let expected_ty = if a.ty.is_unknown() { b.ty } else { a.ty };
+
+    if a.ty.is_unknown() || b.ty.is_unknown() {
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    assert!(
+        !a.ty.is_unknown() && !b.ty.is_unknown(),
+        "neither a nor b should have unknown type"
+    );
+
+    if a.ty != b.ty {
+        ctx.errors
+            .binop_type_mismatch(pos, BinopMod::name(), a.ty, b.ty);
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    if !a.ty.is_int() {
+        assert!(
+            !b.ty.is_int(),
+            "if a is not int, then b must be not int as well"
+        );
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    Expr {
+        ty: expected_ty,
+        kind: BinopMod::build(a, b),
         pos,
         assignable: false,
     }
