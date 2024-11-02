@@ -808,11 +808,13 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
         match item {
             Source::Expr(expr, type_args) => match &expr.kind {
                 ExprKind::Invalid
+                | ExprKind::ConstInt(..)
                 | ExprKind::ConstI8(..)
                 | ExprKind::ConstI16(..)
                 | ExprKind::ConstI32(..)
                 | ExprKind::ConstI64(..)
                 | ExprKind::ConstIsize(..)
+                | ExprKind::ConstFloat(..)
                 | ExprKind::ConstF32(..)
                 | ExprKind::ConstF64(..)
                 | ExprKind::ConstBool(..)

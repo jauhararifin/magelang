@@ -8,6 +8,7 @@ use magelang_syntax::{
     ErrorReporter, ExprNode, IndexExprNode, NumberLit, PathName, PathNode, Pos, SelectionExprNode,
     StringLit, StructExprNode, TryFromNumberError, UnaryExprNode, UnaryOp,
 };
+use num::{BigInt, ToPrimitive, Zero};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter::zip;
@@ -30,11 +31,13 @@ impl<'a> Expr<'a> {
 
         let kind = match &self.kind {
             ExprKind::Invalid => ExprKind::Invalid,
+            ExprKind::ConstInt(val) => ExprKind::ConstInt(val.clone()),
             ExprKind::ConstI8(val) => ExprKind::ConstI8(*val),
             ExprKind::ConstI16(val) => ExprKind::ConstI16(*val),
             ExprKind::ConstI32(val) => ExprKind::ConstI32(*val),
             ExprKind::ConstI64(val) => ExprKind::ConstI64(*val),
             ExprKind::ConstIsize(val) => ExprKind::ConstIsize(*val),
+            ExprKind::ConstFloat(val) => ExprKind::ConstFloat(*val),
             ExprKind::ConstF32(val) => ExprKind::ConstF32(*val),
             ExprKind::ConstF64(val) => ExprKind::ConstF64(*val),
             ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
@@ -179,32 +182,51 @@ impl<'a> Expr<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Float<'a, T> {
-    source: Symbol<'a>,
+pub struct FloatConst(f64);
+
+impl Hash for FloatConst {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (self.0 as i64).hash(state)
+    }
+}
+
+impl PartialEq for FloatConst {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for FloatConst {}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Float<T> {
     value: T,
 }
 
-impl<'a, T> Float<'a, T> {
-    fn new(source: Symbol<'a>, value: T) -> Self {
-        Self { source, value }
+impl<T> Float<T> {
+    fn new(value: T) -> Self {
+        Self { value }
     }
 }
 
-impl<'a, T> Hash for Float<'a, T> {
+impl<T> Hash for Float<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.source.hash(state)
+        state.write(&[0]) //TODO: solve this
     }
 }
 
-impl<'a, T> PartialEq for Float<'a, T> {
+impl<T> PartialEq for Float<T>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
-        self.source.eq(other.source)
+        self.value.eq(&other.value)
     }
 }
 
-impl<'a, T> Eq for Float<'a, T> {}
+impl<T> Eq for Float<T> where T: PartialEq {}
 
-impl<'a, T> std::ops::Deref for Float<'a, T> {
+impl<T> std::ops::Deref for Float<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.value
@@ -215,13 +237,15 @@ impl<'a, T> std::ops::Deref for Float<'a, T> {
 pub enum ExprKind<'a> {
     Invalid,
 
+    ConstInt(BigInt),
     ConstI8(u8),
     ConstI16(u16),
     ConstI32(u32),
     ConstI64(u64),
     ConstIsize(u64),
-    ConstF32(Float<'a, f32>),
-    ConstF64(Float<'a, f64>),
+    ConstFloat(Float<f64>),
+    ConstF32(Float<f32>),
+    ConstF64(Float<f64>),
     ConstBool(bool),
     Zero,
     StructLit(&'a Type<'a>, &'a [Expr<'a>]),
@@ -529,12 +553,13 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
         }
     }
 
-    let value_sym = ctx.define_symbol(&number_lit.raw);
     let kind = match float_type {
-        FloatType::F32 => f32::try_from(&number_lit.value)
-            .map(|val| ExprKind::ConstF32(Float::new(value_sym, val))),
-        FloatType::F64 => f64::try_from(&number_lit.value)
-            .map(|val| ExprKind::ConstF64(Float::new(value_sym, val))),
+        FloatType::F32 => {
+            f32::try_from(&number_lit.value).map(|val| ExprKind::ConstF32(Float::new(val)))
+        }
+        FloatType::F64 => {
+            f64::try_from(&number_lit.value).map(|val| ExprKind::ConstF64(Float::new(val)))
+        }
     };
 
     let kind = match kind {
@@ -638,6 +663,93 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
     }
 }
 
+trait BinopHelper {
+    fn name(&self) -> &'static str;
+    fn build<'a>(&self, a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a>;
+}
+
+impl BinopHelper for BinaryOp {
+    fn name(&self) -> &'static str {
+        match self {
+            BinaryOp::Add => "add",
+            BinaryOp::Sub => "sub",
+            BinaryOp::Mul => "mul",
+            BinaryOp::Div => "div",
+            BinaryOp::Mod => "mod",
+            BinaryOp::BitOr => "bitwise or",
+            BinaryOp::BitAnd => "bitwise and",
+            BinaryOp::BitXor => "bitwise xor",
+            BinaryOp::ShiftLeft => "shift left",
+            BinaryOp::ShiftRight => "shift right",
+            BinaryOp::And => "and",
+            BinaryOp::Or => "or",
+            BinaryOp::Eq => "eq",
+            BinaryOp::NEq => "neq",
+            BinaryOp::Gt => "gt",
+            BinaryOp::GEq => "geq",
+            BinaryOp::Lt => "lt",
+            BinaryOp::LEq => "leq",
+        }
+    }
+
+    fn build<'a>(&self, a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a> {
+        match self {
+            Self::Add => ExprKind::Add(a, b),
+            Self::Sub => ExprKind::Sub(a, b),
+            Self::Mul => ExprKind::Mul(a, b),
+            Self::Div => ExprKind::Div(a, b),
+            Self::Mod => ExprKind::Mod(a, b),
+            Self::BitOr => ExprKind::BitOr(a, b),
+            Self::BitAnd => ExprKind::BitAnd(a, b),
+            Self::BitXor => ExprKind::BitXor(a, b),
+            Self::ShiftLeft => ExprKind::ShiftLeft(a, b),
+            Self::ShiftRight => ExprKind::ShiftRight(a, b),
+            Self::And => ExprKind::And(a, b),
+            Self::Or => ExprKind::Or(a, b),
+            Self::Eq => ExprKind::Eq(a, b),
+            Self::NEq => ExprKind::NEq(a, b),
+            Self::Gt => ExprKind::Gt(a, b),
+            Self::GEq => ExprKind::GEq(a, b),
+            Self::Lt => ExprKind::Lt(a, b),
+            Self::LEq => ExprKind::LEq(a, b),
+        }
+    }
+}
+
+fn get_expr_from_binary_node_v2<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    scope: &Scopes<'a>,
+    expected_type: Option<&'a Type<'a>>,
+    node: &BinaryExprNode,
+) -> Expr<'a> {
+    let a = get_expr_from_node(ctx, scope, expected_type, &node.a);
+    let b = get_expr_from_node(ctx, scope, Some(a.ty), &node.b);
+
+    let a = ctx.arena.alloc(a);
+    let b = ctx.arena.alloc(b);
+
+    match node.op {
+        BinaryOp::Add => get_binary_equality_exprs::<BinopAdd, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::Sub => get_binary_equality_exprs::<BinopSub, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::Mul => get_binary_equality_exprs::<BinopMul, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::Div => todo!(),
+        BinaryOp::Mod => todo!(),
+        BinaryOp::BitOr => todo!(),
+        BinaryOp::BitAnd => todo!(),
+        BinaryOp::BitXor => todo!(),
+        BinaryOp::ShiftLeft => todo!(),
+        BinaryOp::ShiftRight => todo!(),
+        BinaryOp::And => todo!(),
+        BinaryOp::Or => todo!(),
+        BinaryOp::Eq => get_binary_equality_exprs::<BinopEq, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::NEq => get_binary_equality_exprs::<BinopNEq, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::Gt => get_binary_comparison_exprs::<BinopGt, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::GEq => get_binary_comparison_exprs::<BinopGEq, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::Lt => get_binary_comparison_exprs::<BinopLt, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::LEq => get_binary_comparison_exprs::<BinopLEq, E>(ctx, node.a.pos(), a, b),
+    }
+}
+
 fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
@@ -694,8 +806,25 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         };
     }
 
+    // TODO: consider supporting untyped integer to handle case like this:
+    // ```
+    //  let a: u8 = 300 / 100;
+    // ```
+    // In the code above, u8 should be 3. But because 300 overflow u8, it is converted
+    // to 44 (300 mod 256), and 44 / 100 is zero. To fix this, we can treat 300 as
+    // untyped integer. untyped integer can be represented using bigint. Dividing
+    // untyped integer with anoter untyped integer is calcualted during compile
+    // time. Of course other operation such as add, sub, mul, mod, etc will be done
+    // in similar fashion.
+
     let result_ty = match node.op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            // TODO: if it is a mul or div operation, pointer arithmetic shouldn't be allowed
+            // because it makes no sense. Actually any pointer arithmetic shouldn't be allowed
+            // because if you want to do pointer arithmetic, you should use ArrayPtr type
+            // and use indexing syntax, e.g. let a: [*]i32; print(a[10].*);
+            // But, if we decided that we want to support pointer arithmetic, it should
+            // only works with usize and isize.
             if a.ty.is_arithmetic() {
                 a.ty
             } else {
@@ -722,7 +851,7 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
             })
         }
         BinaryOp::Gt | BinaryOp::GEq | BinaryOp::Lt | BinaryOp::LEq => {
-            if a.ty.is_arithmetic() {
+            if a.ty.is_arithmetic() || a.ty.is_integral() {
                 ctx.define_type(Type {
                     kind: TypeKind::Anonymous,
                     repr: TypeRepr::Bool,
@@ -798,6 +927,512 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
         kind: expr_kind,
         pos: node.a.pos(),
         assignable: false,
+    }
+}
+
+trait BinopEvaluator {
+    fn name() -> &'static str;
+    fn eval_ii(a: &BigInt, b: &BigInt) -> BinopEvaluation;
+    fn eval_if(a: &BigInt, b: f64) -> BinopEvaluation;
+    fn eval_fi(a: f64, b: &BigInt) -> BinopEvaluation;
+    fn eval_ff(a: f64, b: f64) -> BinopEvaluation;
+
+    fn build<'a>(a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a>;
+}
+
+enum BinopEvaluation {
+    Invalid,
+    Illegal(&'static str),
+    Bool(bool),
+    Int(BigInt),
+    Float(f64),
+}
+
+macro_rules! impl_binop_evaluator_for_equality {
+    ($op:ident, $name:expr, $cmp:expr, $expr:ident) => {
+        struct $op;
+
+        impl BinopEvaluator for $op {
+            fn name() -> &'static str {
+                $name
+            }
+            fn eval_ii(a: &BigInt, b: &BigInt) -> BinopEvaluation {
+                BinopEvaluation::Bool($cmp(a, b))
+            }
+            fn eval_if(a: &BigInt, b: f64) -> BinopEvaluation {
+                BinopEvaluation::Bool($cmp(&a.to_f64().unwrap(), &b))
+            }
+            fn eval_fi(a: f64, b: &BigInt) -> BinopEvaluation {
+                BinopEvaluation::Bool($cmp(&a, &b.to_f64().unwrap()))
+            }
+            fn eval_ff(a: f64, b: f64) -> BinopEvaluation {
+                BinopEvaluation::Bool($cmp(&a, &b))
+            }
+            fn build<'a>(a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a> {
+                ExprKind::$expr(a, b)
+            }
+        }
+    };
+}
+
+impl_binop_evaluator_for_equality!(BinopEq, "eq", std::cmp::PartialEq::eq, Eq);
+impl_binop_evaluator_for_equality!(BinopNEq, "neq", std::cmp::PartialEq::ne, NEq);
+
+impl_binop_evaluator_for_equality!(BinopGt, "gt", std::cmp::PartialOrd::gt, Gt);
+impl_binop_evaluator_for_equality!(BinopGEq, "geq", std::cmp::PartialOrd::ge, GEq);
+impl_binop_evaluator_for_equality!(BinopLt, "lt", std::cmp::PartialOrd::lt, Lt);
+impl_binop_evaluator_for_equality!(BinopLEq, "leq", std::cmp::PartialOrd::le, LEq);
+
+macro_rules! impl_binop_evaluator_for_arith {
+    ($op:ident, $name:expr, $cmp:expr, $expr:ident) => {
+        struct $op;
+
+        impl BinopEvaluator for $op {
+            fn name() -> &'static str {
+                $name
+            }
+            fn eval_ii(a: &BigInt, b: &BigInt) -> BinopEvaluation {
+                BinopEvaluation::Int($cmp(a, b))
+            }
+            fn eval_if(a: &BigInt, b: f64) -> BinopEvaluation {
+                BinopEvaluation::Float($cmp(&a.to_f64().unwrap(), &b))
+            }
+            fn eval_fi(a: f64, b: &BigInt) -> BinopEvaluation {
+                BinopEvaluation::Float($cmp(&a, &b.to_f64().unwrap()))
+            }
+            fn eval_ff(a: f64, b: f64) -> BinopEvaluation {
+                BinopEvaluation::Float($cmp(&a, &b))
+            }
+            fn build<'a>(a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a> {
+                ExprKind::$expr(a, b)
+            }
+        }
+    };
+}
+
+impl_binop_evaluator_for_arith!(BinopAdd, "add", std::ops::Add::add, Add);
+impl_binop_evaluator_for_arith!(BinopSub, "sub", std::ops::Sub::sub, Sub);
+impl_binop_evaluator_for_arith!(BinopMul, "mul", std::ops::Mul::mul, Mul);
+
+struct BinopDiv;
+
+impl BinopEvaluator for BinopDiv {
+    fn name() -> &'static str {
+        "div"
+    }
+    fn eval_ii(a: &BigInt, b: &BigInt) -> BinopEvaluation {
+        if b.is_zero() {
+            BinopEvaluation::Illegal("illegal operation: division by zero")
+        } else {
+            BinopEvaluation::Int(a / b)
+        }
+    }
+    fn eval_if(a: &BigInt, b: f64) -> BinopEvaluation {
+        BinopEvaluation::Float(a.to_f64().unwrap() / b)
+    }
+    fn eval_fi(a: f64, b: &BigInt) -> BinopEvaluation {
+        BinopEvaluation::Float(a / b.to_f64().unwrap())
+    }
+    fn eval_ff(a: f64, b: f64) -> BinopEvaluation {
+        BinopEvaluation::Float(a / b)
+    }
+    fn build<'a>(a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a> {
+        ExprKind::Div(a, b)
+    }
+}
+
+fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Expr<'a> {
+    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+        return expr;
+    }
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+
+    let (a, b) = cast_untyped_const(ctx, a, b);
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+
+    let bool_ty = ctx.define_type(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Bool,
+    });
+
+    if a.ty.is_unknown() || b.ty.is_unknown() {
+        return Expr {
+            ty: bool_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    assert!(
+        !a.ty.is_unknown() && !b.ty.is_unknown(),
+        "neither a nor b should have unknown type"
+    );
+
+    if a.ty != b.ty {
+        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        return Expr {
+            ty: bool_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    if a.ty.is_strictly_opaque() {
+        assert!(
+            b.ty.is_strictly_opaque(),
+            "if a is opaque, then b must be opaque as well"
+        );
+        let a_is_null = matches!(a.kind, ExprKind::Zero);
+        let b_is_null = matches!(b.kind, ExprKind::Zero);
+        // we can only compare opaque type with null. we can't comare opaque type
+        // with another opaque type
+        if !a_is_null && !b_is_null {
+            ctx.errors.compare_opaque(pos);
+        }
+    }
+
+    Expr {
+        ty: bool_ty,
+        kind: T::build(a, b),
+        pos,
+        assignable: false,
+    }
+}
+
+fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Expr<'a> {
+    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+        return expr;
+    }
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+
+    let (a, b) = cast_untyped_const(ctx, a, b);
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+
+    let bool_ty = ctx.define_type(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Bool,
+    });
+
+    if a.ty.is_unknown() || b.ty.is_unknown() {
+        return Expr {
+            ty: bool_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    assert!(
+        !a.ty.is_unknown() && !b.ty.is_unknown(),
+        "neither a nor b should have unknown type"
+    );
+
+    if a.ty != b.ty {
+        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        return Expr {
+            ty: bool_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    if !a.ty.is_arithmetic() {
+        assert!(
+            b.ty.is_arithmetic(),
+            "if a airthmetic, then b must be arithmetic as well"
+        );
+        return Expr {
+            ty: bool_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    Expr {
+        ty: bool_ty,
+        kind: T::build(a, b),
+        pos,
+        assignable: false,
+    }
+}
+
+fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Expr<'a> {
+    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+        return expr;
+    }
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
+
+    let (a, b) = cast_untyped_const(ctx, a, b);
+
+    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
+    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
+
+    let expected_ty = if a.ty.is_unknown() { b.ty } else { a.ty };
+
+    if a.ty.is_unknown() || b.ty.is_unknown() {
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    assert!(
+        !a.ty.is_unknown() && !b.ty.is_unknown(),
+        "neither a nor b should have unknown type"
+    );
+
+    if a.ty != b.ty {
+        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    if !a.ty.is_arithmetic() {
+        assert!(
+            b.ty.is_arithmetic(),
+            "if a airthmetic, then b must be arithmetic as well"
+        );
+        return Expr {
+            ty: expected_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+
+    Expr {
+        ty: expected_ty,
+        kind: T::build(a, b),
+        pos,
+        assignable: false,
+    }
+}
+
+fn evaluate_untyped_const<'a, T: BinopEvaluator, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Option<Expr<'a>> {
+    let eval = match (&a.kind, &b.kind) {
+        (ExprKind::ConstInt(va), ExprKind::ConstInt(vb)) => T::eval_ii(va, vb),
+        (ExprKind::ConstInt(va), ExprKind::ConstFloat(vb)) => T::eval_if(va, vb.value),
+        (ExprKind::ConstFloat(va), ExprKind::ConstInt(vb)) => T::eval_fi(va.value, vb),
+        (ExprKind::ConstFloat(va), ExprKind::ConstFloat(vb)) => T::eval_ff(va.value, vb.value),
+        _ => return None,
+    };
+
+    if let BinopEvaluation::Invalid = eval {
+        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+    }
+    if let BinopEvaluation::Illegal(msg) = eval {
+        ctx.errors.report(pos, msg.to_string())
+    }
+
+    let type_repr = match eval {
+        BinopEvaluation::Invalid | BinopEvaluation::Illegal(..) => TypeRepr::Unknown,
+        BinopEvaluation::Bool(..) => TypeRepr::Bool,
+        BinopEvaluation::Int(..) => TypeRepr::UntypedInt,
+        BinopEvaluation::Float(..) => TypeRepr::UntypedFloat,
+    };
+
+    let type_kind = match eval {
+        BinopEvaluation::Invalid | BinopEvaluation::Illegal(..) => ExprKind::Invalid,
+        BinopEvaluation::Bool(v) => ExprKind::ConstBool(v),
+        BinopEvaluation::Int(v) => ExprKind::ConstInt(v),
+        BinopEvaluation::Float(v) => ExprKind::ConstFloat(Float::new(v)),
+    };
+
+    Some(Expr {
+        ty: ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: type_repr,
+        }),
+        kind: type_kind,
+        pos,
+        assignable: false,
+    })
+}
+
+fn cast_untyped_const<'a, E>(
+    ctx: &Context<'a, '_, E>,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> (&'a Expr<'a>, &'a Expr<'a>) {
+    match (&a.ty.repr, &b.ty.repr) {
+        (TypeRepr::UntypedInt, TypeRepr::Int(..) | TypeRepr::Float(..)) => {
+            let ExprKind::ConstInt(ref val_a) = a.kind else {
+                unreachable!();
+            };
+            let a = ctx.arena.alloc(cast_untyped_int(val_a, a.pos, b.ty));
+            (a, b)
+        }
+        (TypeRepr::Int(..) | TypeRepr::Float(..), TypeRepr::UntypedInt) => {
+            let ExprKind::ConstInt(ref val_b) = b.kind else {
+                unreachable!();
+            };
+            let b = ctx.arena.alloc(cast_untyped_int(val_b, b.pos, a.ty));
+            (a, b)
+        }
+
+        (TypeRepr::UntypedFloat, TypeRepr::Int(..) | TypeRepr::Float(..)) => {
+            let ExprKind::ConstFloat(val_a) = a.kind else {
+                unreachable!();
+            };
+            let a = ctx
+                .arena
+                .alloc(cast_untyped_float(val_a.value, a.pos, b.ty));
+            (a, b)
+        }
+        (TypeRepr::Int(..) | TypeRepr::Float(..), TypeRepr::UntypedFloat) => {
+            let ExprKind::ConstFloat(val_b) = b.kind else {
+                unreachable!();
+            };
+            let b = ctx
+                .arena
+                .alloc(cast_untyped_float(val_b.value, b.pos, a.ty));
+            (a, b)
+        }
+
+        _ => (a, b),
+    }
+}
+
+fn cast_untyped_int<'a>(a: &BigInt, pos: Pos, target: &'a Type<'a>) -> Expr<'a> {
+    match target.repr {
+        TypeRepr::Int(.., bitsize) => Expr {
+            ty: target,
+            kind: match bitsize {
+                BitSize::I8 => {
+                    ExprKind::ConstI8(a.to_u8().expect("bigint should be convertible to u8"))
+                }
+                BitSize::I16 => {
+                    ExprKind::ConstI16(a.to_u16().expect("bigint should be convertible to u16"))
+                }
+                BitSize::I32 => {
+                    ExprKind::ConstI32(a.to_u32().expect("bigint should be convertible to u32"))
+                }
+                BitSize::I64 => {
+                    ExprKind::ConstI64(a.to_u64().expect("bigint should be convertible to u64"))
+                }
+                BitSize::ISize => {
+                    ExprKind::ConstIsize(a.to_u64().expect("bigint should be convertible to u64"))
+                }
+            },
+            pos,
+            assignable: false,
+        },
+        TypeRepr::Float(FloatType::F32) => Expr {
+            ty: target,
+            kind: ExprKind::ConstF32(Float::new(
+                a.to_f32().expect("bigint should be convertible to f32"),
+            )),
+            pos,
+            assignable: false,
+        },
+        TypeRepr::Float(FloatType::F64) => Expr {
+            ty: target,
+            kind: ExprKind::ConstF64(Float::new(
+                a.to_f64().expect("bigint should be convertible to f64"),
+            )),
+            pos,
+            assignable: false,
+        },
+        _ => unreachable!(),
+    }
+}
+
+fn cast_untyped_float<'a>(a: f64, pos: Pos, target: &'a Type<'a>) -> Expr<'a> {
+    match target.repr {
+        TypeRepr::Int(sign, bitsize) => Expr {
+            ty: target,
+            kind: match (sign, bitsize) {
+                (false, BitSize::I8) => ExprKind::ConstI8(a as u8),
+                (false, BitSize::I16) => ExprKind::ConstI16(a as u16),
+                (false, BitSize::I32) => ExprKind::ConstI32(a as u32),
+                (false, BitSize::I64) => ExprKind::ConstI64(a as u64),
+                (false, BitSize::ISize) => ExprKind::ConstIsize(a as u64),
+                (true, BitSize::I8) => ExprKind::ConstI8((a as i8) as u8),
+                (true, BitSize::I16) => ExprKind::ConstI16((a as i16) as u16),
+                (true, BitSize::I32) => ExprKind::ConstI32((a as i32) as u32),
+                (true, BitSize::I64) => ExprKind::ConstI64((a as i64) as u64),
+                (true, BitSize::ISize) => ExprKind::ConstIsize((a as i64) as u64),
+            },
+            pos,
+            assignable: false,
+        },
+        TypeRepr::Float(FloatType::F32) => Expr {
+            ty: target,
+            kind: ExprKind::ConstF32(Float::new(a as f32)),
+            pos,
+            assignable: false,
+        },
+        TypeRepr::Float(FloatType::F64) => Expr {
+            ty: target,
+            kind: ExprKind::ConstF64(Float::new(a)),
+            pos,
+            assignable: false,
+        },
+        _ => unreachable!(),
     }
 }
 
