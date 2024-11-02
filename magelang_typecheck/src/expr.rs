@@ -733,10 +733,10 @@ fn get_expr_from_binary_node_v2<'a, E: ErrorReporter>(
         BinaryOp::Sub => get_binary_equality_exprs::<BinopSub, E>(ctx, node.a.pos(), a, b),
         BinaryOp::Mul => get_binary_equality_exprs::<BinopMul, E>(ctx, node.a.pos(), a, b),
         BinaryOp::Div => get_binary_div_exprs(ctx, node.a.pos(), a, b),
-        BinaryOp::Mod => get_binary_mod_exprs(ctx, node.a.pos(), a, b),
-        BinaryOp::BitOr => todo!(),
-        BinaryOp::BitAnd => todo!(),
-        BinaryOp::BitXor => todo!(),
+        BinaryOp::Mod => get_binary_integer_exprs::<BinopMod, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::BitOr => get_binary_integer_exprs::<BinopBitOr, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::BitAnd => get_binary_integer_exprs::<BinopBitAnd, E>(ctx, node.a.pos(), a, b),
+        BinaryOp::BitXor => get_binary_integer_exprs::<BinopBitXor, E>(ctx, node.a.pos(), a, b),
         BinaryOp::ShiftLeft => todo!(),
         BinaryOp::ShiftRight => todo!(),
         BinaryOp::And => todo!(),
@@ -1068,6 +1068,37 @@ impl BinopEvaluator for BinopMod {
     }
 }
 
+macro_rules! impl_binop_evaluator_for_bit_ops {
+    ($op:ident, $name:expr, $cmp:expr, $expr:ident) => {
+        struct $op;
+
+        impl BinopEvaluator for $op {
+            fn name() -> &'static str {
+                $name
+            }
+            fn eval_ii(a: &BigInt, b: &BigInt) -> BinopEvaluation {
+                BinopEvaluation::Int($cmp(a, b))
+            }
+            fn eval_if(a: &BigInt, b: f64) -> BinopEvaluation {
+                BinopEvaluation::Invalid
+            }
+            fn eval_fi(a: f64, b: &BigInt) -> BinopEvaluation {
+                BinopEvaluation::Invalid
+            }
+            fn eval_ff(a: f64, b: f64) -> BinopEvaluation {
+                BinopEvaluation::Invalid
+            }
+            fn build<'a>(a: &'a Expr<'a>, b: &'a Expr<'a>) -> ExprKind<'a> {
+                ExprKind::$expr(a, b)
+            }
+        }
+    };
+}
+
+impl_binop_evaluator_for_bit_ops!(BinopBitAnd, "bit_and", std::ops::BitAnd::bitand, BitAnd);
+impl_binop_evaluator_for_bit_ops!(BinopBitOr, "bit_and", std::ops::BitOr::bitor, BitOr);
+impl_binop_evaluator_for_bit_ops!(BinopBitXor, "bit_and", std::ops::BitXor::bitxor, BitXor);
+
 fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     pos: Pos,
@@ -1368,13 +1399,13 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
     }
 }
 
-fn get_binary_mod_exprs<'a, E: ErrorReporter>(
+fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<BinopMod, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1391,7 +1422,10 @@ fn get_binary_mod_exprs<'a, E: ErrorReporter>(
         let pos = if a_is_untyped_float { a.pos } else { b.pos };
         ctx.errors.report(
             pos,
-            "Cannot perform mod binary operation on floating number".to_string(),
+            format!(
+                "Cannot perform {} binary operation on floating number",
+                T::name()
+            ),
         );
         return Expr {
             ty: ctx.define_type(Type {
@@ -1468,7 +1502,7 @@ fn get_binary_mod_exprs<'a, E: ErrorReporter>(
 
     Expr {
         ty: expected_ty,
-        kind: BinopMod::build(a, b),
+        kind: T::build(a, b),
         pos,
         assignable: false,
     }
