@@ -581,36 +581,35 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         let mut result = self.build(a);
         result.extend(self.build(b));
 
-        let instrs = match ty.repr {
-            TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Shl, wasm::Instr::I32Extend8S],
-            TypeRepr::Int(true, BitSize::I16) => {
-                vec![wasm::Instr::I32Shl, wasm::Instr::I32Extend16S]
+        // TODO: check if b is negative and panic if it is
+        // or maybe just check if b is greater than 64, otherwise just panic
+
+        let TypeRepr::Int(.., bitsize) = a.ty.repr else {
+            unreachable!("cannot perform shl on {ty:?}");
+        };
+        Self::normalize_shift_amount(a, b, &mut result);
+
+        match bitsize {
+            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize => {
+                result.push(wasm::Instr::I32Shl);
             }
-            TypeRepr::Int(false, BitSize::I8) => vec![
-                wasm::Instr::I32Shl,
-                wasm::Instr::I32Const(0xff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(false, BitSize::I16) => vec![
-                wasm::Instr::I32Shl,
-                wasm::Instr::I32Const(0xffff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(_, BitSize::I32) => vec![wasm::Instr::I32Shl],
-            TypeRepr::Int(_, BitSize::ISize) => vec![wasm::Instr::I32Shl],
-            TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Shl],
-            _ => {
-                unreachable!("cannot perform shl on {ty:?}");
+            BitSize::I64 => {
+                result.push(wasm::Instr::I64Shl);
             }
         };
 
-        result.extend(instrs);
+        Self::normalize_bit_representation(a.ty, &mut result);
+
         result
     }
 
     fn build_bit_shr(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
         let mut result = self.build(a);
         result.extend(self.build(b));
+
+        // TODO: check if b is negative and panic if it is
+        // or maybe just check if b is greater than 64, otherwise just panic
+        Self::normalize_shift_amount(a, b, &mut result);
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32ShrS],
@@ -631,9 +630,69 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 unreachable!("cannot perform div on {ty:?}");
             }
         };
-
         result.extend(instrs);
+
+        // We don't have to normalize the result since whatever we do with shift right operation,
+        // the resulting bit will always be valid if it was valid before.
+
         result
+    }
+
+    fn normalize_shift_amount(a: &Expr<'ctx>, b: &Expr<'ctx>, result: &mut Vec<wasm::Instr>) {
+        let TypeRepr::Int(.., bitsize) = a.ty.repr else {
+            unreachable!("cannot perform shl on {:?}", a.ty);
+        };
+
+        let TypeRepr::Int(b_sign, b_bitsize) = b.ty.repr else {
+            unreachable!("cannot perform shl with {:?}", b.ty);
+        };
+        let b_is_32bit = matches!(
+            b_bitsize,
+            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize
+        );
+        let a_is_32bit = matches!(
+            bitsize,
+            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize
+        );
+
+        // if a is represented as i32 but b is represented as i64, we need to convert b to i32
+        // first. likewise, if a is represented as i64 but b is represented as i32, we need to cast
+        // b to i64 first.
+        match (a_is_32bit, b_is_32bit) {
+            (true, false) => result.push(wasm::Instr::I32WrapI64),
+            (false, true) => {
+                if b_sign {
+                    result.push(wasm::Instr::I64ExtendI32S)
+                } else {
+                    result.push(wasm::Instr::I64ExtendI32U)
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn normalize_bit_representation(ty: &Type, result: &mut Vec<wasm::Instr>) {
+        let TypeRepr::Int(sign, bitsize) = ty.repr else {
+            unreachable!("cannot perform shl on {ty:?}");
+        };
+        match (sign, bitsize) {
+            (true, BitSize::I8) => {
+                result.push(wasm::Instr::I32Extend8S);
+            }
+            (true, BitSize::I16) => {
+                result.push(wasm::Instr::I32Extend16S);
+            }
+
+            (false, BitSize::I8) => {
+                result.push(wasm::Instr::I32Const(0xff));
+                result.push(wasm::Instr::I32And);
+            }
+            (false, BitSize::I16) => {
+                result.push(wasm::Instr::I32Const(0xffff));
+                result.push(wasm::Instr::I32And);
+            }
+            _ => (),
+        };
     }
 
     fn build_and(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
