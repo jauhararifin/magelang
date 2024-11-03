@@ -21,6 +21,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
     pub(crate) fn build(&self, expr: &Expr<'ctx>) -> Vec<wasm::Instr> {
         match &expr.kind {
             ExprKind::Invalid => unreachable!("found invalid expr"),
+            ExprKind::ConstInt(..) => unreachable!("found untyped int"),
+            ExprKind::ConstFloat(..) => unreachable!("found untyped float"),
             ExprKind::ConstI8(val) => vec![wasm::Instr::I32Const(*val as i32)],
             ExprKind::ConstI16(val) => vec![wasm::Instr::I32Const(*val as i32)],
             ExprKind::ConstI32(val) => vec![wasm::Instr::I32Const(*val as i32)],
@@ -1088,6 +1090,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
 fn build_zero_type(ty: &Type<'_>) -> Vec<wasm::Instr> {
     match &ty.repr {
         TypeRepr::Unknown | TypeRepr::TypeArg(..) => unreachable!("found invalid type"),
+        TypeRepr::UntypedInt => unreachable!("found untyped int"),
+        TypeRepr::UntypedFloat => unreachable!("found untyped float"),
         TypeRepr::Struct(struct_type) => struct_type
             .body
             .get()
