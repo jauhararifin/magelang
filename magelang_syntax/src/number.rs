@@ -29,7 +29,7 @@ impl Number {
         !exp.is_negative()
     }
 
-    fn to_int(&self) -> Result<BigInt, TryFromNumberError> {
+    pub fn to_int(&self) -> Result<BigInt, TryFromNumberError> {
         let mut exp = self.exp.clone();
         let mut base = self.val.clone();
         while !base.is_zero() && (&base % 10u8).is_zero() {

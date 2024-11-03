@@ -294,8 +294,8 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     node: &ExprNode,
 ) -> Expr<'a> {
     let result = match node {
-        ExprNode::Path(node) => get_expr_from_path(ctx, scope, expected_type, node),
-        ExprNode::Number(num_lit) => get_expr_from_number_lit(ctx, expected_type, num_lit),
+        ExprNode::Path(node) => get_expr_from_path(ctx, scope, node),
+        ExprNode::Number(num_lit) => get_expr_from_number_lit(ctx, num_lit),
         ExprNode::Null(..) => Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -308,19 +308,19 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
         ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
         ExprNode::Char(char_lit) => get_expr_from_char_lit(ctx, expected_type, char_lit),
         ExprNode::String(string_lit) => get_expr_from_string_lit(ctx, string_lit),
-        ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, expected_type, node),
-        ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, expected_type, node),
-        ExprNode::Unary(node) => get_expr_from_unary_node(ctx, scope, expected_type, node),
-        ExprNode::Call(node) => get_expr_from_call_node(ctx, scope, expected_type, node),
-        ExprNode::Cast(node) => get_expr_from_cast_node(ctx, scope, expected_type, node),
+        ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, node),
+        ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, node),
+        ExprNode::Unary(node) => get_expr_from_unary_node(ctx, scope, node),
+        ExprNode::Call(node) => get_expr_from_call_node(ctx, scope, node),
+        ExprNode::Cast(node) => get_expr_from_cast_node(ctx, scope, node),
         ExprNode::Struct(struct_lit_node) => {
             get_expr_from_struct_lit_node(ctx, scope, struct_lit_node)
         }
         ExprNode::Selection(selection_node) => {
             get_expr_from_selection_node(ctx, scope, selection_node)
         }
-        ExprNode::Index(node) => get_expr_from_index_node(ctx, scope, expected_type, node),
-        ExprNode::Grouped(node) => get_expr_from_node(ctx, scope, expected_type, node),
+        ExprNode::Index(node) => get_expr_from_index_node(ctx, scope, node),
+        ExprNode::Grouped(node) => get_expr_from_node(ctx, scope, None, node),
     };
 
     let Some(expected_type) = expected_type else {
@@ -328,12 +328,14 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     };
 
     match (&expected_type.repr, &result.kind) {
-        (TypeRepr::Int(.., BitSize::I8), ExprKind::ConstInt(v)) => Expr {
-            ty: expected_type,
-            kind: ExprKind::ConstI8(v.to_u8()),
-            pos: result.pos,
-            assignable: result.assignable,
-        },
+        (TypeRepr::Int(.., BitSize::I8), ExprKind::ConstInt(v)) => {
+            Expr {
+                ty: expected_type,
+                kind: ExprKind::ConstI8(v.to_u8()),
+                pos: result.pos,
+                assignable: result.assignable,
+            }
+        }
         (TypeRepr::Int(.., BitSize::I16), ExprKind::ConstInt(v)) => Expr {
             ty: expected_type,
             kind: ExprKind::ConstI16(v.to_u16()),
@@ -448,7 +450,7 @@ macro_rules! impl_bigint_ext_conversion {
 impl BigIntExt for BigInt {
     impl_bigint_ext_conversion!(to_u8, u8, 1);
     impl_bigint_ext_conversion!(to_u16, u16, 2);
-    impl_bigint_ext_conversion!(to_u32, u32, 3);
+    impl_bigint_ext_conversion!(to_u32, u32, 4);
     impl_bigint_ext_conversion!(to_u64, u64, 8);
 
     fn to_f32(&self) -> f32 {
@@ -460,18 +462,27 @@ impl BigIntExt for BigInt {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_bigint_conversion() {
+        let val = BigInt::from(-128);
+        assert_eq!(0x80, val.to_u8());
+    }
+}
+
 fn get_expr_from_path<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &PathNode,
 ) -> Expr<'a> {
     let Some(object) = get_value_object_from_path(ctx, scope, &node.path) else {
         return Expr {
-            ty: expected_type.unwrap_or(ctx.define_type(Type {
+            ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Unknown,
-            })),
+            }),
             kind: ExprKind::Invalid,
             pos: node.pos(),
             assignable: true,
@@ -592,69 +603,21 @@ fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
 
 fn get_expr_from_number_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-    expected_type: Option<&'a Type<'a>>,
     number_lit: &NumberLit,
 ) -> Expr<'a> {
-    if let Some(ty) = expected_type {
-        match ty.repr {
-            TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => {
-                return get_expr_from_int_lit(ctx, expected_type, number_lit);
-            }
-            TypeRepr::Float(..) => {
-                return get_expr_from_float_lit(ctx, expected_type, number_lit);
-            }
-            _ => (),
-        }
-    };
-
     if number_lit.value.is_int() {
-        get_expr_from_int_lit(ctx, expected_type, number_lit)
+        get_expr_from_int_lit(ctx, number_lit)
     } else {
-        get_expr_from_float_lit(ctx, expected_type, number_lit)
+        get_expr_from_float_lit(ctx, number_lit)
     }
 }
 
 fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-    expected_type: Option<&'a Type<'a>>,
     number_lit: &NumberLit,
 ) -> Expr<'a> {
-    let (mut sign, mut bit_size) = (true, BitSize::ISize);
-    if let Some(ty) = expected_type {
-        if let TypeRepr::Int(s, b) = ty.repr {
-            sign = s;
-            bit_size = b;
-        } else if matches!(ty.repr, TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..)) {
-            sign = false;
-            bit_size = BitSize::ISize;
-        }
-    }
-
-    let value = match (sign, bit_size) {
-        (true, BitSize::ISize) => i64::try_from(&number_lit.value)
-            .map(|v| v as u64)
-            .map(ExprKind::ConstIsize),
-        (true, BitSize::I64) => i64::try_from(&number_lit.value)
-            .map(|v| v as u64)
-            .map(ExprKind::ConstI64),
-        (true, BitSize::I32) => i32::try_from(&number_lit.value)
-            .map(|v| v as u32)
-            .map(ExprKind::ConstI32),
-        (true, BitSize::I16) => i16::try_from(&number_lit.value)
-            .map(|v| v as u16)
-            .map(ExprKind::ConstI16),
-        (true, BitSize::I8) => i8::try_from(&number_lit.value)
-            .map(|v| v as u8)
-            .map(ExprKind::ConstI8),
-        (false, BitSize::ISize) => u64::try_from(&number_lit.value).map(ExprKind::ConstIsize),
-        (false, BitSize::I64) => u64::try_from(&number_lit.value).map(ExprKind::ConstI64),
-        (false, BitSize::I32) => u32::try_from(&number_lit.value).map(ExprKind::ConstI32),
-        (false, BitSize::I16) => u16::try_from(&number_lit.value).map(ExprKind::ConstI16),
-        (false, BitSize::I8) => u8::try_from(&number_lit.value).map(ExprKind::ConstI8),
-    };
-
-    let kind = match value {
-        Ok(v) => v,
+    let kind = match number_lit.value.to_int() {
+        Ok(v) => ExprKind::ConstInt(v),
         Err(TryFromNumberError::OutOfRange) => {
             ctx.errors.overflowed_int_literal(number_lit.pos);
             ExprKind::Invalid
@@ -665,12 +628,11 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
         }
     };
 
-    let ty = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(sign, bit_size),
-    });
     Expr {
-        ty,
+        ty: ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::UntypedInt,
+        }),
         kind,
         pos: number_lit.pos,
         assignable: false,
@@ -679,36 +641,18 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
 
 fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-    expected_type: Option<&'a Type<'a>>,
     number_lit: &NumberLit,
 ) -> Expr<'a> {
-    let mut float_type = FloatType::F64;
-    if let Some(ty) = expected_type {
-        if let TypeRepr::Float(float_ty) = ty.repr {
-            float_type = float_ty;
-        }
-    }
-
-    let kind = match float_type {
-        FloatType::F32 => {
-            f32::try_from(&number_lit.value).map(|val| ExprKind::ConstF32(Float::new(val)))
-        }
-        FloatType::F64 => {
-            f64::try_from(&number_lit.value).map(|val| ExprKind::ConstF64(Float::new(val)))
-        }
-    };
-
-    let kind = match kind {
-        Ok(v) => v,
+    let kind = match f64::try_from(&number_lit.value) {
+        Ok(v) => ExprKind::ConstFloat(Float::new(v)),
         Err(err) => {
             ctx.errors.invalid_float_literal(number_lit.pos, err);
             ExprKind::Invalid
         }
     };
-
     let ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
-        repr: TypeRepr::Float(float_type),
+        repr: TypeRepr::UntypedFloat,
     });
     Expr {
         ty,
@@ -802,11 +746,10 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
 fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &BinaryExprNode,
 ) -> Expr<'a> {
-    let a = get_expr_from_node(ctx, scope, expected_type, &node.a);
-    let b = get_expr_from_node(ctx, scope, Some(a.ty), &node.b);
+    let a = get_expr_from_node(ctx, scope, None, &node.a);
+    let b = get_expr_from_node(ctx, scope, None, &node.b);
 
     let a = ctx.arena.alloc(a);
     let b = ctx.arena.alloc(b);
@@ -1087,21 +1030,7 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         return expr;
     }
 
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-
     let (a, b) = cast_untyped_const(ctx, a, b);
-
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
 
     let bool_ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
@@ -1164,21 +1093,7 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         return expr;
     }
 
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-
     let (a, b) = cast_untyped_const(ctx, a, b);
-
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
 
     let bool_ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
@@ -1241,21 +1156,7 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         return expr;
     }
 
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-
     let (a, b) = cast_untyped_const(ctx, a, b);
-
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
 
     let expected_ty = if a.ty.is_unknown() { b.ty } else { a.ty };
 
@@ -1315,21 +1216,7 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
         return expr;
     }
 
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-
     let (a, b) = cast_untyped_const(ctx, a, b);
-
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
 
     let expected_ty = if a.ty.is_unknown() { b.ty } else { a.ty };
 
@@ -1391,13 +1278,6 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         return expr;
     }
 
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-
     let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
     let b_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
     if a_is_untyped_float || b_is_untyped_float {
@@ -1420,27 +1300,7 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         };
     }
 
-    let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
-    let b_is_untyped_float = matches!(b.ty.repr, TypeRepr::UntypedFloat);
-    assert!(
-        !a_is_untyped_float && !b_is_untyped_float,
-        "neither a nor b can be a float"
-    );
-    let a_is_untyped_float = matches!(a.kind, ExprKind::ConstFloat(..));
-    let b_is_untyped_float = matches!(b.kind, ExprKind::ConstFloat(..));
-    assert!(
-        !a_is_untyped_float && !b_is_untyped_float,
-        "neither a nor b can be a float"
-    );
-
     let (a, b) = cast_untyped_const(ctx, a, b);
-
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
 
     let expected_ty = if a.ty.is_unknown() { b.ty } else { a.ty };
 
@@ -1500,13 +1360,6 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         return expr;
     }
 
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped || !b_is_untyped, "a and b can't both be untyped, otherwise it should already returned by the evaluate_untyped_const");
-
     let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
     let b_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
     if a_is_untyped_float || b_is_untyped_float {
@@ -1529,27 +1382,7 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         };
     }
 
-    let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
-    let b_is_untyped_float = matches!(b.ty.repr, TypeRepr::UntypedFloat);
-    assert!(
-        !a_is_untyped_float && !b_is_untyped_float,
-        "neither a nor b can be a float"
-    );
-    let a_is_untyped_float = matches!(a.kind, ExprKind::ConstFloat(..));
-    let b_is_untyped_float = matches!(b.kind, ExprKind::ConstFloat(..));
-    assert!(
-        !a_is_untyped_float && !b_is_untyped_float,
-        "neither a nor b can be a float"
-    );
-
     let (a, b) = cast_untyped_const(ctx, a, b);
-
-    let a_is_untyped = matches!(a.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    let b_is_untyped = matches!(b.ty.repr, TypeRepr::UntypedInt | TypeRepr::UntypedFloat);
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
-    let a_is_untyped = matches!(a.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    let b_is_untyped = matches!(b.kind, ExprKind::ConstInt(..) | ExprKind::ConstFloat(..));
-    assert!(!a_is_untyped && !b_is_untyped, "neither a nor b should be untyped. if one of them is untyped, it should be casted to the correct type");
 
     let expected_ty = a.ty;
 
@@ -1790,10 +1623,9 @@ fn get_binary_bool_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
 fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &DerefExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
+    let value = get_expr_from_node(ctx, scope, None, &node.value);
     let ty = value.ty;
     let TypeRepr::Ptr(element_ty) = ty.repr else {
         if !ty.is_unknown() {
@@ -1821,11 +1653,46 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
 fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &UnaryExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
+    let value = get_expr_from_node(ctx, scope, None, &node.value);
     let ty = value.ty;
+
+    if let ExprKind::ConstInt(ref val) = value.kind {
+        if matches!(node.op, UnaryOp::BitNot) {
+            return Expr {
+                ty,
+                kind: ExprKind::ConstInt(!val),
+                pos: node.pos,
+                assignable: false,
+            };
+        }
+        if matches!(node.op, UnaryOp::Add) {
+            return value;
+        }
+        if matches!(node.op, UnaryOp::Sub) {
+            return Expr {
+                ty,
+                kind: ExprKind::ConstInt(-val),
+                pos: node.pos,
+                assignable: false,
+            };
+        }
+    }
+
+    if let ExprKind::ConstFloat(val) = value.kind {
+        if matches!(node.op, UnaryOp::Add) {
+            return value;
+        }
+        if matches!(node.op, UnaryOp::Sub) {
+            return Expr {
+                ty,
+                kind: ExprKind::ConstFloat(Float::new(-val.value)),
+                pos: node.pos,
+                assignable: false,
+            };
+        }
+    }
 
     let op_name = match node.op {
         UnaryOp::BitNot => "bit not",
@@ -1870,10 +1737,9 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
 fn get_expr_from_call_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &CallExprNode,
 ) -> Expr<'a> {
-    let func_expr = get_expr_from_node(ctx, scope, expected_type, &node.callee);
+    let func_expr = get_expr_from_node(ctx, scope, None, &node.callee);
     let func_type = func_expr.ty;
 
     let TypeRepr::Func(func_type) = &func_type.repr else {
@@ -1923,13 +1789,35 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
 fn get_expr_from_cast_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &CastExprNode,
 ) -> Expr<'a> {
     let target_type = get_type_from_node(ctx, scope, &node.target);
 
-    let value = get_expr_from_node(ctx, scope, expected_type, &node.value);
+    assert!(!matches!(
+        target_type.repr,
+        TypeRepr::UntypedFloat | TypeRepr::UntypedInt
+    ));
+
+    let value = get_expr_from_node(ctx, scope, None, &node.value);
     let value_type = value.ty;
+
+    match (&value.kind, &target_type.repr) {
+        (ExprKind::ConstInt(val), TypeRepr::Int(..) | TypeRepr::Float(..)) => {
+            return cast_untyped_int(&val, node.value.pos(), target_type);
+        }
+        (ExprKind::ConstInt(val), TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..)) => {
+            return Expr {
+                ty: target_type,
+                kind: ExprKind::ConstIsize(val.to_u64()),
+                pos: node.value.pos(),
+                assignable: false,
+            }
+        }
+        (ExprKind::ConstFloat(val), TypeRepr::Int(..) | TypeRepr::Float(..)) => {
+            return cast_untyped_float(val.value, node.value.pos(), target_type);
+        }
+        _ => (),
+    };
 
     let valid_casting = (value_type.is_integral() && target_type.is_integral())
         || (value_type.is_float() && target_type.is_float())
@@ -2105,20 +1993,9 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
 fn get_expr_from_index_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    expected_type: Option<&'a Type<'a>>,
     node: &IndexExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(
-        ctx,
-        scope,
-        expected_type.map(|elem_ty| {
-            ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::ArrayPtr(elem_ty),
-            })
-        }),
-        &node.value,
-    );
+    let value = get_expr_from_node(ctx, scope, None, &node.value);
     let ty = value.ty;
 
     match ty.repr {
