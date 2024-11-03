@@ -1029,8 +1029,8 @@ macro_rules! impl_binop_evaluator_for_bool_ops {
     };
 }
 
-impl_binop_evaluator_for_bool_ops!(BinopAnd, "and", BitAnd);
-impl_binop_evaluator_for_bool_ops!(BinopOr, "or", BitOr);
+impl_binop_evaluator_for_bool_ops!(BinopAnd, "and", And);
+impl_binop_evaluator_for_bool_ops!(BinopOr, "or", Or);
 
 macro_rules! impl_binop_evaluator_for_shift_ops {
     ($op:ident, $name:expr, $shift:expr, $expr:ident) => {
