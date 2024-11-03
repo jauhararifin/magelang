@@ -23,8 +23,28 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             ExprKind::Invalid => unreachable!("found invalid expr"),
             ExprKind::ConstInt(..) => unreachable!("found untyped int"),
             ExprKind::ConstFloat(..) => unreachable!("found untyped float"),
-            ExprKind::ConstI8(val) => vec![wasm::Instr::I32Const(*val as i32)],
-            ExprKind::ConstI16(val) => vec![wasm::Instr::I32Const(*val as i32)],
+            ExprKind::ConstI8(val) => {
+                let TypeRepr::Int(sign, size) = expr.ty.repr else {
+                    panic!("invalid state, found a const i8 with non-int type");
+                };
+                assert_eq!(size, BitSize::I8);
+                if sign {
+                    vec![wasm::Instr::I32Const((*val as i8) as i32)]
+                } else {
+                    vec![wasm::Instr::I32Const(*val as i32)]
+                }
+            }
+            ExprKind::ConstI16(val) => {
+                let TypeRepr::Int(sign, size) = expr.ty.repr else {
+                    panic!("invalid state, found a const i8 with non-int type");
+                };
+                assert_eq!(size, BitSize::I16);
+                if sign {
+                    vec![wasm::Instr::I32Const((*val as i16) as i32)]
+                } else {
+                    vec![wasm::Instr::I32Const(*val as i32)]
+                }
+            }
             ExprKind::ConstI32(val) => vec![wasm::Instr::I32Const(*val as i32)],
             ExprKind::ConstI64(val) => vec![wasm::Instr::I64Const(*val as i64)],
             ExprKind::ConstIsize(val) => vec![wasm::Instr::I32Const(*val as i32)],
