@@ -381,7 +381,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Sub],
 
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Sub],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Sub],
+            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Sub],
             _ => {
                 unreachable!("cannot perform sub on {ty:?}");
             }

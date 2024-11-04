@@ -38,6 +38,9 @@ enum Commands {
         #[arg(short)]
         debug: bool,
 
+        #[arg(short)]
+        noopt: bool,
+
         #[arg(short, long, default_value = "./a.wasm")]
         output: std::path::PathBuf,
     },
@@ -60,8 +63,9 @@ fn main() {
         Commands::Compile {
             package_name,
             debug,
+            noopt,
             output,
-        } => compile(package_name, debug, output),
+        } => compile(package_name, debug, !noopt, output),
         Commands::Run {
             package_name,
             debug,
@@ -134,7 +138,7 @@ fn analyze_package(package_name: String, debug: bool, output: Option<std::path::
     }
 }
 
-fn compile(package_name: String, debug: bool, output: std::path::PathBuf) {
+fn compile(package_name: String, debug: bool, optimize: bool, output: std::path::PathBuf) {
     let mut error_manager = if debug {
         ErrorManager::new_for_debug()
     } else {
@@ -166,17 +170,23 @@ fn compile(package_name: String, debug: bool, output: std::path::PathBuf) {
     wasm_module
         .serialize(&mut raw_module)
         .expect("cannot serialize wasm module");
-    let mut wasm_module =
-        binaryen::Module::read(&raw_module).expect("can't read wasm module for optimization");
-    wasm_module.optimize(&binaryen::CodegenConfig {
-        shrink_level: 2,
-        optimization_level: 2,
-        debug_info: true,
-    });
 
     let mut f = std::fs::File::create(output).expect("cannot create output file");
-    f.write_all(&wasm_module.write())
-        .expect("cannot write wasm module to output file");
+    if optimize {
+        let mut wasm_module =
+            binaryen::Module::read(&raw_module).expect("can't read wasm module for optimization");
+        wasm_module.optimize(&binaryen::CodegenConfig {
+            shrink_level: 2,
+            optimization_level: 2,
+            debug_info: true,
+        });
+
+        f.write_all(&wasm_module.write())
+            .expect("cannot write wasm module to output file");
+    } else {
+        f.write_all(&raw_module)
+            .expect("cannot write wasm module to output file");
+    }
 }
 
 fn run(package_name: String, debug: bool) {

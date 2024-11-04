@@ -4,6 +4,9 @@ import wasm "std/wasm";
 @wasm_export("_start")
 fn main() {
   test_precedence();
+
+  test_shift_left();
+  test_shift_right();
 }
 
 fn test_precedence() {
@@ -16,6 +19,9 @@ fn test_precedence() {
   assert_equal::<isize>(10, a);
   let a: i64 = 1260;
   assert_equal::<i64>(1260, a);
+  let a = 1.0 / 2.0;
+  let eps = a - 0.5;
+  assert(eps < 0.00001 && eps > -0.00001);
 
   let a: i8 = -128;
   assert(a < 0);
@@ -97,9 +103,6 @@ fn test_precedence() {
   assert_equal::<bool>(true, true && true || false && true);
   assert_equal::<bool>(true, true && true || true && false);
   assert_equal::<bool>(true, true && true || true && true);
-
-  test_shift_left();
-  test_shift_right();
 }
 
 fn test_shift_left() {

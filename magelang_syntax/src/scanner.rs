@@ -308,7 +308,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         assert_eq!(c, '0');
 
         let mut raw = String::from("0");
-        let mut value = Number::new(BigInt::default(), BigInt::default());
+        let mut value = Number::new(BigInt::default(), BigInt::default(), false);
 
         let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
             return Some(Token {
@@ -342,11 +342,13 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             'e' | 'E' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
+                value.float = true;
                 self.scan_number_exponent(pos, raw, value)
             }
             '.' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
+                value.float = true;
                 self.scan_number_fraction(pos, raw, value)
             }
             'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
@@ -381,11 +383,13 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 (Base::Dec, 'e' | 'E') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
+                    value.float = true;
                     return self.scan_number_exponent(pos, raw, value);
                 }
                 (Base::Dec, '.') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
+                    value.float = true;
                     return self.scan_number_fraction(pos, raw, value);
                 }
                 (_, '.') => break,
@@ -434,6 +438,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         mut raw: String,
         mut value: Number,
     ) -> Option<Token> {
+        assert!(value.float);
         while let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
             match c {
                 'e' | 'E' => {
@@ -459,6 +464,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn scan_number_exponent(&mut self, pos: Pos, mut raw: String, value: Number) -> Option<Token> {
+        assert!(value.float);
         let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
             self.errors.missing_exponent_digits(self.get_pos());
             return Some(Token {
@@ -492,6 +498,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         mut raw: String,
         mut value: Number,
     ) -> Option<Token> {
+        assert!(value.float);
         let multiplier = if is_negative_exp { -1 } else { 1 };
         let mut has_exponent = false;
 
@@ -799,7 +806,7 @@ string"
             tokens[7].kind,
             TokenKind::NumberLit {
                 raw: "10".to_string(),
-                value: Number::new(10, 0)
+                value: Number::new(10, 0, false)
             }
         );
         assert_eq!(tokens[8].kind, TokenKind::SemiColon);
@@ -1021,63 +1028,63 @@ string""#
             tokens[0].kind,
             TokenKind::NumberLit {
                 raw: "0".to_string(),
-                value: Number::new(0, 0)
+                value: Number::new(0, 0, false)
             }
         );
         assert_eq!(
             tokens[1].kind,
             TokenKind::NumberLit {
                 raw: "1".to_string(),
-                value: Number::new(1, 0),
+                value: Number::new(1, 0, false),
             }
         );
         assert_eq!(
             tokens[2].kind,
             TokenKind::NumberLit {
                 raw: "12345678_90123455561_090".to_string(),
-                value: number_from_str("1234567890123455561090", "0"),
+                value: number_from_str("1234567890123455561090", "0", false),
             }
         );
         assert_eq!(
             tokens[3].kind,
             TokenKind::NumberLit {
                 raw: "01234_567".to_string(),
-                value: Number::new(0o1234567, 0),
+                value: Number::new(0o1234567, 0, false),
             }
         );
         assert_eq!(
             tokens[4].kind,
             TokenKind::NumberLit {
                 raw: "0xabc___def01234567890deadbeef0__10_".to_string(),
-                value: number_from_str("3484607783832696065538794497962000", "0"),
+                value: number_from_str("3484607783832696065538794497962000", "0", false),
             },
         );
         assert_eq!(
             tokens[5].kind,
             TokenKind::NumberLit {
                 raw: "0_o012345670123_4567".to_string(),
-                value: Number::new(5744368105847i64, 0),
+                value: Number::new(5744368105847i64, 0, false),
             }
         );
         assert_eq!(
             tokens[6].kind,
             TokenKind::NumberLit {
                 raw: "0b_11010101001010101010".to_string(),
-                value: Number::new(873130, 0),
+                value: Number::new(873130, 0, false),
             }
         );
         assert_eq!(
             tokens[7].kind,
             TokenKind::NumberLit {
                 raw: "0_b11010101001010101010".to_string(),
-                value: Number::new(873130, 0),
+                value: Number::new(873130, 0, false),
             }
         );
         assert_eq!(
             tokens[8].kind,
             TokenKind::NumberLit {
                 raw: "0__b__11010101001010101010".to_string(),
-                value: Number::new(873130, 0),
+                value: Number::new(873130, 0, false),
             }
         );
 
@@ -1085,56 +1092,56 @@ string""#
             tokens[9].kind,
             TokenKind::NumberLit {
                 raw: "123.123".to_string(),
-                value: Number::new(123123, -3),
+                value: Number::new(123123, -3, true),
             }
         );
         assert_eq!(
             tokens[10].kind,
             TokenKind::NumberLit {
                 raw: "123e123".to_string(),
-                value: Number::new(123, 123),
+                value: Number::new(123, 123, true),
             }
         );
         assert_eq!(
             tokens[11].kind,
             TokenKind::NumberLit {
                 raw: "123e-123".to_string(),
-                value: Number::new(123, -123),
+                value: Number::new(123, -123, true),
             }
         );
         assert_eq!(
             tokens[12].kind,
             TokenKind::NumberLit {
                 raw: "123E123".to_string(),
-                value: Number::new(123, 123),
+                value: Number::new(123, 123, true),
             }
         );
         assert_eq!(
             tokens[13].kind,
             TokenKind::NumberLit {
                 raw: "123E-123".to_string(),
-                value: Number::new(123, -123),
+                value: Number::new(123, -123, true),
             }
         );
         assert_eq!(
             tokens[14].kind,
             TokenKind::NumberLit {
                 raw: "1.23e123".to_string(),
-                value: Number::new(123, 121),
+                value: Number::new(123, 121, true),
             }
         );
         assert_eq!(
             tokens[15].kind,
             TokenKind::NumberLit {
                 raw: "0.123".to_string(),
-                value: Number::new(123, -3),
+                value: Number::new(123, -3, true),
             }
         );
         assert_eq!(
             tokens[16].kind,
             TokenKind::NumberLit {
                 raw: "0e123".to_string(),
-                value: Number::new(0, 123),
+                value: Number::new(0, 123, true),
             }
         );
 
@@ -1142,21 +1149,21 @@ string""#
             tokens[17].kind,
             TokenKind::NumberLit {
                 raw: "0123abcdef456".to_string(),
-                value: Number::new(0o123, 0),
+                value: Number::new(0o123, 0, false),
             }
         );
         assert_eq!(
             tokens[18].kind,
             TokenKind::NumberLit {
                 raw: "0abcde".to_string(),
-                value: Number::new(0, 0),
+                value: Number::new(0, 0, false),
             }
         );
         assert_eq!(
             tokens[19].kind,
             TokenKind::NumberLit {
                 raw: "0x123".to_string(),
-                value: Number::new(291, 0),
+                value: Number::new(291, 0, false),
             }
         );
         assert_eq!(tokens[20].kind, TokenKind::Dot);
@@ -1166,7 +1173,7 @@ string""#
             tokens[22].kind,
             TokenKind::NumberLit {
                 raw: "0b101".to_string(),
-                value: Number::new(5, 0),
+                value: Number::new(5, 0, false),
             }
         );
         assert_eq!(tokens[23].kind, TokenKind::Dot);
@@ -1174,7 +1181,7 @@ string""#
             tokens[24].kind,
             TokenKind::NumberLit {
                 raw: "101".to_string(),
-                value: Number::new(101, 0),
+                value: Number::new(101, 0, false),
             }
         );
 
@@ -1182,7 +1189,7 @@ string""#
             tokens[25].kind,
             TokenKind::NumberLit {
                 raw: "0o123".to_string(),
-                value: Number::new(83, 0),
+                value: Number::new(83, 0, false),
             }
         );
         assert_eq!(tokens[26].kind, TokenKind::Dot);
@@ -1190,7 +1197,7 @@ string""#
             tokens[27].kind,
             TokenKind::NumberLit {
                 raw: "123".to_string(),
-                value: Number::new(123, 0),
+                value: Number::new(123, 0, false),
             }
         );
 
@@ -1198,49 +1205,49 @@ string""#
             tokens[28].kind,
             TokenKind::NumberLit {
                 raw: "0b123".to_string(),
-                value: Number::new(1, 0)
+                value: Number::new(1, 0, false)
             }
         );
         assert_eq!(
             tokens[29].kind,
             TokenKind::NumberLit {
                 raw: "123eabc".to_string(),
-                value: Number::new(123, 0)
+                value: Number::new(123, 0, true)
             }
         );
         assert_eq!(
             tokens[30].kind,
             TokenKind::NumberLit {
                 raw: "123e-1a".to_string(),
-                value: Number::new(123, -1)
+                value: Number::new(123, -1, true)
             }
         );
         assert_eq!(
             tokens[31].kind,
             TokenKind::NumberLit {
                 raw: "0xabcghijklmnopqrstuvwxyz".to_string(),
-                value: Number::new(0xabc, 0),
+                value: Number::new(0xabc, 0, false),
             }
         );
         assert_eq!(
             tokens[32].kind,
             TokenKind::NumberLit {
                 raw: "123.abcde".to_string(),
-                value: Number::new(123, 0),
+                value: Number::new(123, 0, true),
             }
         );
         assert_eq!(
             tokens[33].kind,
             TokenKind::NumberLit {
                 raw: "123e".to_string(),
-                value: Number::new(123, 0),
+                value: Number::new(123, 0, true),
             }
         );
         assert_eq!(
             tokens[34].kind,
             TokenKind::NumberLit {
                 raw: "123e-".to_string(),
-                value: Number::new(123, 0),
+                value: Number::new(123, 0, true),
             }
         );
 
@@ -1370,7 +1377,7 @@ string""#
             tokens[69].kind,
             TokenKind::NumberLit {
                 raw: "1".to_string(),
-                value: Number::new(1, 0)
+                value: Number::new(1, 0, false),
             }
         );
 
@@ -1379,10 +1386,11 @@ string""#
         assert_eq!(errors[0].message, "Unexpected char '#'");
     }
 
-    fn number_from_str(base: &str, exp: &str) -> Number {
+    fn number_from_str(base: &str, exp: &str, float: bool) -> Number {
         Number {
             val: BigInt::from_str(base).unwrap(),
             exp: BigInt::from_str(exp).unwrap(),
+            float,
         }
     }
 }

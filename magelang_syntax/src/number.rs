@@ -5,16 +5,18 @@ use std::num::ParseFloatError;
 pub struct Number {
     pub val: BigInt,
     pub exp: BigInt,
+    pub float: bool,
 }
 
 impl Number {
-    pub fn new<T>(base: T, exp: T) -> Self
+    pub fn new<T>(base: T, exp: T, float: bool) -> Self
     where
         T: Into<BigInt>,
     {
         Self {
             val: base.into(),
             exp: exp.into(),
+            float,
         }
     }
 
@@ -26,7 +28,11 @@ impl Number {
             exp += 1;
         }
 
-        !exp.is_negative()
+        if exp.is_negative() {
+            false
+        } else {
+            !self.float
+        }
     }
 
     pub fn to_int(&self) -> Result<BigInt, TryFromNumberError> {
@@ -122,7 +128,7 @@ mod tests {
         ($name:ident, $base:expr, $exp:expr, $expected:expr, $type:ident) => {
             #[test]
             fn $name() {
-                let n = Number::new($base, $exp);
+                let n = Number::new($base, $exp, false);
                 let expected: $type = $expected;
                 assert_eq!(expected, $type::try_from(&n).unwrap());
             }
