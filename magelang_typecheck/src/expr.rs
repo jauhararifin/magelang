@@ -464,7 +464,11 @@ macro_rules! impl_bigint_ext_conversion {
         fn $name(&self) -> $target {
             let mut v = self.to_signed_bytes_le();
             let size = $size;
-            let one = v[0] & 0x80 != 0;
+            let one = if v.len() > 0 {
+                v[v.len() - 1] & 0x80 != 0
+            } else {
+                false
+            };
             while v.len() < size {
                 if one {
                     v.push(0xff);
@@ -499,6 +503,9 @@ mod tests {
     fn test_bigint_conversion() {
         let val = BigInt::from(-128);
         assert_eq!(0x80, val.to_u8());
+
+        let val = BigInt::from(1260);
+        assert_eq!(1260u64, val.to_u64());
     }
 }
 

@@ -14,6 +14,8 @@ fn test_precedence() {
 
   let a = 10;
   assert_equal::<isize>(10, a);
+  let a: i64 = 1260;
+  assert_equal::<i64>(1260, a);
 
   let a: i8 = -128;
   assert(a < 0);
