@@ -293,49 +293,43 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     expected_type: Option<&'a Type<'a>>,
     node: &ExprNode,
 ) -> Expr<'a> {
-    let result = match node {
-        ExprNode::Path(node) => get_expr_from_path(ctx, scope, node),
-        ExprNode::Number(num_lit) => get_expr_from_number_lit(ctx, num_lit),
-        ExprNode::Null(..) => Expr {
-            ty: ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Opaque,
-            }),
-            kind: ExprKind::Zero,
-            pos: node.pos(),
-            assignable: false,
-        },
-        ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
-        ExprNode::Char(char_lit) => get_expr_from_char_lit(ctx, expected_type, char_lit),
-        ExprNode::String(string_lit) => get_expr_from_string_lit(ctx, string_lit),
-        ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, node),
-        ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, node),
-        ExprNode::Unary(node) => get_expr_from_unary_node(ctx, scope, node),
-        ExprNode::Call(node) => get_expr_from_call_node(ctx, scope, node),
-        ExprNode::Cast(node) => get_expr_from_cast_node(ctx, scope, node),
-        ExprNode::Struct(struct_lit_node) => {
-            get_expr_from_struct_lit_node(ctx, scope, struct_lit_node)
-        }
-        ExprNode::Selection(selection_node) => {
-            get_expr_from_selection_node(ctx, scope, selection_node)
-        }
-        ExprNode::Index(node) => get_expr_from_index_node(ctx, scope, node),
-        ExprNode::Grouped(node) => get_expr_from_node(ctx, scope, None, node),
-    };
+    let result = get_expr_from_node_internal(ctx, scope, node);
 
     let Some(expected_type) = expected_type else {
+        if let ExprKind::ConstInt(val) = result.kind {
+            return Expr {
+                ty: ctx.define_type(Type {
+                    kind: TypeKind::Anonymous,
+                    repr: TypeRepr::Int(true, BitSize::ISize),
+                }),
+                kind: ExprKind::ConstIsize(val.to_u64()),
+                pos: result.pos,
+                assignable: false,
+            };
+        }
+
+        if let ExprKind::ConstFloat(val) = result.kind {
+            return Expr {
+                ty: ctx.define_type(Type {
+                    kind: TypeKind::Anonymous,
+                    repr: TypeRepr::Float(FloatType::F64),
+                }),
+                kind: ExprKind::ConstF64(val),
+                pos: result.pos,
+                assignable: false,
+            };
+        }
+
         return result;
     };
 
     match (&expected_type.repr, &result.kind) {
-        (TypeRepr::Int(.., BitSize::I8), ExprKind::ConstInt(v)) => {
-            Expr {
-                ty: expected_type,
-                kind: ExprKind::ConstI8(v.to_u8()),
-                pos: result.pos,
-                assignable: result.assignable,
-            }
-        }
+        (TypeRepr::Int(.., BitSize::I8), ExprKind::ConstInt(v)) => Expr {
+            ty: expected_type,
+            kind: ExprKind::ConstI8(v.to_u8()),
+            pos: result.pos,
+            assignable: result.assignable,
+        },
         (TypeRepr::Int(.., BitSize::I16), ExprKind::ConstInt(v)) => Expr {
             ty: expected_type,
             kind: ExprKind::ConstI16(v.to_u16()),
@@ -416,6 +410,42 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
             assignable: result.assignable,
         },
         _ => result,
+    }
+}
+
+fn get_expr_from_node_internal<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    scope: &Scopes<'a>,
+    node: &ExprNode,
+) -> Expr<'a> {
+    match node {
+        ExprNode::Path(node) => get_expr_from_path(ctx, scope, node),
+        ExprNode::Number(num_lit) => get_expr_from_number_lit(ctx, num_lit),
+        ExprNode::Null(..) => Expr {
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Opaque,
+            }),
+            kind: ExprKind::Zero,
+            pos: node.pos(),
+            assignable: false,
+        },
+        ExprNode::Bool(token) => get_expr_from_bool_lit(ctx, token),
+        ExprNode::Char(char_lit) => get_expr_from_char_lit(ctx, char_lit),
+        ExprNode::String(string_lit) => get_expr_from_string_lit(ctx, string_lit),
+        ExprNode::Binary(node) => get_expr_from_binary_node(ctx, scope, node),
+        ExprNode::Deref(node) => get_expr_from_deref_node(ctx, scope, node),
+        ExprNode::Unary(node) => get_expr_from_unary_node(ctx, scope, node),
+        ExprNode::Call(node) => get_expr_from_call_node(ctx, scope, node),
+        ExprNode::Cast(node) => get_expr_from_cast_node(ctx, scope, node),
+        ExprNode::Struct(struct_lit_node) => {
+            get_expr_from_struct_lit_node(ctx, scope, struct_lit_node)
+        }
+        ExprNode::Selection(selection_node) => {
+            get_expr_from_selection_node(ctx, scope, selection_node)
+        }
+        ExprNode::Index(node) => get_expr_from_index_node(ctx, scope, node),
+        ExprNode::Grouped(node) => get_expr_from_node_internal(ctx, scope, node),
     }
 }
 
@@ -679,40 +709,16 @@ fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
 
 fn get_expr_from_char_lit<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-    expected_type: Option<&'a Type<'a>>,
     char_lit: &CharLit,
 ) -> Expr<'a> {
     let ch = char_lit.value;
-    if let Some(ty) = expected_type {
-        if let TypeRepr::Int(sign, bit_size) = ty.repr {
-            let value = match (sign, bit_size) {
-                (true, BitSize::ISize) => ExprKind::ConstIsize(ch as u64),
-                (true, BitSize::I64) => ExprKind::ConstI64(ch as u64),
-                (true, BitSize::I32) => ExprKind::ConstI32(ch as u32),
-                (true, BitSize::I16) => ExprKind::ConstI16(ch as u16),
-                (true, BitSize::I8) => ExprKind::ConstI8(ch as u8),
-                (false, BitSize::ISize) => ExprKind::ConstIsize(ch as u64),
-                (false, BitSize::I64) => ExprKind::ConstI64(ch as u64),
-                (false, BitSize::I32) => ExprKind::ConstI32(ch as u32),
-                (false, BitSize::I16) => ExprKind::ConstI16(ch as u16),
-                (false, BitSize::I8) => ExprKind::ConstI8(ch as u8),
-            };
-            return Expr {
-                ty,
-                kind: value,
-                pos: char_lit.pos,
-                assignable: false,
-            };
-        }
-    };
-
     let ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::I8),
+        repr: TypeRepr::UntypedInt,
     });
     Expr {
         ty,
-        kind: ExprKind::ConstI8(ch as u8),
+        kind: ExprKind::ConstInt(BigInt::from(ch as u32)),
         pos: char_lit.pos,
         assignable: false,
     }
@@ -748,8 +754,8 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     scope: &Scopes<'a>,
     node: &BinaryExprNode,
 ) -> Expr<'a> {
-    let a = get_expr_from_node(ctx, scope, None, &node.a);
-    let b = get_expr_from_node(ctx, scope, None, &node.b);
+    let a = get_expr_from_node_internal(ctx, scope, &node.a);
+    let b = get_expr_from_node_internal(ctx, scope, &node.b);
 
     let a = ctx.arena.alloc(a);
     let b = ctx.arena.alloc(b);
@@ -1625,7 +1631,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     scope: &Scopes<'a>,
     node: &DerefExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, None, &node.value);
+    let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let ty = value.ty;
     let TypeRepr::Ptr(element_ty) = ty.repr else {
         if !ty.is_unknown() {
@@ -1655,7 +1661,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     scope: &Scopes<'a>,
     node: &UnaryExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, None, &node.value);
+    let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let ty = value.ty;
 
     if let ExprKind::ConstInt(ref val) = value.kind {
@@ -1739,7 +1745,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
     scope: &Scopes<'a>,
     node: &CallExprNode,
 ) -> Expr<'a> {
-    let func_expr = get_expr_from_node(ctx, scope, None, &node.callee);
+    let func_expr = get_expr_from_node_internal(ctx, scope, &node.callee);
     let func_type = func_expr.ty;
 
     let TypeRepr::Func(func_type) = &func_type.repr else {
@@ -1798,7 +1804,7 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
         TypeRepr::UntypedFloat | TypeRepr::UntypedInt
     ));
 
-    let value = get_expr_from_node(ctx, scope, None, &node.value);
+    let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let value_type = value.ty;
 
     match (&value.kind, &target_type.repr) {
@@ -1927,7 +1933,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     scope: &Scopes<'a>,
     node: &SelectionExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, None, &node.value);
+    let value = get_expr_from_node_internal(ctx, scope, &node.value);
 
     let mut ty = value.ty;
     let mut is_ptr = false;
@@ -1995,7 +2001,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
     scope: &Scopes<'a>,
     node: &IndexExprNode,
 ) -> Expr<'a> {
-    let value = get_expr_from_node(ctx, scope, None, &node.value);
+    let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let ty = value.ty;
 
     match ty.repr {

@@ -12,6 +12,9 @@ fn test_precedence() {
   assert_equal::<i32>(10, 2*3+4);
   assert_equal::<i32>(14, 2+3*4);
 
+  let a = 10;
+  assert_equal::<isize>(10, a);
+
   let a: i8 = -128;
   assert(a < 0);
   assert(a == -128);
