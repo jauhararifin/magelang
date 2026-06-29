@@ -183,6 +183,17 @@ pub(crate) trait SemanticError: ErrorReporter {
             ),
         )
     }
+
+    fn circular_import(&self, pos: Pos, cycle: &[String]) {
+        self.report(
+            pos,
+            format!(
+                "Found a circular import:\n\t{} imports\n\t{}",
+                cycle.join(" imports\n\t"),
+                cycle[0]
+            ),
+        )
+    }
 }
 
 impl<T> SemanticError for T where T: ErrorReporter {}

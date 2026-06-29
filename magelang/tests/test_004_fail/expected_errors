@@ -1,0 +1,4 @@
+tests/test_004_fail/a.mg:1:13: Found a circular import:
+	tests/test_004_fail/main imports
+	tests/test_004_fail/a imports
+	tests/test_004_fail/main

@@ -48,6 +48,7 @@ pub fn analyze<'a>(
         &stdlib_path,
         main_package,
     );
+    check_circular_imports(error_manager, &interners.symbols, &package_asts);
 
     let mut ctx = Context {
         arena,
@@ -89,17 +90,6 @@ pub fn analyze<'a>(
 
     // TODO: consider materialize all steps done above into a Header IR.
     // This can be useful for incremental compilation.
-
-    // TODO: consider blocking circular import since it makes
-    // deciding global initialization harder for incremental
-    // compilation. The reason is because in order to calculate
-    // the order of global initialization, we need to calculate
-    // the dependencies of every global and every function. And
-    // in order to calculate the dependency of a function, we
-    // need to walk through all the statements in the function
-    // body. And if we want to have incremental compilation,
-    // we can't have function body of all pacakge (because otherwise,
-    // it won't be an incremental compilation).
 
     generate_global_value(&ctx);
     let global_init_order = check_circular_global_intitialization(&ctx);
@@ -303,6 +293,88 @@ fn get_all_package_asts<'a>(
     }
 
     package_asts
+}
+
+fn check_circular_imports<'a, E: ErrorReporter>(
+    errors: &E,
+    symbols: &SymbolInterner<'a>,
+    package_asts: &IndexMap<Symbol<'a>, PackageNode>,
+) {
+    let mut graph = IndexMap::<Symbol<'a>, Vec<(Symbol<'a>, Pos)>>::default();
+    for (package_name, package_ast) in package_asts.iter() {
+        let imports = package_ast
+            .items
+            .iter()
+            .filter_map(ItemNode::as_import)
+            .filter_map(|node| {
+                let package = std::str::from_utf8(&node.path.value).ok()?;
+                Some((symbols.define(package), node.path.pos))
+            })
+            .collect::<Vec<_>>();
+        graph.insert(*package_name, imports);
+    }
+
+    let mut visited = IndexSet::<Symbol>::default();
+    let mut in_chain = IndexSet::<Symbol>::default();
+    for package_name in graph.keys() {
+        if visited.contains(package_name) {
+            continue;
+        }
+        visit_import(errors, &graph, *package_name, &mut visited, &mut in_chain);
+    }
+}
+
+fn visit_import<'a, E: ErrorReporter>(
+    errors: &E,
+    graph: &IndexMap<Symbol<'a>, Vec<(Symbol<'a>, Pos)>>,
+    package_name: Symbol<'a>,
+    visited: &mut IndexSet<Symbol<'a>>,
+    in_chain: &mut IndexSet<Symbol<'a>>,
+) {
+    visited.insert(package_name);
+    in_chain.insert(package_name);
+
+    let Some(imports) = graph.get(package_name) else {
+        in_chain.remove(package_name);
+        return;
+    };
+
+    for (imported_package, pos) in imports {
+        if !graph.contains_key(imported_package) {
+            continue;
+        }
+
+        if in_chain.contains(imported_package) {
+            report_circular_import(errors, in_chain, *imported_package, *pos);
+            continue;
+        }
+
+        if !visited.contains(imported_package) {
+            visit_import(errors, graph, *imported_package, visited, in_chain);
+        }
+    }
+
+    in_chain.remove(package_name);
+}
+
+fn report_circular_import<E: ErrorReporter>(
+    errors: &E,
+    in_chain: &IndexSet<Symbol>,
+    start: Symbol,
+    pos: Pos,
+) {
+    let mut chain = Vec::default();
+    let mut started = false;
+    for name in in_chain {
+        if name == &start {
+            started = true;
+        }
+        if started {
+            chain.push((*name).to_string());
+        }
+    }
+
+    errors.circular_import(pos, &chain);
 }
 
 fn build_imports<'a, E: ErrorReporter>(

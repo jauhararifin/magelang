@@ -1,10 +1,17 @@
 import wasm "std/wasm";
 
+let global_init_a: i64 = global_init_b;
+let global_init_b: i64 = 10;
+let global_init_c: i64 = global_init_from_func();
+let global_func_ref: fn(): i64 = global_func_ref_target;
+let global_recursive_value: i64 = recursive_without_global_dependency(3);
+
 @main()
 @wasm_export("_start")
 fn main() {
   test_precedence();
   test_f64_arithmetic();
+  test_global_initialization_order();
 
   test_shift_left();
   test_shift_right();
@@ -118,6 +125,29 @@ fn test_f64_arithmetic() {
 fn assert_near_f64(actual: f64, expected: f64) {
   let diff = actual - expected;
   assert(diff < 0.0000001 && diff > -0.0000001);
+}
+
+fn test_global_initialization_order() {
+  assert_equal::<i64>(10, global_init_a);
+  assert_equal::<i64>(10, global_init_b);
+  assert_equal::<i64>(20, global_init_c);
+  assert_equal::<i64>(3, global_recursive_value);
+}
+
+fn global_init_from_func(): i64 {
+  return global_init_a + global_init_b;
+}
+
+fn global_func_ref_target(): i64 {
+  let f = global_func_ref;
+  return 1;
+}
+
+fn recursive_without_global_dependency(n: i64): i64 {
+  if n == 0 {
+    return 0;
+  }
+  return recursive_without_global_dependency(n - 1) + 1;
 }
 
 fn test_shift_left() {

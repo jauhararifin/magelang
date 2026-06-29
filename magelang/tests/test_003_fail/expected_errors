@@ -1,0 +1,4 @@
+tests/test_003_fail/main.mg:1:1: Found a circular global intialization:
+	tests/test_003_fail/main::a depends on
+	tests/test_003_fail/main::b depends on
+	tests/test_003_fail/main::a
