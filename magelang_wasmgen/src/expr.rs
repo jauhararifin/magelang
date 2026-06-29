@@ -341,7 +341,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Add],
 
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Add],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Add],
+            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Add],
             _ => {
                 unreachable!("cannot perform add on {ty:?}");
             }
@@ -421,7 +421,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Mul],
 
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Mul],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Mul],
+            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Mul],
             _ => {
                 unreachable!("cannot perform mul on {ty:?}");
             }
@@ -461,7 +461,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64DivU],
 
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Div],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F32Div],
+            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Div],
             _ => {
                 unreachable!("cannot perform div on {ty:?}");
             }

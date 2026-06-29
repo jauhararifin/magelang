@@ -4,6 +4,7 @@ import wasm "std/wasm";
 @wasm_export("_start")
 fn main() {
   test_precedence();
+  test_f64_arithmetic();
 
   test_shift_left();
   test_shift_right();
@@ -103,6 +104,20 @@ fn test_precedence() {
   assert_equal::<bool>(true, true && true || false && true);
   assert_equal::<bool>(true, true && true || true && false);
   assert_equal::<bool>(true, true && true || true && true);
+}
+
+fn test_f64_arithmetic() {
+  let x: f64 = 1.5;
+  let y: f64 = ((x + 2.0) * 3.0) / 2.0 - 1.0;
+  assert_near_f64(y, 4.25);
+
+  let z: f64 = y - x;
+  assert_near_f64(z, 2.75);
+}
+
+fn assert_near_f64(actual: f64, expected: f64) {
+  let diff = actual - expected;
+  assert(diff < 0.0000001 && diff > -0.0000001);
 }
 
 fn test_shift_left() {
