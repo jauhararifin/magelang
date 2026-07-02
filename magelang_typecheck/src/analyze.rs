@@ -5,8 +5,9 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
 use crate::ty::{
-    check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
-    get_typeparams, BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs,
+    check_circular_type, check_generic_constraint, get_func_type_from_signature,
+    get_type_from_node, get_typeparam_scope, get_typeparams, BitSize, ConstraintCollector,
+    FloatType, GenericConstraint, GenericType, StructType, Type, TypeArg, TypeArgs,
     TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
 };
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
@@ -56,6 +57,7 @@ pub fn analyze<'a>(
         errors: error_manager,
         interners,
         scopes: IndexMap::default(),
+        constraints: ConstraintCollector::default(),
     };
 
     let mut import_items = IndexMap::<Symbol, Vec<ItemNode>>::default();
@@ -99,9 +101,9 @@ pub fn analyze<'a>(
     build_module(ctx, is_valid, global_init_order)
 }
 
-// The 'syn lifetime represent anything allocated not by the arena
+// The 'syn lifetime represent anything allocated not by the arena.
 // It is important to differentiate the lifetime of interned types, expr,
-// etc from file manager and error manager because we don't want to infer
+// etc. from file manager and error manager because we don't want to infer
 // that the interned objects borrow file manager and error manager.
 pub struct Context<'a, 'syn, E> {
     pub(crate) arena: &'a Bump,
@@ -110,6 +112,7 @@ pub struct Context<'a, 'syn, E> {
 
     pub(crate) interners: Interners<'a>,
     pub(crate) scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
+    pub(crate) constraints: ConstraintCollector<'a>,
 }
 
 impl<'a, 'syn, E> Context<'a, 'syn, E> {
@@ -239,6 +242,7 @@ pub struct FuncObject<'a> {
     pub(crate) node: FunctionNode,
     pub pos: Pos,
     pub body: OnceCell<&'a Statement<'a>>,
+    pub constraints: OnceCell<&'a [GenericConstraint<'a>]>,
     pub annotations: Rc<[Annotation]>,
     pub monomorphized: OnceCell<&'a [(&'a TypeArgs<'a>, &'a Type<'a>, &'a Statement<'a>)]>,
 }
@@ -657,6 +661,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                         pos: func_node.signature.pos,
                         node: func_node,
                         body: OnceCell::default(),
+                        constraints: OnceCell::default(),
                         annotations,
                         monomorphized: OnceCell::default(),
                     })
@@ -754,6 +759,13 @@ fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
             let body = get_func_body(ctx, scope, func_object);
             let body = ctx.define_statement(body);
             func_object.body.set(body).expect("cannot set func body");
+
+            let constraints = ctx.constraints.take();
+            let constraints = ctx.arena.alloc_slice_copy(&constraints);
+            func_object
+                .constraints
+                .set(constraints)
+                .expect("cannot set generic constraints");
         }
     }
 }
@@ -824,8 +836,16 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
             all_typeargs.len(),
             ctx.arena,
         );
-        for typeargs in all_typeargs {
+        for (typeargs, instantiation_pos) in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
+            let constraints = generic_func.constraints.get().cloned().unwrap_or(&[]);
+            check_generic_constraint(
+                ctx,
+                generic_func.def_id.name,
+                constraints,
+                typeargs,
+                instantiation_pos,
+            );
             let ty = generic_func.ty.specialize(ctx, typeargs);
             let monomorphized_body = body.monomorphize(ctx, typeargs);
             let monomorphized_body = ctx.define_statement(monomorphized_body);
@@ -841,12 +861,12 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
 
 fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
+) -> Vec<(DefId<'a>, Vec<(&'a TypeArgs<'a>, Pos)>)> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
         Expr(&'b Expr<'a>, &'a TypeArgs<'a>),
         Statement(&'b Statement<'a>, &'a TypeArgs<'a>),
-        FuncInst(DefId<'a>, &'a TypeArgs<'a>),
+        FuncInst(DefId<'a>, &'a TypeArgs<'a>, Pos),
     }
 
     let empty_typeargs = ctx.define_typeargs(&[]);
@@ -874,7 +894,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     }
 
     let empty_scope = Scopes::default();
-    let mut monomorphized_funcs = IndexMap::<DefId, Vec<&TypeArgs>>::default();
+    let mut monomorphized_funcs = IndexMap::<DefId, Vec<(&TypeArgs, Pos)>>::default();
     let mut func_insts = IndexSet::<(DefId, &TypeArgs)>::default();
     while let Some(item) = queue.pop_front() {
         match item {
@@ -906,7 +926,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                         .map(|ty| ty.substitute(ctx, type_args))
                         .collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
-                    queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));
+                    queue.push_back(Source::FuncInst(*def_id, substituted_typeargs, expr.pos));
                 }
                 ExprKind::GetElement(expr, _) => queue.push_back(Source::Expr(expr, type_args)),
                 ExprKind::GetElementAddr(expr, _) => queue.push_back(Source::Expr(expr, type_args)),
@@ -983,7 +1003,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 }
                 Statement::Native | Statement::Continue | Statement::Break => continue,
             },
-            Source::FuncInst(def_id, typeargs) => {
+            Source::FuncInst(def_id, typeargs, instantiation_pos) => {
                 if func_insts.contains(&(def_id, typeargs)) {
                     continue;
                 }
@@ -1009,7 +1029,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 monomorphized_funcs
                     .entry(def_id)
                     .or_default()
-                    .push(typeargs);
+                    .push((typeargs, instantiation_pos));
             }
         }
     }

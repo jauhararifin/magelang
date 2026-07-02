@@ -83,6 +83,13 @@ pub(crate) trait SemanticError: ErrorReporter {
         );
     }
 
+    fn dereferencing_opaque(&self, pos: Pos) {
+        self.report(
+            pos,
+            String::from("The expression contains an opaque type which can't be dereferenced"),
+        );
+    }
+
     fn unop_type_unsupported(&self, pos: Pos, op: impl Display, ty: impl Display) {
         self.report(pos, format!("Cannot perform {op} operation on {ty}"));
     }

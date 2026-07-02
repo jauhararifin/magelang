@@ -1,6 +1,12 @@
 use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr};
+use crate::ty::{
+    get_type_from_node, AssignableConstraint, BinaryArithmeticConstraint, BinaryBoolConstraint,
+    BinaryComparisonConstraint, BinaryEqualityConstraint, BinaryIntegerConstraint,
+    BinaryShiftConstraint, BitSize, FloatType, GenericConstraint, NumericConstraint, Type,
+    TypeArgs, TypeKind, TypeRepr, UnaryArithmeticConstraint, UnaryBoolConstraint,
+    UnaryIntegerConstraint,
+};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
@@ -172,6 +178,15 @@ impl<'a> Expr<'a> {
             ),
         };
 
+        if let Some(kind) = specialize_const_literal_kind(&kind, ty) {
+            return Expr {
+                ty,
+                kind,
+                pos: self.pos,
+                assignable: self.assignable,
+            };
+        }
+
         Expr {
             ty,
             kind,
@@ -179,6 +194,105 @@ impl<'a> Expr<'a> {
             assignable: self.assignable,
         }
     }
+}
+
+// specialize_const_literal_kind is needed because during generic typecheck, the untyped int and
+// untyped float type might not be resolved if it's of a type `T`. Depending on T, untyped int can
+// be either i8,i16,i32,i64,u8,u16,u32,u64,f32,f64. specialize_const_literal_kind fix this by
+// converting ConstInt and ConstFloat to correct type.
+fn specialize_const_literal_kind<'a>(
+    kind: &ExprKind<'a>,
+    ty: &'a Type<'a>,
+) -> Option<ExprKind<'a>> {
+    match (kind, &ty.repr) {
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I8)) => {
+            Some(ExprKind::ConstI8(v.to_u8()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I16)) => {
+            Some(ExprKind::ConstI16(v.to_u16()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I32)) => {
+            Some(ExprKind::ConstI32(v.to_u32()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I64)) => {
+            Some(ExprKind::ConstI64(v.to_u64()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::ISize)) => {
+            Some(ExprKind::ConstIsize(v.to_u64()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Float(FloatType::F32)) => {
+            Some(ExprKind::ConstF32(Float::new(v.to_f32())))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Float(FloatType::F64)) => {
+            Some(ExprKind::ConstF64(Float::new(v.to_f64())))
+        }
+
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I8)) => {
+            Some(ExprKind::ConstI8(v.value as u8))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I16)) => {
+            Some(ExprKind::ConstI16(v.value as u16))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I32)) => {
+            Some(ExprKind::ConstI32(v.value as u32))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I64)) => {
+            Some(ExprKind::ConstI64(v.value as u64))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::ISize)) => {
+            Some(ExprKind::ConstIsize(v.value as u64))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Float(FloatType::F32)) => {
+            Some(ExprKind::ConstF32(Float::new(v.value as f32)))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Float(FloatType::F64)) => {
+            Some(ExprKind::ConstF64(Float::new(v.value)))
+        }
+        _ => None,
+    }
+}
+
+fn maybe_defer_assignable<'a, E>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    target: &'a Type<'a>,
+    value: &'a Type<'a>,
+) -> bool {
+    if !target.contains_type_arg() && !value.contains_type_arg() {
+        return false;
+    }
+    ctx.constraints
+        .push(GenericConstraint::Assignable(AssignableConstraint {
+            pos,
+            target,
+            value,
+        }));
+    true
+}
+
+fn maybe_defer_numeric<'a, E>(ctx: &Context<'a, '_, E>, pos: Pos, ty: &'a Type<'a>) -> bool {
+    if !ty.contains_type_arg() {
+        return false;
+    }
+    ctx.constraints
+        .push(GenericConstraint::Numeric(NumericConstraint { pos, ty }));
+    true
+}
+
+fn maybe_defer_binary_arithmetic<'a, E>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    op: &'static str,
+    a: &'a Type<'a>,
+    b: &'a Type<'a>,
+) -> bool {
+    if !a.contains_type_arg() && !b.contains_type_arg() {
+        return false;
+    }
+    ctx.constraints.push(GenericConstraint::BinaryArithmetic(
+        BinaryArithmeticConstraint { pos, op, a, b },
+    ));
+    true
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -322,6 +436,28 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
 
         return result;
     };
+
+    if matches!(expected_type.repr, TypeRepr::TypeArg(..)) {
+        match &result.kind {
+            ExprKind::ConstInt(val) => {
+                return Expr {
+                    ty: expected_type,
+                    kind: ExprKind::ConstInt(val.clone()),
+                    pos: result.pos,
+                    assignable: result.assignable,
+                };
+            }
+            ExprKind::ConstFloat(val) => {
+                return Expr {
+                    ty: expected_type,
+                    kind: ExprKind::ConstFloat(*val),
+                    pos: result.pos,
+                    assignable: result.assignable,
+                };
+            }
+            _ => {}
+        }
+    }
 
     match (&expected_type.repr, &result.kind) {
         (TypeRepr::Int(.., BitSize::I8), ExprKind::ConstInt(v)) => Expr {
@@ -1064,6 +1200,27 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    let a_is_zero = matches!(a.kind, ExprKind::Zero);
+    let b_is_zero = matches!(b.kind, ExprKind::Zero);
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        ctx.constraints.push(GenericConstraint::BinaryEquality(
+            BinaryEqualityConstraint {
+                pos,
+                op: T::name(),
+                a: a.ty,
+                b: b.ty,
+                a_is_zero,
+                b_is_zero,
+            },
+        ));
+        return Expr {
+            ty: bool_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1079,13 +1236,28 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
             b.ty.is_strictly_opaque(),
             "if a is opaque, then b must be opaque as well"
         );
-        let a_is_null = matches!(a.kind, ExprKind::Zero);
-        let b_is_null = matches!(b.kind, ExprKind::Zero);
-        // we can only compare opaque type with null. we can't comare opaque type
-        // with another opaque type
+        // ExprKind::Zero is the default value for a type; it is null only for opaque types.
+        let a_is_null = a_is_zero && a.ty.is_strictly_opaque();
+        let b_is_null = b_is_zero && b.ty.is_strictly_opaque();
+        // we can only compare opaque type with null. we can't compare opaque type
+        // with another non-null opaque type.
         if !a_is_null && !b_is_null {
             ctx.errors.compare_opaque(pos);
+            return Expr {
+                ty: bool_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
         }
+    } else if !a.ty.is_equality_comparable() {
+        ctx.errors.binop_type_unsupported(pos, T::name(), a.ty);
+        return Expr {
+            ty: bool_ty,
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
     }
 
     Expr {
@@ -1126,6 +1298,23 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         !a.ty.is_unknown() && !b.ty.is_unknown(),
         "neither a nor b should have unknown type"
     );
+
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        ctx.constraints.push(GenericConstraint::BinaryComparison(
+            BinaryComparisonConstraint {
+                pos,
+                op: T::name(),
+                a: a.ty,
+                b: b.ty,
+            },
+        ));
+        return Expr {
+            ty: bool_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
 
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
@@ -1187,6 +1376,15 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if maybe_defer_binary_arithmetic(ctx, pos, T::name(), a.ty, b.ty) {
+        return Expr {
+            ty: expected_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1246,6 +1444,15 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
         !a.ty.is_unknown() && !b.ty.is_unknown(),
         "neither a nor b should have unknown type"
     );
+
+    if maybe_defer_binary_arithmetic(ctx, pos, BinopDiv::name(), a.ty, b.ty) {
+        return Expr {
+            ty: expected_ty,
+            kind: BinopDiv::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
 
     if a.ty != b.ty {
         ctx.errors
@@ -1331,6 +1538,22 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        ctx.constraints
+            .push(GenericConstraint::BinaryInteger(BinaryIntegerConstraint {
+                pos,
+                op: T::name(),
+                a: a.ty,
+                b: b.ty,
+            }));
+        return Expr {
+            ty: expected_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1413,12 +1636,25 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
-    if !a.ty.is_int() {
-        assert!(
-            !b.ty.is_int(),
-            "if a is not int, then b must be not int as well"
-        );
-        ctx.errors.binop_type_unsupported(pos, T::name(), a.ty);
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        ctx.constraints
+            .push(GenericConstraint::BinaryShift(BinaryShiftConstraint {
+                pos,
+                op: T::name(),
+                a: a.ty,
+                b: b.ty,
+            }));
+        return Expr {
+            ty: expected_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
+    if !a.ty.is_int() || !b.ty.is_int() {
+        let invalid = if !a.ty.is_int() { a.ty } else { b.ty };
+        ctx.errors.binop_type_unsupported(pos, T::name(), invalid);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1502,6 +1738,22 @@ fn cast_untyped_const<'a, E>(
             let b = ctx.arena.alloc(cast_untyped_int(val_b, b.pos, a.ty));
             (a, b)
         }
+        (TypeRepr::UntypedInt, TypeRepr::TypeArg(..)) => {
+            let ExprKind::ConstInt(ref val_a) = a.kind else {
+                unreachable!();
+            };
+            maybe_defer_numeric(ctx, a.pos, b.ty);
+            let a = ctx.arena.alloc(cast_untyped_int(val_a, a.pos, b.ty));
+            (a, b)
+        }
+        (TypeRepr::TypeArg(..), TypeRepr::UntypedInt) => {
+            let ExprKind::ConstInt(ref val_b) = b.kind else {
+                unreachable!();
+            };
+            maybe_defer_numeric(ctx, b.pos, a.ty);
+            let b = ctx.arena.alloc(cast_untyped_int(val_b, b.pos, a.ty));
+            (a, b)
+        }
 
         (TypeRepr::UntypedFloat, TypeRepr::Int(..) | TypeRepr::Float(..)) => {
             let ExprKind::ConstFloat(val_a) = a.kind else {
@@ -1516,6 +1768,26 @@ fn cast_untyped_const<'a, E>(
             let ExprKind::ConstFloat(val_b) = b.kind else {
                 unreachable!();
             };
+            let b = ctx
+                .arena
+                .alloc(cast_untyped_float(val_b.value, b.pos, a.ty));
+            (a, b)
+        }
+        (TypeRepr::UntypedFloat, TypeRepr::TypeArg(..)) => {
+            let ExprKind::ConstFloat(val_a) = a.kind else {
+                unreachable!();
+            };
+            maybe_defer_numeric(ctx, a.pos, b.ty);
+            let a = ctx
+                .arena
+                .alloc(cast_untyped_float(val_a.value, a.pos, b.ty));
+            (a, b)
+        }
+        (TypeRepr::TypeArg(..), TypeRepr::UntypedFloat) => {
+            let ExprKind::ConstFloat(val_b) = b.kind else {
+                unreachable!();
+            };
+            maybe_defer_numeric(ctx, b.pos, a.ty);
             let b = ctx
                 .arena
                 .alloc(cast_untyped_float(val_b.value, b.pos, a.ty));
@@ -1549,6 +1821,12 @@ fn cast_untyped_int<'a>(a: &BigInt, pos: Pos, target: &'a Type<'a>) -> Expr<'a> 
         TypeRepr::Float(FloatType::F64) => Expr {
             ty: target,
             kind: ExprKind::ConstF64(Float::new(a.to_f64())),
+            pos,
+            assignable: false,
+        },
+        TypeRepr::TypeArg(..) => Expr {
+            ty: target,
+            kind: ExprKind::ConstInt(a.clone()),
             pos,
             assignable: false,
         },
@@ -1587,6 +1865,12 @@ fn cast_untyped_float<'a>(a: f64, pos: Pos, target: &'a Type<'a>) -> Expr<'a> {
             pos,
             assignable: false,
         },
+        TypeRepr::TypeArg(..) => Expr {
+            ty: target,
+            kind: ExprKind::ConstFloat(Float::new(a)),
+            pos,
+            assignable: false,
+        },
         _ => unreachable!(),
     }
 }
@@ -1614,6 +1898,22 @@ fn get_binary_bool_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         !a.ty.is_unknown() && !b.ty.is_unknown(),
         "neither a nor b should have unknown type"
     );
+
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        ctx.constraints
+            .push(GenericConstraint::BinaryBool(BinaryBoolConstraint {
+                pos,
+                op: T::name(),
+                a: a.ty,
+                b: b.ty,
+            }));
+        return Expr {
+            ty: bool_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
 
     if !a.ty.is_bool() || !b.ty.is_bool() {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
@@ -1718,21 +2018,62 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     let is_arithmetic = ty.is_arithmetic();
     let is_int = ty.is_int();
 
+    let bool_ty = ctx.define_type(Type {
+        kind: TypeKind::Anonymous,
+        repr: TypeRepr::Bool,
+    });
     let type_id = value.ty;
-    let (kind, is_valid) = match node.op {
-        UnaryOp::BitNot => (ExprKind::BitNot(ctx.arena.alloc(value)), is_int),
-        UnaryOp::Sub => (ExprKind::Neg(ctx.arena.alloc(value)), is_arithmetic),
-        UnaryOp::Add => (value.kind, is_arithmetic),
-        UnaryOp::Not => (ExprKind::Not(ctx.arena.alloc(value)), is_bool),
+    let (kind, is_valid, result_ty) = match node.op {
+        UnaryOp::BitNot => (ExprKind::BitNot(ctx.arena.alloc(value)), is_int, type_id),
+        UnaryOp::Sub => (
+            ExprKind::Neg(ctx.arena.alloc(value)),
+            is_arithmetic,
+            type_id,
+        ),
+        UnaryOp::Add => (value.kind, is_arithmetic, type_id),
+        UnaryOp::Not => (ExprKind::Not(ctx.arena.alloc(value)), is_bool, bool_ty),
     };
 
     if !is_valid {
-        ctx.errors.unop_type_unsupported(node.pos, op_name, ty);
+        let deferred = ty.contains_type_arg();
+        if deferred {
+            match node.op {
+                UnaryOp::BitNot => {
+                    ctx.constraints
+                        .push(GenericConstraint::UnaryInteger(UnaryIntegerConstraint {
+                            pos: node.pos,
+                            op: op_name,
+                            ty,
+                        }))
+                }
+                UnaryOp::Sub | UnaryOp::Add => ctx.constraints.push(
+                    GenericConstraint::UnaryArithmetic(UnaryArithmeticConstraint {
+                        pos: node.pos,
+                        op: op_name,
+                        ty,
+                    }),
+                ),
+                UnaryOp::Not => {
+                    ctx.constraints
+                        .push(GenericConstraint::UnaryBool(UnaryBoolConstraint {
+                            pos: node.pos,
+                            op: op_name,
+                            ty,
+                        }))
+                }
+            }
+        } else {
+            ctx.errors.unop_type_unsupported(node.pos, op_name, ty);
+        }
         return Expr {
-            ty: ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Unknown,
-            }),
+            ty: if deferred {
+                result_ty
+            } else {
+                ctx.define_type(Type {
+                    kind: TypeKind::Anonymous,
+                    repr: TypeRepr::Unknown,
+                })
+            },
             kind,
             pos: node.pos,
             assignable: false,
@@ -1740,7 +2081,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     }
 
     Expr {
-        ty: type_id,
+        ty: result_ty,
         kind,
         pos: node.pos,
         assignable: false,
@@ -1785,7 +2126,9 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
     }
 
     for (i, (arg, param)) in zip(&arguments, func_type.params).enumerate() {
-        if !param.is_assignable_with(arg.ty) {
+        if !param.is_assignable_with(arg.ty)
+            && !maybe_defer_assignable(ctx, node.arguments[i].pos(), param, arg.ty)
+        {
             ctx.errors
                 .type_mismatch(node.arguments[i].pos(), param, arg.ty);
         }
@@ -1895,7 +2238,9 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
             });
         let value = get_expr_from_node(ctx, scope, Some(ty), &element.value);
 
-        let value = if !ty.is_assignable_with(value.ty) {
+        let value = if !ty.is_assignable_with(value.ty)
+            && !maybe_defer_assignable(ctx, element.value.pos(), ty, value.ty)
+        {
             ctx.errors.type_mismatch(element.value.pos(), ty, value.ty);
             Expr {
                 ty: ctx.define_type(Type {

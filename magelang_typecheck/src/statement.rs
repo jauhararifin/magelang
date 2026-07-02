@@ -2,7 +2,9 @@ use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
 use crate::errors::SemanticError;
 use crate::expr::{get_expr_from_node, Expr, ExprKind};
 use crate::interner::Interner;
-use crate::ty::{get_type_from_node, Type, TypeArgs, TypeKind, TypeRepr};
+use crate::ty::{
+    get_type_from_node, AssignableConstraint, GenericConstraint, Type, TypeArgs, TypeKind, TypeRepr,
+};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
@@ -133,6 +135,24 @@ impl<'a, 'b, 'syn, E: ErrorReporter> StatementContext<'a, 'b, 'syn, E> {
     }
 }
 
+fn maybe_defer_assignable<'a, E>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    target: &'a Type<'a>,
+    value: &'a Type<'a>,
+) -> bool {
+    if !target.contains_type_arg() && !value.contains_type_arg() {
+        return false;
+    }
+    ctx.constraints
+        .push(GenericConstraint::Assignable(AssignableConstraint {
+            pos,
+            target,
+            value,
+        }));
+    true
+}
+
 pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
     ctx: &StatementContext<'a, '_, '_, E>,
     node: &StatementNode,
@@ -184,7 +204,9 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
         LetKind::TypeValue { ty, value } => {
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
             let mut value_expr = get_expr_from_node(ctx.ctx, ctx.scope, Some(ty), value);
-            if !ty.is_assignable_with(value_expr.ty) {
+            if !ty.is_assignable_with(value_expr.ty)
+                && !maybe_defer_assignable(ctx.ctx, value.pos(), ty, value_expr.ty)
+            {
                 ctx.ctx.errors.type_mismatch(value.pos(), ty, value_expr.ty);
                 value_expr.kind = ExprKind::Invalid
             }
@@ -225,7 +247,9 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
     }
 
     let value = get_expr_from_node(ctx.ctx, ctx.scope, Some(receiver.ty), &node.value);
-    if !receiver.ty.is_assignable_with(value.ty) {
+    if !receiver.ty.is_assignable_with(value.ty)
+        && !maybe_defer_assignable(ctx.ctx, node.value.pos(), receiver.ty, value.ty)
+    {
         ctx.ctx
             .errors
             .type_mismatch(node.value.pos(), receiver.ty, value.ty);
@@ -292,7 +316,9 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
     });
     let cond = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
-    if !cond.ty.is_bool() {
+    if !cond.ty.is_bool()
+        && !maybe_defer_assignable(ctx.ctx, node.condition.pos(), bool_type, cond.ty)
+    {
         ctx.ctx
             .errors
             .type_mismatch(node.condition.pos(), TypeRepr::Bool, cond.ty);
@@ -346,7 +372,9 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     });
     let condition = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
-    if !condition.ty.is_bool() {
+    if !condition.ty.is_bool()
+        && !maybe_defer_assignable(ctx.ctx, node.condition.pos(), bool_type, condition.ty)
+    {
         ctx.ctx
             .errors
             .type_mismatch(node.condition.pos(), TypeRepr::Bool, condition.ty);
@@ -423,7 +451,9 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
             repr: TypeRepr::Void,
         }));
 
-    if !return_type.is_assignable_with(value_ty) {
+    if !return_type.is_assignable_with(value_ty)
+        && !maybe_defer_assignable(ctx.ctx, node.pos, return_type, value_ty)
+    {
         ctx.ctx
             .errors
             .type_mismatch(node.pos, return_type, value_ty);

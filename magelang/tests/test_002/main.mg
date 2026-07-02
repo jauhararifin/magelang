@@ -39,6 +39,10 @@ fn main() {
   assert_equal::<i64>(21, a.b.a.*);
   assert_equal::<i64>(22, a.b.b.*);
   assert_equal::<i32>(30, a.c.*);
+
+  let n = mem::alloc::<i32>();
+  n.* = 42;
+  assert_equal::<i32>(42, generic_load::<i32>(n));
 }
 
 fn returning_b_struct(): B {
@@ -54,6 +58,10 @@ fn returning_a_struct(): A {
     },
     c: 30,
   };
+}
+
+fn generic_load<T>(p: *T): T {
+  return p.*;
 }
 
 fn assert(cond: bool) {

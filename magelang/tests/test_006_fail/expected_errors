@@ -1,0 +1,5 @@
+tests/test_006_fail/main.mg:19:11: cannot instantiate generic_add with <i32,f64> because add operation can't be done for i32 and f64 (tests/test_006_fail/main.mg:2:10)
+tests/test_006_fail/main.mg:19:11: cannot instantiate generic_add with <i32,f64> because i32 is not assignable to f64 (tests/test_006_fail/main.mg:2:3)
+tests/test_006_fail/main.mg:20:11: cannot instantiate generic_not with <i32> because not operation can't be done on i32 (tests/test_006_fail/main.mg:6:10)
+tests/test_006_fail/main.mg:21:11: cannot instantiate generic_and with <i32,bool> because and operation can't be done for i32 and bool (tests/test_006_fail/main.mg:10:10)
+tests/test_006_fail/main.mg:22:11: cannot instantiate generic_lt with <bool,bool> because lt operation can't be done for bool and bool (tests/test_006_fail/main.mg:14:10)

@@ -1,0 +1,4 @@
+tests/test_007_fail/main.mg:6:12: Cannot instantiate load with <opaque> because opaque cannot be dereferenced
+tests/test_007_fail/main.mg:12:22: The expression contains an opaque type which can't be dereferenced
+tests/test_007_fail/main.mg:15:11: The expression contains an opaque type which can't be dereferenced
+tests/test_007_fail/main.mg:18:11: The expression contains an opaque type which can't be dereferenced

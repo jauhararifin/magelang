@@ -8,7 +8,7 @@ use magelang_syntax::{
     ErrorReporter, PathName, PathNode, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
 };
 use std::cell::{OnceCell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -22,6 +22,369 @@ pub(crate) type TypeArgsInterner<'a> = Interner<'a, TypeArgs<'a>>;
 pub struct Type<'a> {
     pub kind: TypeKind<'a>,
     pub repr: TypeRepr<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GenericConstraint<'a> {
+    Assignable(AssignableConstraint<'a>),
+    Numeric(NumericConstraint<'a>),
+    BinaryArithmetic(BinaryArithmeticConstraint<'a>),
+    BinaryInteger(BinaryIntegerConstraint<'a>),
+    BinaryShift(BinaryShiftConstraint<'a>),
+    BinaryBool(BinaryBoolConstraint<'a>),
+    BinaryEquality(BinaryEqualityConstraint<'a>),
+    BinaryComparison(BinaryComparisonConstraint<'a>),
+    UnaryArithmetic(UnaryArithmeticConstraint<'a>),
+    UnaryInteger(UnaryIntegerConstraint<'a>),
+    UnaryBool(UnaryBoolConstraint<'a>),
+    Derefable(DerefableConstraint<'a>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AssignableConstraint<'a> {
+    pub pos: Pos,
+    pub target: &'a Type<'a>,
+    pub value: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NumericConstraint<'a> {
+    pub pos: Pos,
+    pub ty: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BinaryArithmeticConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub a: &'a Type<'a>,
+    pub b: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BinaryIntegerConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub a: &'a Type<'a>,
+    pub b: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BinaryShiftConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub a: &'a Type<'a>,
+    pub b: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BinaryBoolConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub a: &'a Type<'a>,
+    pub b: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BinaryEqualityConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub a: &'a Type<'a>,
+    pub b: &'a Type<'a>,
+    pub a_is_zero: bool,
+    pub b_is_zero: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BinaryComparisonConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub a: &'a Type<'a>,
+    pub b: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UnaryArithmeticConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub ty: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UnaryIntegerConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub ty: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UnaryBoolConstraint<'a> {
+    pub pos: Pos,
+    pub op: &'static str,
+    pub ty: &'a Type<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DerefableConstraint<'a> {
+    pub pos: Pos,
+    pub ty: &'a Type<'a>,
+}
+
+#[derive(Default)]
+pub(crate) struct ConstraintCollector<'a> {
+    constraints: RefCell<IndexSet<GenericConstraint<'a>>>,
+}
+
+impl<'a> ConstraintCollector<'a> {
+    pub(crate) fn push(&self, constraint: GenericConstraint<'a>) {
+        self.constraints.borrow_mut().insert(constraint);
+    }
+
+    pub(crate) fn take(&self) -> Vec<GenericConstraint<'a>> {
+        let mut constraints = self.constraints.borrow_mut();
+        let result = constraints.iter().copied().collect();
+        constraints.clear();
+        result
+    }
+}
+
+pub(crate) fn check_generic_constraint<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    func_name: Symbol<'a>,
+    constraints: &[GenericConstraint<'a>],
+    typeargs: &'a TypeArgs<'a>,
+    instantiation_pos: Pos,
+) {
+    let formatted_typeargs = format_typeargs(typeargs);
+
+    for constraint in constraints {
+        match *constraint {
+            GenericConstraint::Assignable(AssignableConstraint { pos, target, value }) => {
+                let target = target.substitute(ctx, typeargs);
+                let value = value.substitute(ctx, typeargs);
+                if !target.is_assignable_with(value) {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{value} is not assignable to {target}"),
+                    );
+                }
+            }
+            GenericConstraint::Numeric(NumericConstraint { pos, ty }) => {
+                let ty = ty.substitute(ctx, typeargs);
+                if !ty.is_arithmetic() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{ty} is not numeric"),
+                    );
+                }
+            }
+            GenericConstraint::BinaryArithmetic(BinaryArithmeticConstraint { pos, op, a, b }) => {
+                let a = a.substitute(ctx, typeargs);
+                let b = b.substitute(ctx, typeargs);
+                if a != b || !a.is_arithmetic() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                }
+            }
+            GenericConstraint::BinaryInteger(BinaryIntegerConstraint { pos, op, a, b }) => {
+                let a = a.substitute(ctx, typeargs);
+                let b = b.substitute(ctx, typeargs);
+                if a != b || !a.is_int() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                }
+            }
+            GenericConstraint::BinaryShift(BinaryShiftConstraint { pos, op, a, b }) => {
+                let a = a.substitute(ctx, typeargs);
+                let b = b.substitute(ctx, typeargs);
+                if !a.is_int() || !b.is_int() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                }
+            }
+            GenericConstraint::BinaryBool(BinaryBoolConstraint { pos, op, a, b }) => {
+                let a = a.substitute(ctx, typeargs);
+                let b = b.substitute(ctx, typeargs);
+                if !a.is_bool() || !b.is_bool() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                }
+            }
+            GenericConstraint::BinaryEquality(BinaryEqualityConstraint {
+                pos,
+                op,
+                a,
+                b,
+                a_is_zero,
+                b_is_zero,
+            }) => {
+                let a = a.substitute(ctx, typeargs);
+                let b = b.substitute(ctx, typeargs);
+                if a != b {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                } else if a.is_strictly_opaque() {
+                    // ExprKind::Zero is the default value for a type; after substitution,
+                    // it is null only if that side is opaque.
+                    let a_is_null = a_is_zero && a.is_strictly_opaque();
+                    let b_is_null = b_is_zero && b.is_strictly_opaque();
+                    if !a_is_null && !b_is_null {
+                        report_generic_constraint_error(
+                            ctx,
+                            instantiation_pos,
+                            func_name,
+                            &formatted_typeargs,
+                            pos,
+                            "opaque values cannot be compared unless one side is null".to_string(),
+                        );
+                    }
+                } else if !a.is_equality_comparable() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                }
+            }
+            GenericConstraint::BinaryComparison(BinaryComparisonConstraint { pos, op, a, b }) => {
+                let a = a.substitute(ctx, typeargs);
+                let b = b.substitute(ctx, typeargs);
+                if a != b || !a.is_arithmetic() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done for {a} and {b}"),
+                    );
+                }
+            }
+            GenericConstraint::UnaryArithmetic(UnaryArithmeticConstraint { pos, op, ty }) => {
+                let ty = ty.substitute(ctx, typeargs);
+                if !ty.is_arithmetic() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done on {ty}"),
+                    );
+                }
+            }
+            GenericConstraint::UnaryInteger(UnaryIntegerConstraint { pos, op, ty }) => {
+                let ty = ty.substitute(ctx, typeargs);
+                if !ty.is_int() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done on {ty}"),
+                    );
+                }
+            }
+            GenericConstraint::UnaryBool(UnaryBoolConstraint { pos, op, ty }) => {
+                let ty = ty.substitute(ctx, typeargs);
+                if !ty.is_bool() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{op} operation can't be done on {ty}"),
+                    );
+                }
+            }
+            GenericConstraint::Derefable(DerefableConstraint { pos, ty }) => {
+                let ty = ty.substitute(ctx, typeargs);
+                if !ty.is_derefable() {
+                    report_generic_constraint_error(
+                        ctx,
+                        instantiation_pos,
+                        func_name,
+                        &formatted_typeargs,
+                        pos,
+                        format!("{ty} cannot be dereferenced"),
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn report_generic_constraint_error<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    instantiation_pos: Pos,
+    func_name: Symbol<'a>,
+    formatted_typeargs: &str,
+    constraint_pos: Pos,
+    reason: String,
+) {
+    let constraint_location = ctx.files.location(constraint_pos);
+    ctx.errors.report(
+        instantiation_pos,
+        format!(
+            "cannot instantiate {func_name} with {formatted_typeargs} because {reason} ({constraint_location})"
+        ),
+    );
+}
+
+fn format_typeargs(typeargs: &TypeArgs<'_>) -> String {
+    let mut result = String::from("<");
+    if let Some(ty) = typeargs.first() {
+        result.push_str(&ty.to_string());
+    }
+    for ty in typeargs.iter().skip(1) {
+        result.push(',');
+        result.push_str(&ty.to_string());
+    }
+    result.push('>');
+    result
 }
 
 impl<'a> PartialEq for Type<'a> {
@@ -377,6 +740,95 @@ impl<'a> Type<'a> {
         self.repr.is_unknown() || self.repr.is_arithmetic()
     }
 
+    pub(crate) fn is_equality_comparable(&self) -> bool {
+        self.repr.is_unknown() || self.repr.is_equality_comparable()
+    }
+
+    pub(crate) fn is_derefable(&self) -> bool {
+        let mut visited = HashSet::<*const Type<'a>>::default();
+        self.repr.is_unknown() || self.is_derefable_inner(&mut visited)
+    }
+
+    fn is_derefable_inner(&self, visited: &mut HashSet<*const Type<'a>>) -> bool {
+        let ptr = self as *const Type<'a>;
+        if !visited.insert(ptr) {
+            return true;
+        }
+
+        let result = match &self.repr {
+            TypeRepr::Unknown => true,
+            TypeRepr::Struct(struct_type) => struct_type
+                .body
+                .get()
+                .map(|body| {
+                    body.fields
+                        .values()
+                        .all(|ty| ty.is_derefable_inner(visited))
+                })
+                .unwrap_or(false),
+            TypeRepr::Func(..)
+            | TypeRepr::Void
+            | TypeRepr::Bool
+            | TypeRepr::Int(..)
+            | TypeRepr::Float(..)
+            | TypeRepr::Ptr(..)
+            | TypeRepr::ArrayPtr(..) => true,
+            TypeRepr::Opaque
+            | TypeRepr::UntypedInt
+            | TypeRepr::UntypedFloat
+            | TypeRepr::TypeArg(..) => false,
+        };
+
+        visited.remove(&ptr);
+        result
+    }
+
+    pub(crate) fn contains_type_arg(&self) -> bool {
+        let mut visited = HashSet::<*const Type<'a>>::default();
+        self.contains_type_arg_inner(&mut visited)
+    }
+
+    fn contains_type_arg_inner(&self, visited: &mut HashSet<*const Type<'a>>) -> bool {
+        let ptr = self as *const Type<'a>;
+        if !visited.insert(ptr) {
+            return false;
+        }
+
+        let result = match &self.repr {
+            TypeRepr::Unknown
+            | TypeRepr::Void
+            | TypeRepr::Opaque
+            | TypeRepr::Bool
+            | TypeRepr::UntypedInt
+            | TypeRepr::Int(..)
+            | TypeRepr::UntypedFloat
+            | TypeRepr::Float(..) => false,
+            TypeRepr::Struct(struct_type) => struct_type
+                .body
+                .get()
+                .map(|body| {
+                    body.fields
+                        .values()
+                        .any(|ty| ty.contains_type_arg_inner(visited))
+                })
+                .unwrap_or(false),
+            TypeRepr::Func(func_type) => {
+                func_type
+                    .params
+                    .iter()
+                    .any(|ty| ty.contains_type_arg_inner(visited))
+                    || func_type.return_type.contains_type_arg_inner(visited)
+            }
+            TypeRepr::Ptr(element_ty) | TypeRepr::ArrayPtr(element_ty) => {
+                element_ty.contains_type_arg_inner(visited)
+            }
+            TypeRepr::TypeArg(..) => true,
+        };
+
+        visited.remove(&ptr);
+        result
+    }
+
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
         if self.is_unknown() || other.is_unknown() {
             return true;
@@ -522,6 +974,25 @@ impl<'a> TypeRepr<'a> {
 
     pub(crate) fn is_arithmetic(&self) -> bool {
         matches!(self, Self::Int(..) | Self::Float(..))
+    }
+
+    pub(crate) fn is_equality_comparable(&self) -> bool {
+        match self {
+            Self::Unknown => true,
+            Self::Struct(struct_ty) => struct_ty
+                .body
+                .get()
+                .map(|body| body.fields.values().all(|ty| ty.is_equality_comparable()))
+                .unwrap_or(false),
+            Self::Func(..)
+            | Self::Void
+            | Self::Bool
+            | Self::Int(..)
+            | Self::Float(..)
+            | Self::Ptr(..)
+            | Self::ArrayPtr(..) => true,
+            Self::Opaque | Self::UntypedInt | Self::UntypedFloat | Self::TypeArg(..) => false,
+        }
     }
 
     pub(crate) fn is_integral(&self) -> bool {

@@ -722,91 +722,105 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
     }
 
     fn build_eq(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let a_instr = self.build(a);
-        let b_instr = self.build(b);
-
         let ty = a.ty;
-        let op_instr = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize)
-            | TypeRepr::Ptr(..)
-            | TypeRepr::ArrayPtr(..)
-            | TypeRepr::Func(..) => vec![wasm::Instr::I32Eq],
-            TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
-
-            TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
-
-            TypeRepr::Bool => vec![wasm::Instr::I32Eq],
-
+        match ty.repr {
+            TypeRepr::Struct(..) => return self.build_struct_eq(a, b),
+            TypeRepr::Void => {
+                let mut result = self.build(a);
+                result.extend(self.build(b));
+                result.push(wasm::Instr::I32Const(1));
+                return result;
+            }
             TypeRepr::Opaque => {
                 let mut result = Vec::default();
                 if !matches!(a.kind, ExprKind::Zero) {
-                    result.extend(a_instr);
+                    result.extend(self.build(a));
                     result.push(wasm::Instr::RefIsNull);
                 } else if !matches!(b.kind, ExprKind::Zero) {
-                    result.extend(b_instr);
+                    result.extend(self.build(b));
                     result.push(wasm::Instr::RefIsNull);
                 } else {
                     result.push(wasm::Instr::I32Const(1));
                 }
                 return result;
             }
+            _ => {}
+        }
+
+        let mut result = self.build(a);
+        result.extend(self.build(b));
+        let op_instr = match ty.repr {
+            TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize)
+            | TypeRepr::Ptr(..)
+            | TypeRepr::ArrayPtr(..)
+            | TypeRepr::Func(..) => wasm::Instr::I32Eq,
+            TypeRepr::Int(_, BitSize::I64) => wasm::Instr::I64Eq,
+
+            TypeRepr::Float(FloatType::F32) => wasm::Instr::F32Eq,
+            TypeRepr::Float(FloatType::F64) => wasm::Instr::F64Eq,
+
+            TypeRepr::Bool => wasm::Instr::I32Eq,
 
             _ => {
                 unreachable!("cannot perform eq on {ty:?}");
             }
         };
-
-        let mut result = Vec::default();
-        result.extend(a_instr);
-        result.extend(b_instr);
-        result.extend(op_instr);
+        result.push(op_instr);
         result
     }
 
+    fn build_struct_eq(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let val_types = build_val_type(a.ty);
+        let mut result = self.build(a);
+        result.extend(self.build(b));
+
+        if val_types.is_empty() {
+            result.push(wasm::Instr::I32Const(1));
+            return result;
+        }
+
+        let a_temps = self.locals.get_temporary_locals(val_types.clone());
+        let b_temps = self.locals.get_temporary_locals(val_types.clone());
+
+        for id in b_temps.iter().rev() {
+            result.push(wasm::Instr::LocalSet(*id));
+        }
+        for id in a_temps.iter().rev() {
+            result.push(wasm::Instr::LocalSet(*id));
+        }
+
+        let mut first = true;
+        for ((val_type, a_id), b_id) in zip(zip(&val_types, a_temps.iter()), b_temps.iter()) {
+            result.push(wasm::Instr::LocalGet(*a_id));
+            result.push(wasm::Instr::LocalGet(*b_id));
+            result.push(Self::primitive_eq_instr(*val_type));
+            if first {
+                first = false;
+            } else {
+                result.push(wasm::Instr::I32And);
+            }
+        }
+
+        result
+    }
+
+    fn primitive_eq_instr(ty: PrimitiveType) -> wasm::Instr {
+        match ty {
+            PrimitiveType::I8
+            | PrimitiveType::U8
+            | PrimitiveType::I16
+            | PrimitiveType::U16
+            | PrimitiveType::I32
+            | PrimitiveType::U32 => wasm::Instr::I32Eq,
+            PrimitiveType::I64 | PrimitiveType::U64 => wasm::Instr::I64Eq,
+            PrimitiveType::F32 => wasm::Instr::F32Eq,
+            PrimitiveType::F64 => wasm::Instr::F64Eq,
+            PrimitiveType::Extern => unreachable!("cannot compare externref values"),
+        }
+    }
+
     fn build_ne(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let a_instr = self.build(a);
-        let b_instr = self.build(b);
-
-        let ty = a.ty;
-        let op_instr = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
-                vec![wasm::Instr::I32Eq]
-            }
-            TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) | TypeRepr::Func(..) => {
-                vec![wasm::Instr::I32Eq]
-            }
-            TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
-
-            TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
-
-            TypeRepr::Bool => vec![wasm::Instr::I32Eq],
-
-            TypeRepr::Opaque => {
-                let mut result = Vec::default();
-                if !matches!(a.kind, ExprKind::Zero) {
-                    result.extend(a_instr);
-                    result.push(wasm::Instr::RefIsNull);
-                } else if !matches!(b.kind, ExprKind::Zero) {
-                    result.extend(b_instr);
-                    result.push(wasm::Instr::RefIsNull);
-                } else {
-                    result.push(wasm::Instr::I32Const(1));
-                }
-                result.push(wasm::Instr::I32Eqz);
-                return result;
-            }
-
-            _ => {
-                unreachable!("cannot perform neq on {ty:?}");
-            }
-        };
-        let mut result = Vec::default();
-
-        result.extend(a_instr);
-        result.extend(b_instr);
-        result.extend(op_instr);
+        let mut result = self.build_eq(a, b);
         result.push(wasm::Instr::I32Eqz);
         result
     }

@@ -1,0 +1,3 @@
+tests/test_005_fail/main.mg:19:11: cannot instantiate generic_eq with <tests/test_005_fail/main::WithOpaque> because eq operation can't be done for tests/test_005_fail/main::WithOpaque and tests/test_005_fail/main::WithOpaque (tests/test_005_fail/main.mg:8:10)
+tests/test_005_fail/main.mg:20:11: cannot instantiate generic_neq with <tests/test_005_fail/main::WithOpaque> because neq operation can't be done for tests/test_005_fail/main::WithOpaque and tests/test_005_fail/main::WithOpaque (tests/test_005_fail/main.mg:12:10)
+tests/test_005_fail/main.mg:24:11: cannot instantiate generic_eq with <opaque> because opaque values cannot be compared unless one side is null (tests/test_005_fail/main.mg:8:10)
