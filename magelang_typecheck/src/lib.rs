@@ -33,8 +33,8 @@ impl<'a> Display for DefId<'a> {
 pub use expr::{Expr, ExprKind};
 pub use statement::{IfStatement, Statement, WhileStatement};
 pub use ty::{
-    BitSize, FloatType, FuncType, InstType, IntSign, StructBody, StructType, Type, TypeArg,
-    TypeArgs, TypeKind, TypeRepr,
+    BitSize, Constraint, FloatType, FuncType, InstType, IntSign, StructBody, StructType, Type,
+    TypeArg, TypeArgs, TypeKind, TypeRepr,
 };
 
 #[derive(Debug)]

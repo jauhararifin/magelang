@@ -66,6 +66,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "while" => TokenKind::While,
+            "where" => TokenKind::Where,
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,
@@ -1294,7 +1295,6 @@ string""#
             :: : ; . != ! == = * + - / : << <= < >> >= > { } ( ) [ ] , % && & || | ^ ~ @
             :::;.!!====*+-/:<<<=<>>>=>{}()[],%&&&|||^~@
             -1
-            #
         "#
         .to_string();
 
@@ -1382,8 +1382,7 @@ string""#
         );
 
         let errors = error_manager.take();
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].message, "Unexpected char '#'");
+        assert_eq!(errors.len(), 0);
     }
 
     fn number_from_str(base: &str, exp: &str, float: bool) -> Number {

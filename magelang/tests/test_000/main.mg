@@ -12,6 +12,7 @@ fn main() {
   test_precedence();
   test_f64_arithmetic();
   test_global_initialization_order();
+  test_generic_cast();
 
   test_shift_left();
   test_shift_right();
@@ -407,13 +408,26 @@ fn test_shift_right() {
   assert_equal::<isize>(-5, -10 as isize >> 1 as usize);
 }
 
+fn test_generic_cast() {
+  assert_equal::<i64>(42, cast::<i32, i64>(42));
+  assert_equal::<f64>(42.0, cast::<i32, f64>(42));
+}
+
+fn cast<T, U>(value: T): U
+  where T: @castable<U>
+{
+  return value as U;
+}
+
 fn assert(cond: bool) {
   if !cond {
     wasm::unreachable();
   }
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal<T>(expected: T, actual: T)
+  where T: @comparable<T>
+{
   if expected != actual {
     wasm::unreachable();
   }

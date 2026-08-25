@@ -46,7 +46,9 @@ fn assert(cond: bool) {
   }
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal<T>(expected: T, actual: T)
+  where T: @comparable<T>
+{
   if expected != actual {
     wasm::unreachable();
   }

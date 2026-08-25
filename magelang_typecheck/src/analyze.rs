@@ -455,7 +455,8 @@ fn build_type_scopes<'a, 'syn, E: ErrorReporter>(
             }
             object_pos.insert(def_id, pos);
 
-            let type_params = get_typeparams(ctx, &struct_node.type_params);
+            let type_params =
+                get_typeparams(ctx, &Scopes::default(), &struct_node.type_params, &[]);
 
             let kind = if type_params.is_empty() {
                 TypeKind::User(UserType { def_id })
@@ -628,7 +629,12 @@ fn build_value_scopes<'a, E: ErrorReporter>(
                     let annotations: Rc<[Annotation]> =
                         build_annotations_from_node(ctx, &func_node.signature.annotations).into();
 
-                    let type_params = get_typeparams(ctx, &func_node.signature.type_params);
+                    let type_params = get_typeparams(
+                        ctx,
+                        scopes,
+                        &func_node.signature.type_params,
+                        &func_node.signature.constraints,
+                    );
                     let kind = if type_params.is_empty() {
                         TypeKind::Anonymous
                     } else {
@@ -747,7 +753,7 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
 fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
-            let ValueObject::Func(func_object) = value_object else {
+            let ValueObject::Func(ref func_object) = value_object else {
                 continue;
             };
 

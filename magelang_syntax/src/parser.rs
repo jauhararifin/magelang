@@ -490,9 +490,16 @@ fn parse_signature<E: ErrorReporter>(
         None
     };
 
-    let end_pos = return_type
-        .as_ref()
-        .map(|expr| expr.pos())
+    let constraints = if f.kind() == &TokenKind::Where {
+        parse_where_constraints(f)
+    } else {
+        Vec::default()
+    };
+
+    let end_pos = constraints
+        .last()
+        .map(|constraint| constraint.pos)
+        .or(return_type.as_ref().map(|expr| expr.pos()))
         .or(param_result.as_ref().map(|(_, _, close_tok)| close_tok.pos))
         .unwrap_or(name.pos);
 
@@ -507,7 +514,59 @@ fn parse_signature<E: ErrorReporter>(
         type_params,
         parameters,
         return_type,
+        constraints,
         end_pos,
+    })
+}
+
+fn parse_where_constraints<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<WhereConstraintNode> {
+    let Some(_) = f.take(TokenKind::Where) else {
+        return Vec::default();
+    };
+
+    let mut constraints = Vec::default();
+    while f.kind() != &TokenKind::OpenBlock
+        && f.kind() != &TokenKind::SemiColon
+        && f.kind() != &TokenKind::Eof
+    {
+        let Some(constraint) = parse_where_constraint(f) else {
+            break;
+        };
+        constraints.push(constraint);
+
+        if f.take_if(&TokenKind::Comma).is_none() {
+            break;
+        }
+    }
+
+    constraints
+}
+
+fn parse_where_constraint<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhereConstraintNode> {
+    let target = f.take_ident()?;
+    let pos = target.pos;
+    f.take(TokenKind::Colon)?;
+    f.take(TokenKind::AtSign)?;
+    let name = f.take_ident()?;
+    let arguments = if f.kind() == &TokenKind::Lt {
+        parse_sequence(
+            f,
+            TokenKind::Lt,
+            TokenKind::Comma,
+            TokenKind::Gt,
+            parse_type_expr,
+        )
+        .map(|(_, args, _)| args)
+        .unwrap_or_default()
+    } else {
+        Vec::default()
+    };
+
+    Some(WhereConstraintNode {
+        pos,
+        target,
+        name,
+        arguments,
     })
 }
 

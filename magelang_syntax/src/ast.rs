@@ -136,6 +136,7 @@ pub struct SignatureNode {
     pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
     pub return_type: Option<TypeExprNode>,
+    pub constraints: Vec<WhereConstraintNode>,
     pub end_pos: Pos,
 }
 
@@ -162,6 +163,14 @@ pub struct ParameterNode {
     pub pos: Pos,
     pub name: Identifier,
     pub ty: TypeExprNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct WhereConstraintNode {
+    pub pos: Pos,
+    pub target: Identifier,
+    pub name: Identifier,
+    pub arguments: Vec<TypeExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

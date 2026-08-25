@@ -184,8 +184,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
         LetKind::TypeValue { ty, value } => {
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
             let mut value_expr = get_expr_from_node(ctx.ctx, ctx.scope, Some(ty), value);
-            if !ty.is_assignable_with(value_expr.ty) {
-                ctx.ctx.errors.type_mismatch(value.pos(), ty, value_expr.ty);
+            if !check_assignable(ctx.ctx, value.pos(), ty, value_expr.ty) {
                 value_expr.kind = ExprKind::Invalid
             }
             value_expr
@@ -225,11 +224,7 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
     }
 
     let value = get_expr_from_node(ctx.ctx, ctx.scope, Some(receiver.ty), &node.value);
-    if !receiver.ty.is_assignable_with(value.ty) {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.value.pos(), receiver.ty, value.ty);
-    }
+    check_assignable(ctx.ctx, node.value.pos(), receiver.ty, value.ty);
 
     StatementResult {
         statement: Statement::Assign(receiver, value),
@@ -292,11 +287,7 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
     });
     let cond = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
-    if !cond.ty.is_bool() {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.condition.pos(), TypeRepr::Bool, cond.ty);
-    }
+    check_assignable(ctx.ctx, node.condition.pos(), bool_type, cond.ty);
 
     let result = get_statement_from_block(ctx, &node.body);
     let body = result.statement;
@@ -346,11 +337,7 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     });
     let condition = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
-    if !condition.ty.is_bool() {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.condition.pos(), TypeRepr::Bool, condition.ty);
-    }
+    check_assignable(ctx.ctx, node.condition.pos(), bool_type, condition.ty);
 
     let body_stmt = get_statement_from_block(
         &StatementContext {
@@ -423,11 +410,7 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
             repr: TypeRepr::Void,
         }));
 
-    if !return_type.is_assignable_with(value_ty) {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.pos, return_type, value_ty);
-    };
+    check_assignable(ctx.ctx, node.pos, return_type, value_ty);
 
     StatementResult {
         statement: Statement::Return(value),
@@ -435,4 +418,18 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
         is_returning: true,
         last_unused_local: ctx.last_unused_local,
     }
+}
+
+fn check_assignable<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    target: &'a Type<'a>,
+    value: &'a Type<'a>,
+) -> bool {
+    if target.is_assignable_with(value) {
+        return true;
+    }
+
+    ctx.errors.type_mismatch(pos, target, value);
+    false
 }

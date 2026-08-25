@@ -127,6 +127,7 @@ pub(crate) enum TokenKind {
     If,
     Else,
     While,
+    Where,
     Ident(String),
     As,
     Add,
@@ -225,6 +226,7 @@ impl TokenKind {
             | Self::If
             | Self::Else
             | Self::While
+            | Self::Where
             | Self::Null
             | Self::True
             | Self::False
@@ -257,6 +259,7 @@ impl Display for TokenKind {
             Self::If => write!(f, "'if'"),
             Self::Else => write!(f, "'else'"),
             Self::While => write!(f, "'while'"),
+            Self::Where => write!(f, "'where'"),
             Self::Ident(..) => write!(f, "IDENT"),
             Self::As => write!(f, "'as'"),
             Self::Add => write!(f, "'+'"),

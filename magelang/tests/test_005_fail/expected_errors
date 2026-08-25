@@ -1,0 +1,7 @@
+tests/test_005_fail/main.mg:18:10: cannot instantiate needs_ordered with <T> because T does not satisfy @ordered<T> (tests/test_005_fail/main.mg:7:9)
+tests/test_005_fail/main.mg:24:10: Cannot use generic operation because T does not satisfy @ordered<T>
+tests/test_005_fail/main.mg:28:10: Cannot use generic operation because T does not satisfy @castable<U>
+tests/test_005_fail/main.mg:34:10: Cannot use generic operation because T does not satisfy @numeric
+tests/test_005_fail/main.mg:38:20: Cannot use generic operation because T does not satisfy @derefable
+tests/test_005_fail/main.mg:50:29: Mismatch type, expected T but found U
+tests/test_005_fail/main.mg:54:10: cannot instantiate needs_ordered with <bool> because bool does not satisfy @ordered<bool> (tests/test_005_fail/main.mg:7:9)

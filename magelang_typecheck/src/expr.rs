@@ -1,6 +1,9 @@
 use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr};
+use crate::ty::{
+    check_generic_constraints, get_type_from_node, BitSize, Constraint, FloatType, Type, TypeArgs,
+    TypeKind, TypeRepr,
+};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
@@ -172,6 +175,15 @@ impl<'a> Expr<'a> {
             ),
         };
 
+        if let Some(kind) = specialize_const_literal_kind(&kind, ty) {
+            return Expr {
+                ty,
+                kind,
+                pos: self.pos,
+                assignable: self.assignable,
+            };
+        }
+
         Expr {
             ty,
             kind,
@@ -181,22 +193,66 @@ impl<'a> Expr<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct FloatConst(f64);
+// TODO(jauhararifin): consider not actually mononomorphizing the function and struct
+// until in the codegen phase. In this phase we nust need to check the type. We don't
+// have to generate the type, expr, and statements for each instantiation.
+// If we do this we don't need specialize_const_literal_kind anymore.
 
-impl Hash for FloatConst {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (self.0 as i64).hash(state)
+// Generic functions can typecheck untyped numeric literals against type parameters
+// before the concrete type is known. During monomorphization, after the type
+// parameter is substituted with a concrete numeric type, convert those
+// ConstInt/ConstFloat nodes into concrete literal kinds so codegen never sees
+// untyped literals.
+fn specialize_const_literal_kind<'a>(
+    kind: &ExprKind<'a>,
+    ty: &'a Type<'a>,
+) -> Option<ExprKind<'a>> {
+    match (kind, &ty.repr) {
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I8)) => {
+            Some(ExprKind::ConstI8(v.to_u8()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I16)) => {
+            Some(ExprKind::ConstI16(v.to_u16()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I32)) => {
+            Some(ExprKind::ConstI32(v.to_u32()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::I64)) => {
+            Some(ExprKind::ConstI64(v.to_u64()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Int(.., BitSize::ISize)) => {
+            Some(ExprKind::ConstIsize(v.to_u64()))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Float(FloatType::F32)) => {
+            Some(ExprKind::ConstF32(Float::new(v.to_f32())))
+        }
+        (ExprKind::ConstInt(v), TypeRepr::Float(FloatType::F64)) => {
+            Some(ExprKind::ConstF64(Float::new(v.to_f64())))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I8)) => {
+            Some(ExprKind::ConstI8(v.value as u8))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I16)) => {
+            Some(ExprKind::ConstI16(v.value as u16))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I32)) => {
+            Some(ExprKind::ConstI32(v.value as u32))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::I64)) => {
+            Some(ExprKind::ConstI64(v.value as u64))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Int(.., BitSize::ISize)) => {
+            Some(ExprKind::ConstIsize(v.value as u64))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Float(FloatType::F32)) => {
+            Some(ExprKind::ConstF32(Float::new(v.value as f32)))
+        }
+        (ExprKind::ConstFloat(v), TypeRepr::Float(FloatType::F64)) => {
+            Some(ExprKind::ConstF64(Float::new(v.value)))
+        }
+        _ => None,
     }
 }
-
-impl PartialEq for FloatConst {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for FloatConst {}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Float<T> {
@@ -323,6 +379,40 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
         return result;
     };
 
+    if matches!(expected_type.repr, TypeRepr::TypeArg(..)) {
+        match &result.kind {
+            ExprKind::ConstInt(val) => {
+                require_generic_constraint(
+                    ctx,
+                    result.pos,
+                    expected_type,
+                    Constraint::Numeric { pos: result.pos },
+                );
+                return Expr {
+                    ty: expected_type,
+                    kind: ExprKind::ConstInt(val.clone()),
+                    pos: result.pos,
+                    assignable: result.assignable,
+                };
+            }
+            ExprKind::ConstFloat(val) => {
+                require_generic_constraint(
+                    ctx,
+                    result.pos,
+                    expected_type,
+                    Constraint::Numeric { pos: result.pos },
+                );
+                return Expr {
+                    ty: expected_type,
+                    kind: ExprKind::ConstFloat(*val),
+                    pos: result.pos,
+                    assignable: result.assignable,
+                };
+            }
+            _ => {}
+        }
+    }
+
     match (&expected_type.repr, &result.kind) {
         (TypeRepr::Int(.., BitSize::I8), ExprKind::ConstInt(v)) => Expr {
             ty: expected_type,
@@ -410,6 +500,26 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
             assignable: result.assignable,
         },
         _ => result,
+    }
+}
+
+pub(crate) fn require_generic_constraint<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    pos: Pos,
+    ty: &'a Type<'a>,
+    constraint: Constraint<'a>,
+) -> bool {
+    if constraint.is_satisfied_by(ty) {
+        true
+    } else {
+        ctx.errors.report(
+            pos,
+            format!(
+                "Cannot use generic operation because {}",
+                constraint.reason(ty)
+            ),
+        );
+        false
     }
 }
 
@@ -566,6 +676,13 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                 let type_args = ctx.define_typeargs(&type_args);
 
                 let instance_ty = func_obj.ty.specialize(ctx, type_args);
+                check_generic_constraints(
+                    ctx,
+                    func_obj.def_id.name,
+                    func_obj.type_params,
+                    type_args,
+                    node.pos(),
+                );
 
                 Expr {
                     ty: instance_ty,
@@ -1064,6 +1181,24 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        let constraint = Constraint::Comparable { pos, other: b.ty };
+        if !require_generic_constraint(ctx, pos, a.ty, constraint) {
+            return Expr {
+                ty: bool_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        return Expr {
+            ty: bool_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1127,6 +1262,24 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        let constraint = Constraint::Ordered { pos, other: b.ty };
+        if !require_generic_constraint(ctx, pos, a.ty, constraint) {
+            return Expr {
+                ty: bool_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        return Expr {
+            ty: bool_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1187,6 +1340,33 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        if a.ty != b.ty {
+            ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        let constraint = Constraint::Numeric { pos };
+        if !require_generic_constraint(ctx, pos, a.ty, constraint) {
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        return Expr {
+            ty: expected_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1246,6 +1426,34 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
         !a.ty.is_unknown() && !b.ty.is_unknown(),
         "neither a nor b should have unknown type"
     );
+
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        if a.ty != b.ty {
+            ctx.errors
+                .binop_type_mismatch(pos, BinopDiv::name(), a.ty, b.ty);
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        let constraint = Constraint::Numeric { pos };
+        if !require_generic_constraint(ctx, pos, a.ty, constraint) {
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        return Expr {
+            ty: expected_ty,
+            kind: BinopDiv::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
 
     if a.ty != b.ty {
         ctx.errors
@@ -1331,6 +1539,33 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        if a.ty != b.ty {
+            ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        let constraint = Constraint::Integer { pos };
+        if !require_generic_constraint(ctx, pos, a.ty, constraint) {
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        return Expr {
+            ty: expected_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if a.ty != b.ty {
         ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
         return Expr {
@@ -1413,6 +1648,26 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         "neither a nor b should have unknown type"
     );
 
+    if a.ty.contains_type_arg() || b.ty.contains_type_arg() {
+        let constraint = Constraint::Integer { pos };
+        if !require_generic_constraint(ctx, pos, a.ty, constraint)
+            || !require_generic_constraint(ctx, pos, b.ty, constraint)
+        {
+            return Expr {
+                ty: expected_ty,
+                kind: ExprKind::Invalid,
+                pos,
+                assignable: false,
+            };
+        }
+        return Expr {
+            ty: expected_ty,
+            kind: T::build(a, b),
+            pos,
+            assignable: false,
+        };
+    }
+
     if !a.ty.is_int() {
         assert!(
             !b.ty.is_int(),
@@ -1482,7 +1737,7 @@ fn evaluate_untyped_const<'a, T: BinopEvaluator, E: ErrorReporter>(
     })
 }
 
-fn cast_untyped_const<'a, E>(
+fn cast_untyped_const<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
@@ -1502,6 +1757,22 @@ fn cast_untyped_const<'a, E>(
             let b = ctx.arena.alloc(cast_untyped_int(val_b, b.pos, a.ty));
             (a, b)
         }
+        (TypeRepr::UntypedInt, TypeRepr::TypeArg(..)) => {
+            let ExprKind::ConstInt(ref val_a) = a.kind else {
+                unreachable!();
+            };
+            require_generic_constraint(ctx, a.pos, b.ty, Constraint::Numeric { pos: a.pos });
+            let a = ctx.arena.alloc(cast_untyped_int(val_a, a.pos, b.ty));
+            (a, b)
+        }
+        (TypeRepr::TypeArg(..), TypeRepr::UntypedInt) => {
+            let ExprKind::ConstInt(ref val_b) = b.kind else {
+                unreachable!();
+            };
+            require_generic_constraint(ctx, b.pos, a.ty, Constraint::Numeric { pos: b.pos });
+            let b = ctx.arena.alloc(cast_untyped_int(val_b, b.pos, a.ty));
+            (a, b)
+        }
 
         (TypeRepr::UntypedFloat, TypeRepr::Int(..) | TypeRepr::Float(..)) => {
             let ExprKind::ConstFloat(val_a) = a.kind else {
@@ -1516,6 +1787,26 @@ fn cast_untyped_const<'a, E>(
             let ExprKind::ConstFloat(val_b) = b.kind else {
                 unreachable!();
             };
+            let b = ctx
+                .arena
+                .alloc(cast_untyped_float(val_b.value, b.pos, a.ty));
+            (a, b)
+        }
+        (TypeRepr::UntypedFloat, TypeRepr::TypeArg(..)) => {
+            let ExprKind::ConstFloat(val_a) = a.kind else {
+                unreachable!();
+            };
+            require_generic_constraint(ctx, a.pos, b.ty, Constraint::Numeric { pos: a.pos });
+            let a = ctx
+                .arena
+                .alloc(cast_untyped_float(val_a.value, a.pos, b.ty));
+            (a, b)
+        }
+        (TypeRepr::TypeArg(..), TypeRepr::UntypedFloat) => {
+            let ExprKind::ConstFloat(val_b) = b.kind else {
+                unreachable!();
+            };
+            require_generic_constraint(ctx, b.pos, a.ty, Constraint::Numeric { pos: b.pos });
             let b = ctx
                 .arena
                 .alloc(cast_untyped_float(val_b.value, b.pos, a.ty));
@@ -1552,6 +1843,12 @@ fn cast_untyped_int<'a>(a: &BigInt, pos: Pos, target: &'a Type<'a>) -> Expr<'a> 
             pos,
             assignable: false,
         },
+        TypeRepr::TypeArg(..) => Expr {
+            ty: target,
+            kind: ExprKind::ConstInt(a.clone()),
+            pos,
+            assignable: false,
+        },
         _ => unreachable!(),
     }
 }
@@ -1584,6 +1881,12 @@ fn cast_untyped_float<'a>(a: f64, pos: Pos, target: &'a Type<'a>) -> Expr<'a> {
         TypeRepr::Float(FloatType::F64) => Expr {
             ty: target,
             kind: ExprKind::ConstF64(Float::new(a)),
+            pos,
+            assignable: false,
+        },
+        TypeRepr::TypeArg(..) => Expr {
+            ty: target,
+            kind: ExprKind::ConstFloat(Float::new(a)),
             pos,
             assignable: false,
         },
@@ -1654,6 +1957,11 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
             assignable: true,
         };
     };
+
+    if element_ty.contains_type_arg() {
+        let constraint = Constraint::Derefable { pos: node.pos };
+        require_generic_constraint(ctx, node.pos, element_ty, constraint);
+    }
 
     Expr {
         ty: element_ty,
@@ -1727,7 +2035,23 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     };
 
     if !is_valid {
-        ctx.errors.unop_type_unsupported(node.pos, op_name, ty);
+        if ty.contains_type_arg() && !matches!(node.op, UnaryOp::Not) {
+            let constraint = match node.op {
+                UnaryOp::BitNot => Constraint::Integer { pos: node.pos },
+                UnaryOp::Sub | UnaryOp::Add => Constraint::Numeric { pos: node.pos },
+                UnaryOp::Not => unreachable!(),
+            };
+            if require_generic_constraint(ctx, node.pos, ty, constraint) {
+                return Expr {
+                    ty: type_id,
+                    kind,
+                    pos: node.pos,
+                    assignable: false,
+                };
+            }
+        } else {
+            ctx.errors.unop_type_unsupported(node.pos, op_name, ty);
+        }
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -1832,15 +2156,20 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
         _ => (),
     };
 
-    let valid_casting = (value_type.is_integral() && target_type.is_integral())
-        || (value_type.is_float() && target_type.is_float())
-        || (value_type.is_integral() && target_type.is_float())
-        || (value_type.is_float() && target_type.is_integral())
-        || value_type.is_unknown()
-        || target_type.is_unknown();
+    let valid_casting = value_type.is_castable_to(target_type);
 
     let kind = if valid_casting {
         ExprKind::Cast(ctx.arena.alloc(value), target_type)
+    } else if value_type.contains_type_arg() || target_type.contains_type_arg() {
+        let constraint = Constraint::CastableTo {
+            pos: node.value.pos(),
+            target: target_type,
+        };
+        if require_generic_constraint(ctx, node.value.pos(), value_type, constraint) {
+            ExprKind::Cast(ctx.arena.alloc(value), target_type)
+        } else {
+            ExprKind::Invalid
+        }
     } else {
         ctx.errors
             .casting_unsupported(node.value.pos(), value_type, target_type);

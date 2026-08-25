@@ -6,9 +6,10 @@ use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
     ErrorReporter, PathName, PathNode, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
+    WhereConstraintNode,
 };
 use std::cell::{OnceCell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -22,6 +23,204 @@ pub(crate) type TypeArgsInterner<'a> = Interner<'a, TypeArgs<'a>>;
 pub struct Type<'a> {
     pub kind: TypeKind<'a>,
     pub repr: TypeRepr<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Constraint<'a> {
+    Numeric { pos: Pos },
+    Integer { pos: Pos },
+    Derefable { pos: Pos },
+    Comparable { pos: Pos, other: &'a Type<'a> },
+    Ordered { pos: Pos, other: &'a Type<'a> },
+    CastableTo { pos: Pos, target: &'a Type<'a> },
+}
+
+impl<'a> Constraint<'a> {
+    pub(crate) fn pos(&self) -> Pos {
+        match *self {
+            Self::Numeric { pos }
+            | Self::Integer { pos }
+            | Self::Derefable { pos }
+            | Self::Comparable { pos, .. }
+            | Self::Ordered { pos, .. }
+            | Self::CastableTo { pos, .. } => pos,
+        }
+    }
+
+    pub(crate) fn substitute<E: ErrorReporter>(
+        self,
+        ctx: &Context<'a, '_, E>,
+        type_args: &'a TypeArgs<'a>,
+    ) -> Self {
+        match self {
+            Self::Numeric { pos } => Self::Numeric { pos },
+            Self::Integer { pos } => Self::Integer { pos },
+            Self::Derefable { pos } => Self::Derefable { pos },
+            Self::Comparable { pos, other } => Self::Comparable {
+                pos,
+                other: other.substitute(ctx, type_args),
+            },
+            Self::Ordered { pos, other } => Self::Ordered {
+                pos,
+                other: other.substitute(ctx, type_args),
+            },
+            Self::CastableTo { pos, target } => Self::CastableTo {
+                pos,
+                target: target.substitute(ctx, type_args),
+            },
+        }
+    }
+
+    pub(crate) fn is_satisfied_by(&self, ty: &'a Type<'a>) -> bool {
+        if self.is_satisfied_concrete_by(ty) {
+            return true;
+        }
+        if !self.contains_type_arg(ty) {
+            return false;
+        }
+
+        if type_arg_constraints(ty).is_some_and(|constraints| {
+            constraints
+                .iter()
+                .any(|constraint| constraint.satisfies_required(*self))
+        }) {
+            return true;
+        }
+
+        match *self {
+            Self::Comparable { pos, other } => {
+                type_arg_constraints(other).is_some_and(|constraints| {
+                    constraints.iter().any(|constraint| {
+                        constraint.satisfies_required(Self::Comparable { pos, other: ty })
+                    })
+                })
+            }
+            Self::Ordered { pos, other } => {
+                type_arg_constraints(other).is_some_and(|constraints| {
+                    constraints.iter().any(|constraint| {
+                        constraint.satisfies_required(Self::Ordered { pos, other: ty })
+                    })
+                })
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn reason(&self, ty: &'a Type<'a>) -> String {
+        match *self {
+            Self::Numeric { .. } => format!("{ty} does not satisfy @numeric"),
+            Self::Integer { .. } => format!("{ty} does not satisfy @integer"),
+            Self::Derefable { .. } => format!("{ty} does not satisfy @derefable"),
+            Self::Comparable { other, .. } => {
+                format!("{ty} does not satisfy @comparable<{other}>")
+            }
+            Self::Ordered { other, .. } => format!("{ty} does not satisfy @ordered<{other}>"),
+            Self::CastableTo { target, .. } => {
+                format!("{ty} does not satisfy @castable<{target}>")
+            }
+        }
+    }
+
+    fn contains_type_arg(&self, ty: &'a Type<'a>) -> bool {
+        ty.contains_type_arg()
+            || match *self {
+                Self::Numeric { .. } | Self::Integer { .. } | Self::Derefable { .. } => false,
+                Self::Comparable { other, .. } | Self::Ordered { other, .. } => {
+                    other.contains_type_arg()
+                }
+                Self::CastableTo { target, .. } => target.contains_type_arg(),
+            }
+    }
+
+    fn is_satisfied_concrete_by(&self, ty: &'a Type<'a>) -> bool {
+        match *self {
+            Self::Numeric { .. } => ty.is_arithmetic(),
+            Self::Integer { .. } => ty.is_int(),
+            Self::Derefable { .. } => ty.is_derefable(),
+            Self::Comparable { other, .. } => ty == other && ty.is_equality_comparable(),
+            Self::Ordered { other, .. } => ty == other && ty.is_arithmetic(),
+            Self::CastableTo { target, .. } => ty.is_castable_to(target),
+        }
+    }
+
+    fn satisfies_required(&self, required: Self) -> bool {
+        match (*self, required) {
+            (Self::Numeric { .. } | Self::Integer { .. }, Self::Numeric { .. }) => true,
+            (Self::Integer { .. }, Self::Integer { .. }) => true,
+            (Self::Derefable { .. }, Self::Derefable { .. }) => true,
+            (
+                Self::Comparable { other, .. } | Self::Ordered { other, .. },
+                Self::Comparable {
+                    other: required, ..
+                },
+            ) => other == required,
+            (
+                Self::Ordered { other, .. },
+                Self::Ordered {
+                    other: required, ..
+                },
+            ) => other == required,
+            (
+                Self::CastableTo { target, .. },
+                Self::CastableTo {
+                    target: required, ..
+                },
+            ) => target == required,
+            _ => false,
+        }
+    }
+}
+
+fn type_arg_constraints<'a>(ty: &'a Type<'a>) -> Option<&'a [Constraint<'a>]> {
+    let TypeRepr::TypeArg(type_arg) = ty.repr else {
+        return None;
+    };
+    type_arg.constraints.get().copied()
+}
+
+pub(crate) fn check_generic_constraints<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    func_name: Symbol<'a>,
+    type_params: &[TypeArg<'a>],
+    typeargs: &'a TypeArgs<'a>,
+    instantiation_pos: Pos,
+) {
+    let formatted_typeargs = format_typeargs(typeargs);
+
+    for type_param in type_params {
+        let Some(constraints) = type_param.constraints.get().copied() else {
+            continue;
+        };
+        for constraint in constraints {
+            let ty = typeargs[type_param.index];
+            let constraint = constraint.substitute(ctx, typeargs);
+            if constraint.is_satisfied_by(ty) {
+                continue;
+            }
+
+            let constraint_location = ctx.files.location(constraint.pos());
+            ctx.errors.report(
+                instantiation_pos,
+                format!(
+                    "cannot instantiate {func_name} with {formatted_typeargs} because {} ({constraint_location})",
+                    constraint.reason(ty)
+                ),
+            );
+        }
+    }
+}
+
+fn format_typeargs(typeargs: &TypeArgs<'_>) -> String {
+    let mut result = String::from("<");
+    if let Some(ty) = typeargs.first() {
+        result.push_str(&ty.to_string());
+    }
+    for ty in typeargs.iter().skip(1) {
+        result.push(',');
+        result.push_str(&ty.to_string());
+    }
+    result.push('>');
+    result
 }
 
 impl<'a> PartialEq for Type<'a> {
@@ -285,7 +484,7 @@ impl<'a> Type<'a> {
                             def_id: inst_type.def_id,
                             type_args: substituted_typeargs,
                         }),
-                        repr: TypeRepr::Func(func_type.substitute(ctx, substituted_typeargs)),
+                        repr: TypeRepr::Func(func_type.substitute(ctx, type_args)),
                     })
                 }
                 TypeKind::Anonymous => ctx.define_type(Type {
@@ -377,6 +576,104 @@ impl<'a> Type<'a> {
         self.repr.is_unknown() || self.repr.is_arithmetic()
     }
 
+    pub(crate) fn is_equality_comparable(&self) -> bool {
+        self.repr.is_unknown() || self.repr.is_equality_comparable()
+    }
+
+    pub(crate) fn is_derefable(&self) -> bool {
+        let mut visited = HashSet::<*const Type<'a>>::default();
+        self.repr.is_unknown() || self.is_derefable_inner(&mut visited)
+    }
+
+    pub(crate) fn is_castable_to(&self, target: &Self) -> bool {
+        self.is_unknown()
+            || target.is_unknown()
+            || (self.is_integral() && target.is_integral())
+            || (self.is_float() && target.is_float())
+            || (self.is_integral() && target.is_float())
+            || (self.is_float() && target.is_integral())
+    }
+
+    fn is_derefable_inner(&self, visited: &mut HashSet<*const Type<'a>>) -> bool {
+        let ptr = self as *const Type<'a>;
+        if !visited.insert(ptr) {
+            return true;
+        }
+
+        let result = match &self.repr {
+            TypeRepr::Unknown => true,
+            TypeRepr::Struct(struct_type) => struct_type
+                .body
+                .get()
+                .map(|body| {
+                    body.fields
+                        .values()
+                        .all(|ty| ty.is_derefable_inner(visited))
+                })
+                .unwrap_or(false),
+            TypeRepr::Func(..)
+            | TypeRepr::Void
+            | TypeRepr::Bool
+            | TypeRepr::Int(..)
+            | TypeRepr::Float(..)
+            | TypeRepr::Ptr(..)
+            | TypeRepr::ArrayPtr(..) => true,
+            TypeRepr::Opaque
+            | TypeRepr::UntypedInt
+            | TypeRepr::UntypedFloat
+            | TypeRepr::TypeArg(..) => false,
+        };
+
+        visited.remove(&ptr);
+        result
+    }
+
+    pub(crate) fn contains_type_arg(&self) -> bool {
+        let mut visited = HashSet::<*const Type<'a>>::default();
+        self.contains_type_arg_inner(&mut visited)
+    }
+
+    fn contains_type_arg_inner(&self, visited: &mut HashSet<*const Type<'a>>) -> bool {
+        let ptr = self as *const Type<'a>;
+        if !visited.insert(ptr) {
+            return false;
+        }
+
+        let result = match &self.repr {
+            TypeRepr::Unknown
+            | TypeRepr::Void
+            | TypeRepr::Opaque
+            | TypeRepr::Bool
+            | TypeRepr::UntypedInt
+            | TypeRepr::Int(..)
+            | TypeRepr::UntypedFloat
+            | TypeRepr::Float(..) => false,
+            TypeRepr::Struct(struct_type) => struct_type
+                .body
+                .get()
+                .map(|body| {
+                    body.fields
+                        .values()
+                        .any(|ty| ty.contains_type_arg_inner(visited))
+                })
+                .unwrap_or(false),
+            TypeRepr::Func(func_type) => {
+                func_type
+                    .params
+                    .iter()
+                    .any(|ty| ty.contains_type_arg_inner(visited))
+                    || func_type.return_type.contains_type_arg_inner(visited)
+            }
+            TypeRepr::Ptr(element_ty) | TypeRepr::ArrayPtr(element_ty) => {
+                element_ty.contains_type_arg_inner(visited)
+            }
+            TypeRepr::TypeArg(..) => true,
+        };
+
+        visited.remove(&ptr);
+        result
+    }
+
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
         if self.is_unknown() || other.is_unknown() {
             return true;
@@ -430,7 +727,7 @@ impl<'a> Display for InstType<'a> {
         }
         for ty in self.type_args.iter().skip(1) {
             write!(f, ",")?;
-            Display::fmt(ty, f)?;
+            Display::fmt(&ty, f)?;
         }
         write!(f, ">")
     }
@@ -522,6 +819,25 @@ impl<'a> TypeRepr<'a> {
 
     pub(crate) fn is_arithmetic(&self) -> bool {
         matches!(self, Self::Int(..) | Self::Float(..))
+    }
+
+    pub(crate) fn is_equality_comparable(&self) -> bool {
+        match self {
+            Self::Unknown => true,
+            Self::Struct(struct_ty) => struct_ty
+                .body
+                .get()
+                .map(|body| body.fields.values().all(|ty| ty.is_equality_comparable()))
+                .unwrap_or(false),
+            Self::Func(..)
+            | Self::Void
+            | Self::Bool
+            | Self::Int(..)
+            | Self::Float(..)
+            | Self::Ptr(..)
+            | Self::ArrayPtr(..) => true,
+            Self::Opaque | Self::UntypedInt | Self::UntypedFloat | Self::TypeArg(..) => false,
+        }
     }
 
     pub(crate) fn is_integral(&self) -> bool {
@@ -645,7 +961,7 @@ impl<'a> Display for FuncType<'a> {
         }
         for ty in self.params.iter().skip(1) {
             write!(f, ",")?;
-            Display::fmt(ty, f)?;
+            Display::fmt(&ty, f)?;
         }
         write!(f, "):")?;
         Display::fmt(&self.return_type, f)
@@ -669,15 +985,42 @@ pub enum FloatType {
     F64,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct TypeArg<'a> {
     pub(crate) index: usize,
     pub(crate) name: Symbol<'a>,
+    pub(crate) constraints: &'a OnceCell<&'a [Constraint<'a>]>,
+}
+
+impl<'a> PartialEq for TypeArg<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+            && self.name == other.name
+            && std::ptr::eq(self.constraints, other.constraints)
+    }
+}
+
+impl<'a> Eq for TypeArg<'a> {}
+
+impl<'a> Hash for TypeArg<'a> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        self.name.hash(state);
+        (self.constraints as *const OnceCell<&[Constraint]>).hash(state);
+    }
 }
 
 impl<'a> TypeArg<'a> {
-    pub(crate) fn new(index: usize, name: Symbol<'a>) -> Self {
-        Self { index, name }
+    pub(crate) fn new(
+        index: usize,
+        name: Symbol<'a>,
+        constraints: &'a OnceCell<&'a [Constraint<'a>]>,
+    ) -> Self {
+        Self {
+            index,
+            name,
+            constraints,
+        }
     }
 
     pub(crate) fn substitute(&self, type_args: &'a TypeArgs<'a>) -> &'a Type<'a> {
@@ -864,13 +1207,16 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
 
 pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
+    scope: &Scopes<'a>,
     nodes: &[TypeParameterNode],
+    constraint_nodes: &[WhereConstraintNode],
 ) -> &'a [TypeArg<'a>] {
     let mut type_params = BumpVec::with_capacity_in(nodes.len(), ctx.arena);
     let mut param_pos = HashMap::<Symbol, Pos>::default();
     for (i, type_param) in nodes.iter().enumerate() {
         let name = ctx.define_symbol(type_param.name.value.as_str());
-        type_params.push(TypeArg::new(i, name));
+        let constraints = ctx.arena.alloc(OnceCell::default());
+        type_params.push(TypeArg::new(i, name, constraints));
         if let Some(declared_at) = param_pos.get(&name) {
             let declared_at = ctx.files.location(*declared_at);
             ctx.errors
@@ -879,7 +1225,111 @@ pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
             param_pos.insert(name, type_param.name.pos);
         }
     }
-    type_params.into_bump_slice()
+
+    let type_params = type_params.into_bump_slice();
+    let scope = get_typeparam_scope(ctx, scope, type_params);
+    init_typearg_constraints(ctx, &scope, type_params, constraint_nodes);
+    type_params
+}
+
+fn init_typearg_constraints<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    scope: &Scopes<'a>,
+    type_params: &[TypeArg<'a>],
+    nodes: &[WhereConstraintNode],
+) {
+    let mut constraints = vec![Vec::<Constraint>::default(); type_params.len()];
+
+    for node in nodes {
+        let target_name = ctx.define_symbol(&node.target.value);
+        let Some(target_idx) = type_params
+            .iter()
+            .position(|type_param| type_param.name == target_name)
+        else {
+            ctx.errors
+                .undeclared_symbol(node.target.pos, &node.target.value);
+            continue;
+        };
+
+        let name = node.name.value.as_str();
+        let arg_count = node.arguments.len();
+        let get_arg = |idx: usize| {
+            node.arguments
+                .get(idx)
+                .map(|arg| get_type_from_node(ctx, &scope, arg))
+                .unwrap_or_else(|| {
+                    ctx.define_type(Type {
+                        kind: TypeKind::Anonymous,
+                        repr: TypeRepr::Unknown,
+                    })
+                })
+        };
+
+        let constraint = match name {
+            "numeric" => {
+                check_constraint_arg_count(ctx, node.pos, name, 0, arg_count);
+                Constraint::Numeric { pos: node.pos }
+            }
+            "integer" => {
+                check_constraint_arg_count(ctx, node.pos, name, 0, arg_count);
+                Constraint::Integer { pos: node.pos }
+            }
+            "derefable" => {
+                check_constraint_arg_count(ctx, node.pos, name, 0, arg_count);
+                Constraint::Derefable { pos: node.pos }
+            }
+            "comparable" => {
+                check_constraint_arg_count(ctx, node.pos, name, 1, arg_count);
+                Constraint::Comparable {
+                    pos: node.pos,
+                    other: get_arg(0),
+                }
+            }
+            "ordered" => {
+                check_constraint_arg_count(ctx, node.pos, name, 1, arg_count);
+                Constraint::Ordered {
+                    pos: node.pos,
+                    other: get_arg(0),
+                }
+            }
+            "castable" => {
+                check_constraint_arg_count(ctx, node.pos, name, 1, arg_count);
+                Constraint::CastableTo {
+                    pos: node.pos,
+                    target: get_arg(0),
+                }
+            }
+            _ => {
+                ctx.errors
+                    .report(node.name.pos, format!("Unknown generic constraint @{name}"));
+                continue;
+            }
+        };
+        constraints[target_idx].push(constraint);
+    }
+
+    for (type_param, constraints) in type_params.iter().zip(constraints) {
+        let constraints = ctx.arena.alloc_slice_copy(&constraints);
+        type_param
+            .constraints
+            .set(constraints)
+            .expect("type arg constraints should only be initialized once");
+    }
+}
+
+fn check_constraint_arg_count<E: ErrorReporter>(
+    ctx: &Context<'_, '_, E>,
+    pos: Pos,
+    name: &str,
+    expected: usize,
+    found: usize,
+) {
+    if expected != found {
+        ctx.errors.report(
+            pos,
+            format!("Generic constraint @{name} expects {expected} type arguments, found {found}"),
+        );
+    }
 }
 
 pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(
