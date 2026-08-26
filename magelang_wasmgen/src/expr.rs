@@ -151,25 +151,37 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
     }
 
     fn build_get_element(&self, struct_expr: &Expr<'ctx>, field: usize) -> Vec<wasm::Instr> {
-        let mut result = self.build(struct_expr);
-        let types = build_val_type(struct_expr.ty);
-        let temps = self.locals.get_temporary_locals(types);
-        for id in temps.iter().rev() {
-            result.push(wasm::Instr::LocalSet(*id));
-        }
-
+        let val_types = build_val_type(struct_expr.ty);
         let layout = self.types.get_stack_layout(struct_expr.ty);
         let field_layout = layout.components[field];
-        for id in temps
-            .iter()
-            .skip(field_layout.offset as usize)
-            .take(field_layout.size as usize)
-            .copied()
-        {
-            result.push(wasm::Instr::LocalGet(id));
+        let offset = field_layout.offset as usize;
+        let size = field_layout.size as usize;
+        let trailing = val_types.len() - offset - size;
+
+        let mut result = self.build(struct_expr);
+
+        for _ in 0..trailing {
+            result.push(wasm::Instr::Drop);
         }
 
-        result
+        if offset == 0 {
+            return result;
+        }
+
+        // A block that leaves more than one value behind needs a registered type,
+        // the same way a function with more than one result does.
+        let field_types = &val_types[offset..offset + size];
+        let block_type = match field_types {
+            [] => wasm::BlockType::None,
+            [ty] => wasm::BlockType::ValTy((*ty).into()),
+            _ => wasm::BlockType::Ty(self.types.get_func_type(wasm::FuncType {
+                parameters: Vec::default(),
+                returns: field_types.iter().map(|ty| (*ty).into()).collect(),
+            })),
+        };
+
+        result.push(wasm::Instr::Br(0));
+        vec![wasm::Instr::Block(block_type, result)]
     }
 
     fn build_get_element_addr(&self, addr: &Expr<'ctx>, field: usize) -> Vec<wasm::Instr> {
