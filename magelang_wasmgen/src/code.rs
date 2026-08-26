@@ -252,22 +252,17 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         if let ExprKind::Deref(ptr) = &target.kind {
             self.build_mem_assign_stmt(ptr, expr)
         } else {
+            let Some(variable) = self.get_variable_loc(target) else {
+                unreachable!(
+                    "assignment target is not a storage location: {:?}",
+                    target.kind
+                );
+            };
+
             let types = build_val_type(expr.ty);
             let mut result = self.exprs.build(expr);
-
-            if let Some(variable) = self.get_variable_loc(target) {
-                for i in (0..types.len()).rev() {
-                    result.push(variable.get_set_instr(i));
-                }
-            } else {
-                // it's possible that the target is non-local. For example:
-                // let a: *SomeStruct = ...;
-                // a.*.b.c = ...
-                // in this case, this expression doesn't have to be assigned.
-                // only the value should be executed.
-                for _ in types {
-                    result.push(wasm::Instr::Drop);
-                }
+            for i in (0..types.len()).rev() {
+                result.push(variable.get_set_instr(i));
             }
 
             result

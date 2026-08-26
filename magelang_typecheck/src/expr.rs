@@ -1982,24 +1982,55 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
         };
     };
 
-    let assignable = value.assignable;
     if is_ptr {
-        Expr {
+        // Selecting a field of a pointer yields the address of the field, not
+        // the field itself. An address is not assignable
+        return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Ptr(field_type_id),
             }),
             kind: ExprKind::GetElementAddr(ctx.arena.alloc(value), idx),
             pos: node.value.pos(),
-            assignable,
-        }
-    } else {
-        Expr {
-            ty: field_type_id,
-            kind: ExprKind::GetElement(ctx.arena.alloc(value), idx),
+            assignable: false,
+        };
+    }
+
+    // The field of a dereferenced struct is assignable. For example, it is
+    // valid to do this:
+    //
+    //   struct P { a: i32, b: i32 }
+    //   ...
+    //   let p: *P;
+    //   p.*.b = 5;
+    //
+    // In this case, `p.*.b` is treated the same way as `p.b.*`.
+
+    if let ExprKind::Deref(ptr) = &value.kind {
+        let ptr = *ptr;
+        let field_addr = ctx.arena.alloc(Expr {
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Ptr(field_type_id),
+            }),
+            kind: ExprKind::GetElementAddr(ptr, idx),
             pos: node.value.pos(),
-            assignable,
-        }
+            assignable: false,
+        });
+        return Expr {
+            ty: field_type_id,
+            kind: ExprKind::Deref(field_addr),
+            pos: node.value.pos(),
+            assignable: true,
+        };
+    }
+
+    let assignable = value.assignable;
+    Expr {
+        ty: field_type_id,
+        kind: ExprKind::GetElement(ctx.arena.alloc(value), idx),
+        pos: node.value.pos(),
+        assignable,
     }
 }
 
