@@ -88,7 +88,7 @@ impl FileManager {
         }
     }
 
-    pub fn location(&self, pos: Pos) -> Location {
+    pub fn location(&self, pos: Pos) -> Location<'_> {
         let i = self.file_offset.partition_point(|x| *x <= pos.0) - 1;
 
         let file_offset = self.file_offset[i];

@@ -59,7 +59,7 @@ impl<'a, T> Scope<'a, T> {
         None
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &T)> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol<'_>, &T)> {
         self.internal.table.iter().map(|(sym, item)| (*sym, item))
     }
 

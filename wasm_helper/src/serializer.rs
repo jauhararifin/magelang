@@ -176,11 +176,11 @@ struct Section<'a, T> {
 }
 
 trait AsSection: Sized {
-    fn as_section(&self, id: u8) -> Option<Section<Self>>;
+    fn as_section(&self, id: u8) -> Option<Section<'_, Self>>;
 }
 
 impl<T> AsSection for Vec<T> {
-    fn as_section(&self, id: u8) -> Option<Section<Self>> {
+    fn as_section(&self, id: u8) -> Option<Section<'_, Self>> {
         if self.is_empty() {
             None
         } else {
@@ -965,7 +965,10 @@ impl Serializer for BlockType {
         match self {
             Self::None => writer.write_all(&[0x40]),
             Self::ValTy(val_type) => val_type.serialize(writer),
-            Self::Ty(type_id) => type_id.serialize(writer),
+            // The type index of a blocktype is encoded as a signed LEB128 (s33),
+            // not as an unsigned one. Encoding index 64 as unsigned would emit
+            // 0x40, which is the marker for the empty blocktype.
+            Self::Ty(type_id) => (*type_id as i64).serialize(writer),
         }
     }
 }
@@ -1362,4 +1365,14 @@ mod tests {
     test_serialize! {leb128_i64_32767, 32767i64, &[0xff, 0xff, 0x01]}
     test_serialize! {leb128_i64_2147483647, 2147483647i64, &[0xff, 0xff, 0xff, 0xff, 0x07]}
     test_serialize! {leb128_i64_9223372036854775807, 9223372036854775807i64, &[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00]}
+
+    // A blocktype's type index is an s33, so it must be encoded as a signed
+    // LEB128. Index 64 encoded as an unsigned LEB128 would be 0x40, which is
+    // the marker for the empty blocktype.
+    test_serialize! {blocktype_empty, BlockType::None, &[0x40]}
+    test_serialize! {blocktype_val_type, BlockType::ValTy(ValType::Num(NumType::I64)), &[0x7e]}
+    test_serialize! {blocktype_type_index_0, BlockType::Ty(0), &[0x00]}
+    test_serialize! {blocktype_type_index_63, BlockType::Ty(63), &[0x3f]}
+    test_serialize! {blocktype_type_index_64, BlockType::Ty(64), &[0xc0, 0x00]}
+    test_serialize! {blocktype_type_index_1000, BlockType::Ty(1000), &[0xe8, 0x07]}
 }
