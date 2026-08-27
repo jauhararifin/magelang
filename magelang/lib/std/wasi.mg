@@ -37,7 +37,7 @@ struct Subscription {
 }
 
 struct SubscriptionU {
-  tag: u8
+  tag: u8,
 
   _padding: i32,
 

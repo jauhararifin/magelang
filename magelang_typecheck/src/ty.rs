@@ -920,7 +920,7 @@ pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
         let mut stack = vec![*name];
         while let Some(name) = stack.pop() {
             if in_chain.contains(&name) {
-                in_chain.remove(&name);
+                in_chain.shift_remove(&name);
                 continue;
             }
 

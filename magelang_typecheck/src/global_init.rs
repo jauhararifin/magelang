@@ -82,7 +82,7 @@ fn collect_func_dependencies<'a, E>(
         visited_funcs,
         visiting_funcs,
     );
-    visiting_funcs.remove(&def_id);
+    visiting_funcs.shift_remove(&def_id);
     visited_funcs.insert(def_id);
 }
 
@@ -274,7 +274,7 @@ fn visit_global<'a, E: ErrorReporter>(
     in_chain.insert(name);
 
     let Some((_, dependencies)) = dep_list.get(&name) else {
-        in_chain.remove(&name);
+        in_chain.shift_remove(&name);
         return;
     };
 
@@ -298,7 +298,7 @@ fn visit_global<'a, E: ErrorReporter>(
         }
     }
 
-    in_chain.remove(&name);
+    in_chain.shift_remove(&name);
     init_order.push(name);
 }
 

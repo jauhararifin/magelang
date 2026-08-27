@@ -6,7 +6,8 @@ use magelang_wasmgen::generate;
 use std::io::Write;
 use wasm_helper::Serializer;
 use wasmtime::{Engine, Linker, Module, Store};
-use wasmtime_wasi::sync::WasiCtxBuilder;
+use wasmtime_wasi::WasiCtxBuilder;
+use wasmtime_wasi::p1::{self, WasiP1Ctx};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -225,13 +226,12 @@ fn run(package_name: String, debug: bool) {
     let engine = Engine::default();
 
     let module = Module::from_binary(&engine, &module).expect("cannot load wasm module");
-    let mut linker = Linker::new(&engine);
-    wasmtime_wasi::add_to_linker(&mut linker, |s| s).expect("cannot link wasi to the linker");
+    let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
+    p1::add_to_linker_sync(&mut linker, |s| s).expect("cannot link wasi to the linker");
     let wasi = WasiCtxBuilder::new()
         .inherit_stdio()
         .inherit_args()
-        .expect("cannot build wasi context")
-        .build();
+        .build_p1();
     let mut store = Store::new(&engine, wasi);
     linker.instantiate(&mut store, &module).unwrap();
 }

@@ -335,7 +335,7 @@ fn visit_import<'a, E: ErrorReporter>(
     in_chain.insert(package_name);
 
     let Some(imports) = graph.get(package_name) else {
-        in_chain.remove(package_name);
+        in_chain.shift_remove(package_name);
         return;
     };
 
@@ -354,7 +354,7 @@ fn visit_import<'a, E: ErrorReporter>(
         }
     }
 
-    in_chain.remove(package_name);
+    in_chain.shift_remove(package_name);
 }
 
 fn report_circular_import<E: ErrorReporter>(

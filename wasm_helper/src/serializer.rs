@@ -203,7 +203,7 @@ where
     where
         W: std::io::Write + ?Sized,
     {
-        if let Some(ref val) = &self {
+        if let Some(val) = &self {
             val.serialize(writer)
         } else {
             Ok(())

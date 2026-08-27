@@ -1,6 +1,6 @@
 use crate::analyze::{Context, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::ty::{get_type_from_node, BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr};
+use crate::ty::{BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
@@ -180,23 +180,6 @@ impl<'a> Expr<'a> {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub struct FloatConst(f64);
-
-impl Hash for FloatConst {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (self.0 as i64).hash(state)
-    }
-}
-
-impl PartialEq for FloatConst {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for FloatConst {}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Float<T> {
@@ -1824,7 +1807,7 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
                 kind: ExprKind::ConstIsize(val.to_u64()),
                 pos: node.value.pos(),
                 assignable: false,
-            }
+            };
         }
         (ExprKind::ConstFloat(val), TypeRepr::Int(..) | TypeRepr::Float(..)) => {
             return cast_untyped_float(val.value, node.value.pos(), target_type);
