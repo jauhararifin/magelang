@@ -685,7 +685,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
 
     fn normalize_bit_representation(ty: &Type, result: &mut Vec<wasm::Instr>) {
         let TypeRepr::Int(sign, bitsize) = ty.repr else {
-            unreachable!("cannot perform shl on {ty:?}");
+            unreachable!("cannot normalize non integer bit");
         };
         match (sign, bitsize) {
             (true, BitSize::I8) => {
@@ -1002,6 +1002,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             }
         };
         result.extend(instrs);
+        Self::normalize_bit_representation(ty, &mut result);
         result
     }
 
@@ -1020,19 +1021,46 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         let instrs = match source_type.repr {
             TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => match target_type.repr {
                 TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64ExtendI32U],
-                TypeRepr::Int(..) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => vec![],
+                TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32Extend8S],
+                TypeRepr::Int(false, BitSize::I8) => {
+                    vec![wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+                }
+                TypeRepr::Int(true, BitSize::I16) => vec![wasm::Instr::I32Extend16S],
+                TypeRepr::Int(false, BitSize::I16) => {
+                    vec![wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+                }
+                TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
+                | TypeRepr::Ptr(..)
+                | TypeRepr::ArrayPtr(..) => vec![],
                 _ => unreachable!(),
             },
             TypeRepr::Int(source_sign, source_size) => {
                 match (source_sign, source_size, &target_type.repr) {
-                    // i64, u64 -> i8, i16, i32, isize, u8, u16, u32, usize, *T, [*]T
+                    // i64, u64 -> i8
+                    (_, BitSize::I64, TypeRepr::Int(true, BitSize::I8)) => {
+                        vec![wasm::Instr::I32WrapI64, wasm::Instr::I32Extend8S]
+                    }
+                    // i64, u64 -> u8
+                    (_, BitSize::I64, TypeRepr::Int(false, BitSize::I8)) => vec![
+                        wasm::Instr::I32WrapI64,
+                        wasm::Instr::I32Const(0xff),
+                        wasm::Instr::I32And,
+                    ],
+                    // i64, u64 -> i16
+                    (_, BitSize::I64, TypeRepr::Int(true, BitSize::I16)) => {
+                        vec![wasm::Instr::I32WrapI64, wasm::Instr::I32Extend16S]
+                    }
+                    // i64, u64 -> u16
+                    (_, BitSize::I64, TypeRepr::Int(false, BitSize::I16)) => vec![
+                        wasm::Instr::I32WrapI64,
+                        wasm::Instr::I32Const(0xffff),
+                        wasm::Instr::I32And,
+                    ],
+                    // i64, u64 -> i32, isize, u32, usize, *T, [*]T
                     (
                         _,
                         BitSize::I64,
-                        TypeRepr::Int(
-                            _,
-                            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                        )
+                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
                         | TypeRepr::Ptr(..)
                         | TypeRepr::ArrayPtr(..),
                     ) => vec![wasm::Instr::I32WrapI64],
@@ -1051,31 +1079,31 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                         TypeRepr::Int(_, BitSize::I64),
                     ) => vec![wasm::Instr::I64ExtendI32U],
 
-                    // u8 -> i8, i16, i32, isize
-                    (
-                        false,
-                        BitSize::I8,
-                        TypeRepr::Int(
-                            true,
-                            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                        ),
-                    ) => vec![wasm::Instr::I32Extend8S],
-
-                    // u16 -> i16, i32, isize
-                    (
-                        false,
-                        BitSize::I16,
-                        TypeRepr::Int(true, BitSize::I16 | BitSize::I32 | BitSize::ISize),
-                    ) => vec![wasm::Instr::I32Extend16S],
-                    // i16 -> u16
-                    (true, BitSize::I16, TypeRepr::Int(false, BitSize::I16)) => {
-                        vec![wasm::Instr::I32Const(0x0000ffff), wasm::Instr::I32And]
+                    // i8, i16, i32, isize, u8, u16, u32, usize, *T, [*]T -> i8
+                    (_, _, TypeRepr::Int(true, BitSize::I8)) => {
+                        vec![wasm::Instr::I32Extend8S]
                     }
-
-                    // integer -> integer
-                    (_, _, TypeRepr::Int(..) | TypeRepr::ArrayPtr(..) | TypeRepr::Ptr(..)) => {
-                        vec![]
+                    // i8, i16, i32, isize, u8, u16, u32, usize, *T, [*]T -> u8
+                    (_, _, TypeRepr::Int(false, BitSize::I8)) => {
+                        vec![wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
                     }
+                    // i8, i16, i32, isize, u8, u16, u32, usize, *T, [*]T -> i16
+                    (_, _, TypeRepr::Int(true, BitSize::I16)) => {
+                        vec![wasm::Instr::I32Extend16S]
+                    }
+                    // i8, i16, i32, isize, u8, u16, u32, usize, *T, [*]T -> u16
+                    (_, _, TypeRepr::Int(false, BitSize::I16)) => {
+                        vec![wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+                    }
+                    // i8, i16, i32, isize, u8, u16, u32, usize, *T, [*]T ->
+                    // i32, isize, u32, usize, *T, [*]T
+                    (
+                        _,
+                        _,
+                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
+                        | TypeRepr::ArrayPtr(..)
+                        | TypeRepr::Ptr(..),
+                    ) => vec![],
 
                     // i64 -> f32
                     (true, BitSize::I64, TypeRepr::Float(FloatType::F32)) => {
@@ -1127,43 +1155,76 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                     }
                 }
                 TypeRepr::Int(sign, size) => match (source_float_type, sign, size) {
-                    (
-                        FloatType::F32,
-                        true,
-                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                    ) => {
+                    // f32 -> i8
+                    (FloatType::F32, true, BitSize::I8) => {
+                        vec![wasm::Instr::I32TruncF32S, wasm::Instr::I32Extend8S]
+                    }
+                    // f32 -> u8
+                    (FloatType::F32, false, BitSize::I8) => vec![
+                        wasm::Instr::I32TruncF32U,
+                        wasm::Instr::I32Const(0xff),
+                        wasm::Instr::I32And,
+                    ],
+                    // f32 -> i16
+                    (FloatType::F32, true, BitSize::I16) => {
+                        vec![wasm::Instr::I32TruncF32S, wasm::Instr::I32Extend16S]
+                    }
+                    // f32 -> u16
+                    (FloatType::F32, false, BitSize::I16) => vec![
+                        wasm::Instr::I32TruncF32U,
+                        wasm::Instr::I32Const(0xffff),
+                        wasm::Instr::I32And,
+                    ],
+                    // f32 -> i32, isize
+                    (FloatType::F32, true, BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32TruncF32S]
                     }
+                    // f32 -> u32, usize
+                    (FloatType::F32, false, BitSize::I32 | BitSize::ISize) => {
+                        vec![wasm::Instr::I32TruncF32U]
+                    }
+                    // f32 -> i64
                     (FloatType::F32, true, BitSize::I64) => {
                         vec![wasm::Instr::I64TruncF32S]
                     }
-                    (
-                        FloatType::F32,
-                        false,
-                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                    ) => {
-                        vec![wasm::Instr::I32TruncF32U]
-                    }
+                    // f32 -> u64
                     (FloatType::F32, false, BitSize::I64) => {
                         vec![wasm::Instr::I64TruncF32U]
                     }
-                    (
-                        FloatType::F64,
-                        true,
-                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                    ) => {
+
+                    // f64 -> i8
+                    (FloatType::F64, true, BitSize::I8) => {
+                        vec![wasm::Instr::I32TruncF64S, wasm::Instr::I32Extend8S]
+                    }
+                    // f64 -> u8
+                    (FloatType::F64, false, BitSize::I8) => vec![
+                        wasm::Instr::I32TruncF64U,
+                        wasm::Instr::I32Const(0xff),
+                        wasm::Instr::I32And,
+                    ],
+                    // f64 -> i16
+                    (FloatType::F64, true, BitSize::I16) => {
+                        vec![wasm::Instr::I32TruncF64S, wasm::Instr::I32Extend16S]
+                    }
+                    // f64 -> u16
+                    (FloatType::F64, false, BitSize::I16) => vec![
+                        wasm::Instr::I32TruncF64U,
+                        wasm::Instr::I32Const(0xffff),
+                        wasm::Instr::I32And,
+                    ],
+                    // f64 -> i32, isize
+                    (FloatType::F64, true, BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32TruncF64S]
                     }
+                    // f64 -> u32, usize
+                    (FloatType::F64, false, BitSize::I32 | BitSize::ISize) => {
+                        vec![wasm::Instr::I32TruncF64U]
+                    }
+                    // f64 -> i64
                     (FloatType::F64, true, BitSize::I64) => {
                         vec![wasm::Instr::I64TruncF64S]
                     }
-                    (
-                        FloatType::F64,
-                        false,
-                        BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize,
-                    ) => {
-                        vec![wasm::Instr::I32TruncF64U]
-                    }
+                    // f64 -> u64
                     (FloatType::F64, false, BitSize::I64) => {
                         vec![wasm::Instr::I64TruncF64U]
                     }
