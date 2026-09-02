@@ -1,0 +1,2 @@
+tests/fixtures/nominal_structs_fail/main.mg:18:10: Mismatch type, expected tests/fixtures/nominal_structs_fail/main::A but found tests/fixtures/nominal_structs_fail/main::B
+tests/fixtures/nominal_structs_fail/main.mg:19:14: Mismatch type, expected tests/fixtures/nominal_structs_fail/main::A but found tests/fixtures/nominal_structs_fail/main::B

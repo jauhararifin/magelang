@@ -1,0 +1,4 @@
+tests/fixtures/infinite_type_fail/main.mg:5:1: Invalid recursive type:
+	tests/fixtures/infinite_type_fail/main::B refers to
+	tests/fixtures/infinite_type_fail/main::A::<tests/fixtures/infinite_type_fail/main::B> refers to
+	tests/fixtures/infinite_type_fail/main::B

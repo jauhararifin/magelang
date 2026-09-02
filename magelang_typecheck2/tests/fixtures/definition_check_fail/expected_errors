@@ -1,0 +1,6 @@
+tests/fixtures/definition_check_fail/main.mg:7:10: Cannot perform add binary operation on T
+tests/fixtures/definition_check_fail/main.mg:16:10: Expected 1 type arguments, but no type arguments found
+tests/fixtures/definition_check_fail/main.mg:17:10: Expected 1 type arguments, but found 2
+tests/fixtures/definition_check_fail/main.mg:18:11: The expression is not a generic
+tests/fixtures/definition_check_fail/main.mg:19:16: Expected 2 type arguments, but found 1
+tests/fixtures/definition_check_fail/main.mg:35:6: The opaque type might not be null, non-null opaque can't be compared

@@ -1,0 +1,10 @@
+std/mem::alloc<tests/fixtures/linked_list/main::Bar::<i32>>
+std/mem::alloc<tests/fixtures/linked_list/main::Node::<i64>>
+std/wasm::size_of<std/mem::Header>
+std/wasm::size_of<tests/fixtures/linked_list/main::Bar::<i32>>
+std/wasm::size_of<tests/fixtures/linked_list/main::Node::<i64>>
+std/wasm::size_of<tests/fixtures/linked_list/main::Outer::<i64>>
+tests/fixtures/linked_list/main::assert_equal<i32>
+tests/fixtures/linked_list/main::assert_equal<i64>
+tests/fixtures/linked_list/main::assert_equal<usize>
+tests/fixtures/linked_list/main::push<i64>

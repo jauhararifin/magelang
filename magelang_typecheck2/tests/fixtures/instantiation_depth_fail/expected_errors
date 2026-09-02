@@ -1,0 +1,1 @@
+tests/fixtures/instantiation_depth_fail/main.mg:6:3: The type instantiation is too deep (the limit is 64 nested type arguments)
