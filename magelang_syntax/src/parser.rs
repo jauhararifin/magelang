@@ -188,7 +188,6 @@ fn parse_global<E: ErrorReporter>(
         TypeExprNode::Invalid(pos)
     };
 
-    f.skip_until_before(&[TokenKind::SemiColon, TokenKind::Equal]);
     let value = if f.take_if(&TokenKind::Equal).is_some() {
         parse_expr(f, true)
     } else {
@@ -321,7 +320,10 @@ fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<
         None
     };
 
-    let ty = parse_type_expr(f)?;
+    let Some(ty) = parse_type_expr(f) else {
+        f.errors.missing(f.token().pos, "type expression");
+        return None;
+    };
     let pos = name.as_ref().map(|t| t.pos).unwrap_or_else(|| ty.pos());
     Some(FuncTypeParam { pos, name, ty })
 }
@@ -399,7 +401,10 @@ fn parse_struct<E: ErrorReporter>(
         |parser| {
             let name = parser.take_ident()?;
             parser.take(TokenKind::Colon);
-            let ty = parse_type_expr(parser)?;
+            let Some(ty) = parse_type_expr(parser) else {
+                parser.errors.missing(parser.token().pos, "type expression");
+                return None;
+            };
             Some(StructFieldNode { name, ty })
         },
     );
@@ -515,7 +520,10 @@ fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterN
     let name = f.take_if_ident()?;
     let pos = name.pos;
     f.take(TokenKind::Colon)?;
-    let ty = parse_type_expr(f)?;
+    let Some(ty) = parse_type_expr(f) else {
+        f.errors.missing(f.token().pos, "type expression");
+        return None;
+    };
     Some(ParameterNode { pos, name, ty })
 }
 
@@ -554,7 +562,10 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
     let name: Identifier = f.take_ident()?;
 
     if f.take_if(&TokenKind::Colon).is_some() {
-        let ty = parse_type_expr(f)?;
+        let Some(ty) = parse_type_expr(f) else {
+            f.errors.missing(f.token().pos, "type expression");
+            return None;
+        };
         if f.take_if(&TokenKind::Equal).is_some() {
             let value = parse_expr(f, true)?;
             f.take(TokenKind::SemiColon)?;
@@ -604,16 +615,18 @@ fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementN
         return None;
     };
 
-    let else_node = f.take_if(&TokenKind::Else).and_then(|_| {
-        let stmt = if f.kind() == &TokenKind::If {
-            let else_if = parse_if_stmt(f)?;
-            StatementNode::If(else_if)
+    let else_node = if f.take_if(&TokenKind::Else).is_some() {
+        if f.kind() == &TokenKind::If {
+            Some(Box::new(StatementNode::If(parse_if_stmt(f)?)))
+        } else if f.kind() == &TokenKind::OpenBlock {
+            Some(Box::new(StatementNode::Block(parse_block_stmt(f)?)))
         } else {
-            let else_body = parse_block_stmt(f)?;
-            StatementNode::Block(else_body)
-        };
-        Some(Box::new(stmt))
-    });
+            f.unexpected(TokenKind::OpenBlock);
+            return None;
+        }
+    } else {
+        None
+    };
 
     Some(IfStatementNode {
         pos,
@@ -653,6 +666,10 @@ fn parse_block_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<BlockStat
         if tok.kind == TokenKind::Eof || tok.kind == TokenKind::CloseBlock {
             break;
         }
+        if tok.kind == TokenKind::SemiColon {
+            f.tokens.pop_front();
+            continue;
+        }
 
         if let Some(stmt) = parse_stmt(f) {
             statements.push(stmt);
@@ -672,11 +689,7 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
         return Some(ReturnStatementNode { pos, value: None });
     }
 
-    let Some(value) = parse_expr(f, true) else {
-        f.errors
-            .unexpected_parsing(pos, "type expression", "nothing");
-        return None;
-    };
+    let value = parse_expr(f, true)?;
 
     f.take(TokenKind::SemiColon)?;
     Some(ReturnStatementNode {
@@ -724,11 +737,7 @@ fn parse_binary_expr<E: ErrorReporter>(
             parse_cast_expr(f, allow_struct_lit)
         };
 
-        let Some(b) = b else {
-            f.errors
-                .missing(f.token().pos, "second operand".to_string());
-            return None;
-        };
+        let b = b?;
 
         result = ExprNode::Binary(BinaryExprNode {
             a: Box::new(result),
@@ -933,10 +942,8 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
             let _ = f.take(TokenKind::CloseBrac)?;
             Some(ExprNode::Grouped(Box::new(expr)))
         }
-        TokenKind::SemiColon => None,
         _ => {
-            let tok = f.token();
-            f.errors.unexpected_token(tok.pos, tok.kind);
+            f.unexpected("expression");
             None
         }
     }
@@ -1216,13 +1223,46 @@ trait ParsingError: ErrorReporter {
         self.report(pos, format!("Missing {component}"));
     }
 
-    fn unexpected_token(&self, pos: Pos, kind: TokenKind) {
-        self.report(pos, format!("Unexpected token {kind}"));
-    }
-
     fn dangling_annotations(&self, pos: Pos) {
         self.report(pos, String::from("There is no object to annotate"));
     }
 }
 
 impl<T> ParsingError for T where T: ErrorReporter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::ErrorManager;
+    use crate::token::FileManager;
+    use std::path::PathBuf;
+
+    // Proves the structural half of the missing-comma fix: it isn't enough
+    // for parse_sequence to report an error, it has to keep parsing the rest
+    // of the list afterward. This checks the actual AST that comes out, not
+    // just the diagnostic -- if a future change went back to `break`ing out
+    // of the list on a missing delimiter, the message-only checks in
+    // parse_error.mg could still pass while silently dropping every field
+    // after the first missing comma.
+    #[test]
+    fn missing_comma_between_struct_fields_is_recovered() {
+        let path = PathBuf::from("dummy.mg");
+        let mut files = FileManager::default();
+        let file = files.add_file(path, "struct S { a: i32 b: i64 }".to_string());
+        let mut error_manager = ErrorManager::default();
+
+        let package = parse(&error_manager, &file);
+
+        let errors = error_manager.take();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "Expected ',', but found 'b'");
+
+        assert_eq!(package.items.len(), 1);
+        let ItemNode::Struct(s) = &package.items[0] else {
+            panic!("expected a struct item, got {:?}", package.items[0]);
+        };
+        assert_eq!(s.fields.len(), 2);
+        assert_eq!(s.fields[0].name.value, "a");
+        assert_eq!(s.fields[1].name.value, "b");
+    }
+}

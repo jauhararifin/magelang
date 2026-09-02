@@ -51,18 +51,22 @@ let _: *package:: = 10;
 let _: *package::sometype = 10;
 //syntax_error line=+1 col=26: Missing closing '>'
 let _: *package::sometype< = 10;
-//syntax_error line=+1 col=26: Missing closing '>'
+//syntax_error line=+2 col=26: Missing closing '>'
+//syntax_error line=+1 col=31: Expected ',', but found '='
 let _: *package::sometype<i32 = 10;
 let _: *package::sometype<i32> = 10;
-//syntax_error line=+1 col=9: Expected '*', but found 'package'
+//syntax_error line=+2 col=9: Expected '*', but found 'package'
+//syntax_error line=+1 col=9: Expected ';', but found 'package'
 let _: [package = 10;
-//syntax_error line=+1 col=10: Expected ']', but found 'package'
+//syntax_error line=+2 col=10: Expected ']', but found 'package'
+//syntax_error line=+1 col=10: Expected ';', but found 'package'
 let _: [*package = 10;
 let _: [*]package = 10;
 //syntax_error line=+1 col=10: Missing pointee type
 let _: [*] = 10;
 let _: i32;
-//syntax_error line=+1 col=8: Missing type expression
+//syntax_error line=+2 col=8: Missing type expression
+//syntax_error line=+1 col=8: Expected ';', but found NUMBER_LIT
 let _: 123 = 10;
 //syntax_error line=+1 col=7: Missing type expression
 let _:;
@@ -95,7 +99,7 @@ let a: i32 = pkg::some_func::<i32>(a, b)[1].*;
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
 let a: i32 = a < b;
-//syntax_error line=+1 col=17: Missing second operand
+//syntax_error line=+1 col=17: Expected expression, but found ';'
 let a: i32 = a +;
 
 // =====================================================
@@ -146,6 +150,80 @@ fn f(): i32 {
     //syntax_error line=+1 col=5: Missing while body
     while (true)
         print(a);
+}
+
+// =====================================================
+// Parser diagnostics that used to be silently accepted
+// =====================================================
+
+fn case_let_value_missing() {
+    //syntax_error line=+1 col=13: Expected expression, but found ';'
+    let a = ;
+}
+
+fn case_let_typed_value_missing() {
+    //syntax_error line=+1 col=18: Expected expression, but found ';'
+    let b: i32 = ;
+}
+
+fn case_let_type_junk() {
+    //syntax_error line=+1 col=12: Missing type expression
+    let c: 5;
+}
+
+fn case_let_type_keyword() {
+    //syntax_error line=+1 col=12: Missing type expression
+    let d: while;
+}
+
+fn case_assign_value_missing() {
+    //syntax_error line=+1 col=9: Expected expression, but found ';'
+    e = ;
+}
+
+fn case_unary_missing_operand() {
+    //syntax_error line=+1 col=14: Expected expression, but found ';'
+    let f = -;
+}
+
+fn case_else_without_block() {
+    //syntax_error line=+1 col=21: Expected '{', but found 'foo'
+    if true {} else foo();
+}
+
+fn case_empty_statement_is_not_an_error() {
+    ;;
+}
+
+struct CaseMissingCommaField { a: i32, b: i32 }
+struct CaseMissingCommaFieldBug {
+    //syntax_error line=+1 col=12: Expected ',', but found 'b'
+    a: i32 b: i32
+}
+
+//syntax_error line=+1 col=36: Expected ',', but found 'b'
+fn case_missing_comma_param(a: i32 b: i32) {}
+
+fn case_missing_comma_call() {
+    //syntax_error line=+1 col=9: Expected ',', but found NUMBER_LIT
+    f(1 2);
+}
+
+fn case_missing_comma_struct_lit() {
+    //syntax_error line=+1 col=40: Expected ',', but found 'b'
+    let s = CaseMissingCommaField{a: 1 b: 2};
+}
+
+fn case_missing_comma_trailing_still_ok() {
+    let s = CaseMissingCommaField{a: 1, b: 2,};
+}
+
+//syntax_error line=+1 col=22: Expected ';', but found 'foo'
+let global_junk: i32 foo = 10;
+
+fn case_return_missing_value(): i32 {
+    //syntax_error line=+1 col=12: Expected expression, but found ')'
+    return ) ;
 }
 
 // =====================================================
