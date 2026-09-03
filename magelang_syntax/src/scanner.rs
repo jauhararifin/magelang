@@ -66,6 +66,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "while" => TokenKind::While,
+            "for" => TokenKind::For,
             "fn" => TokenKind::Fn,
             "return" => TokenKind::Return,
             "import" => TokenKind::Import,

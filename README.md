@@ -457,7 +457,7 @@ while i < 100 {
 fmt::print_i32(i);
 ```
 
-Use while statement to perform a loop. Magelang doesn't support for statement yet.
+Use while statement to perform a loop. You can use `break` and `continue` just like other programming languages.
 
 ```
 let i = 0;
@@ -473,7 +473,16 @@ while i < 100 {
 }
 ```
 
-You can use `break` and `continue` just like other programming languages.
+You can also use for-loop.
+
+```
+let sum = 0;
+for let i = 0; i < 100; i = i + 1 {
+    sum = sum + i;
+}
+
+fmt::print_i32(sum);
+```
 
 ## Expressions
 

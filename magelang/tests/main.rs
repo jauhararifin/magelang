@@ -26,11 +26,14 @@ test_success!(test_004);
 test_success!(test_005);
 test_success!(test_006);
 test_success!(test_007);
+test_success!(test_008);
+test_success!(test_009);
 test_success!(test_001_fail);
 test_success!(test_002_fail);
 test_success!(test_003_fail);
 test_success!(test_004_fail);
 test_success!(test_005_fail);
+test_success!(test_006_fail);
 
 fn test_package(name: &str) {
     unsafe {

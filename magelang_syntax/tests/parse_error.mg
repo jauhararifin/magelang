@@ -140,12 +140,36 @@ fn f(): i32 {
             break;
         }
     }
+    for let i = 0; i < 10; i = i + 1 {
+        if i == 3 {
+            continue;
+        }
+        if i == 5 {
+            break;
+        }
+    }
+    for ; a < 10; a = a + 1 {}
+    for a = 0;; a = a + 1 { break; }
+    for a = 0; a < 10; { a = a + 1; }
+    for ;; { break; }
+    for print(a); a < 10; print(a) {}
     //syntax_error line=+1 col=5: Missing if body
     if (true)
         print(a);
     //syntax_error line=+1 col=5: Missing while body
     while (true)
         print(a);
+    //syntax_error line=+1 col=5: Missing for body
+    for ;;
+        print(a);
+    //syntax_error line=+1 col=23: Expected ';', but found '{'
+    for a = 0; a < 10 { }
+    let dummy = 0;
+    //syntax_error line=+1 col=9: Expected for initialization statement, but found '{'
+    for { }
+    let dummy = 0;
+    //syntax_error line=+1 col=9: Expected for initialization statement, but found 'break'
+    for break;; {}
 }
 
 // =====================================================

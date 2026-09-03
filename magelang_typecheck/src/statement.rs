@@ -1,13 +1,13 @@
 use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprKind};
+use crate::expr::{Expr, ExprKind, get_expr_from_node};
 use crate::interner::Interner;
-use crate::ty::{get_type_from_node, Type, TypeArgs, TypeKind, TypeRepr};
+use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    AssignStatementNode, BlockStatementNode, ErrorReporter, IfStatementNode, LetKind,
-    LetStatementNode, Pos, ReturnStatementNode, StatementNode, WhileStatementNode,
+    AssignStatementNode, BlockStatementNode, ErrorReporter, ForStatementNode, IfStatementNode,
+    LetKind, LetStatementNode, Pos, ReturnStatementNode, StatementNode, WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -19,6 +19,7 @@ pub enum Statement<'a> {
     Block(&'a [Statement<'a>]),
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
+    For(ForStatement<'a>),
     Return(Option<Expr<'a>>),
     Expr(Expr<'a>),
     Assign(Expr<'a>, Expr<'a>),
@@ -69,6 +70,29 @@ impl<'a> Statement<'a> {
                     body: Box::new(body),
                 })
             }
+            Statement::For(for_stmt) => {
+                let init = for_stmt
+                    .init
+                    .as_ref()
+                    .map(|stmt| stmt.monomorphize(ctx, type_args))
+                    .map(Box::new);
+                let cond = for_stmt
+                    .cond
+                    .as_ref()
+                    .map(|cond| cond.monomorphize(ctx, type_args));
+                let update = for_stmt
+                    .update
+                    .as_ref()
+                    .map(|stmt| stmt.monomorphize(ctx, type_args))
+                    .map(Box::new);
+                let body = for_stmt.body.monomorphize(ctx, type_args);
+                Statement::For(ForStatement {
+                    init,
+                    cond,
+                    update,
+                    body: Box::new(body),
+                })
+            }
             Statement::Return(value) => {
                 let value = value
                     .as_ref()
@@ -98,6 +122,14 @@ pub struct IfStatement<'a> {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct WhileStatement<'a> {
     pub cond: Expr<'a>,
+    pub body: Box<Statement<'a>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct ForStatement<'a> {
+    pub init: Option<Box<Statement<'a>>>,
+    pub cond: Option<Expr<'a>>,
+    pub update: Option<Box<Statement<'a>>>,
     pub body: Box<Statement<'a>>,
 }
 
@@ -143,6 +175,7 @@ pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
         StatementNode::Block(node) => get_statement_from_block(ctx, node),
         StatementNode::If(node) => get_statement_from_if(ctx, node),
         StatementNode::While(node) => get_statement_from_while(ctx, node),
+        StatementNode::For(node) => get_statement_from_for(ctx, node),
         StatementNode::Continue(pos) => get_statement_from_continue(ctx, *pos),
         StatementNode::Break(pos) => get_statement_from_break(ctx, *pos),
         StatementNode::Return(node) => get_statement_from_return(ctx, node),
@@ -371,6 +404,90 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
         new_scope: None,
         is_returning: false,
         last_unused_local: body_stmt.last_unused_local,
+    }
+}
+
+pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, '_, E>,
+    node: &ForStatementNode,
+) -> StatementResult<'a> {
+    let mut scope = ctx.scope.clone();
+    let mut last_unused_local = ctx.last_unused_local;
+
+    let init = if let Some(ref init_node) = node.init {
+        let result = get_statement_from_node(
+            &StatementContext {
+                ctx: ctx.ctx,
+                scope: &scope,
+                last_unused_local,
+                return_type: ctx.return_type,
+                is_inside_loop: ctx.is_inside_loop,
+            },
+            init_node,
+        );
+        last_unused_local = result.last_unused_local;
+        if let Some(new_scope) = result.new_scope {
+            scope = new_scope;
+        }
+        Some(Box::new(result.statement))
+    } else {
+        None
+    };
+
+    // a for statement without condition loops forever.
+    let cond = node.condition.as_ref().map(|cond_node| {
+        let bool_type = ctx.ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Bool,
+        });
+        let cond = get_expr_from_node(ctx.ctx, &scope, Some(bool_type), cond_node);
+        if !cond.ty.is_bool() {
+            ctx.ctx
+                .errors
+                .type_mismatch(cond_node.pos(), TypeRepr::Bool, cond.ty);
+        }
+        cond
+    });
+
+    let body_stmt = get_statement_from_block(
+        &StatementContext {
+            ctx: ctx.ctx,
+            scope: &scope,
+            last_unused_local,
+            return_type: ctx.return_type,
+            is_inside_loop: true,
+        },
+        &node.body,
+    );
+    last_unused_local = body_stmt.last_unused_local;
+
+    let update = if let Some(ref update_node) = node.update {
+        let result = get_statement_from_node(
+            &StatementContext {
+                ctx: ctx.ctx,
+                scope: &scope,
+                last_unused_local,
+                return_type: ctx.return_type,
+                is_inside_loop: true,
+            },
+            update_node,
+        );
+        last_unused_local = result.last_unused_local;
+        Some(Box::new(result.statement))
+    } else {
+        None
+    };
+
+    StatementResult {
+        statement: Statement::For(ForStatement {
+            init,
+            cond,
+            update,
+            body: Box::new(body_stmt.statement),
+        }),
+        new_scope: None,
+        is_returning: false,
+        last_unused_local,
     }
 }
 

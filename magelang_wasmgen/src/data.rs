@@ -201,6 +201,18 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
                 self.init_from_expr(&while_stmt.cond);
                 self.init_from_stmt(&while_stmt.body);
             }
+            Statement::For(for_stmt) => {
+                if let Some(ref init) = for_stmt.init {
+                    self.init_from_stmt(init);
+                }
+                if let Some(ref cond) = for_stmt.cond {
+                    self.init_from_expr(cond);
+                }
+                if let Some(ref update) = for_stmt.update {
+                    self.init_from_stmt(update);
+                }
+                self.init_from_stmt(&for_stmt.body);
+            }
             Statement::Return(Some(val)) => {
                 self.init_from_expr(val);
             }

@@ -524,6 +524,7 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
         TokenKind::Let => StatementNode::Let(parse_let_stmt(f)?),
         TokenKind::If => StatementNode::If(parse_if_stmt(f)?),
         TokenKind::While => StatementNode::While(parse_while_stmt(f)?),
+        TokenKind::For => StatementNode::For(parse_for_stmt(f)?),
         TokenKind::OpenBlock => StatementNode::Block(parse_block_stmt(f)?),
         TokenKind::Continue => StatementNode::Continue(f.take(TokenKind::Continue).unwrap().pos),
         TokenKind::Break => StatementNode::Break(f.take(TokenKind::Break).unwrap().pos),
@@ -640,6 +641,71 @@ fn parse_while_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhileStat
     Some(WhileStatementNode {
         pos,
         condition,
+        body,
+    })
+}
+
+fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatementNode> {
+    let for_tok = f.take(TokenKind::For)?;
+    let pos = for_tok.pos;
+
+    let init = if f.take_if(&TokenKind::SemiColon).is_some() {
+        None
+    } else if matches!(
+        f.kind(),
+        TokenKind::OpenBlock
+            | TokenKind::If
+            | TokenKind::While
+            | TokenKind::For
+            | TokenKind::Continue
+            | TokenKind::Break
+            | TokenKind::Return
+    ) {
+        f.unexpected("for initialization statement");
+        return None;
+    } else {
+        Some(Box::new(parse_stmt(f)?))
+    };
+
+    let condition = if f.kind() == &TokenKind::SemiColon {
+        None
+    } else {
+        let Some(condition) = parse_expr(f, false) else {
+            f.errors.missing(pos, "for condition");
+            return None;
+        };
+        Some(condition)
+    };
+    f.take(TokenKind::SemiColon)?;
+
+    let update = if f.kind() == &TokenKind::OpenBlock {
+        None
+    } else {
+        let expr = parse_expr(f, false)?;
+        let update_pos = expr.pos();
+        let stmt = if f.take_if(&TokenKind::Equal).is_some() {
+            let value = parse_expr(f, false)?;
+            StatementNode::Assign(AssignStatementNode {
+                pos: update_pos,
+                receiver: expr,
+                value,
+            })
+        } else {
+            StatementNode::Expr(expr)
+        };
+        Some(Box::new(stmt))
+    };
+
+    let Some(body) = parse_block_stmt(f) else {
+        f.errors.missing(pos, "for body");
+        return None;
+    };
+
+    Some(ForStatementNode {
+        pos,
+        init,
+        condition,
+        update,
         body,
     })
 }

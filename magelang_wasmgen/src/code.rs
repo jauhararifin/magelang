@@ -5,7 +5,9 @@ use crate::func::{FuncMapper, Function};
 use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
 use magelang_syntax::ErrorReporter;
-use magelang_typecheck::{Expr, ExprKind, IfStatement, Module, Statement, WhileStatement};
+use magelang_typecheck::{
+    Expr, ExprKind, ForStatement, IfStatement, Module, Statement, WhileStatement,
+};
 use std::collections::HashMap;
 use wasm_helper as wasm;
 
@@ -158,6 +160,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             }
             Statement::If(if_stmt) => self.build_if_stmt(continue_label, break_label, if_stmt),
             Statement::While(while_stmt) => self.build_while_stmt(while_stmt),
+            Statement::For(for_stmt) => self.build_for_stmt(continue_label, break_label, for_stmt),
             Statement::Return(value) => self.build_return_stmt(value),
             Statement::Expr(expr) => self.build_expr_stmt(expr),
             Statement::Assign(target, expr) => self.build_assign_stmt(target, expr),
@@ -224,6 +227,43 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             wasm::BlockType::None,
             vec![wasm::Instr::Loop(wasm::BlockType::None, inner_block)],
         )]
+    }
+
+    fn build_for_stmt(
+        &self,
+        continue_label: u32,
+        break_label: u32,
+        for_stmt: &'ctx ForStatement<'ctx>,
+    ) -> Vec<wasm::Instr> {
+        let mut result = if let Some(ref init) = for_stmt.init {
+            self.build_statement(continue_label, break_label, init)
+        } else {
+            Vec::default()
+        };
+
+        let mut inner_block = Vec::default();
+        if let Some(ref cond) = for_stmt.cond {
+            inner_block.extend(self.exprs.build(cond));
+            inner_block.push(wasm::Instr::I32Eqz);
+            inner_block.push(wasm::Instr::BrIf(1));
+        }
+
+        if let Some(ref update) = for_stmt.update {
+            inner_block.push(wasm::Instr::Block(
+                wasm::BlockType::None,
+                self.build_statement(0, 2, &for_stmt.body),
+            ));
+            inner_block.extend(self.build_statement(0, 1, update));
+        } else {
+            inner_block.extend(self.build_statement(0, 1, &for_stmt.body));
+        }
+        inner_block.push(wasm::Instr::Br(0));
+
+        result.push(wasm::Instr::Block(
+            wasm::BlockType::None,
+            vec![wasm::Instr::Loop(wasm::BlockType::None, inner_block)],
+        ));
+        result
     }
 
     fn build_return_stmt(&self, value: &Option<Expr<'ctx>>) -> Vec<wasm::Instr> {

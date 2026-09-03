@@ -969,6 +969,18 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                     queue.push_back(Source::Expr(&while_stmt.cond, type_args));
                     queue.push_back(Source::Statement(&while_stmt.body, type_args));
                 }
+                Statement::For(for_stmt) => {
+                    if let Some(init) = &for_stmt.init {
+                        queue.push_back(Source::Statement(init.as_ref(), type_args));
+                    }
+                    if let Some(cond) = &for_stmt.cond {
+                        queue.push_back(Source::Expr(cond, type_args));
+                    }
+                    if let Some(update) = &for_stmt.update {
+                        queue.push_back(Source::Statement(update.as_ref(), type_args));
+                    }
+                    queue.push_back(Source::Statement(&for_stmt.body, type_args));
+                }
                 Statement::Return(value) => {
                     if let Some(value) = value {
                         queue.push_back(Source::Expr(value, type_args));

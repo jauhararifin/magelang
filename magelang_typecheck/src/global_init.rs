@@ -138,6 +138,36 @@ fn collect_statement_dependencies<'a, E>(
                 visiting_funcs,
             );
         }
+        Statement::For(stmt) => {
+            if let Some(init) = &stmt.init {
+                collect_statement_dependencies(
+                    ctx,
+                    init,
+                    dependencies,
+                    visited_funcs,
+                    visiting_funcs,
+                );
+            }
+            if let Some(cond) = &stmt.cond {
+                collect_expr_dependencies(ctx, cond, dependencies, visited_funcs, visiting_funcs);
+            }
+            if let Some(update) = &stmt.update {
+                collect_statement_dependencies(
+                    ctx,
+                    update,
+                    dependencies,
+                    visited_funcs,
+                    visiting_funcs,
+                );
+            }
+            collect_statement_dependencies(
+                ctx,
+                &stmt.body,
+                dependencies,
+                visited_funcs,
+                visiting_funcs,
+            );
+        }
         Statement::Return(Some(expr)) | Statement::Expr(expr) => {
             collect_expr_dependencies(ctx, expr, dependencies, visited_funcs, visiting_funcs)
         }
