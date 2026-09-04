@@ -1,4 +1,4 @@
-use magelang_syntax::{parse, ErrorManager, FileManager, Location};
+use magelang_syntax::{ErrorManager, FileManager, Location, parse};
 use std::path::PathBuf;
 
 #[test]

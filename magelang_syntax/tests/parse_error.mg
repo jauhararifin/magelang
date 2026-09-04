@@ -175,6 +175,8 @@ fn f(): i32 {
     defer if true { f(); }
     //syntax_error line=+1 col=10: Expected deferred statement, but found ';'
     defer;
+    //syntax_error line=+1 col=16: Expected deferred statement, but found ';'
+    defer defer;
     //syntax_error line=+1 col=9: Expected for initialization statement, but found 'defer'
     for defer f();; {}
 }

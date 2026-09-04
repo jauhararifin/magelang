@@ -1,0 +1,9 @@
+tests/test_008_fail/main.mg:7:7: Cannot use return inside defer
+tests/test_008_fail/main.mg:11:5: Cannot use return inside defer
+tests/test_008_fail/main.mg:19:7: Cannot use return inside defer
+tests/test_008_fail/main.mg:28:7: Cannot use break outside loop
+tests/test_008_fail/main.mg:31:7: Cannot use continue outside loop
+tests/test_008_fail/main.mg:42:3: Symbol x is not declared yet
+tests/test_008_fail/main.mg:43:3: Symbol y is not declared yet
+tests/test_008_fail/main.mg:48:3: This statement is unreachable
+tests/test_008_fail/main.mg:51:1: Missing return statement
