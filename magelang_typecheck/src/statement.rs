@@ -6,8 +6,9 @@ use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    AssignStatementNode, BlockStatementNode, ErrorReporter, ForStatementNode, IfStatementNode,
-    LetKind, LetStatementNode, Pos, ReturnStatementNode, StatementNode, WhileStatementNode,
+    AssignStatementNode, BlockStatementNode, DeferStatementNode, ErrorReporter, ForStatementNode,
+    IfStatementNode, LetKind, LetStatementNode, Pos, ReturnStatementNode, StatementNode,
+    WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -20,6 +21,7 @@ pub enum Statement<'a> {
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
     For(ForStatement<'a>),
+    Defer(Box<Statement<'a>>),
     Return(Option<Expr<'a>>),
     Expr(Expr<'a>),
     Assign(Expr<'a>, Expr<'a>),
@@ -93,6 +95,7 @@ impl<'a> Statement<'a> {
                     body: Box::new(body),
                 })
             }
+            Statement::Defer(stmt) => Statement::Defer(Box::new(stmt.monomorphize(ctx, type_args))),
             Statement::Return(value) => {
                 let value = value
                     .as_ref()
@@ -146,6 +149,7 @@ pub(crate) struct StatementContext<'a, 'b, 'syn, E: ErrorReporter> {
     last_unused_local: usize,
     return_type: &'a Type<'a>,
     is_inside_loop: bool,
+    is_inside_defer: bool,
 }
 
 impl<'a, 'b, 'syn, E: ErrorReporter> StatementContext<'a, 'b, 'syn, E> {
@@ -161,6 +165,7 @@ impl<'a, 'b, 'syn, E: ErrorReporter> StatementContext<'a, 'b, 'syn, E> {
             last_unused_local,
             return_type,
             is_inside_loop: false,
+            is_inside_defer: false,
         }
     }
 }
@@ -176,6 +181,7 @@ pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
         StatementNode::If(node) => get_statement_from_if(ctx, node),
         StatementNode::While(node) => get_statement_from_while(ctx, node),
         StatementNode::For(node) => get_statement_from_for(ctx, node),
+        StatementNode::Defer(node) => get_statement_from_defer(ctx, node),
         StatementNode::Continue(pos) => get_statement_from_continue(ctx, *pos),
         StatementNode::Break(pos) => get_statement_from_break(ctx, *pos),
         StatementNode::Return(node) => get_statement_from_return(ctx, node),
@@ -294,6 +300,7 @@ pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
                 last_unused_local,
                 return_type: ctx.return_type,
                 is_inside_loop: ctx.is_inside_loop,
+                is_inside_defer: ctx.is_inside_defer,
             },
             stmt,
         );
@@ -344,6 +351,7 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
                 last_unused_local,
                 return_type: ctx.return_type,
                 is_inside_loop: ctx.is_inside_loop,
+                is_inside_defer: ctx.is_inside_defer,
             },
             else_body,
         )
@@ -392,6 +400,7 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
             last_unused_local: ctx.last_unused_local,
             return_type: ctx.return_type,
             is_inside_loop: true,
+            is_inside_defer: ctx.is_inside_defer,
         },
         &node.body,
     );
@@ -422,6 +431,7 @@ pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
                 last_unused_local,
                 return_type: ctx.return_type,
                 is_inside_loop: ctx.is_inside_loop,
+                is_inside_defer: ctx.is_inside_defer,
             },
             init_node,
         );
@@ -456,6 +466,7 @@ pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
             last_unused_local,
             return_type: ctx.return_type,
             is_inside_loop: true,
+            is_inside_defer: ctx.is_inside_defer,
         },
         &node.body,
     );
@@ -469,6 +480,7 @@ pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
                 last_unused_local,
                 return_type: ctx.return_type,
                 is_inside_loop: true,
+                is_inside_defer: ctx.is_inside_defer,
             },
             update_node,
         );
@@ -488,6 +500,31 @@ pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
         new_scope: None,
         is_returning: false,
         last_unused_local,
+    }
+}
+
+pub(crate) fn get_statement_from_defer<'a, E: ErrorReporter>(
+    ctx: &StatementContext<'a, '_, '_, E>,
+    node: &DeferStatementNode,
+) -> StatementResult<'a> {
+    // break and continue is not allowed inside defer because it causes confusion.
+    let result = get_statement_from_node(
+        &StatementContext {
+            ctx: ctx.ctx,
+            scope: ctx.scope,
+            last_unused_local: ctx.last_unused_local,
+            return_type: ctx.return_type,
+            is_inside_loop: false,
+            is_inside_defer: true,
+        },
+        &node.body,
+    );
+
+    StatementResult {
+        statement: Statement::Defer(Box::new(result.statement)),
+        new_scope: None,
+        is_returning: false,
+        last_unused_local: result.last_unused_local,
     }
 }
 
@@ -525,6 +562,10 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
     ctx: &StatementContext<'a, '_, '_, E>,
     node: &ReturnStatementNode,
 ) -> StatementResult<'a> {
+    if ctx.is_inside_defer {
+        ctx.ctx.errors.return_inside_defer(node.pos);
+    }
+
     let return_type = ctx.return_type;
 
     let value = node

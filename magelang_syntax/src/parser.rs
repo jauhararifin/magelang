@@ -525,6 +525,7 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
         TokenKind::If => StatementNode::If(parse_if_stmt(f)?),
         TokenKind::While => StatementNode::While(parse_while_stmt(f)?),
         TokenKind::For => StatementNode::For(parse_for_stmt(f)?),
+        TokenKind::Defer => StatementNode::Defer(parse_defer_stmt(f)?),
         TokenKind::OpenBlock => StatementNode::Block(parse_block_stmt(f)?),
         TokenKind::Continue => StatementNode::Continue(f.take(TokenKind::Continue).unwrap().pos),
         TokenKind::Break => StatementNode::Break(f.take(TokenKind::Break).unwrap().pos),
@@ -657,6 +658,7 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
             | TokenKind::If
             | TokenKind::While
             | TokenKind::For
+            | TokenKind::Defer
             | TokenKind::Continue
             | TokenKind::Break
             | TokenKind::Return
@@ -707,6 +709,22 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
         condition,
         update,
         body,
+    })
+}
+
+fn parse_defer_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<DeferStatementNode> {
+    let defer_tok = f.take(TokenKind::Defer)?;
+    let pos = defer_tok.pos;
+
+    // parse_stmt silently returns None on a stray ';', which would drop the defer silently.
+    if f.kind() == &TokenKind::SemiColon {
+        f.unexpected("deferred statement");
+        return None;
+    }
+
+    Some(DeferStatementNode {
+        pos,
+        body: Box::new(parse_stmt(f)?),
     })
 }
 

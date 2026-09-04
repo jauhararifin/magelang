@@ -128,6 +128,7 @@ pub(crate) enum TokenKind {
     Else,
     While,
     For,
+    Defer,
     Ident(String),
     As,
     Add,
@@ -227,6 +228,7 @@ impl TokenKind {
             | Self::Else
             | Self::While
             | Self::For
+            | Self::Defer
             | Self::Null
             | Self::True
             | Self::False
@@ -260,6 +262,7 @@ impl Display for TokenKind {
             Self::Else => write!(f, "'else'"),
             Self::While => write!(f, "'while'"),
             Self::For => write!(f, "'for'"),
+            Self::Defer => write!(f, "'defer'"),
             Self::Ident(..) => write!(f, "IDENT"),
             Self::As => write!(f, "'as'"),
             Self::Add => write!(f, "'+'"),

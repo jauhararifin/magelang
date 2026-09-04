@@ -8,6 +8,7 @@ use magelang_syntax::ErrorReporter;
 use magelang_typecheck::{
     Expr, ExprKind, ForStatement, IfStatement, Module, Statement, WhileStatement,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
 use wasm_helper as wasm;
 
@@ -48,6 +49,7 @@ pub(crate) fn build_function<'a, 'ctx, E: ErrorReporter>(
             locals: &local_manager,
             globals: global_manager,
         },
+        pending_defers: RefCell::default(),
     };
 
     builder.build()
@@ -128,12 +130,13 @@ struct FuncBuilder<'a, 'ctx, E> {
     types: &'a TypeManager<'ctx>,
     func: &'a Function<'ctx>,
     exprs: ExprBuilder<'a, 'ctx, E>,
+    pending_defers: RefCell<Vec<&'ctx Statement<'ctx>>>,
 }
 
 impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
     fn build(self) -> wasm::Func {
         let stmt = if let Some(body) = self.func.body {
-            self.build_statement(0, 0, body)
+            self.build_statement(0, 0, 0, body)
         } else {
             vec![wasm::Instr::Unreachable]
         };
@@ -150,22 +153,37 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         &self,
         continue_label: u32,
         break_label: u32,
+        loop_defer_mark: usize,
         stmt: &'ctx Statement<'ctx>,
     ) -> Vec<wasm::Instr> {
         match stmt {
             Statement::Native => unreachable!("native function should be handled specially"),
             Statement::NewLocal { id, value } => self.build_new_local_stmt(*id, value),
             Statement::Block(statements) => {
-                self.build_block_stmt(continue_label, break_label, statements)
+                self.build_block_stmt(continue_label, break_label, loop_defer_mark, statements)
             }
-            Statement::If(if_stmt) => self.build_if_stmt(continue_label, break_label, if_stmt),
+            Statement::If(if_stmt) => {
+                self.build_if_stmt(continue_label, break_label, loop_defer_mark, if_stmt)
+            }
             Statement::While(while_stmt) => self.build_while_stmt(while_stmt),
-            Statement::For(for_stmt) => self.build_for_stmt(continue_label, break_label, for_stmt),
-            Statement::Return(value) => self.build_return_stmt(value),
+            Statement::For(for_stmt) => {
+                self.build_for_stmt(continue_label, break_label, loop_defer_mark, for_stmt)
+            }
+            Statement::Return(value) => {
+                self.build_return_stmt(continue_label, break_label, loop_defer_mark, value)
+            }
             Statement::Expr(expr) => self.build_expr_stmt(expr),
             Statement::Assign(target, expr) => self.build_assign_stmt(target, expr),
-            Statement::Continue => vec![wasm::Instr::Br(continue_label)],
-            Statement::Break => vec![wasm::Instr::Br(break_label)],
+            Statement::Defer(stmt) => {
+                self.pending_defers.borrow_mut().push(stmt);
+                vec![]
+            }
+            Statement::Continue => {
+                self.build_jump_stmt(continue_label, break_label, loop_defer_mark, continue_label)
+            }
+            Statement::Break => {
+                self.build_jump_stmt(continue_label, break_label, loop_defer_mark, break_label)
+            }
         }
     }
 
@@ -185,11 +203,34 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         &self,
         continue_label: u32,
         break_label: u32,
+        loop_defer_mark: usize,
         statements: &'ctx [Statement<'ctx>],
     ) -> Vec<wasm::Instr> {
+        let defer_mark = self.pending_defers.borrow().len();
         let mut result = Vec::default();
         for stmt in statements.iter() {
-            result.extend(self.build_statement(continue_label, break_label, stmt));
+            result.extend(self.build_statement(continue_label, break_label, loop_defer_mark, stmt));
+        }
+        result.extend(self.build_deferred_stmts(
+            continue_label,
+            break_label,
+            loop_defer_mark,
+            defer_mark,
+        ));
+        result
+    }
+
+    fn build_deferred_stmts(
+        &self,
+        continue_label: u32,
+        break_label: u32,
+        loop_defer_mark: usize,
+        until: usize,
+    ) -> Vec<wasm::Instr> {
+        let mut result = Vec::default();
+        while self.pending_defers.borrow().len() > until {
+            let stmt = self.pending_defers.borrow_mut().pop().unwrap();
+            result.extend(self.build_statement(continue_label, break_label, loop_defer_mark, stmt));
         }
         result
     }
@@ -198,13 +239,24 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         &self,
         continue_label: u32,
         break_label: u32,
+        loop_defer_mark: usize,
         if_stmt: &'ctx IfStatement<'ctx>,
     ) -> Vec<wasm::Instr> {
         let mut result = self.exprs.build(&if_stmt.cond);
-        let body = self.build_statement(continue_label + 1, break_label + 1, &if_stmt.body);
+        let body = self.build_statement(
+            continue_label + 1,
+            break_label + 1,
+            loop_defer_mark,
+            &if_stmt.body,
+        );
 
         let else_body = if let Some(ref else_body) = if_stmt.else_stmt {
-            self.build_statement(continue_label + 1, break_label + 1, else_body)
+            self.build_statement(
+                continue_label + 1,
+                break_label + 1,
+                loop_defer_mark,
+                else_body,
+            )
         } else {
             vec![]
         };
@@ -215,7 +267,8 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
 
     fn build_while_stmt(&self, while_stmt: &'ctx WhileStatement<'ctx>) -> Vec<wasm::Instr> {
         let cond = self.exprs.build(&while_stmt.cond);
-        let body = self.build_statement(0, 1, &while_stmt.body);
+        let loop_defer_mark = self.pending_defers.borrow().len();
+        let body = self.build_statement(0, 1, loop_defer_mark, &while_stmt.body);
 
         let mut inner_block = cond;
         inner_block.push(wasm::Instr::I32Eqz);
@@ -233,13 +286,15 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         &self,
         continue_label: u32,
         break_label: u32,
+        loop_defer_mark: usize,
         for_stmt: &'ctx ForStatement<'ctx>,
     ) -> Vec<wasm::Instr> {
         let mut result = if let Some(ref init) = for_stmt.init {
-            self.build_statement(continue_label, break_label, init)
+            self.build_statement(continue_label, break_label, loop_defer_mark, init)
         } else {
             Vec::default()
         };
+        let loop_defer_mark = self.pending_defers.borrow().len();
 
         let mut inner_block = Vec::default();
         if let Some(ref cond) = for_stmt.cond {
@@ -251,11 +306,11 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         if let Some(ref update) = for_stmt.update {
             inner_block.push(wasm::Instr::Block(
                 wasm::BlockType::None,
-                self.build_statement(0, 2, &for_stmt.body),
+                self.build_statement(0, 2, loop_defer_mark, &for_stmt.body),
             ));
-            inner_block.extend(self.build_statement(0, 1, update));
+            inner_block.extend(self.build_statement(0, 1, loop_defer_mark, update));
         } else {
-            inner_block.extend(self.build_statement(0, 1, &for_stmt.body));
+            inner_block.extend(self.build_statement(0, 1, loop_defer_mark, &for_stmt.body));
         }
         inner_block.push(wasm::Instr::Br(0));
 
@@ -266,11 +321,20 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_return_stmt(&self, value: &Option<Expr<'ctx>>) -> Vec<wasm::Instr> {
+    fn build_return_stmt(
+        &self,
+        continue_label: u32,
+        break_label: u32,
+        loop_defer_mark: usize,
+        value: &Option<Expr<'ctx>>,
+    ) -> Vec<wasm::Instr> {
         let mut result = vec![];
         if let Some(val) = value {
             result.extend(self.exprs.build(val));
         }
+        let pending = self.pending_defers.borrow().clone();
+        result.extend(self.build_deferred_stmts(continue_label, break_label, loop_defer_mark, 0));
+        *self.pending_defers.borrow_mut() = pending;
         result.push(wasm::Instr::Return);
         result
     }
@@ -355,6 +419,25 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             result.push(store_instr(mem_arg));
         }
 
+        result
+    }
+
+    fn build_jump_stmt(
+        &self,
+        continue_label: u32,
+        break_label: u32,
+        loop_defer_mark: usize,
+        target_label: u32,
+    ) -> Vec<wasm::Instr> {
+        let pending = self.pending_defers.borrow().clone();
+        let mut result = self.build_deferred_stmts(
+            continue_label,
+            break_label,
+            loop_defer_mark,
+            loop_defer_mark,
+        );
+        *self.pending_defers.borrow_mut() = pending;
+        result.push(wasm::Instr::Br(target_label));
         result
     }
 

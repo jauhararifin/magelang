@@ -168,6 +168,9 @@ fn collect_statement_dependencies<'a, E>(
                 visiting_funcs,
             );
         }
+        Statement::Defer(stmt) => {
+            collect_statement_dependencies(ctx, stmt, dependencies, visited_funcs, visiting_funcs);
+        }
         Statement::Return(Some(expr)) | Statement::Expr(expr) => {
             collect_expr_dependencies(ctx, expr, dependencies, visited_funcs, visiting_funcs)
         }

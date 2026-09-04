@@ -484,6 +484,20 @@ for let i = 0; i < 100; i = i + 1 {
 fmt::print_i32(sum);
 ```
 
+Magelang also support scope-based defer.
+
+```
+fn f() {
+    let a: i32 = 10;
+    defer fmt::print_i32(a);
+    {
+        defer fmt::print_str("inner\n");
+        fmt::print_str("body\n");
+    }
+    fmt::print_str("end\n");
+}
+```
+
 ## Expressions
 
 Integer literals can be expressed like this:

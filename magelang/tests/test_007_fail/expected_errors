@@ -1,0 +1,7 @@
+tests/test_007_fail/main.mg:6:14: Symbol b is not declared yet
+tests/test_007_fail/main.mg:12:11: Cannot use break outside loop
+tests/test_007_fail/main.mg:13:11: Cannot use continue outside loop
+tests/test_007_fail/main.mg:18:9: Cannot use return inside defer
+tests/test_007_fail/main.mg:18:9: Mismatch type, expected i32 but found void
+tests/test_007_fail/main.mg:21:5: Cannot use return inside defer
+tests/test_007_fail/main.mg:26:9: Cannot use return inside defer

@@ -213,6 +213,7 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
                 }
                 self.init_from_stmt(&for_stmt.body);
             }
+            Statement::Defer(stmt) => self.init_from_stmt(stmt),
             Statement::Return(Some(val)) => {
                 self.init_from_expr(val);
             }

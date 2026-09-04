@@ -162,6 +162,10 @@ pub(crate) trait SemanticError: ErrorReporter {
         self.report(pos, format!("Cannot use {operation} outside loop"))
     }
 
+    fn return_inside_defer(&self, pos: Pos) {
+        self.report(pos, String::from("Cannot use return inside defer"))
+    }
+
     fn circular_type(&self, pos: Pos, cycle: &[String]) {
         self.report(
             pos,

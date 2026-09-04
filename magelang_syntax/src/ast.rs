@@ -456,6 +456,7 @@ pub enum StatementNode {
     If(IfStatementNode),
     While(WhileStatementNode),
     For(ForStatementNode),
+    Defer(DeferStatementNode),
     Continue(Pos),
     Break(Pos),
     Return(ReturnStatementNode),
@@ -471,6 +472,7 @@ impl StatementNode {
             Self::If(node) => node.pos,
             Self::While(node) => node.pos,
             Self::For(node) => node.pos,
+            Self::Defer(node) => node.pos,
             Self::Continue(pos) => *pos,
             Self::Break(pos) => *pos,
             Self::Return(node) => node.pos,
@@ -529,6 +531,12 @@ pub struct ForStatementNode {
     pub condition: Option<ExprNode>,
     pub update: Option<Box<StatementNode>>,
     pub body: BlockStatementNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DeferStatementNode {
+    pub pos: Pos,
+    pub body: Box<StatementNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
