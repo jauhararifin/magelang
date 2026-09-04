@@ -136,7 +136,21 @@ struct FuncBuilder<'a, 'ctx, E> {
 impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
     fn build(self) -> wasm::Func {
         let stmt = if let Some(body) = self.func.body {
-            self.build_statement(0, 0, 0, body)
+            let mut stmt = self.build_statement(0, 0, 0, body);
+
+            // The typechecker guarantees that every possible execution path returned the correct
+            // values. However, wasm validation still check if the function's main block have the
+            // correct stack values at the end of function. Consider the case below:
+            //
+            //   if cond { return a; } else { return b; }
+            //
+            // in above case, both block returned, but the main block contains empty values. Even
+            // though it's impossible for us to returned at main block, wasm validation require
+            // us to have main block contains the correct returned values.
+            if !self.func.ty.return_type.is_void() {
+                stmt.push(wasm::Instr::Unreachable);
+            }
+            stmt
         } else {
             vec![wasm::Instr::Unreachable]
         };
