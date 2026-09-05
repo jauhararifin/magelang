@@ -5,6 +5,7 @@ fn main() {
   test_narrowing_signed_source();
   test_narrowing_unsigned_source();
   test_widening_and_reinterpreting_stay_correct();
+  test_same_size_reinterpreting();
   test_float_to_narrow_int();
   test_bitnot();
 }
@@ -67,6 +68,18 @@ fn test_widening_and_reinterpreting_stay_correct() {
 
   let e: u16 = 40000;
   assert_equal::<i32>(40000, e as i32);
+}
+
+fn test_same_size_reinterpreting() {
+  let a: i64 = -1;
+  assert_equal::<u64>(18446744073709551615, a as u64);
+
+  let b: u64 = 18446744073709551615;
+  assert_equal::<i64>(-1, b as i64);
+
+  let c: i64 = 1234567890123;
+  assert_equal::<u64>(1234567890123, c as u64);
+  assert_equal::<i64>(1234567890123, c as i64);
 }
 
 fn test_float_to_narrow_int() {

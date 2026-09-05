@@ -992,7 +992,11 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 Statement::Expr(expr) => {
                     queue.push_back(Source::Expr(expr, type_args));
                 }
-                Statement::Assign(target, value) => {
+                Statement::Assign { target, value } => {
+                    queue.push_back(Source::Expr(target, type_args));
+                    queue.push_back(Source::Expr(value, type_args));
+                }
+                Statement::AssignOp { target, value, .. } => {
                     queue.push_back(Source::Expr(target, type_args));
                     queue.push_back(Source::Expr(value, type_args));
                 }

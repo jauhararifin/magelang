@@ -4,7 +4,7 @@ use crate::expr::ExprBuilder;
 use crate::func::{FuncMapper, Function};
 use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
-use magelang_syntax::ErrorReporter;
+use magelang_syntax::{BinaryOp, ErrorReporter};
 use magelang_typecheck::{
     Expr, ExprKind, ForStatement, IfStatement, Module, Statement, WhileStatement,
 };
@@ -187,7 +187,10 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
                 self.build_return_stmt(continue_label, break_label, loop_defer_mark, value)
             }
             Statement::Expr(expr) => self.build_expr_stmt(expr),
-            Statement::Assign(target, expr) => self.build_assign_stmt(target, expr),
+            Statement::Assign { target, value } => self.build_assign_stmt(target, value),
+            Statement::AssignOp { target, op, value } => {
+                self.build_assign_op_stmt(target, *op, value)
+            }
             Statement::Defer(stmt) => {
                 self.pending_defers.borrow_mut().push(stmt);
                 vec![]
@@ -412,17 +415,9 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
                 offset: component.offset,
                 align: component.align.normalize(),
             };
-            let store_instr = match ty {
-                PrimitiveType::I8 | PrimitiveType::U8 => wasm::Instr::I32Store8,
-                PrimitiveType::I16 | PrimitiveType::U16 => wasm::Instr::I32Store16,
-                PrimitiveType::I32 | PrimitiveType::U32 => wasm::Instr::I32Store,
-                PrimitiveType::I64 | PrimitiveType::U64 => wasm::Instr::I64Store,
-                PrimitiveType::F32 => wasm::Instr::F32Store,
-                PrimitiveType::F64 => wasm::Instr::F64Store,
-                PrimitiveType::Extern => {
-                    self.errors.storing_opaque(value.pos);
-                    return vec![wasm::Instr::Unreachable];
-                }
+            let Some(store_instr) = ty.store_instr() else {
+                self.errors.storing_opaque(value.pos);
+                return vec![wasm::Instr::Unreachable];
             };
 
             let tmp = self.locals.get_temporary_locals(vec![ty]);
@@ -455,6 +450,71 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
         result
     }
 
+    fn build_assign_op_stmt(
+        &self,
+        target: &'ctx Expr<'ctx>,
+        op: BinaryOp,
+        value: &'ctx Expr<'ctx>,
+    ) -> Vec<wasm::Instr> {
+        let val_types = build_val_type(target.ty);
+        assert_eq!(
+            val_types.len(),
+            1,
+            "assignment operators only work on primitive types, but {:?} has {} components",
+            target.ty,
+            val_types.len()
+        );
+
+        let ExprKind::Deref(ptr) = &target.kind else {
+            let Some(variable) = self.get_variable_loc(target) else {
+                unreachable!(
+                    "assignment target is not a storage location: {:?}",
+                    target.kind
+                );
+            };
+            let current = vec![variable.get_get_instr(0)];
+            let mut result = self.exprs.build_binary_op(op, target.ty, current, value);
+            result.push(variable.get_set_instr(0));
+            return result;
+        };
+
+        let val_type = val_types[0];
+        let (Some(mem_layout), Some(load_instr), Some(store_instr)) = (
+            self.types.get_mem_layout(target.ty),
+            val_type.load_instr(),
+            val_type.store_instr(),
+        ) else {
+            self.errors.storing_opaque(target.pos);
+            return vec![wasm::Instr::Unreachable];
+        };
+        let component = &mem_layout.components[0];
+
+        let mut result = self.exprs.build(ptr);
+        let ptr_tmp = self.locals.get_temporary_locals(vec![PrimitiveType::U32]);
+        let ptr_tmp_id = *ptr_tmp.first().unwrap();
+        result.push(wasm::Instr::LocalSet(ptr_tmp_id));
+
+        let current = vec![
+            wasm::Instr::LocalGet(ptr_tmp_id),
+            load_instr(wasm::MemArg {
+                offset: component.offset,
+                align: component.align.normalize(),
+            }),
+        ];
+        result.extend(self.exprs.build_binary_op(op, target.ty, current, value));
+
+        let value_tmp = self.locals.get_temporary_locals(vec![val_type]);
+        let value_tmp_id = *value_tmp.first().unwrap();
+        result.push(wasm::Instr::LocalSet(value_tmp_id));
+        result.push(wasm::Instr::LocalGet(ptr_tmp_id));
+        result.push(wasm::Instr::LocalGet(value_tmp_id));
+        result.push(store_instr(wasm::MemArg {
+            offset: component.offset,
+            align: component.align.normalize(),
+        }));
+        result
+    }
+
     fn get_variable_loc(&self, expr: &'ctx Expr<'ctx>) -> Option<VariableLoc> {
         match &expr.kind {
             ExprKind::Global(def_id) => Some(VariableLoc::Global(self.globals.get(*def_id))),
@@ -478,6 +538,13 @@ enum VariableLoc {
 }
 
 impl VariableLoc {
+    fn get_get_instr(&self, offset: usize) -> wasm::Instr {
+        match self {
+            Self::Global(id) => wasm::Instr::GlobalGet(id + offset as u32),
+            Self::Local(id) => wasm::Instr::LocalGet(id + offset as u32),
+        }
+    }
+
     fn get_set_instr(&self, offset: usize) -> wasm::Instr {
         match self {
             Self::Global(id) => wasm::Instr::GlobalSet(id + offset as u32),

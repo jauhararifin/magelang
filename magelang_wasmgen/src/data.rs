@@ -218,7 +218,11 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
                 self.init_from_expr(val);
             }
             Statement::Expr(expr) => self.init_from_expr(expr),
-            Statement::Assign(target, value) => {
+            Statement::Assign { target, value } => {
+                self.init_from_expr(target);
+                self.init_from_expr(value);
+            }
+            Statement::AssignOp { target, value, .. } => {
                 self.init_from_expr(target);
                 self.init_from_expr(value);
             }

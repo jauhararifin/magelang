@@ -749,26 +749,35 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
 
     let a = ctx.arena.alloc(a);
     let b = ctx.arena.alloc(b);
+    get_binary_expr(ctx, node.op, node.a.pos(), a, b)
+}
 
-    match node.op {
-        BinaryOp::Add => get_binary_arith_exprs::<BinopAdd, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Sub => get_binary_arith_exprs::<BinopSub, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Mul => get_binary_arith_exprs::<BinopMul, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Div => get_binary_div_exprs(ctx, node.a.pos(), a, b),
-        BinaryOp::Mod => get_binary_integer_exprs::<BinopMod, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::BitOr => get_binary_integer_exprs::<BinopBitOr, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::BitAnd => get_binary_integer_exprs::<BinopBitAnd, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::BitXor => get_binary_integer_exprs::<BinopBitXor, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::ShiftLeft => get_binary_shifts_exprs::<BinopShl, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::ShiftRight => get_binary_shifts_exprs::<BinopShr, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::And => get_binary_bool_exprs::<BinopAnd, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Or => get_binary_bool_exprs::<BinopOr, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Eq => get_binary_equality_exprs::<BinopEq, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::NEq => get_binary_equality_exprs::<BinopNEq, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Gt => get_binary_comparison_exprs::<BinopGt, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::GEq => get_binary_comparison_exprs::<BinopGEq, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::Lt => get_binary_comparison_exprs::<BinopLt, E>(ctx, node.a.pos(), a, b),
-        BinaryOp::LEq => get_binary_comparison_exprs::<BinopLEq, E>(ctx, node.a.pos(), a, b),
+pub(crate) fn get_binary_expr<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    op: BinaryOp,
+    pos: Pos,
+    a: &'a Expr<'a>,
+    b: &'a Expr<'a>,
+) -> Expr<'a> {
+    match op {
+        BinaryOp::Add => get_binary_arith_exprs::<BinopAdd, E>(ctx, pos, a, b),
+        BinaryOp::Sub => get_binary_arith_exprs::<BinopSub, E>(ctx, pos, a, b),
+        BinaryOp::Mul => get_binary_arith_exprs::<BinopMul, E>(ctx, pos, a, b),
+        BinaryOp::Div => get_binary_div_exprs(ctx, pos, a, b),
+        BinaryOp::Mod => get_binary_integer_exprs::<BinopMod, E>(ctx, pos, a, b),
+        BinaryOp::BitOr => get_binary_integer_exprs::<BinopBitOr, E>(ctx, pos, a, b),
+        BinaryOp::BitAnd => get_binary_integer_exprs::<BinopBitAnd, E>(ctx, pos, a, b),
+        BinaryOp::BitXor => get_binary_integer_exprs::<BinopBitXor, E>(ctx, pos, a, b),
+        BinaryOp::ShiftLeft => get_binary_shifts_exprs::<BinopShl, E>(ctx, pos, a, b),
+        BinaryOp::ShiftRight => get_binary_shifts_exprs::<BinopShr, E>(ctx, pos, a, b),
+        BinaryOp::And => get_binary_bool_exprs::<BinopAnd, E>(ctx, pos, a, b),
+        BinaryOp::Or => get_binary_bool_exprs::<BinopOr, E>(ctx, pos, a, b),
+        BinaryOp::Eq => get_binary_equality_exprs::<BinopEq, E>(ctx, pos, a, b),
+        BinaryOp::NEq => get_binary_equality_exprs::<BinopNEq, E>(ctx, pos, a, b),
+        BinaryOp::Gt => get_binary_comparison_exprs::<BinopGt, E>(ctx, pos, a, b),
+        BinaryOp::GEq => get_binary_comparison_exprs::<BinopGEq, E>(ctx, pos, a, b),
+        BinaryOp::Lt => get_binary_comparison_exprs::<BinopLt, E>(ctx, pos, a, b),
+        BinaryOp::LEq => get_binary_comparison_exprs::<BinopLEq, E>(ctx, pos, a, b),
     }
 }
 

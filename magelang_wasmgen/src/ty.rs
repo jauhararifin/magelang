@@ -328,3 +328,31 @@ impl PrimitiveType {
         }
     }
 }
+
+impl PrimitiveType {
+    pub(crate) fn load_instr(self) -> Option<fn(wasm::MemArg) -> wasm::Instr> {
+        match self {
+            PrimitiveType::I8 => Some(wasm::Instr::I32Load8S),
+            PrimitiveType::U8 => Some(wasm::Instr::I32Load8U),
+            PrimitiveType::I16 => Some(wasm::Instr::I32Load16S),
+            PrimitiveType::U16 => Some(wasm::Instr::I32Load16U),
+            PrimitiveType::I32 | PrimitiveType::U32 => Some(wasm::Instr::I32Load),
+            PrimitiveType::I64 | PrimitiveType::U64 => Some(wasm::Instr::I64Load),
+            PrimitiveType::F32 => Some(wasm::Instr::F32Load),
+            PrimitiveType::F64 => Some(wasm::Instr::F64Load),
+            PrimitiveType::Extern => None,
+        }
+    }
+
+    pub(crate) fn store_instr(self) -> Option<fn(wasm::MemArg) -> wasm::Instr> {
+        match self {
+            PrimitiveType::I8 | PrimitiveType::U8 => Some(wasm::Instr::I32Store8),
+            PrimitiveType::I16 | PrimitiveType::U16 => Some(wasm::Instr::I32Store16),
+            PrimitiveType::I32 | PrimitiveType::U32 => Some(wasm::Instr::I32Store),
+            PrimitiveType::I64 | PrimitiveType::U64 => Some(wasm::Instr::I64Store),
+            PrimitiveType::F32 => Some(wasm::Instr::F32Store),
+            PrimitiveType::F64 => Some(wasm::Instr::F64Store),
+            PrimitiveType::Extern => None,
+        }
+    }
+}

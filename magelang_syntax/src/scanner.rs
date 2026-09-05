@@ -1,3 +1,4 @@
+use crate::ast::BinaryOp;
 use crate::error::ErrorReporter;
 use crate::number::Number;
 use crate::token::{File, Pos, Token, TokenKind};
@@ -593,14 +594,20 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         ("!", TokenKind::Not),
         ("==", TokenKind::Eq),
         ("=", TokenKind::Equal),
+        ("*=", TokenKind::AssignOp(BinaryOp::Mul)),
         ("*", TokenKind::Mul),
+        ("+=", TokenKind::AssignOp(BinaryOp::Add)),
         ("+", TokenKind::Add),
+        ("-=", TokenKind::AssignOp(BinaryOp::Sub)),
         ("-", TokenKind::Sub),
+        ("/=", TokenKind::AssignOp(BinaryOp::Div)),
         ("/", TokenKind::Div),
         (":", TokenKind::Colon),
+        ("<<=", TokenKind::AssignOp(BinaryOp::ShiftLeft)),
         ("<<", TokenKind::ShiftLeft),
         ("<=", TokenKind::LEq),
         ("<", TokenKind::Lt),
+        (">>=", TokenKind::AssignOp(BinaryOp::ShiftRight)),
         (">>", TokenKind::ShiftRight),
         (">=", TokenKind::GEq),
         (">", TokenKind::Gt),
@@ -611,11 +618,17 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         ("[", TokenKind::OpenSquare),
         ("]", TokenKind::CloseSquare),
         (",", TokenKind::Comma),
+        ("%=", TokenKind::AssignOp(BinaryOp::Mod)),
         ("%", TokenKind::Mod),
+        ("&&=", TokenKind::AssignOp(BinaryOp::And)),
         ("&&", TokenKind::And),
+        ("&=", TokenKind::AssignOp(BinaryOp::BitAnd)),
         ("&", TokenKind::BitAnd),
+        ("||=", TokenKind::AssignOp(BinaryOp::Or)),
         ("||", TokenKind::Or),
+        ("|=", TokenKind::AssignOp(BinaryOp::BitOr)),
         ("|", TokenKind::BitOr),
+        ("^=", TokenKind::AssignOp(BinaryOp::BitXor)),
         ("^", TokenKind::BitXor),
         ("~", TokenKind::BitNot),
         ("@", TokenKind::AtSign),
@@ -1286,6 +1299,44 @@ string""#
         );
         assert_eq!(errors[8].message, "The exponent has no digits",);
         assert_eq!(errors[9].message, "The exponent has no digits",);
+    }
+
+    #[test]
+    fn assignment_symbols() {
+        let mut files = FileManager::default();
+        let file = files.add_file(
+            PathBuf::from("dummy.mg"),
+            "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&".to_string(),
+        );
+        let tokens = scan(&ErrorManager::default(), &file);
+        let ops = [
+            BinaryOp::Add,
+            BinaryOp::Sub,
+            BinaryOp::Mul,
+            BinaryOp::Div,
+            BinaryOp::Mod,
+            BinaryOp::BitAnd,
+            BinaryOp::BitOr,
+            BinaryOp::BitXor,
+            BinaryOp::ShiftLeft,
+            BinaryOp::ShiftRight,
+        ];
+        for (i, op) in ops.iter().enumerate() {
+            assert_eq!(tokens[i].kind, TokenKind::AssignOp(*op));
+        }
+        assert_eq!(tokens[11].kind, TokenKind::AssignOp(BinaryOp::Add));
+        assert_eq!(tokens[14].kind, TokenKind::AssignOp(BinaryOp::ShiftLeft));
+        assert_eq!(tokens[16].kind, TokenKind::AssignOp(BinaryOp::ShiftRight));
+        assert_eq!(tokens[17].kind, TokenKind::AssignOp(BinaryOp::ShiftLeft));
+        assert_eq!(tokens[18].kind, TokenKind::Eq);
+        assert_eq!(tokens[19].kind, TokenKind::LEq);
+        assert_eq!(tokens[20].kind, TokenKind::GEq);
+        assert_eq!(tokens[21].kind, TokenKind::AssignOp(BinaryOp::And));
+        assert_eq!(tokens[22].kind, TokenKind::AssignOp(BinaryOp::Or));
+        assert_eq!(tokens[23].kind, TokenKind::And);
+        assert_eq!(tokens[24].kind, TokenKind::Or);
+        assert_eq!(tokens[25].kind, TokenKind::AssignOp(BinaryOp::BitAnd));
+        assert_eq!(tokens[26].kind, TokenKind::BitAnd);
     }
 
     #[test]

@@ -1,0 +1,6 @@
+tests/test_009_fail/main.mg:8:3: Cannot perform add operation for bool and untyped int
+tests/test_009_fail/main.mg:13:3: Cannot perform add operation for *tests/test_009_fail/main::P and untyped int
+tests/test_009_fail/main.mg:21:3: Cannot perform add operation for i32 and i64
+tests/test_009_fail/main.mg:26:3: The expression is not assignable
+tests/test_009_fail/main.mg:26:3: Cannot perform add operation for *i32 and untyped int
+tests/test_009_fail/main.mg:31:3: Cannot perform add operation for [*]u8 and untyped int

@@ -323,7 +323,7 @@ pub struct BinaryExprNode {
     pub b: Box<ExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -500,6 +500,7 @@ pub enum LetKind {
 pub struct AssignStatementNode {
     pub pos: Pos,
     pub receiver: ExprNode,
+    pub op: Option<BinaryOp>,
     pub value: ExprNode,
 }
 

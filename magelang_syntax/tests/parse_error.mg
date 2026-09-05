@@ -153,6 +153,23 @@ fn f(): i32 {
     for a = 0; a < 10; { a = a + 1; }
     for ;; { break; }
     for print(a); a < 10; print(a) {}
+    a += 1;
+    a -= 1;
+    a *= 2;
+    a /= 2;
+    a %= 2;
+    a &= 1;
+    a |= 1;
+    a ^= 1;
+    a <<= 1;
+    a >>= 1;
+    a &&= b;
+    a ||= b;
+    p.*.x += f(a);
+    p.*=v;
+    p.*==v;
+    p.**=2;
+    for let i = 0; i < 10; i += 1 {}
     //syntax_error line=+1 col=5: Missing if body
     if (true)
         print(a);
@@ -165,10 +182,10 @@ fn f(): i32 {
     //syntax_error line=+1 col=23: Expected ';', but found '{'
     for a = 0; a < 10 { }
     let dummy = 0;
-    //syntax_error line=+1 col=9: Expected for initialization statement, but found '{'
+    //syntax_error line=+1 col=9: Unexpected token '{'
     for { }
     let dummy = 0;
-    //syntax_error line=+1 col=9: Expected for initialization statement, but found 'break'
+    //syntax_error line=+1 col=9: Unexpected token 'break'
     for break;; {}
     defer f();
     defer { let x = 1; f(x); };
@@ -177,8 +194,9 @@ fn f(): i32 {
     defer;
     //syntax_error line=+1 col=16: Expected deferred statement, but found ';'
     defer defer;
-    //syntax_error line=+1 col=9: Expected for initialization statement, but found 'defer'
+    //syntax_error line=+1 col=9: Unexpected token 'defer'
     for defer f();; {}
+    for ;; let x = 1 {}
 }
 
 // =====================================================

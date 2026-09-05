@@ -1,3 +1,4 @@
+use crate::ast::BinaryOp;
 use crate::number::Number;
 use std::fmt::Display;
 use std::fs::read_to_string;
@@ -163,6 +164,7 @@ pub(crate) enum TokenKind {
     Colon,
     SemiColon,
     Equal,
+    AssignOp(BinaryOp),
     Return,
     NumberLit { raw: String, value: Number },
     StringLit { raw: String, value: Vec<u8> },
@@ -214,6 +216,7 @@ impl TokenKind {
             | Self::Colon
             | Self::SemiColon
             | Self::Equal
+            | Self::AssignOp(..)
             | Self::Return
             | Self::NumberLit { .. }
             | Self::CharLit { .. }
@@ -297,6 +300,25 @@ impl Display for TokenKind {
             Self::Colon => write!(f, "':'"),
             Self::SemiColon => write!(f, "';'"),
             Self::Equal => write!(f, "'='"),
+            Self::AssignOp(op) => write!(
+                f,
+                "'{}='",
+                match op {
+                    BinaryOp::Add => "+",
+                    BinaryOp::Sub => "-",
+                    BinaryOp::Mul => "*",
+                    BinaryOp::Div => "/",
+                    BinaryOp::Mod => "%",
+                    BinaryOp::BitAnd => "&",
+                    BinaryOp::BitOr => "|",
+                    BinaryOp::BitXor => "^",
+                    BinaryOp::ShiftLeft => "<<",
+                    BinaryOp::ShiftRight => ">>",
+                    BinaryOp::And => "&&",
+                    BinaryOp::Or => "||",
+                    _ => unreachable!("{op:?} has no assignment form"),
+                }
+            ),
             Self::Return => write!(f, "'return'"),
             Self::NumberLit { .. } => write!(f, "NUMBER_LIT"),
             Self::CharLit { .. } => write!(f, "CHAR_LIT"),

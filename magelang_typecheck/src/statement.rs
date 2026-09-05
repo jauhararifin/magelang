@@ -1,14 +1,14 @@
 use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
 use crate::errors::SemanticError;
-use crate::expr::{Expr, ExprKind, get_expr_from_node};
+use crate::expr::{Expr, ExprKind, get_binary_expr, get_expr_from_node};
 use crate::interner::Interner;
 use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    AssignStatementNode, BlockStatementNode, DeferStatementNode, ErrorReporter, ForStatementNode,
-    IfStatementNode, LetKind, LetStatementNode, Pos, ReturnStatementNode, StatementNode,
-    WhileStatementNode,
+    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ErrorReporter,
+    ForStatementNode, IfStatementNode, LetKind, LetStatementNode, Pos, ReturnStatementNode,
+    StatementNode, WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -16,7 +16,10 @@ pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Statement<'a> {
     Native,
-    NewLocal { id: usize, value: Expr<'a> },
+    NewLocal {
+        id: usize,
+        value: Expr<'a>,
+    },
     Block(&'a [Statement<'a>]),
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
@@ -24,7 +27,15 @@ pub enum Statement<'a> {
     Defer(Box<Statement<'a>>),
     Return(Option<Expr<'a>>),
     Expr(Expr<'a>),
-    Assign(Expr<'a>, Expr<'a>),
+    Assign {
+        target: Expr<'a>,
+        value: Expr<'a>,
+    },
+    AssignOp {
+        target: Expr<'a>,
+        op: BinaryOp,
+        value: &'a Expr<'a>,
+    },
     Continue,
     Break,
 }
@@ -106,11 +117,15 @@ impl<'a> Statement<'a> {
                 let value = value.monomorphize(ctx, type_args);
                 Statement::Expr(value)
             }
-            Statement::Assign(target, value) => {
-                let target = target.monomorphize(ctx, type_args);
-                let value = value.monomorphize(ctx, type_args);
-                Statement::Assign(target, value)
-            }
+            Statement::Assign { target, value } => Statement::Assign {
+                target: target.monomorphize(ctx, type_args),
+                value: value.monomorphize(ctx, type_args),
+            },
+            Statement::AssignOp { target, op, value } => Statement::AssignOp {
+                target: target.monomorphize(ctx, type_args),
+                op: *op,
+                value: ctx.arena.alloc(value.monomorphize(ctx, type_args)),
+            },
         }
     }
 }
@@ -264,14 +279,44 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
     }
 
     let value = get_expr_from_node(ctx.ctx, ctx.scope, Some(receiver.ty), &node.value);
-    if !receiver.ty.is_assignable_with(value.ty) {
+    let Some(op) = node.op else {
+        if !receiver.ty.is_assignable_with(value.ty) {
+            ctx.ctx
+                .errors
+                .type_mismatch(node.value.pos(), receiver.ty, value.ty);
+        }
+        return StatementResult {
+            statement: Statement::Assign {
+                target: receiver,
+                value,
+            },
+            new_scope: None,
+            is_returning: false,
+            last_unused_local: ctx.last_unused_local,
+        };
+    };
+
+    let lhs = get_expr_from_node(ctx.ctx, ctx.scope, None, &node.receiver);
+    let value = ctx.ctx.arena.alloc(value);
+    let operation = get_binary_expr(
+        ctx.ctx,
+        op,
+        node.receiver.pos(),
+        ctx.ctx.arena.alloc(lhs),
+        value,
+    );
+    if !receiver.ty.is_assignable_with(operation.ty) {
         ctx.ctx
             .errors
-            .type_mismatch(node.value.pos(), receiver.ty, value.ty);
+            .type_mismatch(node.value.pos(), receiver.ty, operation.ty);
     }
 
     StatementResult {
-        statement: Statement::Assign(receiver, value),
+        statement: Statement::AssignOp {
+            target: receiver,
+            op,
+            value,
+        },
         new_scope: None,
         is_returning: false,
         last_unused_local: ctx.last_unused_local,

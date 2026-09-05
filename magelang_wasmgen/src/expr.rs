@@ -3,7 +3,7 @@ use crate::errors::CodegenError;
 use crate::func::{FuncId, FuncMapper};
 use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
-use magelang_syntax::ErrorReporter;
+use magelang_syntax::{BinaryOp, ErrorReporter};
 use magelang_typecheck::{BitSize, DefId, Expr, ExprKind, FloatType, Type, TypeArgs, TypeRepr};
 use std::iter::zip;
 use wasm_helper as wasm;
@@ -67,18 +67,18 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             ExprKind::Deref(addr) => self.build_deref(addr),
             ExprKind::Call(callee, arguments) => self.build_call(callee, arguments),
 
-            ExprKind::Add(a, b) => self.build_add(expr.ty, a, b),
-            ExprKind::Sub(a, b) => self.build_sub(expr.ty, a, b),
-            ExprKind::Mul(a, b) => self.build_mul(expr.ty, a, b),
-            ExprKind::Div(a, b) => self.build_div(expr.ty, a, b),
-            ExprKind::Mod(a, b) => self.build_mod(expr.ty, a, b),
-            ExprKind::BitOr(a, b) => self.build_bit_or(expr.ty, a, b),
-            ExprKind::BitAnd(a, b) => self.build_bit_and(expr.ty, a, b),
-            ExprKind::BitXor(a, b) => self.build_bit_xor(expr.ty, a, b),
-            ExprKind::ShiftLeft(a, b) => self.build_bit_shl(expr.ty, a, b),
-            ExprKind::ShiftRight(a, b) => self.build_bit_shr(expr.ty, a, b),
-            ExprKind::And(a, b) => self.build_and(a, b),
-            ExprKind::Or(a, b) => self.build_or(a, b),
+            ExprKind::Add(a, b) => self.build_add(expr.ty, self.build(a), b),
+            ExprKind::Sub(a, b) => self.build_sub(expr.ty, self.build(a), b),
+            ExprKind::Mul(a, b) => self.build_mul(expr.ty, self.build(a), b),
+            ExprKind::Div(a, b) => self.build_div(expr.ty, self.build(a), b),
+            ExprKind::Mod(a, b) => self.build_mod(expr.ty, self.build(a), b),
+            ExprKind::BitOr(a, b) => self.build_bit_or(expr.ty, self.build(a), b),
+            ExprKind::BitAnd(a, b) => self.build_bit_and(expr.ty, self.build(a), b),
+            ExprKind::BitXor(a, b) => self.build_bit_xor(expr.ty, self.build(a), b),
+            ExprKind::ShiftLeft(a, b) => self.build_bit_shl(expr.ty, self.build(a), b),
+            ExprKind::ShiftRight(a, b) => self.build_bit_shr(expr.ty, self.build(a), b),
+            ExprKind::And(a, b) => self.build_and(self.build(a), b),
+            ExprKind::Or(a, b) => self.build_or(self.build(a), b),
             ExprKind::Eq(a, b) => self.build_eq(a, b),
             ExprKind::NEq(a, b) => self.build_ne(a, b),
             ExprKind::Gt(a, b) => self.build_gt(a, b),
@@ -247,19 +247,9 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 offset: component_layout.offset,
                 align: component_layout.align.normalize(),
             };
-            let load_instr = match val_type {
-                PrimitiveType::I8 => wasm::Instr::I32Load8S,
-                PrimitiveType::U8 => wasm::Instr::I32Load8U,
-                PrimitiveType::I16 => wasm::Instr::I32Load16S,
-                PrimitiveType::U16 => wasm::Instr::I32Load16U,
-                PrimitiveType::I32 | PrimitiveType::U32 => wasm::Instr::I32Load,
-                PrimitiveType::I64 | PrimitiveType::U64 => wasm::Instr::I64Load,
-                PrimitiveType::F32 => wasm::Instr::F32Load,
-                PrimitiveType::F64 => wasm::Instr::F64Load,
-                PrimitiveType::Extern => {
-                    self.errors.dereferencing_opaque(addr.pos);
-                    return vec![wasm::Instr::Unreachable];
-                }
+            let Some(load_instr) = val_type.load_instr() else {
+                self.errors.dereferencing_opaque(addr.pos);
+                return vec![wasm::Instr::Unreachable];
             };
             let load_instr = load_instr(mem_arg);
 
@@ -323,8 +313,32 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_add(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    pub(crate) fn build_binary_op(
+        &self,
+        op: BinaryOp,
+        ty: &Type,
+        a: Vec<wasm::Instr>,
+        b: &Expr<'ctx>,
+    ) -> Vec<wasm::Instr> {
+        match op {
+            BinaryOp::Add => self.build_add(ty, a, b),
+            BinaryOp::Sub => self.build_sub(ty, a, b),
+            BinaryOp::Mul => self.build_mul(ty, a, b),
+            BinaryOp::Div => self.build_div(ty, a, b),
+            BinaryOp::Mod => self.build_mod(ty, a, b),
+            BinaryOp::BitOr => self.build_bit_or(ty, a, b),
+            BinaryOp::BitAnd => self.build_bit_and(ty, a, b),
+            BinaryOp::BitXor => self.build_bit_xor(ty, a, b),
+            BinaryOp::ShiftLeft => self.build_bit_shl(ty, a, b),
+            BinaryOp::ShiftRight => self.build_bit_shr(ty, a, b),
+            BinaryOp::And => self.build_and(a, b),
+            BinaryOp::Or => self.build_or(a, b),
+            _ => unreachable!("{op:?} has no assignment form"),
+        }
+    }
+
+    fn build_add(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -363,8 +377,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_sub(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_sub(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -403,8 +417,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_mul(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_mul(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -443,8 +457,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_div(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_div(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -483,8 +497,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_mod(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_mod(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -520,8 +534,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_bit_or(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_bit_or(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -543,8 +557,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_bit_and(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_bit_and(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -566,8 +580,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_bit_xor(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_bit_xor(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         let instrs = match ty.repr {
@@ -589,17 +603,17 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_bit_shl(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_bit_shl(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         // TODO: check if b is negative and panic if it is
         // or maybe just check if b is greater than 64, otherwise just panic
 
-        let TypeRepr::Int(.., bitsize) = a.ty.repr else {
+        let TypeRepr::Int(.., bitsize) = ty.repr else {
             unreachable!("cannot perform shl on {ty:?}");
         };
-        Self::normalize_shift_amount(a, b, &mut result);
+        Self::normalize_shift_amount(ty, b, &mut result);
 
         match bitsize {
             BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize => {
@@ -610,18 +624,18 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             }
         };
 
-        Self::normalize_bit_representation(a.ty, &mut result);
+        Self::normalize_bit_representation(ty, &mut result);
 
         result
     }
 
-    fn build_bit_shr(&self, ty: &Type, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_bit_shr(&self, ty: &Type, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
         result.extend(self.build(b));
 
         // TODO: check if b is negative and panic if it is
         // or maybe just check if b is greater than 64, otherwise just panic
-        Self::normalize_shift_amount(a, b, &mut result);
+        Self::normalize_shift_amount(ty, b, &mut result);
 
         let instrs = match ty.repr {
             TypeRepr::Int(true, BitSize::I8) => vec![wasm::Instr::I32ShrS],
@@ -650,9 +664,9 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn normalize_shift_amount(a: &Expr<'ctx>, b: &Expr<'ctx>, result: &mut Vec<wasm::Instr>) {
-        let TypeRepr::Int(.., bitsize) = a.ty.repr else {
-            unreachable!("cannot perform shl on {:?}", a.ty);
+    fn normalize_shift_amount(a_ty: &Type, b: &Expr<'ctx>, result: &mut Vec<wasm::Instr>) {
+        let TypeRepr::Int(.., bitsize) = a_ty.repr else {
+            unreachable!("cannot perform shl on {:?}", a_ty);
         };
 
         let TypeRepr::Int(b_sign, b_bitsize) = b.ty.repr else {
@@ -707,8 +721,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
     }
 
-    fn build_and(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_and(&self, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
 
         result.push(wasm::Instr::I32Eqz);
         result.push(wasm::Instr::If(
@@ -720,8 +734,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         result
     }
 
-    fn build_or(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let mut result = self.build(a);
+    fn build_or(&self, a: Vec<wasm::Instr>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
+        let mut result = a;
 
         result.push(wasm::Instr::I32Eqz);
         result.push(wasm::Instr::If(
@@ -1064,6 +1078,8 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                         | TypeRepr::Ptr(..)
                         | TypeRepr::ArrayPtr(..),
                     ) => vec![wasm::Instr::I32WrapI64],
+                    // i64, u64 -> i64, u64
+                    (_, BitSize::I64, TypeRepr::Int(_, BitSize::I64)) => vec![],
 
                     // i8, i16, i32, isize -> i64, u64
                     (

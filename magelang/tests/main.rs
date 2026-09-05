@@ -32,6 +32,8 @@ test_success!(test_010);
 test_success!(test_011);
 test_success!(test_012);
 test_success!(test_013);
+test_success!(test_014);
+test_success!(test_015);
 test_success!(test_001_fail);
 test_success!(test_002_fail);
 test_success!(test_003_fail);
@@ -40,6 +42,7 @@ test_success!(test_005_fail);
 test_success!(test_006_fail);
 test_success!(test_007_fail);
 test_success!(test_008_fail);
+test_success!(test_009_fail);
 
 fn test_package(name: &str) {
     unsafe {

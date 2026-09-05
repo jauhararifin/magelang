@@ -521,7 +521,6 @@ fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterN
 
 fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> {
     Some(match f.kind() {
-        TokenKind::Let => StatementNode::Let(parse_let_stmt(f)?),
         TokenKind::If => StatementNode::If(parse_if_stmt(f)?),
         TokenKind::While => StatementNode::While(parse_while_stmt(f)?),
         TokenKind::For => StatementNode::For(parse_for_stmt(f)?),
@@ -531,25 +530,44 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
         TokenKind::Break => StatementNode::Break(f.take(TokenKind::Break).unwrap().pos),
         TokenKind::Return => StatementNode::Return(parse_return_stmt(f)?),
         _ => {
-            let expr = parse_expr(f, true)?;
-            let pos = expr.pos();
-            if f.take_if(&TokenKind::Equal).is_some() {
-                let value = parse_expr(f, true)?;
-                f.take(TokenKind::SemiColon);
-                StatementNode::Assign(AssignStatementNode {
-                    pos,
-                    receiver: expr,
-                    value,
-                })
-            } else {
-                f.take(TokenKind::SemiColon);
-                StatementNode::Expr(expr)
-            }
+            let stmt = parse_simple_stmt(f, true)?;
+            f.take(TokenKind::SemiColon);
+            stmt
         }
     })
 }
 
-fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatementNode> {
+// a simple statement is a let, an assignment or an expression statement. it is parsed without its
+// ';' since it is also used as the initialization and the update of a for statement.
+fn parse_simple_stmt<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    allow_struct_lit: bool,
+) -> Option<StatementNode> {
+    if f.kind() == &TokenKind::Let {
+        return Some(StatementNode::Let(parse_let_stmt(f, allow_struct_lit)?));
+    }
+
+    let expr = parse_expr(f, allow_struct_lit)?;
+    let pos = expr.pos();
+    let op = match f.kind() {
+        TokenKind::Equal => None,
+        TokenKind::AssignOp(op) => Some(*op),
+        _ => return Some(StatementNode::Expr(expr)),
+    };
+    f.pop();
+    let value = parse_expr(f, allow_struct_lit)?;
+    Some(StatementNode::Assign(AssignStatementNode {
+        pos,
+        receiver: expr,
+        op,
+        value,
+    }))
+}
+
+fn parse_let_stmt<E: ErrorReporter>(
+    f: &mut FileParser<E>,
+    allow_struct_lit: bool,
+) -> Option<LetStatementNode> {
     let let_tok = f.take(TokenKind::Let)?;
     let pos = let_tok.pos;
 
@@ -558,15 +576,13 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
     if f.take_if(&TokenKind::Colon).is_some() {
         let ty = parse_type_expr(f)?;
         if f.take_if(&TokenKind::Equal).is_some() {
-            let value = parse_expr(f, true)?;
-            f.take(TokenKind::SemiColon)?;
+            let value = parse_expr(f, allow_struct_lit)?;
             Some(LetStatementNode {
                 pos,
                 name,
                 kind: LetKind::TypeValue { ty, value },
             })
         } else {
-            f.take(TokenKind::SemiColon)?;
             Some(LetStatementNode {
                 pos,
                 name,
@@ -574,8 +590,7 @@ fn parse_let_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<LetStatemen
             })
         }
     } else if f.take(TokenKind::Equal).is_some() {
-        let value = parse_expr(f, true)?;
-        f.take(TokenKind::SemiColon)?;
+        let value = parse_expr(f, allow_struct_lit)?;
         Some(LetStatementNode {
             pos,
             name,
@@ -650,24 +665,12 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
     let for_tok = f.take(TokenKind::For)?;
     let pos = for_tok.pos;
 
-    let init = if f.take_if(&TokenKind::SemiColon).is_some() {
+    let init = if f.kind() == &TokenKind::SemiColon {
         None
-    } else if matches!(
-        f.kind(),
-        TokenKind::OpenBlock
-            | TokenKind::If
-            | TokenKind::While
-            | TokenKind::For
-            | TokenKind::Defer
-            | TokenKind::Continue
-            | TokenKind::Break
-            | TokenKind::Return
-    ) {
-        f.unexpected("for initialization statement");
-        return None;
     } else {
-        Some(Box::new(parse_stmt(f)?))
+        Some(Box::new(parse_simple_stmt(f, true)?))
     };
+    f.take(TokenKind::SemiColon)?;
 
     let condition = if f.kind() == &TokenKind::SemiColon {
         None
@@ -683,19 +686,7 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
     let update = if f.kind() == &TokenKind::OpenBlock {
         None
     } else {
-        let expr = parse_expr(f, false)?;
-        let update_pos = expr.pos();
-        let stmt = if f.take_if(&TokenKind::Equal).is_some() {
-            let value = parse_expr(f, false)?;
-            StatementNode::Assign(AssignStatementNode {
-                pos: update_pos,
-                receiver: expr,
-                value,
-            })
-        } else {
-            StatementNode::Expr(expr)
-        };
-        Some(Box::new(stmt))
+        Some(Box::new(parse_simple_stmt(f, false)?))
     };
 
     let Some(body) = parse_block_stmt(f) else {
@@ -898,7 +889,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                             selection,
                         })
                     }
-                    TokenKind::Mul => {
+                    TokenKind::Mul | TokenKind::AssignOp(BinaryOp::Mul) => {
                         let tok = f.take(TokenKind::Mul)?;
                         ExprNode::Deref(DerefExprNode {
                             pos: tok.pos,
@@ -1123,6 +1114,9 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         if kind == TokenKind::Gt {
             self.split_shift_right();
         }
+        if kind == TokenKind::Mul {
+            self.split_mul_assign();
+        }
 
         let token = self.token();
         if token.kind == kind {
@@ -1210,6 +1204,9 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         if kind == &TokenKind::Gt {
             self.split_shift_right();
         }
+        if kind == &TokenKind::Mul {
+            self.split_mul_assign();
+        }
 
         let tok = self
             .tokens
@@ -1269,7 +1266,50 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 kind: TokenKind::Gt,
                 pos,
             });
+        } else if tok.is_some_and(|token| token.kind == TokenKind::AssignOp(BinaryOp::ShiftRight)) {
+            let tok = self.tokens.pop_front().unwrap();
+            let pos = tok.pos;
+            self.tokens.push_front(Token {
+                kind: TokenKind::Equal,
+                pos: pos.with_offset(2),
+            });
+            self.tokens.push_front(Token {
+                kind: TokenKind::Gt,
+                pos: pos.with_offset(1),
+            });
+            self.tokens.push_front(Token {
+                kind: TokenKind::Gt,
+                pos,
+            });
         }
+    }
+
+    fn split_mul_assign(&mut self) {
+        let tok = self.tokens.front();
+        if !tok.is_some_and(|token| token.kind == TokenKind::AssignOp(BinaryOp::Mul)) {
+            return;
+        }
+        let pos = self.tokens.pop_front().unwrap().pos;
+        let equal_pos = pos.with_offset(1);
+        let joins_next_equal = self.tokens.front().is_some_and(|token| {
+            token.kind == TokenKind::Equal && token.pos == equal_pos.with_offset(1)
+        });
+        if joins_next_equal {
+            self.tokens.pop_front();
+            self.tokens.push_front(Token {
+                kind: TokenKind::Eq,
+                pos: equal_pos,
+            });
+        } else {
+            self.tokens.push_front(Token {
+                kind: TokenKind::Equal,
+                pos: equal_pos,
+            });
+        }
+        self.tokens.push_front(Token {
+            kind: TokenKind::Mul,
+            pos,
+        });
     }
 
     fn skip_until_before(&mut self, kind: &[TokenKind]) {

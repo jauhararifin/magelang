@@ -175,8 +175,12 @@ fn collect_statement_dependencies<'a, E>(
             collect_expr_dependencies(ctx, expr, dependencies, visited_funcs, visiting_funcs)
         }
         Statement::Return(None) => {}
-        Statement::Assign(receiver, value) => {
-            collect_expr_dependencies(ctx, receiver, dependencies, visited_funcs, visiting_funcs);
+        Statement::Assign { target, value } => {
+            collect_expr_dependencies(ctx, target, dependencies, visited_funcs, visiting_funcs);
+            collect_expr_dependencies(ctx, value, dependencies, visited_funcs, visiting_funcs);
+        }
+        Statement::AssignOp { target, value, .. } => {
+            collect_expr_dependencies(ctx, target, dependencies, visited_funcs, visiting_funcs);
             collect_expr_dependencies(ctx, value, dependencies, visited_funcs, visiting_funcs);
         }
     }
