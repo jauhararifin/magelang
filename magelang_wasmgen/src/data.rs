@@ -244,6 +244,7 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
             self.ctx.errors.cannot_read_file(pos, filepath, err);
             return &[];
         }
+        buff.push(0);
 
         self.ctx.arena.alloc_slice_copy(&buff)
     }
