@@ -5,8 +5,8 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode, CastExprNode, CharLit, DerefExprNode,
-    ErrorReporter, ExprNode, IndexExprNode, NumberLit, PathName, PathNode, Pos, SelectionExprNode,
-    StringLit, StructExprNode, TryFromNumberError, UnaryExprNode, UnaryOp,
+    ErrorReporter, ExprNode, IndexExprNode, InstExprNode, NumberLit, Pos, SelectionExprNode,
+    StringLit, StructExprNode, TryFromNumberError, TypeExprNode, UnaryExprNode, UnaryOp,
 };
 use num::{BigInt, Signed, Zero};
 use std::collections::HashMap;
@@ -402,7 +402,14 @@ fn get_expr_from_node_internal<'a, E: ErrorReporter>(
     node: &ExprNode,
 ) -> Expr<'a> {
     match node {
-        ExprNode::Path(node) => get_expr_from_path(ctx, scope, node),
+        ExprNode::Ident(name) => {
+            let symbol = ctx.define_symbol(&name.value);
+            let object = scope.value_scopes.lookup(symbol);
+            if object.is_none() {
+                ctx.errors.undeclared_symbol(name.pos, &name.value);
+            }
+            get_expr_from_named_value(ctx, scope, name.pos, &[], object)
+        }
         ExprNode::Number(num_lit) => get_expr_from_number_lit(ctx, num_lit),
         ExprNode::Null(..) => Expr {
             ty: ctx.define_type(Type {
@@ -427,6 +434,7 @@ fn get_expr_from_node_internal<'a, E: ErrorReporter>(
         ExprNode::Selection(selection_node) => {
             get_expr_from_selection_node(ctx, scope, selection_node)
         }
+        ExprNode::Inst(inst) => get_expr_from_inst_node(ctx, scope, inst),
         ExprNode::Index(node) => get_expr_from_index_node(ctx, scope, node),
         ExprNode::Grouped(node) => get_expr_from_node_internal(ctx, scope, node),
     }
@@ -492,50 +500,52 @@ mod tests {
     }
 }
 
-fn get_expr_from_path<'a, E: ErrorReporter>(
+fn get_expr_from_named_value<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
-    node: &PathNode,
+    pos: Pos,
+    args: &[TypeExprNode],
+    object: Option<&ValueObject<'a>>,
 ) -> Expr<'a> {
-    let Some(object) = get_value_object_from_path(ctx, scope, &node.path) else {
+    let Some(object) = object else {
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Unknown,
             }),
             kind: ExprKind::Invalid,
-            pos: node.pos(),
+            pos,
             assignable: true,
         };
     };
 
-    let is_generic = !node.args.is_empty();
+    let is_generic = !args.is_empty();
 
     match object {
         ValueObject::Func(func_obj) => {
             if func_obj.type_params.is_empty() {
                 if is_generic {
-                    ctx.errors.non_generic_value(node.pos());
+                    ctx.errors.non_generic_value(pos);
                 }
                 Expr {
                     ty: func_obj.ty,
                     kind: ExprKind::Func(func_obj.def_id),
-                    pos: node.pos(),
+                    pos,
                     assignable: false,
                 }
             } else {
                 let expected_type_param = func_obj.type_params.len();
-                let provided_type_param = node.args.len();
+                let provided_type_param = args.len();
                 if expected_type_param != provided_type_param {
                     ctx.errors.type_arguments_count_mismatch(
-                        node.pos(),
+                        pos,
                         expected_type_param,
                         provided_type_param,
                     );
                 }
 
                 let mut type_args = Vec::<&Type>::default();
-                for type_expr in &node.args {
+                for type_expr in args {
                     let ty = get_type_from_node(ctx, scope, type_expr);
                     type_args.push(ty);
                 }
@@ -553,71 +563,33 @@ fn get_expr_from_path<'a, E: ErrorReporter>(
                 Expr {
                     ty: instance_ty,
                     kind: ExprKind::FuncInst(func_obj.def_id, type_args),
-                    pos: node.pos(),
+                    pos,
                     assignable: false,
                 }
             }
         }
         ValueObject::Global(global_obj) => {
             if is_generic {
-                ctx.errors.non_generic_value(node.pos());
+                ctx.errors.non_generic_value(pos);
             }
             Expr {
                 ty: global_obj.ty,
                 kind: ExprKind::Global(global_obj.def_id),
-                pos: node.pos(),
+                pos,
                 assignable: true,
             }
         }
         ValueObject::Local(local_obj) => {
             if is_generic {
-                ctx.errors.non_generic_value(node.pos());
+                ctx.errors.non_generic_value(pos);
             }
             Expr {
                 ty: local_obj.ty,
                 kind: ExprKind::Local(local_obj.id),
-                pos: node.pos(),
+                pos,
                 assignable: true,
             }
         }
-    }
-}
-
-fn get_value_object_from_path<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, '_, E>,
-    scope: &'b Scopes<'a>,
-    path: &PathName,
-) -> Option<&'b ValueObject<'a>> {
-    match path {
-        PathName::Local(name) => {
-            let name_symbol = ctx.define_symbol(name.value.as_str());
-            let Some(object) = scope.value_scopes.lookup(name_symbol) else {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
-                return None;
-            };
-            Some(object)
-        }
-        PathName::Package { package, name } => {
-            let package_symbol = ctx.define_symbol(&package.value);
-            let Some(import_object) = scope.import_scopes.lookup(package_symbol) else {
-                ctx.errors.undeclared_symbol(package.pos, &package.value);
-                return None;
-            };
-
-            let Some(scope) = ctx.scopes.get(&import_object.package) else {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
-                return None;
-            };
-
-            let name_symbol = ctx.define_symbol(name.value.as_ref());
-            let Some(object) = scope.value_scopes.lookup(name_symbol) else {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
-                return None;
-            };
-
-            Some(object)
-        }
-        PathName::Invalid(..) => None,
     }
 }
 
@@ -1927,11 +1899,91 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     }
 }
 
+fn get_expr_from_inst_node<'a, E: ErrorReporter>(
+    ctx: &Context<'a, '_, E>,
+    scope: &Scopes<'a>,
+    node: &InstExprNode,
+) -> Expr<'a> {
+    match node.value.as_ref() {
+        ExprNode::Ident(name) => {
+            let symbol = ctx.define_symbol(&name.value);
+            let object = scope.value_scopes.lookup(symbol);
+            if object.is_none() {
+                ctx.errors.undeclared_symbol(name.pos, &name.value);
+            }
+            return get_expr_from_named_value(ctx, scope, name.pos, &node.args, object);
+        }
+        ExprNode::Selection(selection) => {
+            if let ExprNode::Ident(package) = selection.value.as_ref() {
+                let symbol = ctx.define_symbol(&package.value);
+                if scope.value_scopes.lookup(symbol).is_none() {
+                    if let Some(import) = scope.import_scopes.lookup(symbol) {
+                        let name = ctx.define_symbol(&selection.selection.value);
+                        let object = ctx
+                            .scopes
+                            .get(&import.package)
+                            .and_then(|package| package.value_scopes.lookup(name));
+                        if object.is_none() {
+                            ctx.errors.undeclared_symbol(
+                                selection.selection.pos,
+                                &selection.selection.value,
+                            );
+                        }
+                        return get_expr_from_named_value(
+                            ctx,
+                            scope,
+                            node.value.pos(),
+                            &node.args,
+                            object,
+                        );
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+
+    let _ = get_expr_from_node_internal(ctx, scope, &node.value);
+    ctx.errors.non_generic_value(node.value.pos());
+    Expr {
+        ty: ctx.define_type(Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Unknown,
+        }),
+        kind: ExprKind::Invalid,
+        pos: node.value.pos(),
+        assignable: false,
+    }
+}
+
 fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
     scope: &Scopes<'a>,
     node: &SelectionExprNode,
 ) -> Expr<'a> {
+    let mut node_value: &ExprNode = &node.value;
+    while let ExprNode::Grouped(v) = node_value {
+        node_value = v;
+    }
+
+    if let ExprNode::Ident(base) = node.value.as_ref() {
+        let symbol = ctx.define_symbol(&base.value);
+        if scope.value_scopes.lookup(symbol).is_none() {
+            if let Some(import) = scope.import_scopes.lookup(symbol) {
+                let name = ctx.define_symbol(&node.selection.value);
+                let object = ctx
+                    .scopes
+                    .get(&import.package)
+                    .and_then(|package| package.value_scopes.lookup(name));
+                if object.is_none() {
+                    ctx.errors
+                        .undeclared_symbol(node.selection.pos, &node.selection.value);
+                }
+                return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], object);
+            }
+        }
+    }
+
     let value = get_expr_from_node_internal(ctx, scope, &node.value);
 
     let mut ty = value.ty;

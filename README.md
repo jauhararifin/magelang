@@ -67,8 +67,8 @@ fn main() {
   let b: i64 = 165;
   // calling a function
   let c: i64 = gcd(a, b);
-  fmt::print_i64(c);
-  fmt::print_str("\n");
+  fmt.print_i64(c);
+  fmt.print_str("\n");
 }
 ```
 
@@ -180,7 +180,7 @@ import fmt "fmt";
 @main()
 fn the_main_function() {
   let msg = "Hello again, world\n";
-  fmt::print_string(msg);
+  fmt.print_string(msg);
 }
 ```
 
@@ -215,7 +215,7 @@ the `hello.wasm` file and see the hello world message.
 
 As you can see, you can import the `fmt` package into `hello` package by writing
 `import fmt "fmt"`. Here, the first `fmt` is the name of the import, we can access all
-items in the `"fmt"` package using `fmt::<the_name_of_the_item>`. The second `"fmt"` is
+items in the `"fmt"` package using `fmt.print_str(...)`, for example. The second `"fmt"` is
 the path to fmt package, which is just "fmt".
 
 Magelang uses the current directory as the base path to find the package. In this case,
@@ -256,9 +256,9 @@ To dereference a unit pointer `p`, you can write `p.*`. For eaxmple:
 ```
 @main()
 fn main() {
-    let p: *i32 = mem::alloc::<i32>();
+    let p: *i32 = mem.alloc<i32>();
     p.* = 10;
-    fmt::print_i32(p.*);
+    fmt.print_i32(p.*);
 }
 ```
 
@@ -268,10 +268,10 @@ will give you the address of `i`-th element, adding `.*` will dereference it. Fo
 ```
 @main()
 fn main() {
-    let p: [*]i32 = mem::alloc_array::<i32>(10);
+    let p: [*]i32 = mem.alloc_array<i32>(10);
     set(p[5]);
     p[6].* = 10;
-    fmt::print_i32(p[5].*);
+    fmt.print_i32(p[5].*);
 }
 
 fn set(value: *i32) {
@@ -313,8 +313,8 @@ struct Bar {
 }
 
 fn print_foo(foo: Foo) {
-    fmt::print_i32(foo.field1);
-    fmt::print_bool(foo.bar.field1);
+    fmt.print_i32(foo.field1);
+    fmt.print_bool(foo.bar.field1);
 }
 ```
 
@@ -334,12 +334,12 @@ struct Bar {
 }
 
 fn print_foo(foo: *Foo) {
-    fmt::print_i32(foo.field1.*);
-    fmt::print_bar(foo.bar);
+    fmt.print_i32(foo.field1.*);
+    fmt.print_bar(foo.bar);
 }
 
 fn print_bar(bar: *Bar) {
-    fmt::print_bool(bar.field1.*);
+    fmt.print_bool(bar.field1.*);
 }
 ```
 
@@ -348,7 +348,7 @@ fn print_bar(bar: *Bar) {
 You can also have a function type defined like this:
 ```
 let some_func: fn(i32, i64): i8 = ...;
-fmt::print_u8(some_func(10, 11));
+fmt.print_u8(some_func(10, 11));
 ```
 
 ## Functions
@@ -378,7 +378,7 @@ fn gcd(a: i32, b: i32): i32 {
 @main()
 fn main() {
     // Here is how you call a function from different package.
-    fmt::print_str("hello world\n");
+    fmt.print_str("hello world\n");
 }
 ```
 
@@ -419,12 +419,12 @@ Just like Rust, Magelang support variable shadowing for local variables:
 @main()
 fn main() {
     let a: i32 = 10;
-    fmt::print_i32(a);
+    fmt.print_i32(a);
 
     // you can redeclare variable with the same name and invalidate the
     // previously declared variable with the same name.
     let a: [*]u8 = "Hello world\n";
-    fmt::print_str(a);
+    fmt.print_str(a);
 }
 ```
 
@@ -454,7 +454,7 @@ while i < 100 {
     i = i + 1;
 }
 
-fmt::print_i32(i);
+fmt.print_i32(i);
 ```
 
 Use while statement to perform a loop. You can use `break` and `continue` just like other programming languages.
@@ -468,7 +468,7 @@ while i < 100 {
     } else if i % 31 == 0 {
         break;
     } else {
-        fmt::print_str("HAHA\n");
+        fmt.print_str("HAHA\n");
     }
 }
 ```
@@ -481,7 +481,7 @@ for let i = 0; i < 100; i = i + 1 {
     sum = sum + i;
 }
 
-fmt::print_i32(sum);
+fmt.print_i32(sum);
 ```
 
 Magelang also support scope-based defer.
@@ -489,12 +489,12 @@ Magelang also support scope-based defer.
 ```
 fn f() {
     let a: i32 = 10;
-    defer fmt::print_i32(a);
+    defer fmt.print_i32(a);
     {
-        defer fmt::print_str("inner\n");
-        fmt::print_str("body\n");
+        defer fmt.print_str("inner\n");
+        fmt.print_str("body\n");
     }
-    fmt::print_str("end\n");
+    fmt.print_str("end\n");
 }
 ```
 

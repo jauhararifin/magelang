@@ -23,17 +23,17 @@ fn main() {
   a.a = x;
   a.c = y;
 
-  assert_equal::<i32>(10, a.a);
-  assert_equal::<i64>(30, a.c);
+  assert_equal<i32>(10, a.a);
+  assert_equal<i64>(30, a.c);
 
-  assert_equal::<i32>(10, global_1);
+  assert_equal<i32>(10, global_1);
   a.b = calculate();
-  assert_equal::<i32>(99, global_1);
+  assert_equal<i32>(99, global_1);
 
-  let bar = Bar::<void>{};
+  let bar = Bar<void>{};
   let x = bar.a;
-  let size = wasm::size_of::<Bar<void>>();
-  assert_equal::<usize>(0, size);
+  let size = wasm.size_of<Bar<void>>();
+  assert_equal<usize>(0, size);
 }
 
 fn calculate(): void {
@@ -42,12 +42,12 @@ fn calculate(): void {
 
 fn assert(cond: bool) {
   if !cond {
-    wasm::unreachable();
+    wasm.unreachable();
   }
 }
 
 fn assert_equal<T>(expected: T, actual: T) {
   if expected != actual {
-    wasm::unreachable();
+    wasm.unreachable();
   }
 }

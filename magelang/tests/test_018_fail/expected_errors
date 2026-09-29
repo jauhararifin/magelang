@@ -1,0 +1,2 @@
+tests/test_018_fail/main.mg:2:22: Symbol Inner is not declared yet
+tests/test_018_fail/main.mg:4:18: Symbol Inner is not declared yet

@@ -42,74 +42,74 @@ fn make_with_void(): WithVoid {
 fn nothing() {}
 
 fn test_field_of_call_result() {
-  assert_equal::<i32>(1, make_big().x);   // nothing before it
-  assert_equal::<f64>(4.5, make_big().f); // components before and after it
-  assert_equal::<i32>(6, make_big().y);   // nothing after it
+  assert_equal<i32>(1, make_big().x);   // nothing before it
+  assert_equal<f64>(4.5, make_big().f); // components before and after it
+  assert_equal<i32>(6, make_big().y);   // nothing after it
 }
 
 fn test_nested_field_of_call_result() {
-  assert_equal::<i64>(2, make_big().i.a);
-  assert_equal::<i64>(3, make_big().i.b);
-  assert_equal::<i32>(7, make_tail().p);
-  assert_equal::<i64>(8, make_tail().q.a);
-  assert_equal::<i64>(9, make_tail().q.b);
+  assert_equal<i64>(2, make_big().i.a);
+  assert_equal<i64>(3, make_big().i.b);
+  assert_equal<i32>(7, make_tail().p);
+  assert_equal<i64>(8, make_tail().q.a);
+  assert_equal<i64>(9, make_tail().q.b);
 }
 
 fn test_struct_typed_field() {
   let inner = make_big().i;
-  assert_equal::<i64>(2, inner.a);
-  assert_equal::<i64>(3, inner.b);
+  assert_equal<i64>(2, inner.a);
+  assert_equal<i64>(3, inner.b);
 
   let tail = make_tail().q;
-  assert_equal::<i64>(8, tail.a);
-  assert_equal::<i64>(9, tail.b);
+  assert_equal<i64>(8, tail.a);
+  assert_equal<i64>(9, tail.b);
 }
 
 fn test_mixed_component_types() {
-  assert_equal::<i8>(-1, make_mixed().a);
-  assert_equal::<f32>(1.5, make_mixed().b);
-  assert_equal::<u16>(300, make_mixed().c);
-  assert_equal::<i64>(1234567890123, make_mixed().d);
-  assert_equal::<f64>(2.25, make_mixed().e);
-  assert_equal::<bool>(true, make_mixed().f);
+  assert_equal<i8>(-1, make_mixed().a);
+  assert_equal<f32>(1.5, make_mixed().b);
+  assert_equal<u16>(300, make_mixed().c);
+  assert_equal<i64>(1234567890123, make_mixed().d);
+  assert_equal<f64>(2.25, make_mixed().e);
+  assert_equal<bool>(true, make_mixed().f);
 }
 
 fn test_zero_sized_field() {
-  assert_equal::<i32>(1, make_with_void().a);
-  assert_equal::<i64>(2, make_with_void().b);
+  assert_equal<i32>(1, make_with_void().a);
+  assert_equal<i64>(2, make_with_void().b);
   let v: void = make_with_void().v;
   make_with_void().v;
 }
 
 fn test_operands_below_the_field() {
-  assert_equal::<i64>(3, pick_middle(100, make_big().i.b, 200));
-  assert_equal::<i32>(7, make_big().x + make_big().y);
-  assert_equal::<i64>(5, make_big().i.a + make_big().i.b);
-  assert_equal::<i32>(13, make_big().y + make_tail().p);
-  assert_equal::<f64>(6.75, make_big().f + make_mixed().e);
+  assert_equal<i64>(3, pick_middle(100, make_big().i.b, 200));
+  assert_equal<i32>(7, make_big().x + make_big().y);
+  assert_equal<i64>(5, make_big().i.a + make_big().i.b);
+  assert_equal<i32>(13, make_big().y + make_tail().p);
+  assert_equal<f64>(6.75, make_big().f + make_mixed().e);
 }
 
 fn pick_middle(a: i32, b: i64, c: i32): i64 {
-  assert_equal::<i32>(100, a);
-  assert_equal::<i32>(200, c);
+  assert_equal<i32>(100, a);
+  assert_equal<i32>(200, c);
   return b;
 }
 
 fn test_local_and_global() {
   let b = make_big();
-  assert_equal::<i32>(1, b.x);
-  assert_equal::<i64>(3, b.i.b);
-  assert_equal::<i32>(6, b.y);
+  assert_equal<i32>(1, b.x);
+  assert_equal<i64>(3, b.i.b);
+  assert_equal<i32>(6, b.y);
 
   b.y = 60;
   b.i.b = 30;
-  assert_equal::<i32>(60, b.y);
-  assert_equal::<i64>(30, b.i.b);
-  assert_equal::<i64>(2, b.i.a);
+  assert_equal<i32>(60, b.y);
+  assert_equal<i64>(30, b.i.b);
+  assert_equal<i64>(2, b.i.a);
 
-  assert_equal::<i32>(1, global_big.x);
-  assert_equal::<i64>(3, global_big.i.b);
-  assert_equal::<i32>(6, global_big.y);
+  assert_equal<i32>(1, global_big.x);
+  assert_equal<i64>(3, global_big.i.b);
+  assert_equal<i32>(6, global_big.y);
 }
 
 fn test_deref() {
@@ -119,11 +119,11 @@ fn test_deref() {
   p.*.f = 4.5;
   p.*.y = 44;
 
-  assert_equal::<i32>(11, p.*.x);
-  assert_equal::<i64>(22, p.*.i.a);
-  assert_equal::<i64>(33, p.*.i.b);
-  assert_equal::<f64>(4.5, p.*.f);
-  assert_equal::<i32>(44, p.*.y);
+  assert_equal<i32>(11, p.*.x);
+  assert_equal<i64>(22, p.*.i.a);
+  assert_equal<i64>(33, p.*.i.b);
+  assert_equal<f64>(4.5, p.*.f);
+  assert_equal<i32>(44, p.*.y);
 }
 
 fn test_inside_loop() {
@@ -137,8 +137,8 @@ fn test_inside_loop() {
     }
     sum = sum + make_big().i.b;
   }
-  assert_equal::<i32>(4, i);
-  assert_equal::<i64>(6, sum); // only i == 1 and i == 3 contribute
+  assert_equal<i32>(4, i);
+  assert_equal<i64>(6, sum); // only i == 1 and i == 3 contribute
 }
 
 fn bump(): Big {
@@ -148,14 +148,14 @@ fn bump(): Big {
 
 fn test_evaluated_once() {
   counter = 0;
-  assert_equal::<i32>(6, bump().y);
-  assert_equal::<i32>(1, counter);
-  assert_equal::<i64>(3, bump().i.b);
-  assert_equal::<i32>(2, counter);
+  assert_equal<i32>(6, bump().y);
+  assert_equal<i32>(1, counter);
+  assert_equal<i64>(3, bump().i.b);
+  assert_equal<i32>(2, counter);
 }
 
 fn assert_equal<T>(expected: T, actual: T) {
   if expected != actual {
-    wasm::unreachable();
+    wasm.unreachable();
   }
 }

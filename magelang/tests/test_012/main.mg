@@ -71,8 +71,8 @@ fn return_inside_nested_loops(): i64 {
 
 fn test_return_inside_nested_loops() {
   trace = 0;
-  assert_equal::<i64>(12, return_inside_nested_loops());
-  assert_equal::<i64>(33423321, trace);
+  assert_equal<i64>(12, return_inside_nested_loops());
+  assert_equal<i64>(33423321, trace);
 }
 
 fn early_or_late(early: bool): i64 {
@@ -89,11 +89,11 @@ fn early_or_late(early: bool): i64 {
 
 fn test_pending_defers_restored_after_early_return() {
   trace = 0;
-  assert_equal::<i64>(0, early_or_late(true));
-  assert_equal::<i64>(1, trace);
+  assert_equal<i64>(0, early_or_late(true));
+  assert_equal<i64>(1, trace);
   trace = 0;
-  assert_equal::<i64>(5, early_or_late(false));
-  assert_equal::<i64>(321, trace);
+  assert_equal<i64>(5, early_or_late(false));
+  assert_equal<i64>(321, trace);
 }
 
 fn current_trace(): i64 {
@@ -108,8 +108,8 @@ fn return_call_result(): i64 {
 
 fn test_return_value_from_call_evaluated_before_defers() {
   trace = 0;
-  assert_equal::<i64>(1, return_call_result());
-  assert_equal::<i64>(15, trace);
+  assert_equal<i64>(1, return_call_result());
+  assert_equal<i64>(15, trace);
 }
 
 fn void_return(c: bool) {
@@ -128,10 +128,10 @@ fn void_return(c: bool) {
 fn test_void_return_in_nested_blocks() {
   trace = 0;
   void_return(true);
-  assert_equal::<i64>(321, trace);
+  assert_equal<i64>(321, trace);
   trace = 0;
   void_return(false);
-  assert_equal::<i64>(4251, trace);
+  assert_equal<i64>(4251, trace);
 }
 
 fn struct_return_with_deferred_loops(): Pair {
@@ -157,9 +157,9 @@ fn struct_return_with_deferred_loops(): Pair {
 fn test_struct_return_with_deferred_loops() {
   trace = 0;
   let p = struct_return_with_deferred_loops();
-  assert_equal::<i32>(7, p.a);
-  assert_equal::<i64>(8, p.b);
-  assert_equal::<i64>(13, trace);
+  assert_equal<i32>(7, p.a);
+  assert_equal<i64>(8, p.b);
+  assert_equal<i64>(13, trace);
 }
 
 fn make_pair(): Pair {
@@ -179,8 +179,8 @@ fn return_field_of_call(): i64 {
 
 fn test_return_expression_with_temporaries() {
   trace = 0;
-  assert_equal::<i64>(2, return_field_of_call());
-  assert_equal::<i64>(67, trace);
+  assert_equal<i64>(2, return_field_of_call());
+  assert_equal<i64>(67, trace);
 }
 
 fn if_chain(n: i64): i64 {
@@ -203,14 +203,14 @@ fn if_chain(n: i64): i64 {
 
 fn test_return_from_if_chain_depths() {
   trace = 0;
-  assert_equal::<i64>(10, if_chain(0));
-  assert_equal::<i64>(21, trace);
+  assert_equal<i64>(10, if_chain(0));
+  assert_equal<i64>(21, trace);
   trace = 0;
-  assert_equal::<i64>(11, if_chain(1));
-  assert_equal::<i64>(431, trace);
+  assert_equal<i64>(11, if_chain(1));
+  assert_equal<i64>(431, trace);
   trace = 0;
-  assert_equal::<i64>(12, if_chain(2));
-  assert_equal::<i64>(561, trace);
+  assert_equal<i64>(12, if_chain(2));
+  assert_equal<i64>(561, trace);
 }
 
 fn count_down(n: i64): i64 {
@@ -223,8 +223,8 @@ fn count_down(n: i64): i64 {
 
 fn test_recursion() {
   trace = 0;
-  assert_equal::<i64>(3, count_down(3));
-  assert_equal::<i64>(123, trace);
+  assert_equal<i64>(3, count_down(3));
+  assert_equal<i64>(123, trace);
 }
 
 fn loop_return(stop: i64): i64 {
@@ -241,11 +241,11 @@ fn loop_return(stop: i64): i64 {
 
 fn test_return_in_loop_vs_normal_exit() {
   trace = 0;
-  assert_equal::<i64>(1, loop_return(1));
-  assert_equal::<i64>(3211, trace);
+  assert_equal<i64>(1, loop_return(1));
+  assert_equal<i64>(3211, trace);
   trace = 0;
-  assert_equal::<i64>(9, loop_return(5));
-  assert_equal::<i64>(321321321, trace);
+  assert_equal<i64>(9, loop_return(5));
+  assert_equal<i64>(321321321, trace);
 }
 
 fn block_return(): i64 {
@@ -270,11 +270,11 @@ fn while_return(): i64 {
 
 fn test_return_as_last_statement_of_nested_block() {
   trace = 0;
-  assert_equal::<i64>(3, block_return());
-  assert_equal::<i64>(21, trace);
+  assert_equal<i64>(3, block_return());
+  assert_equal<i64>(21, trace);
   trace = 0;
-  assert_equal::<i64>(2, while_return());
-  assert_equal::<i64>(44, trace);
+  assert_equal<i64>(2, while_return());
+  assert_equal<i64>(44, trace);
 }
 
 fn test_deferred_assignment_visible_after_block() {
@@ -283,7 +283,7 @@ fn test_deferred_assignment_visible_after_block() {
     defer x = 5;
     x = 2;
   }
-  assert_equal::<i64>(5, x);
+  assert_equal<i64>(5, x);
 }
 
 fn test_deferred_block_locals_in_loop() {
@@ -300,7 +300,7 @@ fn test_deferred_block_locals_in_loop() {
     let c: i64 = i;
     mark(c);
   }
-  assert_equal::<i64>(13537, trace);
+  assert_equal<i64>(13537, trace);
 }
 
 fn bump_param(p: i64): i64 {
@@ -311,8 +311,8 @@ fn bump_param(p: i64): i64 {
 
 fn test_parameter_modified_by_defer() {
   trace = 0;
-  assert_equal::<i64>(2, bump_param(1));
-  assert_equal::<i64>(2, trace);
+  assert_equal<i64>(2, bump_param(1));
+  assert_equal<i64>(2, trace);
 }
 
 fn test_shadowing_inside_loop() {
@@ -323,7 +323,7 @@ fn test_shadowing_inside_loop() {
     let i: i64 = i + 10;
     mark(i);
   }
-  assert_equal::<i64>(21221, trace);
+  assert_equal<i64>(21221, trace);
 }
 
 fn deferred_block_then_locals(): i64 {
@@ -342,32 +342,32 @@ fn deferred_block_then_locals(): i64 {
 
 fn test_deferred_block_locals_do_not_clobber_later_locals() {
   trace = 0;
-  assert_equal::<i64>(6, deferred_block_then_locals());
-  assert_equal::<i64>(101, trace);
+  assert_equal<i64>(6, deferred_block_then_locals());
+  assert_equal<i64>(101, trace);
 }
 
 fn test_deferred_pointer_store() {
-  let p: *i64 = mem::alloc::<i64>();
+  let p: *i64 = mem.alloc<i64>();
   p.* = 1;
   {
     defer p.* = 5;
     p.* = 2;
   }
-  assert_equal::<i64>(5, p.*);
-  mem::dealloc::<i64>(p);
+  assert_equal<i64>(5, p.*);
+  mem.dealloc<i64>(p);
 }
 
 fn test_deferred_struct_pointer_stores() {
-  let p: *Pair = mem::alloc::<Pair>();
+  let p: *Pair = mem.alloc<Pair>();
   p.a.* = 1;
   p.b.* = 2;
   {
     defer p.b.* = 9;
     defer p.a.* = 8;
   }
-  assert_equal::<i32>(8, p.a.*);
-  assert_equal::<i64>(9, p.b.*);
-  mem::dealloc::<Pair>(p);
+  assert_equal<i32>(8, p.a.*);
+  assert_equal<i64>(9, p.b.*);
+  mem.dealloc<Pair>(p);
 }
 
 fn take_pair(p: Pair) {
@@ -383,7 +383,7 @@ fn test_struct_argument_evaluated_late() {
     p.a = 5;
     mark(1);
   }
-  assert_equal::<i64>(154, trace);
+  assert_equal<i64>(154, trace);
 }
 
 fn identity<T>(v: T): T {
@@ -394,10 +394,10 @@ fn identity<T>(v: T): T {
 fn test_generic_call_in_deferred_expression() {
   trace = 0;
   {
-    defer mark(identity::<i64>(2));
+    defer mark(identity<i64>(2));
     mark(3);
   }
-  assert_equal::<i64>(312, trace);
+  assert_equal<i64>(312, trace);
 }
 
 fn with_defers(early: bool): i64 {
@@ -414,7 +414,7 @@ fn test_deferred_call_to_function_with_defers() {
     defer mark(with_defers(true));
     mark(3);
   }
-  assert_equal::<i64>(312, trace);
+  assert_equal<i64>(312, trace);
 }
 
 fn many_defers(n: i64): i64 {
@@ -440,14 +440,14 @@ fn many_defers(n: i64): i64 {
 
 fn test_many_defers_with_every_exit_kind() {
   trace = 0;
-  assert_equal::<i64>(1, many_defers(1));
-  assert_equal::<i64>(6654321, trace);
+  assert_equal<i64>(1, many_defers(1));
+  assert_equal<i64>(6654321, trace);
   trace = 0;
-  assert_equal::<i64>(9, many_defers(7));
-  assert_equal::<i64>(66654321, trace);
+  assert_equal<i64>(9, many_defers(7));
+  assert_equal<i64>(66654321, trace);
   trace = 0;
-  assert_equal::<i64>(9, many_defers(-1));
-  assert_equal::<i64>(654321, trace);
+  assert_equal<i64>(9, many_defers(-1));
+  assert_equal<i64>(654321, trace);
 }
 
 fn i32_with_deferred_loop(n: i32): i32 {
@@ -466,14 +466,14 @@ fn i32_with_deferred_loop(n: i32): i32 {
 
 fn test_i32_return_with_deferred_loop() {
   trace = 0;
-  assert_equal::<i32>(3, i32_with_deferred_loop(3));
-  assert_equal::<i64>(3, trace);
+  assert_equal<i32>(3, i32_with_deferred_loop(3));
+  assert_equal<i64>(3, trace);
 }
 
 fn i64_with_deferred_memory_stores(): i64 {
-  let p: *i64 = mem::alloc::<i64>();
+  let p: *i64 = mem.alloc<i64>();
   p.* = 4;
-  defer mem::dealloc::<i64>(p);
+  defer mem.dealloc<i64>(p);
   defer mark(p.*);
   defer p.* = 5;
   return p.*;
@@ -481,8 +481,8 @@ fn i64_with_deferred_memory_stores(): i64 {
 
 fn test_i64_return_with_deferred_memory_stores() {
   trace = 0;
-  assert_equal::<i64>(4, i64_with_deferred_memory_stores());
-  assert_equal::<i64>(5, trace);
+  assert_equal<i64>(4, i64_with_deferred_memory_stores());
+  assert_equal<i64>(5, trace);
 }
 
 fn f64_with_deferred_struct_locals(early: bool): f64 {
@@ -499,11 +499,11 @@ fn f64_with_deferred_struct_locals(early: bool): f64 {
 
 fn test_f64_return_with_deferred_struct_locals() {
   trace = 0;
-  assert_equal::<f64>(1.5, f64_with_deferred_struct_locals(true));
-  assert_equal::<i64>(64, trace);
+  assert_equal<f64>(1.5, f64_with_deferred_struct_locals(true));
+  assert_equal<i64>(64, trace);
   trace = 0;
-  assert_equal::<f64>(2.5, f64_with_deferred_struct_locals(false));
-  assert_equal::<i64>(64, trace);
+  assert_equal<f64>(2.5, f64_with_deferred_struct_locals(false));
+  assert_equal<i64>(64, trace);
 }
 
 fn nested_struct_with_deferred_loops(): Triple {
@@ -523,15 +523,15 @@ fn nested_struct_with_deferred_loops(): Triple {
 fn test_nested_struct_return_with_deferred_loops() {
   trace = 0;
   let tr = nested_struct_with_deferred_loops();
-  assert_equal::<i32>(7, tr.x);
-  assert_equal::<f64>(8.5, tr.y);
-  assert_equal::<i32>(9, tr.z.a);
-  assert_equal::<i64>(10, tr.z.b);
-  assert_equal::<i64>(4012, trace);
+  assert_equal<i32>(7, tr.x);
+  assert_equal<f64>(8.5, tr.y);
+  assert_equal<i32>(9, tr.z.a);
+  assert_equal<i64>(10, tr.z.b);
+  assert_equal<i64>(4012, trace);
 }
 
 fn pointer_return(): *i64 {
-  let p = mem::alloc::<i64>();
+  let p = mem.alloc<i64>();
   defer p.* = 42;
   p.* = 1;
   return p;
@@ -539,8 +539,8 @@ fn pointer_return(): *i64 {
 
 fn test_pointer_return() {
   let p = pointer_return();
-  assert_equal::<i64>(42, p.*);
-  mem::dealloc::<i64>(p);
+  assert_equal<i64>(42, p.*);
+  mem.dealloc<i64>(p);
 }
 
 fn deep(n: i64): i64 {
@@ -564,8 +564,8 @@ fn deep(n: i64): i64 {
 
 fn test_defers_in_loops_inside_deferred_block_on_return() {
   trace = 0;
-  assert_equal::<i64>(1, deep(1));
-  assert_equal::<i64>(44321321, trace);
+  assert_equal<i64>(1, deep(1));
+  assert_equal<i64>(44321321, trace);
 }
 
 fn struct_local_deferred_field(): Pair {
@@ -578,8 +578,8 @@ fn struct_local_deferred_field(): Pair {
 fn test_struct_local_field_deferred_after_return_value() {
   trace = 0;
   let p = struct_local_deferred_field();
-  assert_equal::<i64>(2, p.b);
-  assert_equal::<i64>(2, trace);
+  assert_equal<i64>(2, p.b);
+  assert_equal<i64>(2, trace);
 }
 
 fn bool_return(): bool {
@@ -602,9 +602,9 @@ fn test_bool_u8_f32_returns() {
   if bool_return() {
     mark(7);
   }
-  assert_equal::<u8>(200, u8_return());
-  assert_equal::<f32>(5.0, f32_return());
-  assert_equal::<i64>(1723, trace);
+  assert_equal<u8>(200, u8_return());
+  assert_equal<f32>(5.0, f32_return());
+  assert_equal<i64>(1723, trace);
 }
 
 fn middle_field_in_deferred_expression(): Triple {
@@ -616,8 +616,8 @@ fn middle_field_in_deferred_expression(): Triple {
 fn test_middle_field_in_deferred_expression() {
   trace = 0;
   let tr = middle_field_in_deferred_expression();
-  assert_equal::<i64>(10, tr.z.b);
-  assert_equal::<i64>(6693, trace);
+  assert_equal<i64>(10, tr.z.b);
+  assert_equal<i64>(6693, trace);
 }
 
 fn chain(n: i64): i64 {
@@ -635,8 +635,8 @@ fn chain(n: i64): i64 {
 
 fn test_recursive_chain_with_block_defers() {
   trace = 0;
-  assert_equal::<i64>(4, chain(2));
-  assert_equal::<i64>(12, trace);
+  assert_equal<i64>(4, chain(2));
+  assert_equal<i64>(12, trace);
 }
 
 fn generic_block<T>(v: T, m: i64): T {
@@ -650,16 +650,16 @@ fn generic_block<T>(v: T, m: i64): T {
 
 fn test_generic_deferred_block_with_type_param_local() {
   trace = 0;
-  assert_equal::<i32>(5, generic_block::<i32>(5, 1));
-  assert_equal::<i64>(1, trace);
-  let p = generic_block::<Pair>(Pair{a: 2, b: 3}, 4);
-  assert_equal::<i32>(2, p.a);
-  assert_equal::<i64>(3, p.b);
-  assert_equal::<i64>(14, trace);
+  assert_equal<i32>(5, generic_block<i32>(5, 1));
+  assert_equal<i64>(1, trace);
+  let p = generic_block<Pair>(Pair{a: 2, b: 3}, 4);
+  assert_equal<i32>(2, p.a);
+  assert_equal<i64>(3, p.b);
+  assert_equal<i64>(14, trace);
 }
 
 fn assert_equal<T>(expected: T, actual: T) {
   if expected != actual {
-    wasm::unreachable();
+    wasm.unreachable();
   }
 }

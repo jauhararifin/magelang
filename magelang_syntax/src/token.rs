@@ -160,7 +160,6 @@ pub(crate) enum TokenKind {
     OpenSquare,
     CloseSquare,
     Comma,
-    DoubleColon,
     Colon,
     SemiColon,
     Equal,
@@ -212,7 +211,6 @@ impl TokenKind {
             | Self::OpenSquare
             | Self::CloseSquare
             | Self::Comma
-            | Self::DoubleColon
             | Self::Colon
             | Self::SemiColon
             | Self::Equal
@@ -296,7 +294,6 @@ impl Display for TokenKind {
             Self::OpenSquare => write!(f, "'['"),
             Self::CloseSquare => write!(f, "']'"),
             Self::Comma => write!(f, "','"),
-            Self::DoubleColon => write!(f, "'::'"),
             Self::Colon => write!(f, "':'"),
             Self::SemiColon => write!(f, "';'"),
             Self::Equal => write!(f, "'='"),

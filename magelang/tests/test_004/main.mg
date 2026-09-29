@@ -18,18 +18,18 @@ struct Qux<T, U, V> {
 
 @main()
 fn main() {
-  let a = mem::alloc::<Foo<i32, f64, i64>>();
-  a.a.* = mem::alloc::<Bar<i64,i32,f64>>();
-  a.a.*.a.* = mem::alloc::<Baz<f64,i64,i32>>();
-  a.a.*.a.*.a.* = mem::alloc::<Qux<i32,f64,i64>>();
-  a.a.*.a.*.a.*.a.* = mem::alloc::<Foo<i64,i32,f64>>();
-  a.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Bar<f64,i64,i32>>();
-  a.a.*.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Baz<i32,f64,i64>>();
-  a.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Qux<i64,i32,f64>>();
-  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Foo<f64,i64,i32>>();
-  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Bar<i32,f64,i64>>();
-  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Baz<i64,i32,f64>>();
-  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem::alloc::<Qux<f64,i64,i32>>();
+  let a = mem.alloc<Foo<i32, f64, i64>>();
+  a.a.* = mem.alloc<Bar<i64,i32,f64>>();
+  a.a.*.a.* = mem.alloc<Baz<f64,i64,i32>>();
+  a.a.*.a.*.a.* = mem.alloc<Qux<i32,f64,i64>>();
+  a.a.*.a.*.a.*.a.* = mem.alloc<Foo<i64,i32,f64>>();
+  a.a.*.a.*.a.*.a.*.a.* = mem.alloc<Bar<f64,i64,i32>>();
+  a.a.*.a.*.a.*.a.*.a.*.a.* = mem.alloc<Baz<i32,f64,i64>>();
+  a.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem.alloc<Qux<i64,i32,f64>>();
+  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem.alloc<Foo<f64,i64,i32>>();
+  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem.alloc<Bar<i32,f64,i64>>();
+  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem.alloc<Baz<i64,i32,f64>>();
+  a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = mem.alloc<Qux<f64,i64,i32>>();
   a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = a;
 }
 

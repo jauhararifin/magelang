@@ -1132,17 +1132,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "magelang_typecheck2"
-version = "0.1.0"
-dependencies = [
- "bumpalo",
- "home",
- "indexmap",
- "magelang_syntax",
- "num",
-]
-
-[[package]]
 name = "magelang_wasmgen"
 version = "0.1.0"
 dependencies = [

@@ -167,7 +167,9 @@ pub struct ParameterNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TypeExprNode {
     Invalid(Pos),
-    Path(PathNode),
+    Ident(Identifier),
+    Selection(SelectionTypeNode),
+    Inst(InstTypeNode),
     Ptr(PtrTypeNode),
     ArrayPtr(ArrayPtrTypeNode),
     Func(FuncTypeNode),
@@ -178,43 +180,13 @@ impl TypeExprNode {
     pub fn pos(&self) -> Pos {
         match self {
             Self::Invalid(pos) => *pos,
-            Self::Path(node) => node.pos(),
+            Self::Ident(node) => node.pos,
+            Self::Selection(node) => node.value.pos(),
+            Self::Inst(node) => node.value.pos(),
             Self::Ptr(node) => node.pos,
             Self::ArrayPtr(node) => node.pos,
             Self::Func(node) => node.pos,
             Self::Grouped(node) => node.pos(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct PathNode {
-    pub path: PathName,
-    pub args: Vec<TypeExprNode>,
-}
-
-impl PathNode {
-    pub fn pos(&self) -> Pos {
-        self.path.pos()
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum PathName {
-    Local(Identifier),
-    Package {
-        package: Identifier,
-        name: Identifier,
-    },
-    Invalid(Identifier, Vec<Identifier>),
-}
-
-impl PathName {
-    pub fn pos(&self) -> Pos {
-        match self {
-            Self::Local(ident) => ident.pos,
-            Self::Package { package, name: _ } => package.pos,
-            Self::Invalid(ident, _) => ident.pos,
         }
     }
 }
@@ -246,9 +218,9 @@ pub struct FuncTypeParam {
     pub ty: TypeExprNode,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExprNode {
-    Path(PathNode),
+    Ident(Identifier),
     Number(NumberLit),
     Null(Pos),
     Bool(BoolLiteral),
@@ -261,6 +233,7 @@ pub enum ExprNode {
     Cast(CastExprNode),
     Struct(StructExprNode),
     Selection(SelectionExprNode),
+    Inst(InstExprNode),
     Index(IndexExprNode),
     Grouped(Box<ExprNode>),
 }
@@ -268,6 +241,7 @@ pub enum ExprNode {
 impl ExprNode {
     pub fn pos(&self) -> Pos {
         match self {
+            Self::Ident(node) => node.pos,
             Self::Number(tok) => tok.pos,
             Self::Null(pos) => *pos,
             Self::Bool(bool_lit) => bool_lit.pos,
@@ -279,8 +253,8 @@ impl ExprNode {
             Self::Call(node) => node.callee.pos(),
             Self::Cast(node) => node.value.pos(),
             Self::Struct(node) => node.pos,
-            Self::Path(node) => node.pos(),
             Self::Selection(node) => node.value.pos(),
+            Self::Inst(node) => node.value.pos(),
             Self::Index(node) => node.value.pos(),
             Self::Grouped(node) => node.pos(),
         }
@@ -316,7 +290,7 @@ impl From<Token> for BoolLiteral {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BinaryExprNode {
     pub a: Box<ExprNode>,
     pub op: BinaryOp,
@@ -371,13 +345,13 @@ impl From<TokenKind> for BinaryOp {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DerefExprNode {
     pub pos: Pos,
     pub value: Box<ExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UnaryExprNode {
     pub pos: Pos,
     pub op: UnaryOp,
@@ -404,40 +378,58 @@ impl From<TokenKind> for UnaryOp {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CallExprNode {
     pub pos: Pos,
     pub callee: Box<ExprNode>,
     pub arguments: Vec<ExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CastExprNode {
     pub value: Box<ExprNode>,
     pub target: Box<TypeExprNode>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructExprNode {
     pub pos: Pos,
     pub target: TypeExprNode,
     pub elements: Vec<KeyValue>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeyValue {
     pub pos: Pos,
     pub key: Identifier,
     pub value: ExprNode,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SelectionExprNode {
     pub value: Box<ExprNode>,
     pub selection: Identifier,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct SelectionTypeNode {
+    pub value: Box<TypeExprNode>,
+    pub selection: Identifier,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct InstExprNode {
+    pub value: Box<ExprNode>,
+    pub args: Vec<TypeExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct InstTypeNode {
+    pub value: Box<TypeExprNode>,
+    pub args: Vec<TypeExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IndexExprNode {
     pub value: Box<ExprNode>,
     pub index: Box<ExprNode>,

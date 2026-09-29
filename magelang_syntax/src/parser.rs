@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::error::ErrorReporter;
+use crate::error::{ErrorManager, ErrorReporter};
 use crate::scanner::scan;
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
@@ -290,11 +290,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
         }
         TokenKind::Ident { .. } => {
             let pos = tok.pos;
-            if let Some(path) = parse_path_for_type(f) {
-                Some(TypeExprNode::Path(path))
-            } else {
-                Some(TypeExprNode::Invalid(pos))
-            }
+            Some(parse_named_type(f).unwrap_or(TypeExprNode::Invalid(pos)))
         }
         TokenKind::SemiColon => None,
         _ => {
@@ -326,41 +322,31 @@ fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<
     Some(FuncTypeParam { pos, name, ty })
 }
 
-fn parse_path_for_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
+fn parse_named_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNode> {
     let ident = f.take_if_ident()?;
-
-    let mut names = vec![];
-    while f.take_if(&TokenKind::DoubleColon).is_some() {
-        let ident = f.take_ident()?;
-        names.push(ident);
+    let mut ty = TypeExprNode::Ident(ident);
+    while f.take_if(&TokenKind::Dot).is_some() {
+        ty = TypeExprNode::Selection(SelectionTypeNode {
+            value: Box::new(ty),
+            selection: f.take_ident()?,
+        });
     }
 
-    let args = if f.kind() == &TokenKind::Lt {
-        parse_sequence(
+    if f.kind() == &TokenKind::Lt {
+        let (_, args, _) = parse_sequence(
             f,
             TokenKind::Lt,
             TokenKind::Comma,
             TokenKind::Gt,
             parse_type_expr,
-        )
-        .map(|(_, type_args, _)| type_args)?
-    } else {
-        Vec::default()
-    };
+        )?;
+        ty = TypeExprNode::Inst(InstTypeNode {
+            value: Box::new(ty),
+            args,
+        });
+    }
 
-    let path = if names.is_empty() {
-        PathName::Local(ident)
-    } else if names.len() == 1 {
-        PathName::Package {
-            package: ident,
-            name: names.into_iter().next().unwrap(),
-        }
-    } else {
-        f.errors.invalid_path(ident.pos);
-        PathName::Invalid(ident, names)
-    };
-
-    Some(PathNode { path, args })
+    Some(ty)
 }
 
 fn parse_struct<E: ErrorReporter>(
@@ -877,8 +863,23 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
     let mut pos = target.pos();
 
     loop {
-        let kind = f.kind();
-        target = match kind {
+        target = match f.kind() {
+            TokenKind::Lt
+                if matches!(&target, ExprNode::Ident(..) | ExprNode::Selection(..))
+                    && f.has_generic_args(allow_struct_lit) =>
+            {
+                let (_, args, _) = parse_sequence(
+                    f,
+                    TokenKind::Lt,
+                    TokenKind::Comma,
+                    TokenKind::Gt,
+                    parse_type_expr,
+                )?;
+                ExprNode::Inst(InstExprNode {
+                    value: Box::new(target),
+                    args,
+                })
+            }
             TokenKind::Dot => {
                 f.take(TokenKind::Dot)?;
                 match f.kind() {
@@ -967,7 +968,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
 fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
     let pos = node.pos();
     match node {
-        ExprNode::Path(path) => TypeExprNode::Path(path),
+        ExprNode::Ident(ident) => TypeExprNode::Ident(ident),
         ExprNode::Grouped(node) => {
             TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
         }
@@ -976,7 +977,22 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
         ExprNode::Null(pos) => TypeExprNode::Invalid(pos),
         ExprNode::Bool(bool_lit) => TypeExprNode::Invalid(bool_lit.pos),
         ExprNode::Char(char_lit) => TypeExprNode::Invalid(char_lit.pos),
-        ExprNode::Selection(..) => TypeExprNode::Invalid(pos),
+        ExprNode::Selection(selection) => match convert_expr_to_type_expr(*selection.value) {
+            base @ (TypeExprNode::Ident(..) | TypeExprNode::Selection(..)) => {
+                TypeExprNode::Selection(SelectionTypeNode {
+                    value: Box::new(base),
+                    selection: selection.selection,
+                })
+            }
+            _ => TypeExprNode::Invalid(pos),
+        },
+        ExprNode::Inst(inst) => match convert_expr_to_type_expr(*inst.value) {
+            TypeExprNode::Invalid(..) => TypeExprNode::Invalid(pos),
+            value => TypeExprNode::Inst(InstTypeNode {
+                value: Box::new(value),
+                args: inst.args,
+            }),
+        },
         ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
         ExprNode::Unary(node) => TypeExprNode::Invalid(node.pos),
         ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
@@ -989,7 +1005,7 @@ fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
 
 fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
     match f.kind() {
-        TokenKind::Ident { .. } => parse_path_for_expr(f).map(ExprNode::Path),
+        TokenKind::Ident { .. } => f.take_if_ident().map(ExprNode::Ident),
         TokenKind::NumberLit { .. } => f.take_number_lit().map(ExprNode::Number),
         TokenKind::CharLit { .. } => f.take_char_lit().map(ExprNode::Char),
         TokenKind::StringLit { .. } => f.take_string_lit().map(ExprNode::String),
@@ -1017,52 +1033,6 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
     }
 }
 
-fn parse_path_for_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<PathNode> {
-    let ident = f.take_if_ident()?;
-
-    let mut names = vec![];
-    let mut args = Vec::default();
-    while f.take_if(&TokenKind::DoubleColon).is_some() {
-        match f.kind() {
-            TokenKind::Ident { .. } => {
-                let ident = f.take_ident().unwrap();
-                names.push(ident);
-            }
-            TokenKind::Lt => {
-                args = parse_sequence(
-                    f,
-                    TokenKind::Lt,
-                    TokenKind::Comma,
-                    TokenKind::Gt,
-                    parse_type_expr,
-                )
-                .map(|(_, type_args, _)| type_args)
-                .unwrap_or_default();
-                break;
-            }
-            _ => {
-                let tok = f.token();
-                f.errors.missing(tok.pos, "ident or generic args");
-                break;
-            }
-        };
-    }
-
-    let path = if names.is_empty() {
-        PathName::Local(ident)
-    } else if names.len() == 1 {
-        PathName::Package {
-            package: ident,
-            name: names.into_iter().next().unwrap(),
-        }
-    } else {
-        f.errors.invalid_path(ident.pos);
-        PathName::Invalid(ident, names)
-    };
-
-    Some(PathNode { path, args })
-}
-
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     fn new(errors: &'a Error, tokens: VecDeque<Token>, last_pos: Pos) -> Self {
         Self {
@@ -1070,6 +1040,44 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             tokens,
             last_pos,
         }
+    }
+
+    fn has_generic_args(&self, allow_struct_lit: bool) -> bool {
+        // currently, parsing a<T> is ambiguous because it can mean an instantiation or
+        // binary expressions. To handle this, we assume it's an instantiation first and
+        // fallback to binary expression if it doesn't result in valid AST. Because of
+        // that, we need to be able to backtrack. To do that, we need to create a new
+        // parser and scrap it if we want to backtrack.
+        let errors = ErrorManager::default();
+        let mut probe = FileParser::new(&errors, self.tokens.clone(), self.last_pos);
+        let Some((_, args, _)) = parse_sequence(
+            &mut probe,
+            TokenKind::Lt,
+            TokenKind::Comma,
+            TokenKind::Gt,
+            parse_type_expr,
+        ) else {
+            return false;
+        };
+
+        let follower = probe.kind().clone();
+        !args.is_empty()
+            && !errors.has_errors()
+            && (follower != TokenKind::Gt
+                && BINOP_PRECEDENCE.iter().any(|ops| ops.contains(&follower))
+                || matches!(follower, TokenKind::OpenBrac | TokenKind::As)
+                || allow_struct_lit && matches!(follower, TokenKind::OpenBlock)
+                || matches!(
+                    follower,
+                    TokenKind::Dot
+                        | TokenKind::OpenSquare
+                        | TokenKind::SemiColon
+                        | TokenKind::Comma
+                        | TokenKind::CloseBrac
+                        | TokenKind::CloseSquare
+                        | TokenKind::CloseBlock
+                        | TokenKind::Eof
+                ))
     }
 
     fn unexpected(&mut self, expected: impl Display) {
@@ -1092,7 +1100,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         }
     }
 
-    fn kind(&mut self) -> &TokenKind {
+    fn kind(&self) -> &TokenKind {
         self.tokens
             .front()
             .map(|tok| &tok.kind)
@@ -1324,14 +1332,6 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 }
 
 trait ParsingError: ErrorReporter {
-    fn invalid_path(&self, pos: Pos) {
-        self.report(
-            pos,
-            "Path should be either a symbol identifier or package_identifier::symbol_identifier"
-                .to_string(),
-        );
-    }
-
     fn unexpected_parsing(&self, pos: Pos, expected: impl Display, found: impl Display) {
         self.report(pos, format!("Expected {expected}, but found {found}"));
     }

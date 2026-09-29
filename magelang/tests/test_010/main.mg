@@ -41,7 +41,7 @@ fn test_order() {
     defer mark(2);
     mark(3);
   }
-  assert_equal::<i64>(132, trace);
+  assert_equal<i64>(132, trace);
 }
 
 fn test_lifo() {
@@ -52,7 +52,7 @@ fn test_lifo() {
     defer mark(3);
     mark(4);
   }
-  assert_equal::<i64>(4321, trace);
+  assert_equal<i64>(4321, trace);
 }
 
 fn test_inner_scope() {
@@ -65,7 +65,7 @@ fn test_inner_scope() {
     }
     mark(4);
   }
-  assert_equal::<i64>(3241, trace);
+  assert_equal<i64>(3241, trace);
 }
 
 fn void_with_defer() {
@@ -76,7 +76,7 @@ fn void_with_defer() {
 fn test_void_function_end() {
   trace = 0;
   void_with_defer();
-  assert_equal::<i64>(21, trace);
+  assert_equal<i64>(21, trace);
 }
 
 fn test_conditional() {
@@ -87,7 +87,7 @@ fn test_conditional() {
     }
     mark(i);
   }
-  assert_equal::<i64>(912, trace);
+  assert_equal<i64>(912, trace);
 }
 
 fn test_loop_body() {
@@ -96,7 +96,7 @@ fn test_loop_body() {
     defer mark(i);
     mark(0);
   }
-  assert_equal::<i64>(10203, trace);
+  assert_equal<i64>(10203, trace);
 }
 
 fn test_loop_continue_and_break() {
@@ -111,7 +111,7 @@ fn test_loop_continue_and_break() {
     }
     mark(0);
   }
-  assert_equal::<i64>(12034, trace);
+  assert_equal<i64>(12034, trace);
 }
 
 fn test_while_defer_break() {
@@ -124,7 +124,7 @@ fn test_while_defer_break() {
       break;
     }
   }
-  assert_equal::<i64>(123, trace);
+  assert_equal<i64>(123, trace);
 }
 
 fn test_for_update_after_body_defers() {
@@ -137,7 +137,7 @@ fn test_for_update_after_body_defers() {
     }
     mark(0);
   }
-  assert_equal::<i64>(28038, trace);
+  assert_equal<i64>(28038, trace);
 }
 
 fn returns_with_defers(): i64 {
@@ -156,11 +156,11 @@ fn returns_with_defers(): i64 {
 
 fn test_return_runs_all_pending() {
   trace = 0;
-  assert_equal::<i64>(9, returns_with_defers());
-  assert_equal::<i64>(4321, trace);
+  assert_equal<i64>(9, returns_with_defers());
+  assert_equal<i64>(4321, trace);
   trace = 7;
-  assert_equal::<i64>(8, returns_with_defers());
-  assert_equal::<i64>(7251, trace);
+  assert_equal<i64>(8, returns_with_defers());
+  assert_equal<i64>(7251, trace);
 }
 
 fn value_before_defer(): i32 {
@@ -170,7 +170,7 @@ fn value_before_defer(): i32 {
 }
 
 fn test_return_value_evaluated_before_defers() {
-  assert_equal::<i32>(1, value_before_defer());
+  assert_equal<i32>(1, value_before_defer());
 }
 
 fn deferred_block_with_locals(early: bool): i64 {
@@ -188,10 +188,10 @@ fn deferred_block_with_locals(early: bool): i64 {
 }
 
 fn test_deferred_block_with_locals() {
-  assert_equal::<i64>(1, deferred_block_with_locals(true));
-  assert_equal::<i64>(6, trace);
-  assert_equal::<i64>(3, deferred_block_with_locals(false));
-  assert_equal::<i64>(26, trace);
+  assert_equal<i64>(1, deferred_block_with_locals(true));
+  assert_equal<i64>(6, trace);
+  assert_equal<i64>(3, deferred_block_with_locals(false));
+  assert_equal<i64>(26, trace);
 }
 
 fn test_shadowing() {
@@ -203,7 +203,7 @@ fn test_shadowing() {
     defer mark(a);
     mark(3);
   }
-  assert_equal::<i64>(321, trace);
+  assert_equal<i64>(321, trace);
 }
 
 fn test_by_reference() {
@@ -213,7 +213,7 @@ fn test_by_reference() {
     defer mark(x);
     x = 5;
   }
-  assert_equal::<i64>(5, trace);
+  assert_equal<i64>(5, trace);
 }
 
 fn test_nested_defer() {
@@ -225,7 +225,7 @@ fn test_nested_defer() {
     }
     mark(3);
   }
-  assert_equal::<i64>(321, trace);
+  assert_equal<i64>(321, trace);
 }
 
 fn make_pair(): Pair {
@@ -242,9 +242,9 @@ fn pair_with_defers(): Pair {
 fn test_struct_call_and_struct_return() {
   trace = 0;
   let p = pair_with_defers();
-  assert_equal::<i32>(3, p.a);
-  assert_equal::<i64>(4, p.b);
-  assert_equal::<i64>(76, trace);
+  assert_equal<i32>(3, p.a);
+  assert_equal<i64>(4, p.b);
+  assert_equal<i64>(76, trace);
 }
 
 fn generic_defer<T>(v: T, m: i64): T {
@@ -254,18 +254,18 @@ fn generic_defer<T>(v: T, m: i64): T {
 
 fn test_generic() {
   trace = 0;
-  assert_equal::<i32>(5, generic_defer::<i32>(5, 1));
-  assert_equal::<f64>(2.5, generic_defer::<f64>(2.5, 2));
-  assert_equal::<i64>(12, trace);
+  assert_equal<i32>(5, generic_defer<i32>(5, 1));
+  assert_equal<f64>(2.5, generic_defer<f64>(2.5, 2));
+  assert_equal<i64>(12, trace);
 }
 
 fn test_string_literal_in_defer() {
   let s: [*]u8 = "zzz";
   {
     defer s = "deferred";
-    assert_equal::<u8>(122, s[0].*);
+    assert_equal<u8>(122, s[0].*);
   }
-  assert_equal::<u8>(100, s[0].*);
+  assert_equal<u8>(100, s[0].*);
 }
 
 fn compute(): i32 {
@@ -277,11 +277,11 @@ fn compute(): i32 {
 }
 
 fn test_global_init_order() {
-  assert_equal::<i32>(7, computed);
+  assert_equal<i32>(7, computed);
 }
 
 fn assert_equal<T>(expected: T, actual: T) {
   if expected != actual {
-    wasm::unreachable();
+    wasm.unreachable();
   }
 }

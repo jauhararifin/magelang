@@ -5,7 +5,7 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    ErrorReporter, PathName, PathNode, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
+    ErrorReporter, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
@@ -697,7 +697,10 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Unknown,
         }),
-        TypeExprNode::Path(node) => get_type_from_path(ctx, scope, node),
+        TypeExprNode::Ident(..) | TypeExprNode::Selection(..) => {
+            get_type_from_named(ctx, scope, node, &[])
+        }
+        TypeExprNode::Inst(inst) => get_type_from_named(ctx, scope, &inst.value, &inst.args),
         TypeExprNode::Ptr(node) => {
             let element_ty = get_type_from_node(ctx, scope, &node.ty);
             ctx.define_type(Type {
@@ -739,12 +742,13 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_type_from_path<'a, 'b, E: ErrorReporter>(
+fn get_type_from_named<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
-    node: &PathNode,
+    node: &TypeExprNode,
+    args: &[TypeExprNode],
 ) -> &'a Type<'a> {
-    let Some(object) = get_type_object_from_path(ctx, scope, &node.path) else {
+    let Some(object) = get_type_object_from_name(ctx, scope, node) else {
         return ctx.define_type(Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Unknown,
@@ -752,15 +756,14 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     };
 
     let TypeKind::GenericStruct(generic_type) = &object.kind else {
-        if !node.args.is_empty() {
+        if !args.is_empty() {
             ctx.errors.non_generic_value(node.pos());
         }
         return object.ty;
     };
 
     let required_type_param = generic_type.type_params.len();
-    let mut type_args = node
-        .args
+    let mut type_args = args
         .iter()
         .map(|node| get_type_from_node(ctx, scope, node))
         .collect::<Vec<_>>();
@@ -782,13 +785,13 @@ fn get_type_from_path<'a, 'b, E: ErrorReporter>(
     object.specialize(ctx, type_args)
 }
 
-fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
+fn get_type_object_from_name<'a, 'b, E: ErrorReporter>(
     ctx: &'b Context<'a, '_, E>,
     scope: &'b Scopes<'a>,
-    path: &PathName,
+    node: &TypeExprNode,
 ) -> Option<&'b TypeObject<'a>> {
-    match path {
-        PathName::Local(name) => {
+    match node {
+        TypeExprNode::Ident(name) => {
             let name_symbol = ctx.define_symbol(name.value.as_str());
             let Some(object) = scope.type_scopes.lookup(name_symbol) else {
                 ctx.errors.undeclared_symbol(name.pos, &name.value);
@@ -796,10 +799,19 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
             };
             Some(object)
         }
-        PathName::Package { package, name } => {
+        TypeExprNode::Selection(selection) => {
+            let TypeExprNode::Ident(package) = selection.value.as_ref() else {
+                ctx.errors.undeclared_symbol(selection.selection.pos, &selection.selection.value);
+                return None;
+            };
+            let name = &selection.selection;
             let package_symbol = ctx.define_symbol(package.value.as_str());
             let Some(import_object) = scope.import_scopes.lookup(package_symbol) else {
-                ctx.errors.undeclared_symbol(package.pos, &package.value);
+                if scope.type_scopes.lookup(package_symbol).is_some() {
+                    ctx.errors.undeclared_symbol(name.pos, &name.value);
+                } else {
+                    ctx.errors.undeclared_symbol(package.pos, &package.value);
+                }
                 return None;
             };
 
@@ -816,7 +828,7 @@ fn get_type_object_from_path<'a, 'b, E: ErrorReporter>(
 
             Some(object)
         }
-        PathName::Invalid(..) => None,
+        _ => None,
     }
 }
 

@@ -586,7 +586,6 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     const SYMBOLS: &'static [(&'static str, TokenKind)] = &[
-        ("::", TokenKind::DoubleColon),
         (":", TokenKind::Colon),
         (";", TokenKind::SemiColon),
         (".", TokenKind::Dot),
@@ -1344,8 +1343,8 @@ string""#
         let path = PathBuf::from("dummy.mg");
         let mut files = FileManager::default();
         let source = r#"
-            :: : ; . != ! == = * + - / : << <= < >> >= > { } ( ) [ ] , % && & || | ^ ~ @
-            :::;.!!====*+-/:<<<=<>>>=>{}()[],%&&&|||^~@
+            . : ; . != ! == = * + - / : << <= < >> >= > { } ( ) [ ] , % && & || | ^ ~ @
+            .:;.!!====*+-/:<<<=<>>>=>{}()[],%&&&|||^~@
             -1
             #
         "#
@@ -1355,7 +1354,7 @@ string""#
         let mut error_manager = ErrorManager::default();
 
         let tokens = scan(&error_manager, &file);
-        assert_eq!(tokens[0].kind, TokenKind::DoubleColon);
+        assert_eq!(tokens[0].kind, TokenKind::Dot);
         assert_eq!(tokens[1].kind, TokenKind::Colon);
         assert_eq!(tokens[2].kind, TokenKind::SemiColon);
         assert_eq!(tokens[3].kind, TokenKind::Dot);
@@ -1390,7 +1389,7 @@ string""#
         assert_eq!(tokens[32].kind, TokenKind::BitNot);
         assert_eq!(tokens[33].kind, TokenKind::AtSign);
 
-        assert_eq!(tokens[34].kind, TokenKind::DoubleColon);
+        assert_eq!(tokens[34].kind, TokenKind::Dot);
         assert_eq!(tokens[35].kind, TokenKind::Colon);
         assert_eq!(tokens[36].kind, TokenKind::SemiColon);
         assert_eq!(tokens[37].kind, TokenKind::Dot);
@@ -1437,6 +1436,22 @@ string""#
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].message, "Unexpected char '#'");
+    }
+
+    #[test]
+    fn adjacent_colons_are_separate_tokens() {
+        let mut files = FileManager::default();
+        let file = files.add_file(
+            PathBuf::from("dummy.mg"),
+            "pkg::value function::<i32>()".to_string(),
+        );
+        let mut errors = ErrorManager::default();
+        let tokens = scan(&errors, &file);
+        assert_eq!(tokens[1].kind, TokenKind::Colon);
+        assert_eq!(tokens[2].kind, TokenKind::Colon);
+        assert_eq!(tokens[5].kind, TokenKind::Colon);
+        assert_eq!(tokens[6].kind, TokenKind::Colon);
+        assert!(errors.take().is_empty());
     }
 
     fn number_from_str(base: &str, exp: &str, float: bool) -> Number {
