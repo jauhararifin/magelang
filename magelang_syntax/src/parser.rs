@@ -188,7 +188,13 @@ fn parse_global<E: ErrorReporter>(
         TypeExprNode::Invalid(pos)
     };
 
-    f.skip_until_before(&[TokenKind::SemiColon, TokenKind::Equal]);
+    if matches!(&ty, TypeExprNode::Invalid(..)) {
+        // when the type is invalid, it means the error during typecheck is
+        // already reported, and thus we don't need to report anything anymore
+        // and just skip until next checkpoint.
+        f.skip_until_before(&[TokenKind::SemiColon, TokenKind::Equal]);
+    }
+
     let value = if f.take_if(&TokenKind::Equal).is_some() {
         parse_expr(f, true)
     } else {

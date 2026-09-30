@@ -28,6 +28,14 @@ import something;
 import something "something";
 
 // =====================================================
+// Global definitions
+// =====================================================
+
+//syntax_error line=+1 col=17: Expected ';', but found 'unexpected'
+let answer: i32 unexpected tokens = 42;
+let next: i32 = 7;
+
+// =====================================================
 // Type expressions
 // =====================================================
 
