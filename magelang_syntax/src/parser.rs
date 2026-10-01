@@ -1078,7 +1078,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                 ) else {
                     return Some(ExprNode::Invalid(pos));
                 };
-                let target = convert_expr_to_type_expr(target);
+                let target = convert_expr_to_type_expr(f.errors, target);
                 ExprNode::Struct(StructExprNode {
                     pos,
                     target,
@@ -1095,42 +1095,37 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
     Some(target)
 }
 
-fn convert_expr_to_type_expr(node: ExprNode) -> TypeExprNode {
-    let pos = node.pos();
+fn convert_expr_to_type_expr<E: ErrorReporter>(errors: &E, node: ExprNode) -> TypeExprNode {
     match node {
         ExprNode::Invalid(pos) => TypeExprNode::Invalid(pos),
         ExprNode::Ident(ident) => TypeExprNode::Ident(ident),
         ExprNode::Grouped(node) => {
-            TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(*node)))
+            TypeExprNode::Grouped(Box::new(convert_expr_to_type_expr(errors, *node)))
         }
-        ExprNode::Number(tok) => TypeExprNode::Invalid(tok.pos),
-        ExprNode::String(string_lit) => TypeExprNode::Invalid(string_lit.pos),
-        ExprNode::Null(pos) => TypeExprNode::Invalid(pos),
-        ExprNode::Bool(bool_lit) => TypeExprNode::Invalid(bool_lit.pos),
-        ExprNode::Char(char_lit) => TypeExprNode::Invalid(char_lit.pos),
-        ExprNode::Selection(selection) => match convert_expr_to_type_expr(*selection.value) {
-            base @ (TypeExprNode::Ident(..) | TypeExprNode::Selection(..)) => {
-                TypeExprNode::Selection(SelectionTypeNode {
-                    value: Box::new(base),
-                    selection: selection.selection,
-                })
-            }
-            _ => TypeExprNode::Invalid(pos),
-        },
-        ExprNode::Inst(inst) => match convert_expr_to_type_expr(*inst.value) {
-            TypeExprNode::Invalid(..) => TypeExprNode::Invalid(pos),
-            value => TypeExprNode::Inst(InstTypeNode {
-                value: Box::new(value),
-                args: inst.args,
-            }),
-        },
-        ExprNode::Binary(node) => TypeExprNode::Invalid(node.a.pos()),
-        ExprNode::Unary(node) => TypeExprNode::Invalid(node.pos),
-        ExprNode::Deref(node) => TypeExprNode::Invalid(node.value.pos()),
-        ExprNode::Call(node) => TypeExprNode::Invalid(node.callee.pos()),
-        ExprNode::Cast(node) => TypeExprNode::Invalid(node.value.pos()),
-        ExprNode::Struct(node) => TypeExprNode::Invalid(node.target.pos()),
-        ExprNode::Index(node) => TypeExprNode::Invalid(node.value.pos()),
+        ExprNode::Selection(selection) => TypeExprNode::Selection(SelectionTypeNode {
+            value: Box::new(convert_expr_to_type_expr(errors, *selection.value)),
+            selection: selection.selection,
+        }),
+        ExprNode::Inst(inst) => TypeExprNode::Inst(InstTypeNode {
+            value: Box::new(convert_expr_to_type_expr(errors, *inst.value)),
+            args: inst.args,
+        }),
+
+        ExprNode::Number(..)
+        | ExprNode::String(..)
+        | ExprNode::Null(..)
+        | ExprNode::Bool(..)
+        | ExprNode::Char(..)
+        | ExprNode::Binary(..)
+        | ExprNode::Unary(..)
+        | ExprNode::Deref(..)
+        | ExprNode::Call(..)
+        | ExprNode::Cast(..)
+        | ExprNode::Struct(..)
+        | ExprNode::Index(..) => {
+            errors.invalid_struct_literal_target(node.pos());
+            TypeExprNode::Invalid(node.pos())
+        }
     }
 }
 
@@ -1514,6 +1509,13 @@ trait ParsingError: ErrorReporter {
 
     fn dangling_annotations(&self, pos: Pos) {
         self.report(pos, String::from("There is no object to annotate"));
+    }
+
+    fn invalid_struct_literal_target(&self, pos: Pos) {
+        self.report(
+            pos,
+            String::from("Struct literal target must be a type expression"),
+        );
     }
 }
 

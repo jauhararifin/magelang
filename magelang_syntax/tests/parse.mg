@@ -134,6 +134,8 @@ let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
 let a: i32 = pkg.some_func<i32>(a, b)[1].*;
+//syntax_error line=+1 col=14: Struct literal target must be a type expression
+let _: i32 = 1{};
 //syntax_error line=+1 col=18: Expected ',', but found NUMBER_LIT
 let _: i32 = f(1 2);
 let _: i32 = f(1,);

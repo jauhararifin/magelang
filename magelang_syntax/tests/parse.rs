@@ -291,6 +291,7 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
             "let grouped: i32 = (); ",
             "let indexed: i32 = values[]; ",
             "let called: i32 = f(, 1); ",
+            "let invalid_struct: i32 = 1{}; ",
             "let recovered: i32 = 1;"
         )
         .into(),
@@ -311,9 +312,10 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
             "Missing grouped expression",
             "Missing index expression",
             "Missing function argument",
+            "Struct literal target must be a type expression",
         ]
     );
-    assert_eq!(ast.items.len(), 6);
+    assert_eq!(ast.items.len(), 7);
 
     let ItemNode::Global(binary) = &ast.items[0] else {
         panic!("expected binary global");
@@ -354,6 +356,14 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
     };
     assert_eq!(call.arguments.len(), 2);
     assert!(matches!(call.arguments[0], ExprNode::Invalid(..)));
+
+    let ItemNode::Global(global) = &ast.items[5] else {
+        panic!("expected invalid struct global");
+    };
+    let Some(ExprNode::Struct(struct_expr)) = &global.value else {
+        panic!("expected struct expression");
+    };
+    assert!(matches!(struct_expr.target, TypeExprNode::Invalid(..)));
 }
 
 #[test]
