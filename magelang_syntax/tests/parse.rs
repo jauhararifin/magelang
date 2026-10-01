@@ -73,6 +73,36 @@ fn test_parsing() {
 }
 
 #[test]
+fn unicode_diagnostics_stay_with_source_file() {
+    let mut files = FileManager::default();
+    let main = files.add_file(
+        "unicode_main.mg".into(),
+        concat!(
+            "import dep \"unicode_dep\";\n",
+            "// 😀😀😀😀😀😀😀😀😀😀\n",
+            "fn broken(;\n"
+        )
+        .into(),
+    );
+    let mut errors = ErrorManager::default();
+    parse(&errors, &main);
+
+    files.add_file("unicode_dep.mg".into(), "fn ok() {}\n".into());
+
+    let errors = errors.take();
+    assert_eq!(errors.len(), 2);
+    for (error, expected) in errors.iter().zip([
+        (3, 4, "Missing function parameter list"),
+        (3, 10, "Missing closing ')'"),
+    ]) {
+        let location = files.location(error.pos);
+        assert_eq!(location.path, PathBuf::from("unicode_main.mg"));
+        assert_eq!((location.line, location.col), (expected.0, expected.1));
+        assert_eq!(error.message, expected.2);
+    }
+}
+
+#[test]
 fn generic_expr_vs_binary_expr() {
     let mut files = FileManager::default();
     let file = files.add_file(

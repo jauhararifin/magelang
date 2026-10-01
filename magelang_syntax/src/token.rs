@@ -76,8 +76,9 @@ impl FileManager {
             if c == '\n' {
                 lines.push(i);
             }
-            self.last_offset += 1;
         }
+        // we added 1 to account for imaginary EOF position
+        self.last_offset += source.len() + 1;
 
         self.file_offset.push(file_offset);
         self.file_path.push(path);
@@ -446,5 +447,39 @@ mod tests {
         let pos = file1.offset.with_offset(11);
         let loc = file_manager.location(pos);
         assert_eq!((loc.line, loc.col), (3, 4));
+    }
+
+    #[test]
+    fn test_locations_use_utf8_bytes_and_distinct_file_ends() {
+        let mut file_manager = FileManager::default();
+        let first = file_manager.add_file(PathBuf::from("first"), String::from("😀\nerror"));
+        let error_pos = first.offset.with_offset("😀\n".len());
+        let eof_pos = first.offset.with_offset(first.text.len());
+
+        let second = file_manager.add_file(PathBuf::from("second"), String::from("ok"));
+
+        let loc = file_manager.location(error_pos);
+        assert_eq!(loc.path, Path::new("first"));
+        assert_eq!((loc.line, loc.col), (2, 1));
+
+        let loc = file_manager.location(eof_pos);
+        assert_eq!(loc.path, Path::new("first"));
+        assert_eq!((loc.line, loc.col), (2, 6));
+
+        let loc = file_manager.location(second.offset);
+        assert_eq!(loc.path, Path::new("second"));
+        assert_eq!((loc.line, loc.col), (1, 1));
+
+        let first_empty = file_manager.add_file(PathBuf::from("empty-1"), String::new());
+        let second_empty = file_manager.add_file(PathBuf::from("empty-2"), String::new());
+        assert_ne!(first_empty.offset, second_empty.offset);
+        assert_eq!(
+            file_manager.location(first_empty.offset).path,
+            Path::new("empty-1")
+        );
+        assert_eq!(
+            file_manager.location(second_empty.offset).path,
+            Path::new("empty-2")
+        );
     }
 }
