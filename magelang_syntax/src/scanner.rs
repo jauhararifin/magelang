@@ -300,7 +300,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 let (c, pos) = self.next().unwrap();
                 raw.push(c);
                 value.val = BigInt::from(Self::char_to_int(c));
-                self.scan_number_base(Base::Dec, pos, raw, value)
+                self.scan_number_base(Base::Dec, pos, raw, value, true)
             }
             _ => None,
         }
@@ -324,23 +324,23 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             'x' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
-                self.scan_number_base(Base::Hex, pos, raw, value)
+                self.scan_number_base(Base::Hex, pos, raw, value, false)
             }
             'b' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
-                self.scan_number_base(Base::Bin, pos, raw, value)
+                self.scan_number_base(Base::Bin, pos, raw, value, false)
             }
             'o' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
-                self.scan_number_base(Base::Oct, pos, raw, value)
+                self.scan_number_base(Base::Oct, pos, raw, value, false)
             }
             '0'..='7' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
                 value.val = value.val * 8 + Self::char_to_int(c);
-                self.scan_number_base(Base::Oct, pos, raw, value)
+                self.scan_number_base(Base::Oct, pos, raw, value, true)
             }
             'e' | 'E' => {
                 let (c, _) = self.next().unwrap();
@@ -380,7 +380,9 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         pos: Pos,
         mut raw: String,
         mut value: Number,
+        mut has_digit: bool,
     ) -> Option<Token> {
+        let mut has_invalid_digit = false;
         while let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
             match (base, c) {
                 (Base::Dec, 'e' | 'E') => {
@@ -400,26 +402,31 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     value.val = value.val * 2 + Self::char_to_int(c);
+                    has_digit = true;
                 }
                 (Base::Dec, '0'..='9') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     value.val = value.val * 10 + Self::char_to_int(c);
+                    has_digit = true;
                 }
                 (Base::Oct, '0'..='7') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     value.val = value.val * 8 + Self::char_to_int(c);
+                    has_digit = true;
                 }
                 (Base::Hex, '0'..='9' | 'a'..='f' | 'A'..='F') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     value.val = value.val * 16 + Self::char_to_int(c);
+                    has_digit = true;
                 }
                 (Base::Bin, '2'..='9') | (Base::Oct, '8'..='9') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     self.errors.invalid_digit_in_base(p, c, base as u8);
+                    has_invalid_digit = true;
                 }
                 (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z')
                 | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
@@ -427,6 +434,10 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 }
                 _ => break,
             }
+        }
+
+        if !has_digit && !has_invalid_digit {
+            self.errors.missing_base_digits(self.get_pos(), base as u8);
         }
 
         Some(Token {
@@ -668,11 +679,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
     fn next_if(&mut self, func: impl FnOnce(char) -> bool) -> Option<(char, Pos)> {
         let ch = self.peek()?.0;
-        if func(ch) {
-            self.next()
-        } else {
-            None
-        }
+        if func(ch) { self.next() } else { None }
     }
 
     fn next(&mut self) -> Option<(char, Pos)> {
@@ -745,6 +752,13 @@ trait ScanningError: ErrorReporter {
         self.report(
             pos,
             format!("Invalid suffix \"{invalid_suffix}\" for number literal"),
+        );
+    }
+
+    fn missing_base_digits(&self, pos: Pos, base: u8) {
+        self.report(
+            pos,
+            format!("Expected at least one digit in {base}-base integer literal"),
         );
     }
 
@@ -1035,9 +1049,11 @@ string""#
 
         let tokens = scan(&error_manager, &file);
 
-        assert!(tokens[0..8]
-            .iter()
-            .all(|token| matches!(token.kind, TokenKind::NumberLit { .. })));
+        assert!(
+            tokens[0..8]
+                .iter()
+                .all(|token| matches!(token.kind, TokenKind::NumberLit { .. }))
+        );
         assert_eq!(
             tokens[0].kind,
             TokenKind::NumberLit {
@@ -1301,11 +1317,76 @@ string""#
     }
 
     #[test]
+    fn radix_prefix_requires_digit() {
+        let mut files = FileManager::default();
+        let file = files.add_file(
+            PathBuf::from("dummy.mg"),
+            "0x 0b 0o 0x_ 0b___ 0o_ 0_x 0_b___ 0b2 0o8 0xg 0__o_".to_string(),
+        );
+        let mut errors = ErrorManager::default();
+        let tokens = scan(&errors, &file);
+
+        assert_eq!(tokens.len(), 12);
+        for (token, expected_raw) in tokens.iter().zip([
+            "0x", "0b", "0o", "0x_", "0b___", "0o_", "0_x", "0_b___", "0b2", "0o8", "0xg", "0__o_",
+        ]) {
+            let TokenKind::NumberLit { raw, value } = &token.kind else {
+                panic!("expected number literal");
+            };
+            assert_eq!(raw, expected_raw);
+            assert_eq!(value, &Number::default());
+        }
+
+        let messages: Vec<_> = errors
+            .take()
+            .into_iter()
+            .map(|error| error.message)
+            .collect();
+        assert_eq!(
+            messages,
+            [
+                "Expected at least one digit in 16-base integer literal",
+                "Expected at least one digit in 2-base integer literal",
+                "Expected at least one digit in 8-base integer literal",
+                "Expected at least one digit in 16-base integer literal",
+                "Expected at least one digit in 2-base integer literal",
+                "Expected at least one digit in 8-base integer literal",
+                "Expected at least one digit in 16-base integer literal",
+                "Expected at least one digit in 2-base integer literal",
+                "Cannot use '2' in 2-base integer literal",
+                "Cannot use '8' in 8-base integer literal",
+                "Invalid suffix \"g\" for number literal",
+                "Expected at least one digit in 8-base integer literal",
+            ]
+        );
+
+        let file = files.add_file(
+            PathBuf::from("valid.mg"),
+            "0x0 0b0 0o0 0x_0 0b___0 0o_0".to_string(),
+        );
+        let errors = ErrorManager::default();
+        let tokens = scan(&errors, &file);
+        assert!(!errors.has_errors());
+        assert_eq!(tokens.len(), 6);
+        for (token, expected_raw) in tokens
+            .iter()
+            .zip(["0x0", "0b0", "0o0", "0x_0", "0b___0", "0o_0"])
+        {
+            let TokenKind::NumberLit { raw, value } = &token.kind else {
+                panic!("expected number literal");
+            };
+            assert_eq!(raw, expected_raw);
+            assert_eq!(value, &Number::default());
+        }
+    }
+
+    #[test]
     fn assignment_symbols() {
         let mut files = FileManager::default();
         let file = files.add_file(
             PathBuf::from("dummy.mg"),
-            "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&".to_string(),
+            "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&"
+                .to_string(),
         );
         let tokens = scan(&ErrorManager::default(), &file);
         let ops = [

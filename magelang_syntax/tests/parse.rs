@@ -5,8 +5,8 @@ use magelang_syntax::{
 use std::path::PathBuf;
 
 #[test]
-fn test_parsing_error() {
-    let source = include_str!("parse_error.mg");
+fn test_parsing() {
+    let source = include_str!("parse.mg");
 
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();

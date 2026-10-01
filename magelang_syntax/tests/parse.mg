@@ -108,6 +108,24 @@ let a: i32 = pkg.some_func<i32>(a, b)[1].*;
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
 let a: i32 = a < b;
+//syntax_error line=+1 col=16: Expected at least one digit in 16-base integer literal
+let _: i32 = 0x;
+//syntax_error line=+1 col=16: Expected at least one digit in 2-base integer literal
+let _: i32 = 0b;
+//syntax_error line=+1 col=16: Expected at least one digit in 8-base integer literal
+let _: i32 = 0o;
+//syntax_error line=+1 col=17: Expected at least one digit in 16-base integer literal
+let _: i32 = 0x_;
+//syntax_error line=+1 col=19: Expected at least one digit in 2-base integer literal
+let _: i32 = 0b___;
+//syntax_error line=+1 col=17: Expected at least one digit in 8-base integer literal
+let _: i32 = 0o_;
+//syntax_error line=+1 col=17: Expected at least one digit in 16-base integer literal
+let _: i32 = 0_x;
+//syntax_error line=+1 col=20: Expected at least one digit in 2-base integer literal
+let _: i32 = 0_b___;
+//syntax_error line=+1 col=19: Expected at least one digit in 8-base integer literal
+let _: i32 = 0__o_;
 //syntax_error line=+1 col=17: Missing second operand
 let a: i32 = a +;
 //syntax_error line=+1 col=15: Missing grouped expression
