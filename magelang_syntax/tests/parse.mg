@@ -278,6 +278,24 @@ fn f(): i32 {
     for ;; let x = 1 {}
 }
 
+fn dangling_else_before_close() {
+    //syntax_error line=+1 col=16: Missing else body
+    if true {} else
+}
+
+fn invalid_else_bodies() {
+    //syntax_error line=+1 col=16: Missing else body
+    if true {} else ;
+    //syntax_error line=+1 col=16: Missing else body
+    if true {} else return;
+    let recovered = 1;
+}
+
+fn nested_dangling_else() {
+    //syntax_error line=+1 col=33: Missing else body
+    if true {} else if false {} else
+}
+
 // =====================================================
 // Annotations
 // =====================================================

@@ -637,16 +637,18 @@ fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementN
         return None;
     };
 
-    let else_node = f.take_if(&TokenKind::Else).and_then(|_| {
-        let stmt = if f.kind() == &TokenKind::If {
-            let else_if = parse_if_stmt(f)?;
-            StatementNode::If(else_if)
+    let else_node = if let Some(else_tok) = f.take_if(&TokenKind::Else) {
+        if f.kind() == &TokenKind::If {
+            parse_if_stmt(f).map(StatementNode::If).map(Box::new)
+        } else if f.kind() == &TokenKind::OpenBlock {
+            parse_block_stmt(f).map(StatementNode::Block).map(Box::new)
         } else {
-            let else_body = parse_block_stmt(f)?;
-            StatementNode::Block(else_body)
-        };
-        Some(Box::new(stmt))
-    });
+            f.errors.missing(else_tok.pos, "else body");
+            None
+        }
+    } else {
+        None
+    };
 
     Some(IfStatementNode {
         pos,
