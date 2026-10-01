@@ -135,22 +135,41 @@ where
     let opening = f.take_if(&begin_tok)?;
 
     let mut items = Vec::<T>::default();
-    while f.kind() != &end_tok && f.kind() != &TokenKind::Eof {
+    let mut needs_delimiter = false;
+    loop {
+        if let Some(closing) = f.take_if(&end_tok) {
+            return Some((opening, items, closing));
+        }
+        if f.kind() == &TokenKind::Eof {
+            break;
+        }
+        if needs_delimiter && f.take_if(&delim_tok).is_some() {
+            needs_delimiter = false;
+            continue;
+        }
+
+        let token = f.token();
         if let Some(item) = parse_fn(f) {
+            if needs_delimiter {
+                f.errors.unexpected_parsing(token.pos, &delim_tok, token);
+            }
             items.push(item);
-            f.take_if(&delim_tok);
+            needs_delimiter = true;
+        } else if f.kind() == &delim_tok {
+            f.unexpected("list item");
+            f.pop();
+            needs_delimiter = false;
         } else {
-            f.take_if(&delim_tok);
             break;
         }
     }
 
-    let Some(closing) = f.take_if(&end_tok) else {
+    if let Some(closing) = f.take_if(&end_tok) {
+        Some((opening, items, closing))
+    } else {
         f.errors.missing(opening.pos, format!("closing {end_tok}"));
-        return None;
-    };
-
-    Some((opening, items, closing))
+        None
+    }
 }
 
 fn parse_import<E: ErrorReporter>(
@@ -294,9 +313,13 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
         }
         TokenKind::OpenBrac => {
             f.pop();
-            let inner_ty = parse_type_expr(f);
+            let inner_ty = parse_type_expr(f).unwrap_or_else(|| {
+                let pos = f.token().pos;
+                f.errors.missing(pos, "grouped type");
+                TypeExprNode::Invalid(pos)
+            });
             f.take(TokenKind::CloseBrac);
-            inner_ty.map(Box::new).map(TypeExprNode::Grouped)
+            Some(TypeExprNode::Grouped(Box::new(inner_ty)))
         }
         TokenKind::Ident { .. } => {
             let pos = tok.pos;
@@ -402,12 +425,15 @@ fn parse_struct<E: ErrorReporter>(
         TokenKind::CloseBlock,
         |parser| {
             let name = parser.take_ident()?;
-            parser.take(TokenKind::Colon)?;
-            let ty = parse_type_expr(parser).unwrap_or_else(|| {
-                let pos = parser.token().pos;
-                parser.errors.missing(pos, "struct field type");
-                TypeExprNode::Invalid(pos)
-            });
+            let ty = if parser.take(TokenKind::Colon).is_some() {
+                parse_type_expr(parser).unwrap_or_else(|| {
+                    let pos = parser.token().pos;
+                    parser.errors.missing(pos, "struct field type");
+                    TypeExprNode::Invalid(pos)
+                })
+            } else {
+                TypeExprNode::Invalid(parser.token().pos)
+            };
             Some(StructFieldNode { name, ty })
         },
     );
@@ -522,12 +548,15 @@ fn parse_signature<E: ErrorReporter>(
 fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterNode> {
     let name = f.take_if_ident()?;
     let pos = name.pos;
-    f.take(TokenKind::Colon)?;
-    let ty = parse_type_expr(f).unwrap_or_else(|| {
-        let pos = f.token().pos;
-        f.errors.missing(pos, "parameter type");
-        TypeExprNode::Invalid(pos)
-    });
+    let ty = if f.take(TokenKind::Colon).is_some() {
+        parse_type_expr(f).unwrap_or_else(|| {
+            let pos = f.token().pos;
+            f.errors.missing(pos, "parameter type");
+            TypeExprNode::Invalid(pos)
+        })
+    } else {
+        TypeExprNode::Invalid(f.token().pos)
+    };
     Some(ParameterNode { pos, name, ty })
 }
 
@@ -1031,12 +1060,15 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                     TokenKind::CloseBlock,
                     |parser| {
                         let key: Identifier = parser.take_ident()?;
-                        parser.take(TokenKind::Colon)?;
-                        let value = parse_expr(parser, true).unwrap_or_else(|| {
-                            let pos = parser.token().pos;
-                            parser.errors.missing(pos, "struct field value");
-                            ExprNode::Invalid(pos)
-                        });
+                        let value = if parser.take(TokenKind::Colon).is_some() {
+                            parse_expr(parser, true).unwrap_or_else(|| {
+                                let pos = parser.token().pos;
+                                parser.errors.missing(pos, "struct field value");
+                                ExprNode::Invalid(pos)
+                            })
+                        } else {
+                            ExprNode::Invalid(parser.token().pos)
+                        };
                         Some(KeyValue {
                             pos: key.pos,
                             key,

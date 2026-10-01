@@ -83,6 +83,17 @@ let _: [*]package = 10;
 //syntax_error line=+1 col=10: Missing pointee type
 let _: [*] = 10;
 let _: i32;
+//syntax_error line=+1 col=17: Expected ',', but found 'bool'
+let _: Pair<i32 bool>;
+//syntax_error line=+1 col=13: Expected list item, but found ','
+let _: Pair<,>;
+let _: Pair<i32,>;
+//syntax_error line=+1 col=9: Missing grouped type
+let _: ();
+//syntax_error line=+1 col=15: Expected ',', but found 'i32'
+let _: fn(i32 i32);
+//syntax_error line=+1 col=11: Expected list item, but found ','
+let _: fn(,);
 //syntax_error line=+1 col=17: Missing parameter type
 let _: fn(value:): i32;
 //syntax_error line=+1 col=8: Missing type expression
@@ -103,6 +114,10 @@ struct a<i32>
 //syntax_error line=+1 col=8: Expected IDENT, but found '<'
 struct <i32>{}
 struct a<i32>{field1: type1}
+//syntax_error line=+1 col=34: Expected ',', but found 'right'
+struct MissingCommas { left: i32 right: i32 }
+//syntax_error line=+1 col=33: Expected ':', but found ','
+struct MissingFieldColon { value, next: i32 }
 //syntax_error line=+1 col=24: Missing struct field type
 struct Empty { erased: }
 //syntax_error line=+1 col=34: Missing struct field type
@@ -119,6 +134,14 @@ let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
 let a: i32 = pkg.some_func<i32>(a, b)[1].*;
+//syntax_error line=+1 col=18: Expected ',', but found NUMBER_LIT
+let _: i32 = f(1 2);
+let _: i32 = f(1,);
+//syntax_error line=+1 col=28: Expected ',', but found 'right'
+let _: Pair = Pair{left: 1 right: 2};
+let _: Pair = Pair{left: 1,};
+//syntax_error line=+1 col=25: Expected ':', but found ','
+let _: Pair = Pair{value, next: 1};
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
 let a: i32 = a < b;
@@ -176,6 +199,19 @@ fn empty_func();
 fn missing_return():;
 fn returning():i32;
 fn f(a: i32, b: i32): i32;
+//syntax_error line=+1 col=14: Expected ',', but found 'U'
+fn generic<T U>();
+//syntax_error line=+1 col=18: Expected ',', but found 'b'
+fn params(a: i32 b: i32);
+//syntax_error line=+1 col=17: Expected list item, but found ','
+fn comma_params(,);
+//syntax_error line=+1 col=12: Expected list item, but found ','
+fn leading(,a: i32);
+//syntax_error line=+1 col=19: Expected list item, but found ','
+fn doubled(a: i32,, b: i32);
+fn trailing<T,>(value: T,);
+//syntax_error line=+1 col=33: Expected ':', but found ','
+fn missing_parameter_colon(value,) {}
 //syntax_error line=+1 col=27: Missing parameter type
 fn erased_parameter(value:) {}
 //syntax_error line=+1 col=27: Missing parameter type
@@ -312,6 +348,17 @@ fn nested_dangling_else() {
 
 @annotation()
 fn g(): i32;
+
+//syntax_error line=+1 col=17: Expected ',', but found STRING_LIT
+@annotation("a" "b")
+fn annotation_missing_comma(): i32;
+
+//syntax_error line=+1 col=13: Expected list item, but found ','
+@annotation(,)
+fn annotation_comma_only(): i32;
+
+@annotation("a",)
+fn annotation_trailing_comma(): i32;
 
 //syntax_error line=+1 col=2: Expected annotation identifier, but found '('
 @()
