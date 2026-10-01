@@ -1,0 +1,2 @@
+tests/test_021_fail/main.mg:5:5: Expected ';', but found 'let'
+tests/test_021_fail/main.mg:9:3: Expected ';', but found '}'

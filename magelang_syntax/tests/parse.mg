@@ -330,6 +330,17 @@ fn f(): i32 {
     for ;; let x = 1 {}
 }
 
+fn missing_jump_terminators() {
+    //syntax_error line=+1 col=24: Expected ';', but found 'let'
+    while true { break let x = 1; }
+    //syntax_error line=+1 col=24: Expected ';', but found '}'
+    while true { break }
+    //syntax_error line=+1 col=27: Expected ';', but found 'f'
+    while true { continue f(); }
+    //syntax_error line=+1 col=27: Expected ';', but found '}'
+    while true { continue }
+}
+
 fn dangling_else_before_close() {
     //syntax_error line=+1 col=16: Missing else body
     if true {} else
