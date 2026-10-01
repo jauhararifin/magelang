@@ -251,6 +251,82 @@ fn generic_expr_vs_binary_expr() {
 }
 
 #[test]
+fn malformed_expressions_return_recoverable_ast_nodes() {
+    let mut files = FileManager::default();
+    let file = files.add_file(
+        "recovery.mg".into(),
+        concat!(
+            "let binary: i32 = left +; ",
+            "let chain: i32 = left + () + right; ",
+            "let grouped: i32 = (); ",
+            "let indexed: i32 = values[]; ",
+            "let called: i32 = f(, 1); ",
+            "let recovered: i32 = 1;"
+        )
+        .into(),
+    );
+    let mut errors = ErrorManager::default();
+    let ast = parse(&errors, &file);
+
+    let messages: Vec<_> = errors
+        .take()
+        .into_iter()
+        .map(|error| error.message)
+        .collect();
+    assert_eq!(
+        messages,
+        [
+            "Missing second operand",
+            "Missing grouped expression",
+            "Missing grouped expression",
+            "Missing index expression",
+            "Missing function argument",
+        ]
+    );
+    assert_eq!(ast.items.len(), 6);
+
+    let ItemNode::Global(binary) = &ast.items[0] else {
+        panic!("expected binary global");
+    };
+    let Some(ExprNode::Binary(binary)) = &binary.value else {
+        panic!("expected malformed binary expression");
+    };
+    assert!(matches!(binary.a.as_ref(), ExprNode::Ident(name) if name.value == "left"));
+    assert!(matches!(binary.b.as_ref(), ExprNode::Invalid(..)));
+
+    let ItemNode::Global(chain) = &ast.items[1] else {
+        panic!("expected binary chain global");
+    };
+    let Some(ExprNode::Binary(outer)) = &chain.value else {
+        panic!("expected outer binary expression");
+    };
+    assert!(matches!(outer.b.as_ref(), ExprNode::Ident(name) if name.value == "right"));
+    assert!(matches!(
+        outer.a.as_ref(),
+        ExprNode::Binary(inner) if matches!(inner.b.as_ref(), ExprNode::Invalid(..))
+    ));
+
+    let ItemNode::Global(grouped) = &ast.items[2] else {
+        panic!("expected grouped global");
+    };
+    assert!(matches!(grouped.value, Some(ExprNode::Invalid(..))));
+
+    let ItemNode::Global(indexed) = &ast.items[3] else {
+        panic!("expected indexed global");
+    };
+    assert!(matches!(indexed.value, Some(ExprNode::Invalid(..))));
+
+    let ItemNode::Global(called) = &ast.items[4] else {
+        panic!("expected called global");
+    };
+    let Some(ExprNode::Call(call)) = &called.value else {
+        panic!("expected call expression");
+    };
+    assert_eq!(call.arguments.len(), 2);
+    assert!(matches!(call.arguments[0], ExprNode::Invalid(..)));
+}
+
+#[test]
 fn nested_type_selection_is_parsed() {
     let mut files = FileManager::default();
     let file = files.add_file(

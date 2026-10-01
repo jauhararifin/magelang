@@ -34,6 +34,11 @@ import something "something";
 //syntax_error line=+1 col=17: Expected ';', but found 'unexpected'
 let answer: i32 unexpected tokens = 42;
 let next: i32 = 7;
+//syntax_error line=+1 col=18: Missing initializer value expression
+let empty: i32 = ;
+//syntax_error line=+1 col=19: Missing unary operand
+let unary: i32 = +;
+let recovered: i32 = 1;
 
 // =====================================================
 // Type expressions
@@ -105,6 +110,22 @@ let a: [*]u8 = "some string";
 let a: i32 = a < b;
 //syntax_error line=+1 col=17: Missing second operand
 let a: i32 = a +;
+//syntax_error line=+1 col=15: Missing grouped expression
+let _: i32 = ();
+//syntax_error line=+1 col=21: Missing index expression
+let _: i32 = values[];
+//syntax_error line=+1 col=16: Missing function argument
+let _: i32 = f(, 1);
+//syntax_error line=+1 col=28: Missing struct field value
+let _: i32 = SomeStruct{a: };
+//syntax_error line=+1 col=20: Expected ident or '*', but found ';'
+let _: i32 = value.;
+//syntax_error line=+1 col=15: Missing closing ')'
+let _: i32 = f(1;
+//syntax_error line=+1 col=22: Expected ']', but found ';'
+let _: i32 = values[1;
+//syntax_error line=+1 col=14: Unexpected token 'let'
+let _: i32 = let;
 
 // =====================================================
 // Signatures
@@ -129,6 +150,22 @@ fn f(): i32 {
     let a: i32 = 10;
     let b = 10;
     let c: i32;
+    //syntax_error line=+1 col=17: Missing initial value expression
+    let empty = ;
+    //syntax_error line=+1 col=22: Missing initial value expression
+    let typed: i32 = ;
+    //syntax_error line=+1 col=9: Missing right-hand operand
+    a = ;
+    //syntax_error line=+1 col=10: Missing right-hand operand
+    a += ;
+    //syntax_error line=+1 col=18: Missing unary operand
+    let unary = +;
+    //syntax_error line=+1 col=10: Missing unary operand
+    a = +;
+    //syntax_error line=+2 col=6: Missing grouped expression
+    //syntax_error line=+1 col=10: Missing right-hand operand
+    () = ;
+    let recovered = 1;
     if a == 0 {
         return a;
     }
@@ -190,8 +227,12 @@ fn f(): i32 {
     //syntax_error line=+1 col=23: Expected ';', but found '{'
     for a = 0; a < 10 { }
     let dummy = 0;
-    //syntax_error line=+1 col=9: Unexpected token '{'
+    //syntax_error line=+1 col=9: Missing for init statement
     for { }
+    //syntax_error line=+1 col=11: Missing for condition
+    for ; { }
+    //syntax_error line=+1 col=12: Missing for update statement
+    for ;; , { }
     let dummy = 0;
     //syntax_error line=+1 col=9: Unexpected token 'break'
     for break;; {}

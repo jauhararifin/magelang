@@ -220,6 +220,7 @@ pub struct FuncTypeParam {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExprNode {
+    Invalid(Pos),
     Ident(Identifier),
     Number(NumberLit),
     Null(Pos),
@@ -241,6 +242,7 @@ pub enum ExprNode {
 impl ExprNode {
     pub fn pos(&self) -> Pos {
         match self {
+            Self::Invalid(pos) => *pos,
             Self::Ident(node) => node.pos,
             Self::Number(tok) => tok.pos,
             Self::Null(pos) => *pos,

@@ -402,6 +402,15 @@ fn get_expr_from_node_internal<'a, E: ErrorReporter>(
     node: &ExprNode,
 ) -> Expr<'a> {
     match node {
+        ExprNode::Invalid(pos) => Expr {
+            ty: ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Unknown,
+            }),
+            kind: ExprKind::Invalid,
+            pos: *pos,
+            assignable: false,
+        },
         ExprNode::Ident(name) => {
             let symbol = ctx.define_symbol(&name.value);
             let object = scope.value_scopes.lookup(symbol);
