@@ -180,6 +180,23 @@ pub(crate) enum TokenKind {
 impl TokenKind {
     pub(crate) fn is_keyword(&self) -> bool {
         match self {
+            Self::Import
+            | Self::Struct
+            | Self::Fn
+            | Self::Let
+            | Self::If
+            | Self::Else
+            | Self::While
+            | Self::For
+            | Self::Defer
+            | Self::As
+            | Self::Return
+            | Self::Null
+            | Self::True
+            | Self::False
+            | Self::Continue
+            | Self::Break => true,
+
             Self::Invalid(..)
             | Self::Eof
             | Self::Comment(..)
@@ -216,26 +233,9 @@ impl TokenKind {
             | Self::SemiColon
             | Self::Equal
             | Self::AssignOp(..)
-            | Self::Return
             | Self::NumberLit { .. }
             | Self::CharLit { .. }
-            | Self::StringLit { .. } => false,
-
-            Self::Import
-            | Self::Struct
-            | Self::Fn
-            | Self::As
-            | Self::Let
-            | Self::If
-            | Self::Else
-            | Self::While
-            | Self::For
-            | Self::Defer
-            | Self::Null
-            | Self::True
-            | Self::False
-            | Self::Continue
-            | Self::Break
+            | Self::StringLit { .. }
             | Self::AtSign => false,
         }
     }

@@ -44,6 +44,14 @@ let recovered: i32 = 1;
 // Type expressions
 // =====================================================
 
+fn invalid_keyword_types() {
+    //syntax_error line=+1 col=12: Expected type expression, but found 'if'
+    let x: if;
+    //syntax_error line=+1 col=12: Expected type expression, but found 'return'
+    let y: return;
+    let recovered: i32 = 1;
+}
+
 let _: package.sometype = 10;
 let _: package.sometype<int> = 10;
 let _: package.sometype<int,int> = 10;
