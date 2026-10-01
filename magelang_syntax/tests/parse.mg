@@ -108,6 +108,10 @@ let a: i32 = pkg.some_func<i32>(a, b)[1].*;
 let a: f32 = 1.0 + 2.0;
 let a: [*]u8 = "some string";
 let a: i32 = a < b;
+let _: u8 = '\0';
+let _: u8 = '\x00';
+//syntax_error line=+1 col=13: Character literal cannot be empty
+let _: u8 = '' + 1;
 //syntax_error line=+1 col=16: Expected at least one digit in 16-base integer literal
 let _: i32 = 0x;
 //syntax_error line=+1 col=16: Expected at least one digit in 2-base integer literal

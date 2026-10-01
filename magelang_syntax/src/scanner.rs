@@ -86,14 +86,18 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
     fn scan_char_lit(&mut self) -> Option<Token> {
         let (_, pos) = self.next_if(|c| c == '\'')?;
-        let raw = String::from("\'");
+        let mut raw = String::from("\'");
 
         if let Some((c, _)) = self.peek() {
             match c {
                 '\\' => self.scan_char_after_backslash(pos, raw),
-                '\'' => self.scan_char_closing(pos, raw, 0 as char),
+                '\'' => {
+                    self.errors.empty_character_literal(pos);
+                    self.scan_char_closing(pos, raw, 0 as char)
+                }
                 _ => {
                     self.next();
+                    raw.push(c);
                     self.scan_char_closing(pos, raw, c)
                 }
             }
@@ -737,6 +741,10 @@ trait ScanningError: ErrorReporter {
         );
     }
 
+    fn empty_character_literal(&self, pos: Pos) {
+        self.report(pos, "Character literal cannot be empty".to_string());
+    }
+
     fn missing_closing_quote(&self, pos: Pos) {
         self.report(pos, String::from("Missing closing quote in string literal"));
     }
@@ -880,6 +888,61 @@ string""#
         );
 
         assert!(!error_manager.has_errors());
+    }
+
+    #[test]
+    fn character_literal() {
+        let mut files = FileManager::default();
+        let file = files.add_file(
+            PathBuf::from("dummy.mg"),
+            r#"''; '\0' '\x00' 'a' '😀'"#.to_string(),
+        );
+        let mut errors = ErrorManager::default();
+        let tokens = scan(&errors, &file);
+
+        assert_eq!(tokens.len(), 6);
+        assert_eq!(
+            tokens[0].kind,
+            TokenKind::CharLit {
+                raw: "''".to_string(),
+                value: '\0',
+            }
+        );
+        assert_eq!(tokens[1].kind, TokenKind::SemiColon);
+        assert_eq!(
+            tokens[2].kind,
+            TokenKind::CharLit {
+                raw: "'\\0'".to_string(),
+                value: '\0',
+            }
+        );
+        assert_eq!(
+            tokens[3].kind,
+            TokenKind::CharLit {
+                raw: "'\\x00'".to_string(),
+                value: '\0',
+            }
+        );
+        assert_eq!(
+            tokens[4].kind,
+            TokenKind::CharLit {
+                raw: "'a'".to_string(),
+                value: 'a',
+            }
+        );
+        assert_eq!(
+            tokens[5].kind,
+            TokenKind::CharLit {
+                raw: "'😀'".to_string(),
+                value: '😀',
+            }
+        );
+
+        let errors = errors.take();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "Character literal cannot be empty");
+        let location = files.location(errors[0].pos);
+        assert_eq!((location.line, location.col), (1, 1));
     }
 
     #[test]
