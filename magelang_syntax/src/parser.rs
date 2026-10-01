@@ -979,18 +979,9 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
 
     loop {
         target = match f.kind() {
-            TokenKind::Lt
-                if matches!(&target, ExprNode::Ident(..) | ExprNode::Selection(..))
-                    && f.has_generic_args(allow_struct_lit) =>
-            {
-                let Some((_, args, _)) = parse_sequence(
-                    f,
-                    TokenKind::Lt,
-                    TokenKind::Comma,
-                    TokenKind::Gt,
-                    parse_type_expr,
-                ) else {
-                    return Some(ExprNode::Invalid(pos));
+            TokenKind::Lt if matches!(&target, ExprNode::Ident(..) | ExprNode::Selection(..)) => {
+                let Some(args) = f.try_take_generic_args(allow_struct_lit) else {
+                    break;
                 };
                 ExprNode::Inst(InstExprNode {
                     value: Box::new(target),
@@ -1208,7 +1199,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         }
     }
 
-    fn has_generic_args(&self, allow_struct_lit: bool) -> bool {
+    fn try_take_generic_args(&mut self, allow_struct_lit: bool) -> Option<Vec<TypeExprNode>> {
         // currently, parsing a<T> is ambiguous because it can mean an instantiation or
         // binary expressions. To handle this, we assume it's an instantiation first and
         // fallback to binary expression if it doesn't result in valid AST. Because of
@@ -1216,34 +1207,44 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         // parser and scrap it if we want to backtrack.
         let errors = ErrorManager::default();
         let mut probe = FileParser::new(&errors, self.tokens.clone(), self.last_pos);
-        let Some((_, args, _)) = parse_sequence(
+        let (_, args, _) = parse_sequence(
             &mut probe,
             TokenKind::Lt,
             TokenKind::Comma,
             TokenKind::Gt,
             parse_type_expr,
-        ) else {
-            return false;
-        };
+        )?;
 
+        // these are some heuristic to decide whether this is a generic instantiation
         let follower = probe.kind().clone();
-        !args.is_empty()
-            && !errors.has_errors()
-            && (follower != TokenKind::Gt
-                && BINOP_PRECEDENCE.iter().any(|ops| ops.contains(&follower))
-                || matches!(follower, TokenKind::OpenBrac | TokenKind::As)
-                || allow_struct_lit && matches!(follower, TokenKind::OpenBlock)
-                || matches!(
-                    follower,
-                    TokenKind::Dot
-                        | TokenKind::OpenSquare
-                        | TokenKind::SemiColon
-                        | TokenKind::Comma
-                        | TokenKind::CloseBrac
-                        | TokenKind::CloseSquare
-                        | TokenKind::CloseBlock
-                        | TokenKind::Eof
-                ))
+        let is_unambiguous_binary_operator =
+            follower != TokenKind::Gt && BINOP_PRECEDENCE.iter().any(|ops| ops.contains(&follower));
+        let starts_postfix_expression = matches!(
+            follower,
+            TokenKind::OpenBrac | TokenKind::Dot | TokenKind::OpenSquare
+        );
+        let starts_cast = follower == TokenKind::As;
+        let starts_struct_literal = allow_struct_lit && follower == TokenKind::OpenBlock;
+        let ends_expression = matches!(
+            follower,
+            TokenKind::SemiColon
+                | TokenKind::Comma
+                | TokenKind::CloseBrac
+                | TokenKind::CloseSquare
+                | TokenKind::CloseBlock
+                | TokenKind::Eof
+        );
+        let has_valid_follower = is_unambiguous_binary_operator
+            || starts_postfix_expression
+            || starts_cast
+            || starts_struct_literal
+            || ends_expression;
+        if args.is_empty() || errors.has_errors() || !has_valid_follower {
+            return None;
+        }
+
+        self.tokens = probe.tokens;
+        Some(args)
     }
 
     fn unexpected(&mut self, expected: impl Display) {
