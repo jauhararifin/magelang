@@ -627,7 +627,11 @@ fn parse_let_stmt<E: ErrorReporter>(
     let name: Identifier = f.take_ident()?;
 
     if f.take_if(&TokenKind::Colon).is_some() {
-        let ty = parse_type_expr(f)?;
+        let ty = parse_type_expr(f).unwrap_or_else(|| {
+            let pos = f.token().pos;
+            f.errors.missing(pos, "local variable type");
+            TypeExprNode::Invalid(pos)
+        });
         if f.take_if(&TokenKind::Equal).is_some() {
             let value = parse_expr(f, allow_struct_lit).unwrap_or_else(|| {
                 let pos = f.token().pos;

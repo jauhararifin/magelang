@@ -228,6 +228,10 @@ fn f(): i32 {
     let a: i32 = 10;
     let b = 10;
     let c: i32;
+    //syntax_error line=+1 col=11: Missing local variable type
+    let d:;
+    //syntax_error line=+1 col=12: Missing local variable type
+    let e: = 1;
     //syntax_error line=+1 col=17: Missing initial value expression
     let empty = ;
     //syntax_error line=+1 col=22: Missing initial value expression

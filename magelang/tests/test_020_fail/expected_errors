@@ -1,0 +1,2 @@
+tests/test_020_fail/main.mg:3:14: Missing local variable type
+tests/test_020_fail/main.mg:4:20: Missing local variable type
