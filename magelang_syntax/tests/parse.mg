@@ -344,9 +344,29 @@ fn f(): i32 {
     defer;
     //syntax_error line=+1 col=16: Expected deferred statement, but found ';'
     defer defer;
+    //syntax_error line=+1 col=11: Expected deferred statement, but found ','
+    defer ,;
+    let recovered_after_defer_comma = 1;
+    //syntax_error line=+1 col=11: Expected deferred statement, but found ')'
+    defer );
+    let recovered_after_defer_close_brac = 1;
+    //syntax_error line=+1 col=11: Expected deferred statement, but found ']'
+    defer ];
+    let recovered_after_defer_close_square = 1;
+    //syntax_error line=+1 col=11: Expected deferred statement, but found 'else'
+    defer else;
+    let recovered_after_defer_else = 1;
+    //syntax_error line=+1 col=11: Missing if condition
+    defer if ;
+    let recovered_after_invalid_deferred_if = 1;
     //syntax_error line=+1 col=9: Unexpected token 'defer'
     for defer f();; {}
     for ;; let x = 1 {}
+}
+
+fn missing_deferred_statement_before_close() {
+    //syntax_error line=+2 col=1: Expected deferred statement, but found '}'
+    defer
 }
 
 fn missing_jump_terminators() {

@@ -806,16 +806,17 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
 fn parse_defer_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<DeferStatementNode> {
     let defer_tok = f.take(TokenKind::Defer)?;
     let pos = defer_tok.pos;
-
-    // parse_stmt silently returns None on a stray ';', which would drop the defer silently.
-    if f.kind() == &TokenKind::SemiColon {
-        f.unexpected("deferred statement");
-        return None;
-    }
+    let body_token = f.token();
+    let body = parse_stmt(f).unwrap_or_else(|| {
+        if f.token() == body_token {
+            f.unexpected("deferred statement");
+        }
+        StatementNode::Expr(ExprNode::Invalid(body_token.pos))
+    });
 
     Some(DeferStatementNode {
         pos,
-        body: Box::new(parse_stmt(f)?),
+        body: Box::new(body),
     })
 }
 

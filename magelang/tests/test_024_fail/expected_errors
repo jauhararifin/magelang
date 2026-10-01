@@ -1,0 +1,8 @@
+tests/test_024_fail/main.mg:3:1: Expected deferred statement, but found '}'
+tests/test_024_fail/main.mg:7:9: Expected deferred statement, but found ';'
+tests/test_024_fail/main.mg:9:9: Expected deferred statement, but found ','
+tests/test_024_fail/main.mg:11:9: Expected deferred statement, but found ')'
+tests/test_024_fail/main.mg:13:9: Expected deferred statement, but found ']'
+tests/test_024_fail/main.mg:15:9: Expected deferred statement, but found 'else'
+tests/test_024_fail/main.mg:17:15: Expected deferred statement, but found ','
+tests/test_024_fail/main.mg:19:9: Missing if condition
