@@ -374,13 +374,16 @@ fn parse_named_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprN
     }
 
     if f.kind() == &TokenKind::Lt {
-        let (_, args, _) = parse_sequence(
+        let (opening, args, _) = parse_sequence(
             f,
             TokenKind::Lt,
             TokenKind::Comma,
             TokenKind::Gt,
             parse_type_expr,
         )?;
+        if args.is_empty() {
+            f.errors.missing(opening.pos, "at least one type argument");
+        }
         ty = TypeExprNode::Inst(InstTypeNode {
             value: Box::new(ty),
             args,
@@ -407,7 +410,10 @@ fn parse_struct<E: ErrorReporter>(
             TokenKind::Gt,
             |parser| parser.take_ident(),
         );
-        result.map(|(_, type_params, _)| {
+        result.map(|(opening, type_params, _)| {
+            if type_params.is_empty() {
+                f.errors.missing(opening.pos, "at least one type parameter");
+            }
             type_params
                 .into_iter()
                 .map(Identifier::from)
@@ -486,13 +492,16 @@ fn parse_signature<E: ErrorReporter>(
     let name: Identifier = f.take_ident()?;
 
     let type_params = if f.kind() == &TokenKind::Lt {
-        let (_, type_parameters, _) = parse_sequence(
+        let (opening, type_parameters, _) = parse_sequence(
             f,
             TokenKind::Lt,
             TokenKind::Comma,
             TokenKind::Gt,
             |parser| parser.take_ident(),
         )?;
+        if type_parameters.is_empty() {
+            f.errors.missing(opening.pos, "at least one type parameter");
+        }
         type_parameters
             .into_iter()
             .map(Identifier::from)
@@ -839,9 +848,13 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
     }
 
     let Some(value) = parse_expr(f, true) else {
+        let token = f.token();
         f.errors
-            .unexpected_parsing(pos, "type expression", "nothing");
-        return None;
+            .unexpected_parsing(token.pos, "return value expression", &token);
+        return Some(ReturnStatementNode {
+            pos,
+            value: Some(ExprNode::Invalid(token.pos)),
+        });
     };
 
     f.take(TokenKind::SemiColon)?;

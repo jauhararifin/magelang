@@ -186,7 +186,8 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let mut found_multichar = false;
         loop {
             let Some((c, p)) = self.next() else {
-                self.errors.missing_closing_quote(self.get_pos());
+                self.errors
+                    .missing_closing_quote(self.get_pos(), "character");
                 return Some(Token {
                     kind: TokenKind::CharLit { raw, value },
                     pos,
@@ -290,7 +291,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
     fn scan_string_closing(&mut self, pos: Pos, mut raw: String, value: Vec<u8>) -> Option<Token> {
         let Some((c, _)) = self.next() else {
-            self.errors.missing_closing_quote(self.get_pos());
+            self.errors.missing_closing_quote(self.get_pos(), "string");
             return Some(Token {
                 kind: TokenKind::StringLit { raw, value },
                 pos,
@@ -773,8 +774,11 @@ trait ScanningError: ErrorReporter {
         self.report(pos, "Character literal cannot be empty".to_string());
     }
 
-    fn missing_closing_quote(&self, pos: Pos) {
-        self.report(pos, String::from("Missing closing quote in string literal"));
+    fn missing_closing_quote(&self, pos: Pos, literal_kind: &str) {
+        self.report(
+            pos,
+            format!("Missing closing quote in {literal_kind} literal"),
+        );
     }
 
     fn invalid_digit_in_base(&self, pos: Pos, digit: char, base: u8) {
@@ -923,12 +927,12 @@ string""#
         let mut files = FileManager::default();
         let file = files.add_file(
             PathBuf::from("dummy.mg"),
-            r#"''; '\0' '\x00' 'a' '😀'"#.to_string(),
+            r#"''; '\0' '\x00' 'a' '😀' 'z"#.to_string(),
         );
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
 
-        assert_eq!(tokens.len(), 6);
+        assert_eq!(tokens.len(), 7);
         assert_eq!(
             tokens[0].kind,
             TokenKind::CharLit {
@@ -965,10 +969,21 @@ string""#
                 value: '😀',
             }
         );
+        assert_eq!(
+            tokens[6].kind,
+            TokenKind::CharLit {
+                raw: "'z".to_string(),
+                value: 'z',
+            }
+        );
 
         let errors = errors.take();
-        assert_eq!(errors.len(), 1);
+        assert_eq!(errors.len(), 2);
         assert_eq!(errors[0].message, "Character literal cannot be empty");
+        assert_eq!(
+            errors[1].message,
+            "Missing closing quote in character literal"
+        );
         let location = files.location(errors[0].pos);
         assert_eq!((location.line, location.col), (1, 1));
     }

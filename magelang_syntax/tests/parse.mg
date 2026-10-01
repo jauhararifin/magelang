@@ -85,8 +85,13 @@ let _: [*] = 10;
 let _: i32;
 //syntax_error line=+1 col=17: Expected ',', but found 'bool'
 let _: Pair<i32 bool>;
+//syntax_error line=+2 col=12: Missing at least one type argument
 //syntax_error line=+1 col=13: Expected list item, but found ','
 let _: Pair<,>;
+//syntax_error line=+1 col=12: Missing at least one type argument
+let _: Pair<>;
+//syntax_error line=+1 col=17: Missing at least one type argument
+let _: Pair<Pair<>>;
 let _: Pair<i32,>;
 //syntax_error line=+1 col=9: Missing grouped type
 let _: ();
@@ -114,6 +119,8 @@ struct a<i32>
 //syntax_error line=+1 col=8: Expected IDENT, but found '<'
 struct <i32>{}
 struct a<i32>{field1: type1}
+//syntax_error line=+1 col=20: Missing at least one type parameter
+struct EmptyGeneric<> {}
 //syntax_error line=+1 col=34: Expected ',', but found 'right'
 struct MissingCommas { left: i32 right: i32 }
 //syntax_error line=+1 col=33: Expected ':', but found ','
@@ -204,6 +211,8 @@ fn;
 //syntax_error line=+1 col=4: Missing function parameter list
 fn f;
 fn empty_func();
+//syntax_error line=+1 col=17: Missing at least one type parameter
+fn empty_generic<>();
 //syntax_error line=+1 col=20: Missing return type
 fn missing_return():;
 fn returning():i32;
@@ -255,6 +264,9 @@ fn f(): i32 {
     //syntax_error line=+1 col=10: Missing right-hand operand
     () = ;
     let recovered = 1;
+    //syntax_error line=+1 col=12: Expected return value expression, but found ','
+    return ,;
+    let recovered_after_return = 2;
     if a == 0 {
         return a;
     }
@@ -346,6 +358,11 @@ fn missing_jump_terminators() {
     while true { continue f(); }
     //syntax_error line=+1 col=27: Expected ';', but found '}'
     while true { continue }
+}
+
+fn missing_return_value_before_close(): i32 {
+    //syntax_error line=+2 col=1: Expected return value expression, but found '}'
+    return
 }
 
 fn dangling_else_before_close() {
