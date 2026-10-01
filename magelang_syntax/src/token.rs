@@ -114,6 +114,9 @@ impl FileManager {
 pub(crate) struct Token {
     pub(crate) kind: TokenKind,
     pub(crate) pos: Pos,
+
+    // spacing is true when previous token contains spacing with current token
+    pub(crate) spacing: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

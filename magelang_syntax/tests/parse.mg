@@ -134,6 +134,13 @@ let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
 let a: i32 = pkg.some_func<i32>(a, b)[1].*;
+let a: pkg.Pair<i32>=pkg.Pair<i32>{value: 1};
+let a: bool = pkg.id<i32>==pkg.id<i32>;
+let a: bool = pkg.id<pkg.Pair<i32>>==pkg.id<pkg.Pair<i32>>;
+let a: i32 = pkg.id<i32>>>value;
+let a: i32 = pkg.id<pkg.Pair<pkg.Pair<i32>>>>>value;
+let a: bool = pkg.id<i32>=// comments are transparent to the parser
+=pkg.id<i32>;
 //syntax_error line=+1 col=14: Struct literal target must be a type expression
 let _: i32 = 1{};
 //syntax_error line=+1 col=18: Expected ',', but found NUMBER_LIT

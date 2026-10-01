@@ -1262,6 +1262,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             Token {
                 kind: TokenKind::Eof,
                 pos: self.last_pos,
+                spacing: false,
             }
         }
     }
@@ -1280,13 +1281,14 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             Token {
                 kind: TokenKind::Eof,
                 pos: self.last_pos,
+                spacing: false,
             }
         }
     }
 
     fn take(&mut self, kind: TokenKind) -> Option<Token> {
         if kind == TokenKind::Gt {
-            self.split_shift_right();
+            self.split_greater_than();
         }
         if kind == TokenKind::Mul {
             self.split_mul_assign();
@@ -1376,7 +1378,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
     fn take_if(&mut self, kind: &TokenKind) -> Option<Token> {
         if kind == &TokenKind::Gt {
-            self.split_shift_right();
+            self.split_greater_than();
         }
         if kind == &TokenKind::Mul {
             self.split_mul_assign();
@@ -1427,33 +1429,77 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         }
     }
 
-    fn split_shift_right(&mut self) {
+    fn split_greater_than(&mut self) {
         let tok = self.tokens.front();
         if tok.map_or(false, |token| token.kind == TokenKind::ShiftRight) {
             let tok = self.tokens.pop_front().unwrap();
             let pos = tok.pos;
+
+            let remaining_kind = match self.tokens.front() {
+                Some(token) if token.spacing && token.kind == TokenKind::Gt => {
+                    Some(TokenKind::ShiftRight)
+                }
+                Some(token) if token.spacing && token.kind == TokenKind::GEq => {
+                    Some(TokenKind::AssignOp(BinaryOp::ShiftRight))
+                }
+                _ => None,
+            };
+            let remaining_kind = if let Some(kind) = remaining_kind {
+                self.tokens.pop_front();
+                kind
+            } else {
+                TokenKind::Gt
+            };
             self.tokens.push_front(Token {
-                kind: TokenKind::Gt,
+                kind: remaining_kind,
                 pos: pos.with_offset(1),
+                spacing: true,
             });
             self.tokens.push_front(Token {
                 kind: TokenKind::Gt,
                 pos,
+                spacing: tok.spacing,
             });
         } else if tok.is_some_and(|token| token.kind == TokenKind::AssignOp(BinaryOp::ShiftRight)) {
             let tok = self.tokens.pop_front().unwrap();
             let pos = tok.pos;
             self.tokens.push_front(Token {
-                kind: TokenKind::Equal,
-                pos: pos.with_offset(2),
-            });
-            self.tokens.push_front(Token {
-                kind: TokenKind::Gt,
+                kind: TokenKind::GEq,
                 pos: pos.with_offset(1),
+                spacing: true,
             });
             self.tokens.push_front(Token {
                 kind: TokenKind::Gt,
                 pos,
+                spacing: tok.spacing,
+            });
+        } else if tok.is_some_and(|token| token.kind == TokenKind::GEq) {
+            let tok = self.tokens.pop_front().unwrap();
+            let pos = tok.pos;
+            let equal_pos = pos.with_offset(1);
+
+            let joins_next_equal = self
+                .tokens
+                .front()
+                .is_some_and(|token| token.kind == TokenKind::Equal && token.spacing);
+            if joins_next_equal {
+                self.tokens.pop_front();
+                self.tokens.push_front(Token {
+                    kind: TokenKind::Eq,
+                    pos: equal_pos,
+                    spacing: true,
+                });
+            } else {
+                self.tokens.push_front(Token {
+                    kind: TokenKind::Equal,
+                    pos: equal_pos,
+                    spacing: true,
+                });
+            }
+            self.tokens.push_front(Token {
+                kind: TokenKind::Gt,
+                pos,
+                spacing: tok.spacing,
             });
         }
     }
@@ -1463,26 +1509,31 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         if !tok.is_some_and(|token| token.kind == TokenKind::AssignOp(BinaryOp::Mul)) {
             return;
         }
-        let pos = self.tokens.pop_front().unwrap().pos;
+        let tok = self.tokens.pop_front().unwrap();
+        let pos = tok.pos;
         let equal_pos = pos.with_offset(1);
-        let joins_next_equal = self.tokens.front().is_some_and(|token| {
-            token.kind == TokenKind::Equal && token.pos == equal_pos.with_offset(1)
-        });
+        let joins_next_equal = self
+            .tokens
+            .front()
+            .is_some_and(|token| token.kind == TokenKind::Equal && token.spacing);
         if joins_next_equal {
             self.tokens.pop_front();
             self.tokens.push_front(Token {
                 kind: TokenKind::Eq,
                 pos: equal_pos,
+                spacing: true,
             });
         } else {
             self.tokens.push_front(Token {
                 kind: TokenKind::Equal,
                 pos: equal_pos,
+                spacing: true,
             });
         }
         self.tokens.push_front(Token {
             kind: TokenKind::Mul,
             pos,
+            spacing: tok.spacing,
         });
     }
 

@@ -31,17 +31,22 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn scan(&mut self) -> Option<Token> {
-        self.skip_whitespace();
-        self.scan_word()
+        let has_previous_input = self.offset != 0;
+        let skipped_whitespace = self.skip_whitespace();
+        let mut token = self
+            .scan_word()
             .or_else(|| self.scan_char_lit())
             .or_else(|| self.scan_string_lit())
             .or_else(|| self.scan_number_lit())
             .or_else(|| self.scan_comments())
             .or_else(|| self.scan_symbols())
-            .or_else(|| self.scan_invalid())
+            .or_else(|| self.scan_invalid())?;
+        token.spacing = has_previous_input && !skipped_whitespace;
+        Some(token)
     }
 
-    fn skip_whitespace(&mut self) {
+    fn skip_whitespace(&mut self) -> bool {
+        let initial_offset = self.offset;
         while let Some((ch, _)) = self.peek() {
             if ch.is_whitespace() {
                 self.next();
@@ -49,6 +54,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 break;
             }
         }
+        self.offset != initial_offset
     }
 
     fn scan_word(&mut self) -> Option<Token> {
@@ -81,7 +87,11 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             _ => TokenKind::Ident(value),
         };
 
-        Some(Token { kind, pos })
+        Some(Token {
+            kind,
+            pos,
+            spacing: false,
+        })
     }
 
     fn scan_char_lit(&mut self) -> Option<Token> {
@@ -180,6 +190,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 return Some(Token {
                     kind: TokenKind::CharLit { raw, value },
                     pos,
+                    spacing: false,
                 });
             };
             raw.push(c);
@@ -188,6 +199,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 return Some(Token {
                     kind: TokenKind::CharLit { raw, value },
                     pos,
+                    spacing: false,
                 });
             }
 
@@ -282,6 +294,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             return Some(Token {
                 kind: TokenKind::StringLit { raw, value },
                 pos,
+                spacing: false,
             });
         };
         raw.push(c);
@@ -290,6 +303,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::StringLit { raw, value },
             pos,
+            spacing: false,
         })
     }
 
@@ -321,6 +335,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             return Some(Token {
                 kind: TokenKind::NumberLit { raw, value },
                 pos,
+                spacing: false,
             });
         };
 
@@ -362,6 +377,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             _ => Some(Token {
                 kind: TokenKind::NumberLit { raw, value },
                 pos,
+                spacing: false,
             }),
         }
     }
@@ -447,6 +463,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::NumberLit { raw, value },
             pos,
+            spacing: false,
         })
     }
 
@@ -478,6 +495,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::NumberLit { raw, value },
             pos,
+            spacing: false,
         })
     }
 
@@ -488,6 +506,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             return Some(Token {
                 kind: TokenKind::NumberLit { raw, value },
                 pos,
+                spacing: false,
             });
         };
 
@@ -504,6 +523,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 Some(Token {
                     kind: TokenKind::NumberLit { raw, value },
                     pos,
+                    spacing: false,
                 })
             }
         }
@@ -546,6 +566,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::NumberLit { raw, value },
             pos,
+            spacing: false,
         })
     }
 
@@ -571,6 +592,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::NumberLit { raw, value },
             pos,
+            spacing: false,
         })
     }
 
@@ -597,6 +619,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::Comment(value),
             pos,
+            spacing: false,
         })
     }
 
@@ -669,7 +692,11 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             self.next();
         }
 
-        Some(Token { kind: kind?, pos })
+        Some(Token {
+            kind: kind?,
+            pos,
+            spacing: false,
+        })
     }
 
     fn scan_invalid(&mut self) -> Option<Token> {
@@ -678,6 +705,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         Some(Token {
             kind: TokenKind::Invalid(c),
             pos,
+            spacing: false,
         })
     }
 
@@ -1580,6 +1608,22 @@ string""#
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].message, "Unexpected char '#'");
+    }
+
+    #[test]
+    fn token_spacing_distinguishes_joint_operators() {
+        let mut files = FileManager::default();
+        let file = files.add_file(PathBuf::from("dummy.mg"), ">== >= =".to_string());
+        let tokens = scan(&ErrorManager::default(), &file);
+
+        assert_eq!(tokens[0].kind, TokenKind::GEq);
+        assert!(!tokens[0].spacing);
+        assert_eq!(tokens[1].kind, TokenKind::Equal);
+        assert!(tokens[1].spacing);
+        assert_eq!(tokens[2].kind, TokenKind::GEq);
+        assert!(!tokens[2].spacing);
+        assert_eq!(tokens[3].kind, TokenKind::Equal);
+        assert!(!tokens[3].spacing);
     }
 
     #[test]
