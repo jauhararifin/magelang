@@ -83,6 +83,8 @@ let _: [*]package = 10;
 //syntax_error line=+1 col=10: Missing pointee type
 let _: [*] = 10;
 let _: i32;
+//syntax_error line=+1 col=17: Missing parameter type
+let _: fn(value:): i32;
 //syntax_error line=+1 col=8: Missing type expression
 let _: 123 = 10;
 //syntax_error line=+1 col=7: Missing type expression
@@ -101,6 +103,10 @@ struct a<i32>
 //syntax_error line=+1 col=8: Expected IDENT, but found '<'
 struct <i32>{}
 struct a<i32>{field1: type1}
+//syntax_error line=+1 col=24: Missing struct field type
+struct Empty { erased: }
+//syntax_error line=+1 col=34: Missing struct field type
+struct Partial { good: i32, bad: }
 
 // =====================================================
 // Value expressions
@@ -170,6 +176,10 @@ fn empty_func();
 fn missing_return():;
 fn returning():i32;
 fn f(a: i32, b: i32): i32;
+//syntax_error line=+1 col=27: Missing parameter type
+fn erased_parameter(value:) {}
+//syntax_error line=+1 col=27: Missing parameter type
+fn partial(good: i32, bad:) {}
 fn func_with_typeargs<T,U>();
 
 // =====================================================

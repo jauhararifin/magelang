@@ -327,7 +327,15 @@ fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<
         None
     };
 
-    let ty = parse_type_expr(f)?;
+    let ty = if let Some(ty) = parse_type_expr(f) {
+        ty
+    } else if name.is_some() {
+        let pos = f.token().pos;
+        f.errors.missing(pos, "parameter type");
+        TypeExprNode::Invalid(pos)
+    } else {
+        return None;
+    };
     let pos = name.as_ref().map(|t| t.pos).unwrap_or_else(|| ty.pos());
     Some(FuncTypeParam { pos, name, ty })
 }
@@ -394,8 +402,12 @@ fn parse_struct<E: ErrorReporter>(
         TokenKind::CloseBlock,
         |parser| {
             let name = parser.take_ident()?;
-            parser.take(TokenKind::Colon);
-            let ty = parse_type_expr(parser)?;
+            parser.take(TokenKind::Colon)?;
+            let ty = parse_type_expr(parser).unwrap_or_else(|| {
+                let pos = parser.token().pos;
+                parser.errors.missing(pos, "struct field type");
+                TypeExprNode::Invalid(pos)
+            });
             Some(StructFieldNode { name, ty })
         },
     );
@@ -511,7 +523,11 @@ fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterN
     let name = f.take_if_ident()?;
     let pos = name.pos;
     f.take(TokenKind::Colon)?;
-    let ty = parse_type_expr(f)?;
+    let ty = parse_type_expr(f).unwrap_or_else(|| {
+        let pos = f.token().pos;
+        f.errors.missing(pos, "parameter type");
+        TypeExprNode::Invalid(pos)
+    });
     Some(ParameterNode { pos, name, ty })
 }
 
