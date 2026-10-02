@@ -1,0 +1,2 @@
+tests/test_025_fail/main.mg:4:25: Cannot perform mod binary operation on floating number
+tests/test_025_fail/main.mg:5:24: Cannot perform shift left binary operation on floating number

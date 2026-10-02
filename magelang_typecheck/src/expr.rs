@@ -1265,7 +1265,7 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 
     let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
-    let b_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
+    let b_is_untyped_float = matches!(b.ty.repr, TypeRepr::UntypedFloat);
     if a_is_untyped_float || b_is_untyped_float {
         let pos = if a_is_untyped_float { a.pos } else { b.pos };
         ctx.errors.report(
@@ -1347,7 +1347,7 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 
     let a_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
-    let b_is_untyped_float = matches!(a.ty.repr, TypeRepr::UntypedFloat);
+    let b_is_untyped_float = matches!(b.ty.repr, TypeRepr::UntypedFloat);
     if a_is_untyped_float || b_is_untyped_float {
         let pos = if a_is_untyped_float { a.pos } else { b.pos };
         ctx.errors.report(
