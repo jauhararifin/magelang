@@ -150,6 +150,13 @@ pub(crate) trait SemanticError: ErrorReporter {
         self.report(pos, format!("The field {name} is not declared yet"));
     }
 
+    fn redeclared_field(&self, redeclared_at: Pos, declared_at: Location, name: &str) {
+        self.report(
+            redeclared_at,
+            format!("Field {name} is already declared at {declared_at}"),
+        );
+    }
+
     fn unreachable_statement(&self, pos: Pos) {
         self.report(pos, String::from("This statement is unreachable"));
     }

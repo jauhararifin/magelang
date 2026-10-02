@@ -52,6 +52,7 @@ test_success!(test_022);
 test_success!(test_023_fail);
 test_success!(test_024_fail);
 test_success!(test_025_fail);
+test_success!(test_026_fail);
 
 fn test_package(name: &str) {
     unsafe {

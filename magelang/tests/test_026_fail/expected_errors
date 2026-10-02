@@ -1,0 +1,1 @@
+tests/test_026_fail/main.mg:9:5: Field value is already declared at tests/test_026_fail/main.mg:8:5

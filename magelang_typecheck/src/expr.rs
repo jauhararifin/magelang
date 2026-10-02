@@ -1851,7 +1851,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     };
     let struct_body = struct_type.body.get().expect("missing struct body");
 
-    let mut values = HashMap::<Symbol, Expr>::default();
+    let mut values = HashMap::<Symbol, (Pos, Expr)>::default();
     for element in &node.elements {
         let field_name = ctx.define_symbol(&element.key.value);
         let ty = struct_body
@@ -1883,12 +1883,20 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
             value
         };
 
-        values.insert(field_name, value);
+        if let Some((declared_at, _)) = values.get(&field_name) {
+            ctx.errors.redeclared_field(
+                element.key.pos,
+                ctx.files.location(*declared_at),
+                &element.key.value,
+            );
+        } else {
+            values.insert(field_name, (element.key.pos, value));
+        }
     }
 
     let mut full_values = BumpVec::with_capacity_in(struct_body.fields.len(), ctx.arena);
     for (field_name, type_id) in &struct_body.fields {
-        if let Some(value) = values.remove(field_name) {
+        if let Some((_, value)) = values.remove(field_name) {
             full_values.push(value)
         } else {
             full_values.push(Expr {
