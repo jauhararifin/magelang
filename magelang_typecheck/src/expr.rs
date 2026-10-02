@@ -1975,7 +1975,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
         node_value = v;
     }
 
-    if let ExprNode::Ident(base) = node.value.as_ref() {
+    if let ExprNode::Ident(base) = node_value {
         let symbol = ctx.define_symbol(&base.value);
         if scope.value_scopes.lookup(symbol).is_none() {
             if let Some(import) = scope.import_scopes.lookup(symbol) {
