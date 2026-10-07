@@ -9,3 +9,10 @@ rust-version = "1.98"
 [dependencies]
 indexmap = "2.14.0"
 num = "0.4.1"
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "parser"
+harness = false

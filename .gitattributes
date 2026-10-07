@@ -1,2 +1,2 @@
 *.mag linguist-language=Magelang
-*.mg linguist-language=Magelang
+*.mg linguist-language=Magelang linguist-detectable=false
