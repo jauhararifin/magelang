@@ -1,43 +1,28 @@
 use crate::ast::BinaryOp;
 use crate::number::Number;
 use std::fmt::Display;
-use std::fs::read_to_string;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Pos(usize);
+const MAX_FILE_SIZE: usize = 2 * 1024 * 1024 * 1024;
 
-impl From<usize> for Pos {
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FileId(u32);
 
-impl Pos {
-    pub fn with_offset(&self, offset: usize) -> Self {
-        Self(self.0 + offset)
-    }
-}
-
-impl std::cmp::Ord for Pos {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl std::cmp::PartialOrd for Pos {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.0.cmp(&other.0))
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Pos {
+    pub file: FileId,
+    pub line: u32,
+    pub col: u32,
 }
 
 pub struct Location<'a> {
     pub path: &'a Path,
-    pub line: usize,
-    pub col: usize,
+    pub line: u32,
+    pub col: u32,
 }
 
-impl<'a> std::fmt::Display for Location<'a> {
+impl std::fmt::Display for Location<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let path = std::env::current_dir()
             .ok()
@@ -51,62 +36,52 @@ impl<'a> std::fmt::Display for Location<'a> {
 
 #[derive(Default)]
 pub struct FileManager {
-    file_offset: Vec<usize>,
-    file_path: Vec<PathBuf>,
-    lines: Vec<Vec<usize>>,
-    last_offset: usize,
+    paths: Vec<PathBuf>,
 }
 
 pub struct File {
-    pub offset: Pos,
+    pub id: FileId,
     pub text: String,
 }
 
 impl FileManager {
-    pub fn open(&mut self, path: PathBuf) -> Result<File, std::io::Error> {
-        let source_code = read_to_string(&path)?;
-        Ok(self.add_file(path, source_code))
+    pub fn open(&mut self, path: PathBuf) -> io::Result<File> {
+        let file = std::fs::File::open(&path)?;
+        let size = file.metadata()?.len();
+        if size > MAX_FILE_SIZE as u64 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Source file exceeds the 2 GiB size limit",
+            ));
+        }
+
+        let mut source = String::with_capacity(size as usize);
+        file.take(MAX_FILE_SIZE as u64 + 1)
+            .read_to_string(&mut source)?;
+        self.add_file(path, source)
     }
 
-    pub fn add_file(&mut self, path: PathBuf, source: String) -> File {
-        let file_offset = self.last_offset;
-
-        let mut lines = Vec::default();
-        for (i, c) in source.char_indices() {
-            if c == '\n' {
-                lines.push(i);
-            }
+    pub fn add_file(&mut self, path: PathBuf, source: String) -> io::Result<File> {
+        if source.len() > MAX_FILE_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Source file exceeds the 2 GiB size limit",
+            ));
         }
-        // we added 1 to account for imaginary EOF position
-        self.last_offset += source.len() + 1;
-
-        self.file_offset.push(file_offset);
-        self.file_path.push(path);
-        self.lines.push(lines);
-
-        File {
-            offset: Pos(file_offset),
-            text: source,
-        }
+        let id = FileId(
+            u32::try_from(self.paths.len())
+                .map_err(|_| io::Error::other("Too many source files"))?,
+        );
+        self.paths.push(path);
+        Ok(File { id, text: source })
     }
 
     pub fn location(&self, pos: Pos) -> Location<'_> {
-        let i = self.file_offset.partition_point(|x| *x <= pos.0) - 1;
-
-        let file_offset = self.file_offset[i];
-        let path: &Path = &self.file_path[i];
-        let lines = &self.lines[i];
-
-        let offset = pos.0 - file_offset;
-        let line = lines.partition_point(|x| *x < offset) + 1;
-
-        let col = if line == 1 {
-            offset + 1
-        } else {
-            offset - lines[line - 2]
-        };
-
-        Location { path, line, col }
+        Location {
+            path: &self.paths[pos.file.0 as usize],
+            line: pos.line,
+            col: pos.col,
+        }
     }
 }
 
@@ -339,150 +314,62 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_location() {
-        let mut file_manager = FileManager::default();
-        let path = PathBuf::from("some_dummy_file");
-        let file1 = file_manager.add_file(path, String::from("aaa\nbbb\nccc\n"));
+    fn locations_preserve_file_identity() {
+        let mut files = FileManager::default();
+        let first = files
+            .add_file("first.mg".into(), "é\nvalue".into())
+            .unwrap();
+        let first_pos = Pos {
+            file: first.id,
+            line: 2,
+            col: 6,
+        };
+        let second = files.add_file("second.mg".into(), String::new()).unwrap();
+        let third = files.add_file("third.mg".into(), String::new()).unwrap();
+        assert_ne!(first.id, second.id);
+        assert_ne!(second.id, third.id);
 
-        let pos = file1.offset.with_offset(0);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 1));
+        let location = files.location(first_pos);
+        assert_eq!(location.path, Path::new("first.mg"));
+        assert_eq!((location.line, location.col), (2, 6));
+        assert_eq!(location.to_string(), "first.mg:2:6");
 
-        let pos = file1.offset.with_offset(1);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 2));
-
-        let pos = file1.offset.with_offset(2);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 3));
-
-        let pos = file1.offset.with_offset(3);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 4));
-
-        let pos = file1.offset.with_offset(4);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 1));
-
-        let pos = file1.offset.with_offset(5);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 2));
-
-        let pos = file1.offset.with_offset(6);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 3));
-
-        let pos = file1.offset.with_offset(7);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 4));
-
-        let pos = file1.offset.with_offset(8);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 1));
-
-        let pos = file1.offset.with_offset(9);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 2));
-
-        let pos = file1.offset.with_offset(10);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 3));
-
-        let pos = file1.offset.with_offset(11);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 4));
-
-        let path = PathBuf::from("other_file");
-        let file2 = file_manager.add_file(path, String::from("some other\nfile"));
-
-        let pos = file2.offset.with_offset(1);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 2));
-
-        let pos = file2.offset.with_offset(12);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 2));
-
-        let pos = file1.offset.with_offset(0);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 1));
-
-        let pos = file1.offset.with_offset(1);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 2));
-
-        let pos = file1.offset.with_offset(2);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 3));
-
-        let pos = file1.offset.with_offset(3);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (1, 4));
-
-        let pos = file1.offset.with_offset(4);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 1));
-
-        let pos = file1.offset.with_offset(5);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 2));
-
-        let pos = file1.offset.with_offset(6);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 3));
-
-        let pos = file1.offset.with_offset(7);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (2, 4));
-
-        let pos = file1.offset.with_offset(8);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 1));
-
-        let pos = file1.offset.with_offset(9);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 2));
-
-        let pos = file1.offset.with_offset(10);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 3));
-
-        let pos = file1.offset.with_offset(11);
-        let loc = file_manager.location(pos);
-        assert_eq!((loc.line, loc.col), (3, 4));
+        for (file, path) in [(second, "second.mg"), (third, "third.mg")] {
+            let pos = Pos {
+                file: file.id,
+                line: 1,
+                col: 1,
+            };
+            let location = files.location(pos);
+            assert_eq!(location.path, Path::new(path));
+            assert_eq!((location.line, location.col), (1, 1));
+        }
     }
 
     #[test]
-    fn test_locations_use_utf8_bytes_and_distinct_file_ends() {
-        let mut file_manager = FileManager::default();
-        let first = file_manager.add_file(PathBuf::from("first"), String::from("😀\nerror"));
-        let error_pos = first.offset.with_offset("😀\n".len());
-        let eof_pos = first.offset.with_offset(first.text.len());
+    fn oversized_files_are_rejected_before_reading() {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "magelang-oversized-{}-{suffix}.mg",
+            std::process::id()
+        ));
+        let file = std::fs::File::create_new(&path).unwrap();
+        file.set_len(MAX_FILE_SIZE as u64 + 1).unwrap();
 
-        let second = file_manager.add_file(PathBuf::from("second"), String::from("ok"));
+        let mut files = FileManager::default();
+        let result = files.open(path.clone());
+        drop(file);
+        std::fs::remove_file(path).unwrap();
 
-        let loc = file_manager.location(error_pos);
-        assert_eq!(loc.path, Path::new("first"));
-        assert_eq!((loc.line, loc.col), (2, 1));
-
-        let loc = file_manager.location(eof_pos);
-        assert_eq!(loc.path, Path::new("first"));
-        assert_eq!((loc.line, loc.col), (2, 6));
-
-        let loc = file_manager.location(second.offset);
-        assert_eq!(loc.path, Path::new("second"));
-        assert_eq!((loc.line, loc.col), (1, 1));
-
-        let first_empty = file_manager.add_file(PathBuf::from("empty-1"), String::new());
-        let second_empty = file_manager.add_file(PathBuf::from("empty-2"), String::new());
-        assert_ne!(first_empty.offset, second_empty.offset);
+        let error = result.err().expect("oversized source must be rejected");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert_eq!(
-            file_manager.location(first_empty.offset).path,
-            Path::new("empty-1")
+            error.to_string(),
+            "Source file exceeds the 2 GiB size limit"
         );
-        assert_eq!(
-            file_manager.location(second_empty.offset).path,
-            Path::new("empty-2")
-        );
+        assert!(files.paths.is_empty());
     }
 }

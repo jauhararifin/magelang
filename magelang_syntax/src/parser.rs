@@ -21,11 +21,7 @@ pub fn parse(errors: &impl ErrorReporter, file: &File) -> PackageNode {
         }
     }
 
-    let last_pos = filtered_tokens
-        .back()
-        .map(|tok| tok.pos)
-        .unwrap_or(file.offset);
-    let mut parser = FileParser::new(errors, filtered_tokens, last_pos);
+    let mut parser = FileParser::new(errors, filtered_tokens);
 
     let items = parse_root(&mut parser);
     PackageNode { items, comments }
@@ -34,13 +30,12 @@ pub fn parse(errors: &impl ErrorReporter, file: &File) -> PackageNode {
 struct FileParser<'a, Error> {
     errors: &'a Error,
     tokens: VecDeque<Token>,
-    last_pos: Pos,
 }
 
 fn parse_root<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<ItemNode> {
     let mut items = Vec::<ItemNode>::default();
 
-    while !f.is_empty() {
+    while f.kind() != &TokenKind::Eof {
         if let Some(item) = parse_item_node(f) {
             items.push(item);
         }
@@ -834,7 +829,7 @@ fn parse_block_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<BlockStat
             statements.push(stmt);
         } else {
             f.skip_until_before(&[TokenKind::SemiColon]);
-            f.tokens.pop_front();
+            f.take_if(&TokenKind::SemiColon);
         }
     }
     f.take(TokenKind::CloseBlock);
@@ -1205,12 +1200,13 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
 }
 
 impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
-    fn new(errors: &'a Error, tokens: VecDeque<Token>, last_pos: Pos) -> Self {
-        Self {
-            errors,
-            tokens,
-            last_pos,
-        }
+    fn new(errors: &'a Error, tokens: VecDeque<Token>) -> Self {
+        debug_assert!(
+            tokens
+                .back()
+                .is_some_and(|token| token.kind == TokenKind::Eof)
+        );
+        Self { errors, tokens }
     }
 
     fn try_take_generic_args(&mut self, allow_struct_lit: bool) -> Option<Vec<TypeExprNode>> {
@@ -1220,7 +1216,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         // that, we need to be able to backtrack. To do that, we need to create a new
         // parser and scrap it if we want to backtrack.
         let errors = ErrorManager::default();
-        let mut probe = FileParser::new(&errors, self.tokens.clone(), self.last_pos);
+        let mut probe = FileParser::new(&errors, self.tokens.clone());
         let (_, args, _) = parse_sequence(
             &mut probe,
             TokenKind::Lt,
@@ -1266,38 +1262,19 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         self.errors.unexpected_parsing(token.pos, expected, token);
     }
 
-    fn is_empty(&self) -> bool {
-        self.tokens.is_empty()
-    }
-
-    fn token(&mut self) -> Token {
-        if let Some(tok) = self.tokens.front() {
-            tok.clone()
-        } else {
-            Token {
-                kind: TokenKind::Eof,
-                pos: self.last_pos,
-                spacing: false,
-            }
-        }
+    fn token(&self) -> Token {
+        self.tokens[0].clone()
     }
 
     fn kind(&self) -> &TokenKind {
-        self.tokens
-            .front()
-            .map(|tok| &tok.kind)
-            .unwrap_or(&TokenKind::Eof)
+        &self.tokens[0].kind
     }
 
     fn pop(&mut self) -> Token {
-        if let Some(tok) = self.tokens.pop_front() {
-            tok
+        if self.kind() == &TokenKind::Eof {
+            self.token()
         } else {
-            Token {
-                kind: TokenKind::Eof,
-                pos: self.last_pos,
-                spacing: false,
-            }
+            self.tokens.pop_front().unwrap()
         }
     }
 
@@ -1399,13 +1376,8 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             self.split_mul_assign();
         }
 
-        let tok = self
-            .tokens
-            .front()
-            .and_then(|tok| if &tok.kind == kind { Some(tok) } else { None });
-        if tok.is_some() {
-            let tok = self.tokens.pop_front().unwrap();
-            Some(tok)
+        if self.kind() == kind {
+            Some(self.pop())
         } else {
             None
         }
@@ -1467,7 +1439,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             };
             self.tokens.push_front(Token {
                 kind: remaining_kind,
-                pos: pos.with_offset(1),
+                pos: Pos {
+                    col: pos.col + 1,
+                    ..pos
+                },
                 spacing: true,
             });
             self.tokens.push_front(Token {
@@ -1480,7 +1455,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             let pos = tok.pos;
             self.tokens.push_front(Token {
                 kind: TokenKind::GEq,
-                pos: pos.with_offset(1),
+                pos: Pos {
+                    col: pos.col + 1,
+                    ..pos
+                },
                 spacing: true,
             });
             self.tokens.push_front(Token {
@@ -1491,7 +1469,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         } else if tok.is_some_and(|token| token.kind == TokenKind::GEq) {
             let tok = self.tokens.pop_front().unwrap();
             let pos = tok.pos;
-            let equal_pos = pos.with_offset(1);
+            let equal_pos = Pos {
+                col: pos.col + 1,
+                ..pos
+            };
 
             let joins_next_equal = self
                 .tokens
@@ -1526,7 +1507,10 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         }
         let tok = self.tokens.pop_front().unwrap();
         let pos = tok.pos;
-        let equal_pos = pos.with_offset(1);
+        let equal_pos = Pos {
+            col: pos.col + 1,
+            ..pos
+        };
         let joins_next_equal = self
             .tokens
             .front()
@@ -1552,21 +1536,12 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         });
     }
 
-    fn skip_until_before(&mut self, kind: &[TokenKind]) {
-        while let Some(tok) = self.tokens.front() {
-            if !kind.contains(&tok.kind) {
-                self.tokens.pop_front();
-            } else {
-                break;
-            }
-        }
+    fn skip_until_before(&mut self, kinds: &[TokenKind]) {
+        self.skip_until_before_matching(|kind| kinds.contains(kind));
     }
 
     fn skip_until_before_matching(&mut self, matches: impl Fn(&TokenKind) -> bool) {
-        while let Some(tok) = self.tokens.front() {
-            if matches(&tok.kind) {
-                break;
-            }
+        while self.kind() != &TokenKind::Eof && !matches(self.kind()) {
             self.tokens.pop_front();
         }
     }
@@ -1598,3 +1573,115 @@ trait ParsingError: ErrorReporter {
 }
 
 impl<T> ParsingError for T where T: ErrorReporter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::token::FileManager;
+
+    #[test]
+    fn consuming_or_skipping_at_eof_preserves_the_token() {
+        let mut files = FileManager::default();
+        let file = files
+            .add_file("eof.mg".into(), "let value = 1;\n  ".into())
+            .unwrap();
+        let errors = ErrorManager::default();
+        let tokens = scan(&errors, &file);
+        let eof = tokens.last().unwrap().clone();
+        let mut parser = FileParser::new(&errors, tokens.into());
+        parser.skip_until_before(&[TokenKind::SemiColon]);
+        assert!(parser.take_if(&TokenKind::SemiColon).is_some());
+
+        for _ in 0..2 {
+            assert_eq!(parser.kind(), &TokenKind::Eof);
+            assert_eq!(parser.pop(), eof);
+            assert_eq!(parser.take(TokenKind::Eof), Some(eof.clone()));
+            assert_eq!(parser.take_if(&TokenKind::Eof), Some(eof.clone()));
+            parser.skip_until_before(&[TokenKind::SemiColon]);
+            parser.skip_until_before_matching(|_| false);
+            assert_eq!(parser.tokens.len(), 1);
+            assert_eq!(parser.token(), eof);
+        }
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn recovery_leaves_eof_available_for_diagnostics() {
+        let mut files = FileManager::default();
+        for source in [
+            "unexpected",
+            "fn f() { if",
+            "fn f() { let",
+            "fn f() { ()",
+            "fn f() { value as",
+            "let x: Pair<i32",
+            "let x: i32 = f<i32",
+        ] {
+            let file = files
+                .add_file("recovery.mg".into(), format!("{source}\n  "))
+                .unwrap();
+            let errors = ErrorManager::default();
+            let tokens = scan(&errors, &file);
+            let eof = tokens.last().unwrap().clone();
+            let mut parser = FileParser::new(&errors, tokens.into());
+            parse_root(&mut parser);
+            assert!(errors.has_errors(), "{source}");
+            assert_eq!(parser.tokens.len(), 1, "{source}");
+            assert_eq!(parser.token(), eof, "{source}");
+        }
+    }
+
+    #[test]
+    fn split_operators_preserve_file_line_and_code_point_column() {
+        let mut files = FileManager::default();
+        for (source, kinds, columns) in [
+            (">>", vec![TokenKind::Gt, TokenKind::Gt], vec![3, 4]),
+            (
+                ">>=",
+                vec![TokenKind::Gt, TokenKind::Gt, TokenKind::Equal],
+                vec![3, 4, 5],
+            ),
+            (
+                ">>>",
+                vec![TokenKind::Gt, TokenKind::ShiftRight],
+                vec![3, 4],
+            ),
+            (
+                ">>>=",
+                vec![TokenKind::Gt, TokenKind::AssignOp(BinaryOp::ShiftRight)],
+                vec![3, 4],
+            ),
+            (">==", vec![TokenKind::Gt, TokenKind::Eq], vec![3, 4]),
+            (
+                ">>==",
+                vec![TokenKind::Gt, TokenKind::Gt, TokenKind::Eq],
+                vec![3, 4, 5],
+            ),
+            ("*=", vec![TokenKind::Mul, TokenKind::Equal], vec![3, 4]),
+            ("*==", vec![TokenKind::Mul, TokenKind::Eq], vec![3, 4]),
+        ] {
+            let file = files
+                .add_file("operators.mg".into(), format!("\nα {source}"))
+                .unwrap();
+            let errors = ErrorManager::default();
+            let tokens = scan(&errors, &file);
+            let eof = tokens.last().unwrap().clone();
+            let mut parser = FileParser::new(&errors, tokens.into());
+            assert_eq!(parser.take_ident().unwrap().value, "α");
+            for (kind, col) in kinds.into_iter().zip(columns) {
+                let token = parser.take(kind).expect(source);
+                assert_eq!(
+                    token.pos,
+                    Pos {
+                        file: file.id,
+                        line: 2,
+                        col
+                    }
+                );
+            }
+            assert_eq!(parser.kind(), &TokenKind::Eof);
+            assert_eq!(parser.token(), eof);
+            assert!(errors.is_empty());
+        }
+    }
+}

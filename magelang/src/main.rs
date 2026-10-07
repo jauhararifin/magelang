@@ -1,6 +1,6 @@
 use bumpalo::Bump;
 use clap::{Parser, Subcommand};
-use magelang_syntax::{parse, ErrorManager, FileManager};
+use magelang_syntax::{ErrorManager, FileManager, parse};
 use magelang_typecheck::analyze;
 use magelang_wasmgen::generate;
 use std::io::Write;
@@ -99,9 +99,7 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
     let node = parse(&error_manager, &file);
     if !error_manager.is_empty() {
         for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
+            eprintln!("{}", error.display(&file_manager));
         }
         std::process::exit(-1);
     }
@@ -132,9 +130,7 @@ fn analyze_package(package_name: String, debug: bool, output: Option<std::path::
 
     if !error_manager.is_empty() {
         for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
+            eprintln!("{}", error.display(&file_manager));
         }
     }
 }
@@ -151,18 +147,14 @@ fn compile(package_name: String, debug: bool, optimize: bool, output: std::path:
     let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
     if !module.is_valid {
         for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
+            eprintln!("{}", error.display(&file_manager));
         }
         std::process::exit(-1);
     };
 
     let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
         for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
+            eprintln!("{}", error.display(&file_manager));
         }
         std::process::exit(-1);
     };
@@ -202,18 +194,14 @@ fn run(package_name: String, debug: bool) {
     let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
     if !module.is_valid {
         for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
+            eprintln!("{}", error.display(&file_manager));
         }
         std::process::exit(-1);
     };
 
     let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
         for error in error_manager.take() {
-            let location = file_manager.location(error.pos);
-            let message = error.message;
-            eprintln!("{location}: {message}");
+            eprintln!("{}", error.display(&file_manager));
         }
         std::process::exit(-1);
     };

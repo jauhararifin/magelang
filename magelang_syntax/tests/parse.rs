@@ -10,7 +10,9 @@ fn test_parsing() {
 
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
-    let file = file_manager.add_file("testcase.mg".into(), source.into());
+    let file = file_manager
+        .add_file("testcase.mg".into(), source.into())
+        .unwrap();
     let mut node = parse(&error_manager, &file);
 
     node.comments.sort_by_key(|token| token.pos);
@@ -64,7 +66,7 @@ fn test_parsing() {
 
     let mut actual_errors = Vec::default();
     for err in error_manager.take() {
-        let location = file_manager.location(err.pos);
+        let location = file_manager.location(err.pos.unwrap());
         let message = &err.message;
         actual_errors.push((format!("{location}"), message.to_string()));
     }
@@ -75,19 +77,23 @@ fn test_parsing() {
 #[test]
 fn unicode_diagnostics_stay_with_source_file() {
     let mut files = FileManager::default();
-    let main = files.add_file(
-        "unicode_main.mg".into(),
-        concat!(
-            "import dep \"unicode_dep\";\n",
-            "// 😀😀😀😀😀😀😀😀😀😀\n",
-            "fn broken(;\n"
+    let main = files
+        .add_file(
+            "unicode_main.mg".into(),
+            concat!(
+                "import dep \"unicode_dep\";\n",
+                "// 😀😀😀😀😀😀😀😀😀😀\n",
+                "fn broken(;\n"
+            )
+            .into(),
         )
-        .into(),
-    );
+        .unwrap();
     let mut errors = ErrorManager::default();
     parse(&errors, &main);
 
-    files.add_file("unicode_dep.mg".into(), "fn ok() {}\n".into());
+    files
+        .add_file("unicode_dep.mg".into(), "fn ok() {}\n".into())
+        .unwrap();
 
     let errors = errors.take();
     assert_eq!(errors.len(), 2);
@@ -95,7 +101,7 @@ fn unicode_diagnostics_stay_with_source_file() {
         (3, 4, "Missing function parameter list"),
         (3, 10, "Missing closing ')'"),
     ]) {
-        let location = files.location(error.pos);
+        let location = files.location(error.pos.unwrap());
         assert_eq!(location.path, PathBuf::from("unicode_main.mg"));
         assert_eq!((location.line, location.col), (expected.0, expected.1));
         assert_eq!(error.message, expected.2);
@@ -103,26 +109,97 @@ fn unicode_diagnostics_stay_with_source_file() {
 }
 
 #[test]
+fn diagnostic_columns_count_code_points_after_unicode() {
+    let mut files = FileManager::default();
+    for (source, col) in [
+        ("let café: i32 = 1 unexpected;", 19),
+        ("let s: [*]u8 = \"😀e\u{301}\" unexpected;", 22),
+    ] {
+        let file = files.add_file("unicode.mg".into(), source.into()).unwrap();
+        let mut errors = ErrorManager::default();
+        parse(&errors, &file);
+
+        let errors = errors.take();
+        assert_eq!(errors.len(), 1, "{source:?}");
+        let error = &errors[0];
+        assert_eq!(error.message, "Expected ';', but found 'unexpected'");
+        let pos = error.pos.unwrap();
+        assert_eq!(pos.file, file.id);
+        assert_eq!((pos.line, pos.col), (1, col), "{source:?}");
+        assert_eq!(
+            error.display(&files).to_string(),
+            format!("unicode.mg:1:{col}: {}", error.message)
+        );
+    }
+}
+
+#[test]
+fn empty_and_comment_only_sources_parse_without_items() {
+    let mut files = FileManager::default();
+    for (source, comment_count) in [("", 0), (" \t\r\n", 0), ("// 😀", 1), ("// 😀\n  ", 1)] {
+        let file = files.add_file("empty.mg".into(), source.into()).unwrap();
+        let errors = ErrorManager::default();
+        let ast = parse(&errors, &file);
+        assert!(errors.is_empty(), "{source:?}");
+        assert!(ast.items.is_empty(), "{source:?}");
+        assert_eq!(ast.comments.len(), comment_count);
+    }
+}
+
+#[test]
+fn eof_diagnostics_include_trailing_whitespace_and_comments() {
+    let mut files = FileManager::default();
+    for (source, line, col) in [
+        ("let x: i32 = 123", 1, 17),
+        ("let x: i32 = 123   \n", 2, 1),
+        ("let x: i32 = 123 // 😀\n  ", 2, 3),
+        ("let x: i32 = 123 // 😀", 1, 22),
+        ("let x: i32 = 123\r\n\t", 2, 2),
+    ] {
+        let file = files
+            .add_file("missing_semicolon.mg".into(), source.into())
+            .unwrap();
+        let mut errors = ErrorManager::default();
+        parse(&errors, &file);
+        files.add_file("next.mg".into(), String::new()).unwrap();
+
+        let errors = errors.take();
+        assert_eq!(errors.len(), 1, "{source:?}");
+        let error = &errors[0];
+        assert_eq!(error.message, "Expected ';', but found EOF");
+        let pos = error.pos.unwrap();
+        assert_eq!(pos.file, file.id);
+        assert_eq!((pos.line, pos.col), (line, col), "{source:?}");
+        assert_eq!(
+            files.location(pos).path,
+            PathBuf::from("missing_semicolon.mg")
+        );
+    }
+}
+
+#[test]
 fn generic_expr_vs_binary_expr() {
     let mut files = FileManager::default();
-    let file = files.add_file(
-        "generic.mg".into(),
-        concat!(
-            "fn main() { ",
-            "let pair = pkg.make_pair<pkg.Pair<pkg.Pair<i32>>>(1).value; ",
-            "let f = identity<i32>; ",
-            "let cast = identity<i32> as fn(i32): i32; ",
-            "let equal = identity<i32> == other; ",
-            "let cmp = a < b > c; ",
-            "let shifted = a < b >> 1; ",
-            "let other = a < b && c > d; ",
-            "let typed: pkg.Pair<i32> = pkg.Pair<i32>{value: 1}; ",
-            "let chain = a.b.c; ",
-            "let indexed = arr[0]; ",
-            "}"
+    let file = files
+        .add_file(
+            "generic.mg".into(),
+            concat!(
+                "fn main() { ",
+                "let pair = pkg.make_pair<pkg.Pair<pkg.Pair<i32>>>(1).value; ",
+                "let f = identity<i32>; ",
+                "let cast = identity<i32> as fn(i32): i32; ",
+                "let equal = identity<i32> == other; ",
+                "let cmp = a < b > c; ",
+                "let shifted = a < b >> 1; ",
+                "let other = a < b && c > d; ",
+                "let typed: pkg.Pair<i32> = pkg.Pair<i32>{value: 1}; ",
+                "let chain = a.b.c; ",
+                "let indexed = arr[0]; ",
+                "}"
+            )
+            .into(),
         )
-        .into(),
-    );
+        .unwrap();
     let mut errors = ErrorManager::default();
     let ast = parse(&errors, &file);
     assert!(errors.take().is_empty());
@@ -283,19 +360,21 @@ fn generic_expr_vs_binary_expr() {
 #[test]
 fn malformed_expressions_return_recoverable_ast_nodes() {
     let mut files = FileManager::default();
-    let file = files.add_file(
-        "recovery.mg".into(),
-        concat!(
-            "let binary: i32 = left +; ",
-            "let chain: i32 = left + () + right; ",
-            "let grouped: i32 = (); ",
-            "let indexed: i32 = values[]; ",
-            "let called: i32 = f(, 1); ",
-            "let invalid_struct: i32 = 1{}; ",
-            "let recovered: i32 = 1;"
+    let file = files
+        .add_file(
+            "recovery.mg".into(),
+            concat!(
+                "let binary: i32 = left +; ",
+                "let chain: i32 = left + () + right; ",
+                "let grouped: i32 = (); ",
+                "let indexed: i32 = values[]; ",
+                "let called: i32 = f(, 1); ",
+                "let invalid_struct: i32 = 1{}; ",
+                "let recovered: i32 = 1;"
+            )
+            .into(),
         )
-        .into(),
-    );
+        .unwrap();
     let mut errors = ErrorManager::default();
     let ast = parse(&errors, &file);
 
@@ -373,7 +452,7 @@ fn nested_type_selection_is_parsed() {
         "nested.mg".into(),
         "fn main() { let typed: pkg.Outer.Inner<i32>; let literal = pkg.Outer.Inner{value: 1}; }"
             .into(),
-    );
+    ).unwrap();
     let mut errors = ErrorManager::default();
     let ast = parse(&errors, &file);
     assert!(errors.take().is_empty());

@@ -4,8 +4,8 @@ use std::num::ParseFloatError;
 use std::path::Path;
 
 pub(crate) trait SemanticError: ErrorReporter {
-    fn cannot_open_file(&self, pos: Pos, path: &Path, err: std::io::Error) {
-        self.report(pos, format!("Cannot open file {path:?}: {}", err));
+    fn cannot_open_file(&self, path: &Path, err: std::io::Error) {
+        self.report(None, format!("Cannot open file {path:?}: {err}"));
     }
 
     fn redeclared_symbol(&self, redeclared_at: Pos, declared_at: Location, name: &str) {

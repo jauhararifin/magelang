@@ -10,28 +10,35 @@ pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
     while let Some(token) = scanner.scan() {
         tokens.push(token);
     }
+    tokens.push(Token {
+        kind: TokenKind::Eof,
+        pos: scanner.pos,
+        spacing: false,
+    });
     tokens
 }
 
 struct Scanner<'a, Error> {
     errors: &'a Error,
-    file_offset: Pos,
     text: &'a str,
-    offset: usize,
+    pos: Pos,
 }
 
 impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     fn new(errors: &'a Error, file: &'a File) -> Self {
         Self {
             errors,
-            file_offset: file.offset,
             text: &file.text,
-            offset: 0,
+            pos: Pos {
+                file: file.id,
+                line: 1,
+                col: 1,
+            },
         }
     }
 
     fn scan(&mut self) -> Option<Token> {
-        let has_previous_input = self.offset != 0;
+        let has_previous_input = self.pos.line != 1 || self.pos.col != 1;
         let skipped_whitespace = self.skip_whitespace();
         let mut token = self
             .scan_word()
@@ -46,7 +53,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     }
 
     fn skip_whitespace(&mut self) -> bool {
-        let initial_offset = self.offset;
+        let initial_len = self.text.len();
         while let Some((ch, _)) = self.peek() {
             if ch.is_whitespace() {
                 self.next();
@@ -54,7 +61,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 break;
             }
         }
-        self.offset != initial_offset
+        self.text.len() != initial_len
     }
 
     fn scan_word(&mut self) -> Option<Token> {
@@ -186,8 +193,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let mut found_multichar = false;
         loop {
             let Some((c, p)) = self.next() else {
-                self.errors
-                    .missing_closing_quote(self.get_pos(), "character");
+                self.errors.missing_closing_quote(self.pos, "character");
                 return Some(Token {
                     kind: TokenKind::CharLit { raw, value },
                     pos,
@@ -291,7 +297,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
     fn scan_string_closing(&mut self, pos: Pos, mut raw: String, value: Vec<u8>) -> Option<Token> {
         let Some((c, _)) = self.next() else {
-            self.errors.missing_closing_quote(self.get_pos(), "string");
+            self.errors.missing_closing_quote(self.pos, "string");
             return Some(Token {
                 kind: TokenKind::StringLit { raw, value },
                 pos,
@@ -458,7 +464,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         if !has_digit && !has_invalid_digit {
-            self.errors.missing_base_digits(self.get_pos(), base as u8);
+            self.errors.missing_base_digits(self.pos, base as u8);
         }
 
         Some(Token {
@@ -503,7 +509,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     fn scan_number_exponent(&mut self, pos: Pos, mut raw: String, value: Number) -> Option<Token> {
         assert!(value.float);
         let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
-            self.errors.missing_exponent_digits(self.get_pos());
+            self.errors.missing_exponent_digits(self.pos);
             return Some(Token {
                 kind: TokenKind::NumberLit { raw, value },
                 pos,
@@ -560,7 +566,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         if !has_exponent {
-            self.errors.missing_exponent_digits(self.get_pos());
+            self.errors.missing_exponent_digits(self.pos);
         }
 
         value.exp += exp_after_e;
@@ -605,7 +611,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             return None;
         }
 
-        let pos = self.get_pos();
+        let pos = self.pos;
         let mut value = String::from("//");
         self.next();
         self.next();
@@ -719,19 +725,19 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let c = self.text.chars().next()?;
         let len = c.len_utf8();
         self.text = &self.text[len..];
-        let pos = self.get_pos();
-        self.offset += len;
+        let pos = self.pos;
+        if c == '\n' {
+            self.pos.line += 1;
+            self.pos.col = 1;
+        } else {
+            self.pos.col += 1;
+        }
         Some((c, pos))
-    }
-
-    fn get_pos(&self) -> Pos {
-        self.file_offset.with_offset(self.offset)
     }
 
     fn peek(&self) -> Option<(char, Pos)> {
         let c = self.text.chars().next()?;
-        let pos = self.get_pos();
-        Some((c, pos))
+        Some((c, self.pos))
     }
 
     fn peek_n(&self, n: usize) -> &str {
@@ -844,7 +850,7 @@ a multi line // not a comment
 string"
         "#
         .to_string();
-        let file = files.add_file(path, source);
+        let file = files.add_file(path, source).unwrap();
         let error_manager = ErrorManager::default();
 
         let tokens = scan(&error_manager, &file);
@@ -925,14 +931,16 @@ string""#
     #[test]
     fn character_literal() {
         let mut files = FileManager::default();
-        let file = files.add_file(
-            PathBuf::from("dummy.mg"),
-            r#"''; '\0' '\x00' 'a' '😀' 'z"#.to_string(),
-        );
+        let file = files
+            .add_file(
+                PathBuf::from("dummy.mg"),
+                r#"''; '\0' '\x00' 'a' '😀' 'z"#.to_string(),
+            )
+            .unwrap();
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
 
-        assert_eq!(tokens.len(), 7);
+        assert_eq!(tokens.len(), 8);
         assert_eq!(
             tokens[0].kind,
             TokenKind::CharLit {
@@ -984,7 +992,7 @@ string""#
             errors[1].message,
             "Missing closing quote in character literal"
         );
-        let location = files.location(errors[0].pos);
+        let location = files.location(errors[0].pos.unwrap());
         assert_eq!((location.line, location.col), (1, 1));
     }
 
@@ -1004,7 +1012,7 @@ string""#
             "invalid hex \xgh\x\\x"
             "missing closing quote"#
             .to_string();
-        let file = files.add_file(path, source);
+        let file = files.add_file(path, source).unwrap();
         let mut error_manager = ErrorManager::default();
 
         let tokens = scan(&error_manager, &file);
@@ -1150,7 +1158,7 @@ string""#
             123e-
         "#
         .to_string();
-        let file = files.add_file(path, source);
+        let file = files.add_file(path, source).unwrap();
         let mut error_manager = ErrorManager::default();
 
         let tokens = scan(&error_manager, &file);
@@ -1425,14 +1433,16 @@ string""#
     #[test]
     fn radix_prefix_requires_digit() {
         let mut files = FileManager::default();
-        let file = files.add_file(
-            PathBuf::from("dummy.mg"),
-            "0x 0b 0o 0x_ 0b___ 0o_ 0_x 0_b___ 0b2 0o8 0xg 0__o_".to_string(),
-        );
+        let file = files
+            .add_file(
+                PathBuf::from("dummy.mg"),
+                "0x 0b 0o 0x_ 0b___ 0o_ 0_x 0_b___ 0b2 0o8 0xg 0__o_".to_string(),
+            )
+            .unwrap();
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
 
-        assert_eq!(tokens.len(), 12);
+        assert_eq!(tokens.len(), 13);
         for (token, expected_raw) in tokens.iter().zip([
             "0x", "0b", "0o", "0x_", "0b___", "0o_", "0_x", "0_b___", "0b2", "0o8", "0xg", "0__o_",
         ]) {
@@ -1466,14 +1476,16 @@ string""#
             ]
         );
 
-        let file = files.add_file(
-            PathBuf::from("valid.mg"),
-            "0x0 0b0 0o0 0x_0 0b___0 0o_0".to_string(),
-        );
+        let file = files
+            .add_file(
+                PathBuf::from("valid.mg"),
+                "0x0 0b0 0o0 0x_0 0b___0 0o_0".to_string(),
+            )
+            .unwrap();
         let errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
         assert!(!errors.has_errors());
-        assert_eq!(tokens.len(), 6);
+        assert_eq!(tokens.len(), 7);
         for (token, expected_raw) in tokens
             .iter()
             .zip(["0x0", "0b0", "0o0", "0x_0", "0b___0", "0o_0"])
@@ -1489,11 +1501,13 @@ string""#
     #[test]
     fn assignment_symbols() {
         let mut files = FileManager::default();
-        let file = files.add_file(
-            PathBuf::from("dummy.mg"),
-            "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&"
-                .to_string(),
-        );
+        let file = files
+            .add_file(
+                PathBuf::from("dummy.mg"),
+                "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&"
+                    .to_string(),
+            )
+            .unwrap();
         let tokens = scan(&ErrorManager::default(), &file);
         let ops = [
             BinaryOp::Add,
@@ -1537,7 +1551,7 @@ string""#
         "#
         .to_string();
 
-        let file = files.add_file(path, source);
+        let file = files.add_file(path, source).unwrap();
         let mut error_manager = ErrorManager::default();
 
         let tokens = scan(&error_manager, &file);
@@ -1628,7 +1642,9 @@ string""#
     #[test]
     fn token_spacing_distinguishes_joint_operators() {
         let mut files = FileManager::default();
-        let file = files.add_file(PathBuf::from("dummy.mg"), ">== >= =".to_string());
+        let file = files
+            .add_file(PathBuf::from("dummy.mg"), ">== >= =".to_string())
+            .unwrap();
         let tokens = scan(&ErrorManager::default(), &file);
 
         assert_eq!(tokens[0].kind, TokenKind::GEq);
@@ -1644,10 +1660,12 @@ string""#
     #[test]
     fn adjacent_colons_are_separate_tokens() {
         let mut files = FileManager::default();
-        let file = files.add_file(
-            PathBuf::from("dummy.mg"),
-            "pkg::value function::<i32>()".to_string(),
-        );
+        let file = files
+            .add_file(
+                PathBuf::from("dummy.mg"),
+                "pkg::value function::<i32>()".to_string(),
+            )
+            .unwrap();
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
         assert_eq!(tokens[1].kind, TokenKind::Colon);
@@ -1655,6 +1673,141 @@ string""#
         assert_eq!(tokens[5].kind, TokenKind::Colon);
         assert_eq!(tokens[6].kind, TokenKind::Colon);
         assert!(errors.take().is_empty());
+    }
+
+    #[test]
+    fn positions_use_code_points_and_peeking_does_not_advance() {
+        let mut files = FileManager::default();
+        let file = files
+            .add_file("positions.mg".into(), "é😀\t\r\n中e\u{301}".into())
+            .unwrap();
+        let errors = ErrorManager::default();
+        let mut scanner = Scanner::new(&errors, &file);
+        for (ch, line, col) in [
+            ('é', 1, 1),
+            ('😀', 1, 2),
+            ('\t', 1, 3),
+            ('\r', 1, 4),
+            ('\n', 1, 5),
+            ('中', 2, 1),
+            ('e', 2, 2),
+            ('\u{301}', 2, 3),
+        ] {
+            let expected = Some((
+                ch,
+                Pos {
+                    file: file.id,
+                    line,
+                    col,
+                },
+            ));
+            assert_eq!(scanner.peek(), expected);
+            assert_eq!(scanner.peek(), expected);
+            assert_eq!(scanner.next(), expected);
+        }
+        assert_eq!(scanner.peek(), None);
+        assert_eq!(scanner.next(), None);
+        assert_eq!(
+            scanner.pos,
+            Pos {
+                file: file.id,
+                line: 2,
+                col: 4
+            }
+        );
+    }
+
+    #[test]
+    fn token_positions_include_whitespace_comments_and_multiline_strings() {
+        let mut files = FileManager::default();
+        let file = files
+            .add_file(
+                "positions.mg".into(),
+                " \tlet café = \"é\n😀\"; // comment\r\n \u{2003}café".into(),
+            )
+            .unwrap();
+        let errors = ErrorManager::default();
+        let tokens = scan(&errors, &file);
+        let (eof, tokens) = tokens.split_last().unwrap();
+        assert_eq!(eof.kind, TokenKind::Eof);
+        assert!(errors.is_empty());
+        let positions: Vec<_> = tokens
+            .iter()
+            .map(|token| {
+                assert_eq!(token.pos.file, file.id);
+                (token.pos.line, token.pos.col)
+            })
+            .collect();
+        assert_eq!(
+            positions,
+            [(1, 3), (1, 7), (1, 12), (1, 14), (2, 3), (2, 5), (3, 3)]
+        );
+        assert_eq!(
+            eof.pos,
+            Pos {
+                file: file.id,
+                line: 3,
+                col: 7
+            }
+        );
+    }
+
+    #[test]
+    fn empty_and_comment_only_sources_end_with_an_eof_token() {
+        let mut files = FileManager::default();
+        for (source, line, col) in [
+            ("", 1, 1),
+            (" \t\r\n", 2, 1),
+            ("// 😀", 1, 5),
+            ("// 😀\n  ", 2, 3),
+        ] {
+            let file = files.add_file("empty.mg".into(), source.into()).unwrap();
+            let errors = ErrorManager::default();
+            let tokens = scan(&errors, &file);
+            let (eof, tokens) = tokens.split_last().unwrap();
+            assert_eq!(eof.kind, TokenKind::Eof);
+            assert!(errors.is_empty());
+            assert!(
+                tokens
+                    .iter()
+                    .all(|token| matches!(token.kind, TokenKind::Comment(_)))
+            );
+            assert_eq!(
+                eof.pos,
+                Pos {
+                    file: file.id,
+                    line,
+                    col
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn unterminated_literals_report_the_eof_position() {
+        let mut files = FileManager::default();
+        for (source, line, col) in [("\"é\n😀", 2, 2), ("'é", 1, 3), ("0x", 1, 3), ("1e", 1, 3)]
+        {
+            let file = files
+                .add_file("unterminated.mg".into(), source.into())
+                .unwrap();
+            let mut errors = ErrorManager::default();
+            let tokens = scan(&errors, &file);
+            assert_eq!(tokens.len(), 2);
+            let eof = tokens.last().unwrap();
+            assert_eq!(eof.kind, TokenKind::Eof);
+            assert_eq!(
+                eof.pos,
+                Pos {
+                    file: file.id,
+                    line,
+                    col
+                }
+            );
+            let errors = errors.take();
+            assert_eq!(errors.len(), 1);
+            assert_eq!(errors[0].pos, Some(eof.pos));
+        }
     }
 
     fn number_from_str(base: &str, exp: &str, float: bool) -> Number {

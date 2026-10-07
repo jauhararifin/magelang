@@ -43,7 +43,9 @@ fn benchmark_fixture(
 
         {
             let mut files = FileManager::default();
-            let file = files.add_file(source_path.clone(), source);
+            let file = files
+                .add_file(source_path.clone(), source)
+                .expect("failed to register benchmark input");
             let errors = ErrorManager::default();
             black_box(parse(&errors, &file));
             assert!(

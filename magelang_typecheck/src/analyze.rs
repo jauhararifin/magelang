@@ -1,21 +1,21 @@
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprKind};
+use crate::expr::{Expr, ExprKind, get_expr_from_node};
 use crate::global_init::check_circular_global_intitialization;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
-use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
+use crate::statement::{Statement, StatementContext, StatementInterner, get_statement_from_block};
 use crate::ty::{
-    check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
-    get_typeparams, BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs,
-    TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
+    BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs, TypeArgsInterner,
+    TypeInterner, TypeKind, TypeRepr, UserType, check_circular_type, get_func_type_from_signature,
+    get_type_from_node, get_typeparam_scope, get_typeparams,
 };
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
-use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
+use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
-    PackageNode, Pos, StructNode,
+    AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode,
+    Pos, StructNode, parse,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -266,15 +266,16 @@ fn get_all_package_asts<'a>(
         }
 
         let path = get_package_path(stdlib_path, package_name);
-        let file = match files.open(path.clone()) {
-            Ok(file) => file,
+        let root = match files.open(path.clone()) {
+            Ok(file) => parse(errors, &file),
             Err(err) => {
-                let file = files.add_file(path.clone(), String::from(""));
-                errors.cannot_open_file(file.offset.with_offset(0), &path, err);
-                file
+                errors.cannot_open_file(&path, err);
+                PackageNode {
+                    items: Vec::new(),
+                    comments: Vec::new(),
+                }
             }
         };
-        let root = parse(errors, &file);
         let root = package_asts.entry(package_name).or_insert(root);
 
         let import_paths = root

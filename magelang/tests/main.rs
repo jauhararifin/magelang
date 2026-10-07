@@ -6,8 +6,8 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use wasm_helper::Serializer;
 use wasmtime::{Engine, Linker, Module, Store};
-use wasmtime_wasi::p1::{self, WasiP1Ctx};
 use wasmtime_wasi::WasiCtxBuilder;
+use wasmtime_wasi::p1::{self, WasiP1Ctx};
 
 macro_rules! test_success {
     ($name:ident) => {
@@ -54,6 +54,35 @@ test_success!(test_024_fail);
 test_success!(test_025_fail);
 test_success!(test_026_fail);
 
+#[test]
+fn missing_source_diagnostics_have_no_position() {
+    for command in ["parse", "analyze", "compile", "run"] {
+        let source = if command == "parse" {
+            "tests/missing_source_diagnostic.mg"
+        } else {
+            "tests/missing_source_diagnostic"
+        };
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_magelang"))
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args([command, source])
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(
+            stderr.starts_with("Cannot open file "),
+            "{command}: {stderr}"
+        );
+        assert!(
+            stderr.contains("missing_source_diagnostic.mg"),
+            "{command}: {stderr}"
+        );
+        assert!(!stderr.contains(":1:1:"), "{command}: {stderr}");
+        if command != "analyze" {
+            assert!(!output.status.success(), "{command}");
+        }
+    }
+}
+
 fn test_package(name: &str) {
     unsafe {
         std::env::set_var("MAGELANG_ROOT", env!("CARGO_MANIFEST_DIR"));
@@ -75,9 +104,7 @@ fn test_package(name: &str) {
         if should_error {
             let mut errors = String::default();
             for error in error_manager.take() {
-                let location = file_manager.location(error.pos);
-                let message = error.message;
-                errors.push_str(&format!("{location}: {message}\n"));
+                errors.push_str(&format!("{}\n", error.display(&file_manager)));
             }
             let expected_error =
                 read_to_string(expected_error_path).expect("cannot read expected error");
@@ -85,9 +112,7 @@ fn test_package(name: &str) {
             return;
         } else {
             for error in error_manager.take() {
-                let location = file_manager.location(error.pos);
-                let message = error.message;
-                eprintln!("{location}: {message}");
+                eprintln!("{}", error.display(&file_manager));
             }
             panic!("compilation failed");
         }
@@ -97,9 +122,7 @@ fn test_package(name: &str) {
         if should_error {
             let mut errors = String::default();
             for error in error_manager.take() {
-                let location = file_manager.location(error.pos);
-                let message = error.message;
-                errors.push_str(&format!("{location}: {message}\n"));
+                errors.push_str(&format!("{}\n", error.display(&file_manager)));
             }
             let expected_error =
                 read_to_string(expected_error_path).expect("cannot read expected error");
@@ -107,9 +130,7 @@ fn test_package(name: &str) {
             return;
         } else {
             for error in error_manager.take() {
-                let location = file_manager.location(error.pos);
-                let message = error.message;
-                eprintln!("{location}: {message}");
+                eprintln!("{}", error.display(&file_manager));
             }
             panic!("codegen failed");
         }
