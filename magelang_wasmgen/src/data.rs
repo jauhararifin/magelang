@@ -1,6 +1,6 @@
 use crate::context::Context;
-use crate::errors::CodegenError;
-use magelang_syntax::{ErrorReporter, Pos};
+use crate::errors;
+use magelang_syntax::Pos;
 use magelang_typecheck::{Annotation, Expr, ExprKind, Statement};
 use std::collections::HashMap;
 use std::fs::File;
@@ -11,8 +11,8 @@ use wasm_helper as wasm;
 
 const EMBED_FILE_ANNOTATION_NAME: &str = "embed_file";
 
-pub(crate) struct DataManager<'ctx, E> {
-    ctx: Context<'ctx, E>,
+pub(crate) struct DataManager<'ctx> {
+    ctx: Context<'ctx>,
 
     literals: HashMap<&'ctx [u8], usize>,
     files: HashMap<Rc<Path>, usize>,
@@ -20,8 +20,8 @@ pub(crate) struct DataManager<'ctx, E> {
     data: Vec<(&'ctx [u8], usize)>,
 }
 
-impl<'ctx, E> DataManager<'ctx, E> {
-    fn new(ctx: Context<'ctx, E>) -> Self {
+impl<'ctx> DataManager<'ctx> {
+    fn new(ctx: Context<'ctx>) -> Self {
         Self {
             ctx,
             literals: HashMap::default(),
@@ -31,9 +31,7 @@ impl<'ctx, E> DataManager<'ctx, E> {
             data: Vec::default(),
         }
     }
-}
 
-impl<'ctx, E> DataManager<'ctx, E> {
     pub(crate) fn data_end(&self) -> usize {
         self.next_offset
     }
@@ -138,10 +136,8 @@ impl<'ctx, E> DataManager<'ctx, E> {
 
         Data { num_pages, datas }
     }
-}
 
-impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
-    pub(crate) fn build(ctx: Context<'ctx, E>) -> Self {
+    pub(crate) fn build(ctx: Context<'ctx>) -> Self {
         let mut s = Self::new(ctx);
         s.init();
         s
@@ -234,14 +230,14 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
         let mut f = match File::open(filepath) {
             Ok(f) => f,
             Err(err) => {
-                self.ctx.errors.cannot_read_file(pos, filepath, err);
+                errors::report_cannot_read_file(self.ctx.errors, pos, filepath, err);
                 return &[];
             }
         };
 
         let mut buff = Vec::default();
         if let Err(err) = f.read_to_end(&mut buff) {
-            self.ctx.errors.cannot_read_file(pos, filepath, err);
+            errors::report_cannot_read_file(self.ctx.errors, pos, filepath, err);
             return &[];
         }
         buff.push(0);
@@ -261,12 +257,12 @@ impl<'ctx, E: ErrorReporter> DataManager<'ctx, E> {
             }
 
             if annotation.arguments.len() != 1 {
-                self.ctx.errors.annotation_arg_mismatch(annotation, 1);
+                errors::report_annotation_arg_mismatch(self.ctx.errors, annotation, 1);
                 continue;
             }
 
             if result.is_some() {
-                self.ctx.errors.duplicated_annotation(annotation);
+                errors::report_duplicated_annotation(self.ctx.errors, annotation);
                 continue;
             }
 

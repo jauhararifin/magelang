@@ -1,18 +1,11 @@
 use bumpalo::Bump;
-use magelang_syntax::FileManager;
+use magelang_syntax::{ErrorManager, FileManager};
 use magelang_typecheck::Module;
 
-pub(crate) struct Context<'ctx, E> {
+#[derive(Clone, Copy)]
+pub(crate) struct Context<'ctx> {
     pub(crate) arena: &'ctx Bump,
     pub(crate) files: &'ctx FileManager,
-    pub(crate) errors: &'ctx E,
+    pub(crate) errors: &'ctx ErrorManager,
     pub(crate) module: &'ctx Module<'ctx>,
 }
-
-impl<'ctx, E> Clone for Context<'ctx, E> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<'ctx, E> Copy for Context<'ctx, E> {}

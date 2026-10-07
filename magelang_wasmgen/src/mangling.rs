@@ -2,17 +2,17 @@ use crate::context::Context;
 use magelang_typecheck::{DefId, Func, Type, TypeKind};
 
 pub(crate) trait Mangle<'a> {
-    fn get_mangled_name<E>(&self, ctx: &Context<'a, E>) -> &'a str;
+    fn get_mangled_name(&self, ctx: &Context<'a>) -> &'a str;
 }
 
 impl<'ctx> Mangle<'ctx> for DefId<'ctx> {
-    fn get_mangled_name<E>(&self, ctx: &Context<'ctx, E>) -> &'ctx str {
+    fn get_mangled_name(&self, ctx: &Context<'ctx>) -> &'ctx str {
         ctx.arena.alloc_str(&format!("{}", self))
     }
 }
 
 impl<'ctx> Mangle<'ctx> for Func<'ctx> {
-    fn get_mangled_name<E>(&self, ctx: &Context<'ctx, E>) -> &'ctx str {
+    fn get_mangled_name(&self, ctx: &Context<'ctx>) -> &'ctx str {
         let mut result = format!("{}", self.name);
 
         if let Some(typeargs) = self.typeargs {
@@ -31,7 +31,7 @@ impl<'ctx> Mangle<'ctx> for Func<'ctx> {
 }
 
 impl<'ctx> Mangle<'ctx> for Type<'ctx> {
-    fn get_mangled_name<E>(&self, ctx: &Context<'ctx, E>) -> &'ctx str {
+    fn get_mangled_name(&self, ctx: &Context<'ctx>) -> &'ctx str {
         match self.kind {
             TypeKind::User(ty) => ty.def_id.get_mangled_name(ctx),
             TypeKind::Inst(ty) => {

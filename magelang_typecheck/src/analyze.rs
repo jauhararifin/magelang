@@ -1,4 +1,4 @@
-use crate::errors::SemanticError;
+use crate::errors;
 use crate::expr::{Expr, ExprKind, get_expr_from_node};
 use crate::global_init::check_circular_global_intitialization;
 use crate::path::{get_package_path, get_stdlib_path};
@@ -14,7 +14,7 @@ use bumpalo::Bump;
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode,
+    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode,
     Pos, StructNode, parse,
 };
 use std::cell::{OnceCell, RefCell};
@@ -25,7 +25,7 @@ use std::rc::Rc;
 pub fn analyze<'a>(
     arena: &'a Bump,
     file_manager: &mut FileManager,
-    error_manager: &impl ErrorReporter,
+    error_manager: &ErrorManager,
     main_package: &str,
 ) -> Module<'a> {
     let symbols = SymbolInterner::new(arena);
@@ -95,7 +95,7 @@ pub fn analyze<'a>(
     let global_init_order = check_circular_global_intitialization(&ctx);
     monomorphize_statements(&ctx);
 
-    let is_valid = !error_manager.has_errors();
+    let is_valid = error_manager.is_empty();
     build_module(ctx, is_valid, global_init_order)
 }
 
@@ -103,16 +103,16 @@ pub fn analyze<'a>(
 // It is important to differentiate the lifetime of interned types, expr,
 // etc from file manager and error manager because we don't want to infer
 // that the interned objects borrow file manager and error manager.
-pub struct Context<'a, 'syn, E> {
+pub struct Context<'a, 'syn> {
     pub(crate) arena: &'a Bump,
     pub(crate) files: &'syn FileManager,
-    pub(crate) errors: &'syn E,
+    pub(crate) errors: &'syn ErrorManager,
 
     pub(crate) interners: Interners<'a>,
     pub(crate) scopes: IndexMap<Symbol<'a>, Scopes<'a>>,
 }
 
-impl<'a, 'syn, E> Context<'a, 'syn, E> {
+impl<'a, 'syn> Context<'a, 'syn> {
     pub(crate) fn define_symbol(&self, symbol: &str) -> Symbol<'a> {
         self.interners.symbols.define(symbol)
     }
@@ -252,7 +252,7 @@ pub struct LocalObject<'a> {
 
 fn get_all_package_asts<'a>(
     files: &mut FileManager,
-    errors: &impl ErrorReporter,
+    errors: &ErrorManager,
     symbols: &SymbolInterner<'a>,
     stdlib_path: &Path,
     main_package: Symbol<'a>,
@@ -269,7 +269,7 @@ fn get_all_package_asts<'a>(
         let root = match files.open(path.clone()) {
             Ok(file) => parse(errors, &file),
             Err(err) => {
-                errors.cannot_open_file(&path, err);
+                errors::report_cannot_open_file(errors, &path, err);
                 PackageNode {
                     items: Vec::new(),
                     comments: Vec::new(),
@@ -296,8 +296,8 @@ fn get_all_package_asts<'a>(
     package_asts
 }
 
-fn check_circular_imports<'a, E: ErrorReporter>(
-    errors: &E,
+fn check_circular_imports<'a>(
+    errors: &ErrorManager,
     symbols: &SymbolInterner<'a>,
     package_asts: &IndexMap<Symbol<'a>, PackageNode>,
 ) {
@@ -325,8 +325,8 @@ fn check_circular_imports<'a, E: ErrorReporter>(
     }
 }
 
-fn visit_import<'a, E: ErrorReporter>(
-    errors: &E,
+fn visit_import<'a>(
+    errors: &ErrorManager,
     graph: &IndexMap<Symbol<'a>, Vec<(Symbol<'a>, Pos)>>,
     package_name: Symbol<'a>,
     visited: &mut IndexSet<Symbol<'a>>,
@@ -358,8 +358,8 @@ fn visit_import<'a, E: ErrorReporter>(
     in_chain.shift_remove(package_name);
 }
 
-fn report_circular_import<E: ErrorReporter>(
-    errors: &E,
+fn report_circular_import(
+    errors: &ErrorManager,
     in_chain: &IndexSet<Symbol>,
     start: Symbol,
     pos: Pos,
@@ -375,11 +375,11 @@ fn report_circular_import<E: ErrorReporter>(
         }
     }
 
-    errors.circular_import(pos, &chain);
+    errors::report_circular_import(errors, pos, &chain);
 }
 
-fn build_imports<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn build_imports<'a>(
+    ctx: &Context<'a, '_>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, ImportObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<ImportObject>>::default();
@@ -402,7 +402,7 @@ fn build_imports<'a, E: ErrorReporter>(
             let package_path = match std::str::from_utf8(&import_node.path.value) {
                 Ok(v) => v,
                 Err(..) => {
-                    ctx.errors.invalid_utf8_package(import_node.path.pos);
+                    errors::report_invalid_utf8_package(ctx.errors, import_node.path.pos);
                     continue;
                 }
             };
@@ -411,7 +411,7 @@ fn build_imports<'a, E: ErrorReporter>(
             let pos = item.pos();
             if let Some(declared_at) = object_pos.get(&object_id) {
                 let declared_at = ctx.files.location(*declared_at);
-                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
+                errors::report_redeclared_symbol(ctx.errors, pos, declared_at, object_name);
                 continue;
             }
             object_pos.insert(object_id, pos);
@@ -426,8 +426,8 @@ fn build_imports<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn build_type_scopes<'a, 'syn, E: ErrorReporter>(
-    ctx: &Context<'a, 'syn, E>,
+fn build_type_scopes<'a, 'syn>(
+    ctx: &Context<'a, 'syn>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, TypeObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<TypeObject<'a>>>::default();
@@ -451,7 +451,7 @@ fn build_type_scopes<'a, 'syn, E: ErrorReporter>(
             let pos = struct_node.pos;
             if let Some(declared_at) = object_pos.get(&def_id) {
                 let declared_at = ctx.files.location(*declared_at);
-                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
+                errors::report_redeclared_symbol(ctx.errors, pos, declared_at, object_name);
                 continue;
             }
             object_pos.insert(def_id, pos);
@@ -489,7 +489,7 @@ fn build_type_scopes<'a, 'syn, E: ErrorReporter>(
     package_scopes
 }
 
-fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>) -> Scope<'a, TypeObject<'a>> {
+fn get_builtin_scope<'a>(ctx: &Context<'a, '_>) -> Scope<'a, TypeObject<'a>> {
     let i8_type = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(true, BitSize::I8),
@@ -572,7 +572,7 @@ fn get_builtin_scope<'a, E: ErrorReporter>(ctx: &Context<'a, '_, E>) -> Scope<'a
     builtin_scope
 }
 
-fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
+fn generate_type_body(ctx: &Context<'_, '_>) {
     for scopes in ctx.scopes.values() {
         for (_, type_object) in scopes.type_scopes.iter() {
             type_object.init_body(ctx);
@@ -581,8 +581,8 @@ fn generate_type_body<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     }
 }
 
-fn build_value_scopes<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn build_value_scopes<'a>(
+    ctx: &Context<'a, '_>,
     package_asts: IndexMap<Symbol<'a>, Vec<ItemNode>>,
 ) -> IndexMap<Symbol<'a>, Scope<'a, ValueObject<'a>>> {
     let mut package_scopes = IndexMap::<Symbol, Scope<ValueObject<'a>>>::default();
@@ -606,7 +606,7 @@ fn build_value_scopes<'a, E: ErrorReporter>(
             let pos = item.pos();
             if let Some(declared_at) = object_pos.get(&def_id) {
                 let declared_at = ctx.files.location(*declared_at);
-                ctx.errors.redeclared_symbol(pos, declared_at, object_name);
+                errors::report_redeclared_symbol(ctx.errors, pos, declared_at, object_name);
                 continue;
             }
             object_pos.insert(def_id, pos);
@@ -675,17 +675,14 @@ fn build_value_scopes<'a, E: ErrorReporter>(
     package_scopes
 }
 
-fn build_annotations_from_node<E: ErrorReporter>(
-    ctx: &Context<'_, '_, E>,
-    nodes: &[AnnotationNode],
-) -> Vec<Annotation> {
+fn build_annotations_from_node(ctx: &Context<'_, '_>, nodes: &[AnnotationNode]) -> Vec<Annotation> {
     let mut annotations = Vec::default();
     for annotation_node in nodes {
         let mut arguments = Vec::default();
         let mut valid = true;
         for arg in &annotation_node.arguments {
             let Some(arg_value) = std::str::from_utf8(&arg.value).ok() else {
-                ctx.errors.invalid_utf8_string(arg.pos);
+                errors::report_invalid_utf8_string(ctx.errors, arg.pos);
                 valid = false;
                 continue;
             };
@@ -703,7 +700,7 @@ fn build_annotations_from_node<E: ErrorReporter>(
     annotations
 }
 
-fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
+fn generate_global_value(ctx: &Context<'_, '_>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Global(global_object) = value_object else {
@@ -734,7 +731,7 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
                     .as_ref()
                     .map(|expr| expr.pos())
                     .unwrap_or(global_object.node.pos);
-                ctx.errors.type_mismatch(pos, ty, value_expr.ty);
+                errors::report_type_mismatch(ctx.errors, pos, ty, value_expr.ty);
             }
 
             global_object
@@ -745,7 +742,7 @@ fn generate_global_value<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     }
 }
 
-fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
+fn generate_func_bodies(ctx: &Context<'_, '_>) {
     for scope in ctx.scopes.values() {
         for (_, value_object) in scope.value_scopes.iter() {
             let ValueObject::Func(func_object) = value_object else {
@@ -759,8 +756,8 @@ fn generate_func_bodies<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     }
 }
 
-fn get_func_body<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_func_body<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     func_object: &FuncObject<'a>,
 ) -> Statement<'a> {
@@ -799,13 +796,13 @@ fn get_func_body<'a, E: ErrorReporter>(
 
     let should_return = !return_type.is_void();
     if should_return && !result.is_returning {
-        ctx.errors.missing_return(func_object.node.pos);
+        errors::report_missing_return(ctx.errors, func_object.node.pos);
     }
 
     result.statement
 }
 
-fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
+fn monomorphize_statements(ctx: &Context<'_, '_>) {
     let monomorphized_funcs = get_all_monomorphized_funcs(ctx);
 
     for (def_id, all_typeargs) in monomorphized_funcs {
@@ -840,8 +837,8 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     }
 }
 
-fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_all_monomorphized_funcs<'a>(
+    ctx: &Context<'a, '_>,
 ) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
@@ -1037,8 +1034,8 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     monomorphized_funcs.into_iter().collect()
 }
 
-fn build_module<'a, E>(
-    ctx: Context<'a, '_, E>,
+fn build_module<'a>(
+    ctx: Context<'a, '_>,
     is_valid: bool,
     global_init_order: Vec<DefId<'a>>,
 ) -> Module<'a> {

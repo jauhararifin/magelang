@@ -1,12 +1,12 @@
 use crate::analyze::{Context, Scopes, ValueObject};
-use crate::errors::SemanticError;
+use crate::errors;
 use crate::ty::{BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode, CastExprNode, CharLit, DerefExprNode,
-    ErrorReporter, ExprNode, IndexExprNode, InstExprNode, NumberLit, Pos, SelectionExprNode,
-    StringLit, StructExprNode, TryFromNumberError, TypeExprNode, UnaryExprNode, UnaryOp,
+    ExprNode, IndexExprNode, InstExprNode, NumberLit, Pos, SelectionExprNode, StringLit,
+    StructExprNode, TryFromNumberError, TypeExprNode, UnaryExprNode, UnaryOp,
 };
 use num::{BigInt, Signed, Zero};
 use std::collections::HashMap;
@@ -22,9 +22,9 @@ pub struct Expr<'a> {
 }
 
 impl<'a> Expr<'a> {
-    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+    pub(crate) fn monomorphize<'b>(
         &self,
-        ctx: &'b Context<'a, '_, E>,
+        ctx: &'b Context<'a, '_>,
         type_args: &'a TypeArgs<'a>,
     ) -> Expr<'a> {
         let ty = self.ty.substitute(ctx, type_args);
@@ -270,8 +270,8 @@ pub enum ExprKind<'a> {
     Cast(&'a Expr<'a>, &'a Type<'a>),
 }
 
-pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+pub(crate) fn get_expr_from_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     expected_type: Option<&'a Type<'a>>,
     node: &ExprNode,
@@ -396,8 +396,8 @@ pub(crate) fn get_expr_from_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_node_internal<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_node_internal<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &ExprNode,
 ) -> Expr<'a> {
@@ -415,7 +415,7 @@ fn get_expr_from_node_internal<'a, E: ErrorReporter>(
             let symbol = ctx.define_symbol(&name.value);
             let object = scope.value_scopes.lookup(symbol);
             if object.is_none() {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
             }
             get_expr_from_named_value(ctx, scope, name.pos, &[], object)
         }
@@ -509,8 +509,8 @@ mod tests {
     }
 }
 
-fn get_expr_from_named_value<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_named_value<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     pos: Pos,
     args: &[TypeExprNode],
@@ -534,7 +534,7 @@ fn get_expr_from_named_value<'a, E: ErrorReporter>(
         ValueObject::Func(func_obj) => {
             if func_obj.type_params.is_empty() {
                 if is_generic {
-                    ctx.errors.non_generic_value(pos);
+                    errors::report_non_generic_value(ctx.errors, pos);
                 }
                 Expr {
                     ty: func_obj.ty,
@@ -546,7 +546,8 @@ fn get_expr_from_named_value<'a, E: ErrorReporter>(
                 let expected_type_param = func_obj.type_params.len();
                 let provided_type_param = args.len();
                 if expected_type_param != provided_type_param {
-                    ctx.errors.type_arguments_count_mismatch(
+                    errors::report_type_arguments_count_mismatch(
+                        ctx.errors,
                         pos,
                         expected_type_param,
                         provided_type_param,
@@ -579,7 +580,7 @@ fn get_expr_from_named_value<'a, E: ErrorReporter>(
         }
         ValueObject::Global(global_obj) => {
             if is_generic {
-                ctx.errors.non_generic_value(pos);
+                errors::report_non_generic_value(ctx.errors, pos);
             }
             Expr {
                 ty: global_obj.ty,
@@ -590,7 +591,7 @@ fn get_expr_from_named_value<'a, E: ErrorReporter>(
         }
         ValueObject::Local(local_obj) => {
             if is_generic {
-                ctx.errors.non_generic_value(pos);
+                errors::report_non_generic_value(ctx.errors, pos);
             }
             Expr {
                 ty: local_obj.ty,
@@ -602,10 +603,7 @@ fn get_expr_from_named_value<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_number_lit<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-    number_lit: &NumberLit,
-) -> Expr<'a> {
+fn get_expr_from_number_lit<'a>(ctx: &Context<'a, '_>, number_lit: &NumberLit) -> Expr<'a> {
     if number_lit.value.is_int() {
         get_expr_from_int_lit(ctx, number_lit)
     } else {
@@ -613,18 +611,15 @@ fn get_expr_from_number_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_int_lit<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-    number_lit: &NumberLit,
-) -> Expr<'a> {
+fn get_expr_from_int_lit<'a>(ctx: &Context<'a, '_>, number_lit: &NumberLit) -> Expr<'a> {
     let kind = match number_lit.value.to_int() {
         Ok(v) => ExprKind::ConstInt(v),
         Err(TryFromNumberError::OutOfRange) => {
-            ctx.errors.overflowed_int_literal(number_lit.pos);
+            errors::report_overflowed_int_literal(ctx.errors, number_lit.pos);
             ExprKind::Invalid
         }
         Err(..) => {
-            ctx.errors.invalid_int_literal(number_lit.pos);
+            errors::report_invalid_int_literal(ctx.errors, number_lit.pos);
             ExprKind::Invalid
         }
     };
@@ -640,14 +635,11 @@ fn get_expr_from_int_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_float_lit<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-    number_lit: &NumberLit,
-) -> Expr<'a> {
+fn get_expr_from_float_lit<'a>(ctx: &Context<'a, '_>, number_lit: &NumberLit) -> Expr<'a> {
     let kind = match f64::try_from(&number_lit.value) {
         Ok(v) => ExprKind::ConstFloat(Float::new(v)),
         Err(err) => {
-            ctx.errors.invalid_float_literal(number_lit.pos, err);
+            errors::report_invalid_float_literal(ctx.errors, number_lit.pos, err);
             ExprKind::Invalid
         }
     };
@@ -663,10 +655,7 @@ fn get_expr_from_float_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-    token: &BoolLiteral,
-) -> Expr<'a> {
+fn get_expr_from_bool_lit<'a>(ctx: &Context<'a, '_>, token: &BoolLiteral) -> Expr<'a> {
     Expr {
         ty: ctx.define_type(Type {
             kind: TypeKind::Anonymous,
@@ -678,10 +667,7 @@ fn get_expr_from_bool_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_char_lit<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-    char_lit: &CharLit,
-) -> Expr<'a> {
+fn get_expr_from_char_lit<'a>(ctx: &Context<'a, '_>, char_lit: &CharLit) -> Expr<'a> {
     let ch = char_lit.value;
     let ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
@@ -695,10 +681,7 @@ fn get_expr_from_char_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_string_lit<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-    token: &StringLit,
-) -> Expr<'a> {
+fn get_expr_from_string_lit<'a>(ctx: &Context<'a, '_>, token: &StringLit) -> Expr<'a> {
     let u8_ty = ctx.define_type(Type {
         kind: TypeKind::Anonymous,
         repr: TypeRepr::Int(false, BitSize::I8),
@@ -720,8 +703,8 @@ fn get_expr_from_string_lit<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_binary_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_binary_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &BinaryExprNode,
 ) -> Expr<'a> {
@@ -733,32 +716,32 @@ fn get_expr_from_binary_node<'a, E: ErrorReporter>(
     get_binary_expr(ctx, node.op, node.a.pos(), a, b)
 }
 
-pub(crate) fn get_binary_expr<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+pub(crate) fn get_binary_expr<'a>(
+    ctx: &Context<'a, '_>,
     op: BinaryOp,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
     match op {
-        BinaryOp::Add => get_binary_arith_exprs::<BinopAdd, E>(ctx, pos, a, b),
-        BinaryOp::Sub => get_binary_arith_exprs::<BinopSub, E>(ctx, pos, a, b),
-        BinaryOp::Mul => get_binary_arith_exprs::<BinopMul, E>(ctx, pos, a, b),
+        BinaryOp::Add => get_binary_arith_exprs::<BinopAdd>(ctx, pos, a, b),
+        BinaryOp::Sub => get_binary_arith_exprs::<BinopSub>(ctx, pos, a, b),
+        BinaryOp::Mul => get_binary_arith_exprs::<BinopMul>(ctx, pos, a, b),
         BinaryOp::Div => get_binary_div_exprs(ctx, pos, a, b),
-        BinaryOp::Mod => get_binary_integer_exprs::<BinopMod, E>(ctx, pos, a, b),
-        BinaryOp::BitOr => get_binary_integer_exprs::<BinopBitOr, E>(ctx, pos, a, b),
-        BinaryOp::BitAnd => get_binary_integer_exprs::<BinopBitAnd, E>(ctx, pos, a, b),
-        BinaryOp::BitXor => get_binary_integer_exprs::<BinopBitXor, E>(ctx, pos, a, b),
-        BinaryOp::ShiftLeft => get_binary_shifts_exprs::<BinopShl, E>(ctx, pos, a, b),
-        BinaryOp::ShiftRight => get_binary_shifts_exprs::<BinopShr, E>(ctx, pos, a, b),
-        BinaryOp::And => get_binary_bool_exprs::<BinopAnd, E>(ctx, pos, a, b),
-        BinaryOp::Or => get_binary_bool_exprs::<BinopOr, E>(ctx, pos, a, b),
-        BinaryOp::Eq => get_binary_equality_exprs::<BinopEq, E>(ctx, pos, a, b),
-        BinaryOp::NEq => get_binary_equality_exprs::<BinopNEq, E>(ctx, pos, a, b),
-        BinaryOp::Gt => get_binary_comparison_exprs::<BinopGt, E>(ctx, pos, a, b),
-        BinaryOp::GEq => get_binary_comparison_exprs::<BinopGEq, E>(ctx, pos, a, b),
-        BinaryOp::Lt => get_binary_comparison_exprs::<BinopLt, E>(ctx, pos, a, b),
-        BinaryOp::LEq => get_binary_comparison_exprs::<BinopLEq, E>(ctx, pos, a, b),
+        BinaryOp::Mod => get_binary_integer_exprs::<BinopMod>(ctx, pos, a, b),
+        BinaryOp::BitOr => get_binary_integer_exprs::<BinopBitOr>(ctx, pos, a, b),
+        BinaryOp::BitAnd => get_binary_integer_exprs::<BinopBitAnd>(ctx, pos, a, b),
+        BinaryOp::BitXor => get_binary_integer_exprs::<BinopBitXor>(ctx, pos, a, b),
+        BinaryOp::ShiftLeft => get_binary_shifts_exprs::<BinopShl>(ctx, pos, a, b),
+        BinaryOp::ShiftRight => get_binary_shifts_exprs::<BinopShr>(ctx, pos, a, b),
+        BinaryOp::And => get_binary_bool_exprs::<BinopAnd>(ctx, pos, a, b),
+        BinaryOp::Or => get_binary_bool_exprs::<BinopOr>(ctx, pos, a, b),
+        BinaryOp::Eq => get_binary_equality_exprs::<BinopEq>(ctx, pos, a, b),
+        BinaryOp::NEq => get_binary_equality_exprs::<BinopNEq>(ctx, pos, a, b),
+        BinaryOp::Gt => get_binary_comparison_exprs::<BinopGt>(ctx, pos, a, b),
+        BinaryOp::GEq => get_binary_comparison_exprs::<BinopGEq>(ctx, pos, a, b),
+        BinaryOp::Lt => get_binary_comparison_exprs::<BinopLt>(ctx, pos, a, b),
+        BinaryOp::LEq => get_binary_comparison_exprs::<BinopLEq>(ctx, pos, a, b),
     }
 }
 
@@ -1006,13 +989,13 @@ impl_binop_evaluator_for_shift_ops!(
     ShiftRight
 );
 
-fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_equality_exprs<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<T>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1038,7 +1021,7 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     );
 
     if a.ty != b.ty {
-        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, T::name(), a.ty, b.ty);
         return Expr {
             ty: bool_ty,
             kind: ExprKind::Invalid,
@@ -1057,7 +1040,7 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
         // we can only compare opaque type with null. we can't comare opaque type
         // with another opaque type
         if !a_is_null && !b_is_null {
-            ctx.errors.compare_opaque(pos);
+            errors::report_compare_opaque(ctx.errors, pos);
         }
     }
 
@@ -1069,13 +1052,13 @@ fn get_binary_equality_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 }
 
-fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_comparison_exprs<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<T>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1101,7 +1084,7 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     );
 
     if a.ty != b.ty {
-        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, T::name(), a.ty, b.ty);
         return Expr {
             ty: bool_ty,
             kind: ExprKind::Invalid,
@@ -1115,7 +1098,7 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
             !b.ty.is_arithmetic(),
             "if a is not arithmetic, then b must be not arithmetic as well"
         );
-        ctx.errors.binop_type_unsupported(pos, T::name(), a.ty);
+        errors::report_binop_type_unsupported(ctx.errors, pos, T::name(), a.ty);
         return Expr {
             ty: bool_ty,
             kind: ExprKind::Invalid,
@@ -1132,13 +1115,13 @@ fn get_binary_comparison_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 }
 
-fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_arith_exprs<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<T>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1161,7 +1144,7 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     );
 
     if a.ty != b.ty {
-        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, T::name(), a.ty, b.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1175,7 +1158,7 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
             !b.ty.is_arithmetic(),
             "if a is not arithmetic, then b must be not arithmetic as well"
         );
-        ctx.errors.binop_type_unsupported(pos, T::name(), a.ty);
+        errors::report_binop_type_unsupported(ctx.errors, pos, T::name(), a.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1192,13 +1175,13 @@ fn get_binary_arith_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 }
 
-fn get_binary_div_exprs<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_div_exprs<'a>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<BinopDiv, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<BinopDiv>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1221,8 +1204,7 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
     );
 
     if a.ty != b.ty {
-        ctx.errors
-            .binop_type_mismatch(pos, BinopDiv::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, BinopDiv::name(), a.ty, b.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1236,8 +1218,7 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
             !b.ty.is_arithmetic(),
             "if a is not arithmetic, then b must be not arithmetic as well"
         );
-        ctx.errors
-            .binop_type_unsupported(pos, BinopDiv::name(), a.ty);
+        errors::report_binop_type_unsupported(ctx.errors, pos, BinopDiv::name(), a.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1254,13 +1235,13 @@ fn get_binary_div_exprs<'a, E: ErrorReporter>(
     }
 }
 
-fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_integer_exprs<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<T>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1305,7 +1286,7 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     );
 
     if a.ty != b.ty {
-        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, T::name(), a.ty, b.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1319,7 +1300,7 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
             !b.ty.is_int(),
             "if a is not int, then b must be not int as well"
         );
-        ctx.errors.binop_type_unsupported(pos, T::name(), a.ty);
+        errors::report_binop_type_unsupported(ctx.errors, pos, T::name(), a.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1336,13 +1317,13 @@ fn get_binary_integer_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 }
 
-fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_shifts_exprs<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> Expr<'a> {
-    if let Some(expr) = evaluate_untyped_const::<T, E>(ctx, pos, a, b) {
+    if let Some(expr) = evaluate_untyped_const::<T>(ctx, pos, a, b) {
         return expr;
     }
 
@@ -1391,7 +1372,7 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
             !b.ty.is_int(),
             "if a is not int, then b must be not int as well"
         );
-        ctx.errors.binop_type_unsupported(pos, T::name(), a.ty);
+        errors::report_binop_type_unsupported(ctx.errors, pos, T::name(), a.ty);
         return Expr {
             ty: expected_ty,
             kind: ExprKind::Invalid,
@@ -1409,8 +1390,8 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 }
 
-fn evaluate_untyped_const<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn evaluate_untyped_const<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
@@ -1424,7 +1405,7 @@ fn evaluate_untyped_const<'a, T: BinopEvaluator, E: ErrorReporter>(
     };
 
     if let BinopEvaluation::Invalid = eval {
-        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, T::name(), a.ty, b.ty);
     }
     if let BinopEvaluation::Illegal(msg) = eval {
         ctx.errors.report(pos, msg.to_string())
@@ -1455,8 +1436,8 @@ fn evaluate_untyped_const<'a, T: BinopEvaluator, E: ErrorReporter>(
     })
 }
 
-fn cast_untyped_const<'a, E>(
-    ctx: &Context<'a, '_, E>,
+fn cast_untyped_const<'a>(
+    ctx: &Context<'a, '_>,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
 ) -> (&'a Expr<'a>, &'a Expr<'a>) {
@@ -1564,8 +1545,8 @@ fn cast_untyped_float<'a>(a: f64, pos: Pos, target: &'a Type<'a>) -> Expr<'a> {
     }
 }
 
-fn get_binary_bool_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_binary_bool_exprs<'a, T: BinopEvaluator>(
+    ctx: &Context<'a, '_>,
     pos: Pos,
     a: &'a Expr<'a>,
     b: &'a Expr<'a>,
@@ -1589,7 +1570,7 @@ fn get_binary_bool_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     );
 
     if !a.ty.is_bool() || !b.ty.is_bool() {
-        ctx.errors.binop_type_mismatch(pos, T::name(), a.ty, b.ty);
+        errors::report_binop_type_mismatch(ctx.errors, pos, T::name(), a.ty, b.ty);
         return Expr {
             ty: bool_ty,
             kind: ExprKind::Invalid,
@@ -1606,8 +1587,8 @@ fn get_binary_bool_exprs<'a, T: BinopEvaluator, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_deref_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_deref_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &DerefExprNode,
 ) -> Expr<'a> {
@@ -1615,7 +1596,7 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     let ty = value.ty;
     let TypeRepr::Ptr(element_ty) = ty.repr else {
         if !ty.is_unknown() {
-            ctx.errors.deref_non_pointer(node.pos);
+            errors::report_deref_non_pointer(ctx.errors, node.pos);
         }
         return Expr {
             ty: ctx.define_type(Type {
@@ -1636,8 +1617,8 @@ fn get_expr_from_deref_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_unary_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_unary_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &UnaryExprNode,
 ) -> Expr<'a> {
@@ -1700,7 +1681,7 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     };
 
     if !is_valid {
-        ctx.errors.unop_type_unsupported(node.pos, op_name, ty);
+        errors::report_unop_type_unsupported(ctx.errors, node.pos, op_name, ty);
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -1720,8 +1701,8 @@ fn get_expr_from_unary_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_call_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_call_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &CallExprNode,
 ) -> Expr<'a> {
@@ -1730,7 +1711,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
 
     let TypeRepr::Func(func_type) = &func_type.repr else {
         if !func_type.is_unknown() {
-            ctx.errors.not_callable(node.callee.pos());
+            errors::report_not_callable(ctx.errors, node.callee.pos());
         }
         return Expr {
             ty: ctx.define_type(Type {
@@ -1744,7 +1725,8 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
     };
 
     if node.arguments.len() != func_type.params.len() {
-        ctx.errors.wrong_number_of_arguments(
+        errors::report_wrong_number_of_arguments(
+            ctx.errors,
             node.pos,
             func_type.params.len(),
             node.arguments.len(),
@@ -1759,8 +1741,7 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
 
     for (i, (arg, param)) in zip(&arguments, func_type.params).enumerate() {
         if !param.is_assignable_with(arg.ty) {
-            ctx.errors
-                .type_mismatch(node.arguments[i].pos(), param, arg.ty);
+            errors::report_type_mismatch(ctx.errors, node.arguments[i].pos(), param, arg.ty);
         }
     }
 
@@ -1772,8 +1753,8 @@ fn get_expr_from_call_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_cast_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_cast_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &CastExprNode,
 ) -> Expr<'a> {
@@ -1815,8 +1796,7 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
     let kind = if valid_casting {
         ExprKind::Cast(ctx.arena.alloc(value), target_type)
     } else {
-        ctx.errors
-            .casting_unsupported(node.value.pos(), value_type, target_type);
+        errors::report_casting_unsupported(ctx.errors, node.value.pos(), value_type, target_type);
         ExprKind::Invalid
     };
 
@@ -1828,8 +1808,8 @@ fn get_expr_from_cast_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_struct_lit_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &StructExprNode,
 ) -> Expr<'a> {
@@ -1837,7 +1817,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
 
     let Some(struct_type) = ty.as_struct() else {
         if !ty.is_unknown() {
-            ctx.errors.non_struct_type(node.target.pos());
+            errors::report_non_struct_type(ctx.errors, node.target.pos());
         }
         return Expr {
             ty: ctx.define_type(Type {
@@ -1859,8 +1839,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
             .get(&field_name)
             .cloned()
             .unwrap_or_else(|| {
-                ctx.errors
-                    .undeclared_field(element.key.pos, &element.key.value);
+                errors::report_undeclared_field(ctx.errors, element.key.pos, &element.key.value);
                 ctx.define_type(Type {
                     kind: TypeKind::Anonymous,
                     repr: TypeRepr::Unknown,
@@ -1869,7 +1848,7 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
         let value = get_expr_from_node(ctx, scope, Some(ty), &element.value);
 
         let value = if !ty.is_assignable_with(value.ty) {
-            ctx.errors.type_mismatch(element.value.pos(), ty, value.ty);
+            errors::report_type_mismatch(ctx.errors, element.value.pos(), ty, value.ty);
             Expr {
                 ty: ctx.define_type(Type {
                     kind: TypeKind::Anonymous,
@@ -1884,7 +1863,8 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
         };
 
         if let Some((declared_at, _)) = values.get(&field_name) {
-            ctx.errors.redeclared_field(
+            errors::report_redeclared_field(
+                ctx.errors,
                 element.key.pos,
                 ctx.files.location(*declared_at),
                 &element.key.value,
@@ -1916,8 +1896,8 @@ fn get_expr_from_struct_lit_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_inst_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_inst_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &InstExprNode,
 ) -> Expr<'a> {
@@ -1926,7 +1906,7 @@ fn get_expr_from_inst_node<'a, E: ErrorReporter>(
             let symbol = ctx.define_symbol(&name.value);
             let object = scope.value_scopes.lookup(symbol);
             if object.is_none() {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
             }
             return get_expr_from_named_value(ctx, scope, name.pos, &node.args, object);
         }
@@ -1941,7 +1921,8 @@ fn get_expr_from_inst_node<'a, E: ErrorReporter>(
                             .get(&import.package)
                             .and_then(|package| package.value_scopes.lookup(name));
                         if object.is_none() {
-                            ctx.errors.undeclared_symbol(
+                            errors::report_undeclared_symbol(
+                                ctx.errors,
                                 selection.selection.pos,
                                 &selection.selection.value,
                             );
@@ -1961,7 +1942,7 @@ fn get_expr_from_inst_node<'a, E: ErrorReporter>(
     }
 
     let _ = get_expr_from_node_internal(ctx, scope, &node.value);
-    ctx.errors.non_generic_value(node.value.pos());
+    errors::report_non_generic_value(ctx.errors, node.value.pos());
     Expr {
         ty: ctx.define_type(Type {
             kind: TypeKind::Anonymous,
@@ -1973,8 +1954,8 @@ fn get_expr_from_inst_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_selection_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_selection_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &SelectionExprNode,
 ) -> Expr<'a> {
@@ -1993,8 +1974,11 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
                     .get(&import.package)
                     .and_then(|package| package.value_scopes.lookup(name));
                 if object.is_none() {
-                    ctx.errors
-                        .undeclared_symbol(node.selection.pos, &node.selection.value);
+                    errors::report_undeclared_symbol(
+                        ctx.errors,
+                        node.selection.pos,
+                        &node.selection.value,
+                    );
                 }
                 return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], object);
             }
@@ -2013,8 +1997,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
 
     let Some(struct_type) = ty.as_struct() else {
         if !ty.is_unknown() {
-            ctx.errors
-                .non_field_type(node.selection.pos, &node.selection.value);
+            errors::report_non_field_type(ctx.errors, node.selection.pos, &node.selection.value);
         }
         return Expr {
             ty: ctx.define_type(Type {
@@ -2030,8 +2013,7 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
 
     let selection_name = ctx.define_symbol(&node.selection.value);
     let Some((idx, _, field_type_id)) = struct_body.fields.get_full(&selection_name) else {
-        ctx.errors
-            .undeclared_field(node.selection.pos, &node.selection.value);
+        errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
         return Expr {
             ty: ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
@@ -2095,8 +2077,8 @@ fn get_expr_from_selection_node<'a, E: ErrorReporter>(
     }
 }
 
-fn get_expr_from_index_node<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn get_expr_from_index_node<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     node: &IndexExprNode,
 ) -> Expr<'a> {
@@ -2117,7 +2099,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
             let index_type = index.ty;
 
             if !index_type.is_int() {
-                ctx.errors.non_int_index(node.index.pos());
+                errors::report_non_int_index(ctx.errors, node.index.pos());
                 return Expr {
                     ty: element,
                     kind: ExprKind::Invalid,
@@ -2146,7 +2128,7 @@ fn get_expr_from_index_node<'a, E: ErrorReporter>(
             assignable: false,
         },
         _ => {
-            ctx.errors.not_indexable(node.value.pos());
+            errors::report_not_indexable(ctx.errors, node.value.pos());
             Expr {
                 ty: ctx.define_type(Type {
                     kind: TypeKind::Anonymous,

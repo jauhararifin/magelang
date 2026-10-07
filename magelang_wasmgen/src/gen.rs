@@ -1,18 +1,18 @@
 use crate::code::{build_function, build_init_function};
 use crate::context::Context;
 use crate::data::DataManager;
-use crate::func::{build_intrinsic_func, setup_functions, FuncMapper};
+use crate::func::{FuncMapper, build_intrinsic_func, setup_functions};
 use crate::ty::TypeManager;
 use crate::var::GlobalManager;
 use bumpalo::Bump;
-use magelang_syntax::{ErrorReporter, FileManager};
+use magelang_syntax::{ErrorManager, FileManager};
 use magelang_typecheck::Module;
 use wasm_helper as wasm;
 
 pub fn generate<'ctx>(
     arena: &'ctx Bump,
     file_manager: &'ctx FileManager,
-    error_manager: &'ctx impl ErrorReporter,
+    error_manager: &'ctx ErrorManager,
     module: &'ctx Module<'ctx>,
 ) -> Option<wasm::Module<'ctx>> {
     let ctx = Context {
@@ -28,7 +28,7 @@ pub fn generate<'ctx>(
 
     let functions = setup_functions(&ctx, &type_manager);
 
-    if ctx.errors.has_errors() {
+    if !ctx.errors.is_empty() {
         return None;
     }
 
@@ -52,7 +52,7 @@ pub fn generate<'ctx>(
         }
     }
 
-    if ctx.errors.has_errors() {
+    if !ctx.errors.is_empty() {
         return None;
     }
 
@@ -66,7 +66,7 @@ pub fn generate<'ctx>(
         func_manager.main_func,
     );
 
-    if ctx.errors.has_errors() {
+    if !ctx.errors.is_empty() {
         return None;
     }
 

@@ -1,23 +1,23 @@
 use crate::data::DataManager;
-use crate::errors::CodegenError;
+use crate::errors;
 use crate::func::{FuncId, FuncMapper};
-use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
+use crate::ty::{AlignNormalize, PrimitiveType, TypeManager, build_val_type};
 use crate::var::{GlobalManager, LocalManager};
-use magelang_syntax::{BinaryOp, ErrorReporter};
+use magelang_syntax::{BinaryOp, ErrorManager};
 use magelang_typecheck::{BitSize, DefId, Expr, ExprKind, FloatType, Type, TypeArgs, TypeRepr};
 use std::iter::zip;
 use wasm_helper as wasm;
 
-pub(crate) struct ExprBuilder<'a, 'ctx, E> {
-    pub(crate) errors: &'ctx E,
-    pub(crate) data: &'a DataManager<'ctx, E>,
+pub(crate) struct ExprBuilder<'a, 'ctx> {
+    pub(crate) errors: &'ctx ErrorManager,
+    pub(crate) data: &'a DataManager<'ctx>,
     pub(crate) types: &'a TypeManager<'ctx>,
     pub(crate) funcs: &'a FuncMapper<'ctx>,
     pub(crate) locals: &'a LocalManager,
     pub(crate) globals: &'a GlobalManager<'ctx>,
 }
 
-impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
+impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     pub(crate) fn build(&self, expr: &Expr<'ctx>) -> Vec<wasm::Instr> {
         match &expr.kind {
             ExprKind::Invalid => unreachable!("found invalid expr"),
@@ -189,7 +189,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             unreachable!()
         };
         let Some(struct_layout) = self.types.get_mem_layout(element_type) else {
-            self.errors.dereferencing_opaque(addr.pos);
+            errors::report_dereferencing_opaque(self.errors, addr.pos);
             return vec![wasm::Instr::Unreachable];
         };
         let offset = struct_layout.fields[field].0;
@@ -205,7 +205,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
             unreachable!()
         };
         let Some(layout) = self.types.get_mem_layout(element_type) else {
-            self.errors.dereferencing_opaque(arr.pos);
+            errors::report_dereferencing_opaque(self.errors, arr.pos);
             return vec![wasm::Instr::Unreachable];
         };
         let size = layout.size;
@@ -231,7 +231,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
         };
 
         let Some(layout) = self.types.get_mem_layout(element_type) else {
-            self.errors.dereferencing_opaque(addr.pos);
+            errors::report_dereferencing_opaque(self.errors, addr.pos);
             return vec![wasm::Instr::Unreachable];
         };
         let val_types = build_val_type(element_type);
@@ -248,7 +248,7 @@ impl<'a, 'ctx, E: ErrorReporter> ExprBuilder<'a, 'ctx, E> {
                 align: component_layout.align.normalize(),
             };
             let Some(load_instr) = val_type.load_instr() else {
-                self.errors.dereferencing_opaque(addr.pos);
+                errors::report_dereferencing_opaque(self.errors, addr.pos);
                 return vec![wasm::Instr::Unreachable];
             };
             let load_instr = load_instr(mem_arg);

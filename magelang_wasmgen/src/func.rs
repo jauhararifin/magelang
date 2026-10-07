@@ -1,9 +1,9 @@
 use crate::context::Context;
 use crate::data::DataManager;
-use crate::errors::CodegenError;
+use crate::errors;
 use crate::mangling::Mangle;
-use crate::ty::{build_val_type, PrimitiveType, TypeManager};
-use magelang_syntax::{ErrorReporter, Pos};
+use crate::ty::{PrimitiveType, TypeManager, build_val_type};
+use magelang_syntax::Pos;
 use magelang_typecheck::{Annotation, DefId, Func, FuncType, Statement, TypeArgs};
 use std::collections::HashMap;
 use wasm_helper as wasm;
@@ -47,8 +47,8 @@ const WASM_EXPORT_ANNOTATION: &str = "wasm_export";
 const INTRINSIC_ANNOTATION: &str = "intrinsic";
 const MAIN_ANNOTATION: &str = "main";
 
-pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+pub(crate) fn setup_functions<'ctx>(
+    ctx: &Context<'ctx>,
     type_manager: &TypeManager<'ctx>,
 ) -> Vec<Function<'ctx>> {
     let mut functions = init_functions(ctx, type_manager);
@@ -66,8 +66,8 @@ pub(crate) fn setup_functions<'ctx, E: ErrorReporter>(
     functions
 }
 
-fn init_functions<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn init_functions<'ctx>(
+    ctx: &Context<'ctx>,
     type_manager: &TypeManager<'ctx>,
 ) -> Vec<Function<'ctx>> {
     let mut results = Vec::default();
@@ -119,17 +119,17 @@ fn init_functions<'ctx, E: ErrorReporter>(
             match annotation.name.as_str() {
                 WASM_IMPORT_ANNOTATION => {
                     if annotation.arguments.len() != 2 {
-                        ctx.errors.annotation_arg_mismatch(annotation, 2);
+                        errors::report_annotation_arg_mismatch(ctx.errors, annotation, 2);
                         continue;
                     }
 
                     if result.import.is_some() {
-                        ctx.errors.duplicated_annotation(annotation);
+                        errors::report_duplicated_annotation(ctx.errors, annotation);
                         continue;
                     }
 
                     if func.typeargs.is_some() {
-                        ctx.errors.import_generic_func(func.pos);
+                        errors::report_import_generic_func(ctx.errors, func.pos);
                         continue;
                     }
 
@@ -139,17 +139,17 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 }
                 WASM_EXPORT_ANNOTATION => {
                     if annotation.arguments.len() != 1 {
-                        ctx.errors.annotation_arg_mismatch(annotation, 1);
+                        errors::report_annotation_arg_mismatch(ctx.errors, annotation, 1);
                         continue;
                     }
 
                     if result.export.is_some() {
-                        ctx.errors.duplicated_annotation(annotation);
+                        errors::report_duplicated_annotation(ctx.errors, annotation);
                         continue;
                     }
 
                     if func.typeargs.is_some() {
-                        ctx.errors.export_generic_func(func.pos);
+                        errors::report_export_generic_func(ctx.errors, func.pos);
                         continue;
                     }
 
@@ -158,12 +158,12 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 }
                 INTRINSIC_ANNOTATION => {
                     if annotation.arguments.len() != 1 {
-                        ctx.errors.annotation_arg_mismatch(annotation, 1);
+                        errors::report_annotation_arg_mismatch(ctx.errors, annotation, 1);
                         continue;
                     }
 
                     if result.intrinsic.is_some() {
-                        ctx.errors.duplicated_annotation(annotation);
+                        errors::report_duplicated_annotation(ctx.errors, annotation);
                         continue;
                     }
 
@@ -173,11 +173,11 @@ fn init_functions<'ctx, E: ErrorReporter>(
                 }
                 MAIN_ANNOTATION => {
                     if !annotation.arguments.is_empty() {
-                        ctx.errors.annotation_arg_mismatch(annotation, 0);
+                        errors::report_annotation_arg_mismatch(ctx.errors, annotation, 0);
                         continue;
                     }
                     if result.is_main {
-                        ctx.errors.duplicated_annotation(annotation);
+                        errors::report_duplicated_annotation(ctx.errors, annotation);
                         continue;
                     }
 
@@ -185,13 +185,13 @@ fn init_functions<'ctx, E: ErrorReporter>(
                         && func.ty.as_func().is_some_and(|f| f.params.is_empty())
                         && func.ty.as_func().is_some_and(|f| f.return_type.is_void());
                     if !is_valid {
-                        ctx.errors.invalid_main_signature(func.pos);
+                        errors::report_invalid_main_signature(ctx.errors, func.pos);
                         continue;
                     }
 
                     result.is_main = true;
                 }
-                _ => ctx.errors.unknown_annotation(annotation),
+                _ => errors::report_unknown_annotation(ctx.errors, annotation),
             }
         }
 
@@ -214,8 +214,8 @@ const INTRINSIC_SIZE_OF: &str = "size_of";
 const INTRINSIC_ALIGN_OF: &str = "align_of";
 const INTRINSIC_TRAP: &str = "unreachable";
 
-fn setup_func_intrinsic<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
+fn setup_func_intrinsic<'ctx>(
+    ctx: &Context<'ctx>,
     annotation: &Annotation,
     func: &Func<'ctx>,
 ) -> Option<Intrinsic> {
@@ -234,7 +234,7 @@ fn setup_func_intrinsic<'ctx, E: ErrorReporter>(
         INTRINSIC_ALIGN_OF => Some(Intrinsic::AlignOf),
         INTRINSIC_TRAP => Some(Intrinsic::Trap),
         instr_name => {
-            ctx.errors.unknown_intrinsic(annotation.pos, instr_name);
+            errors::report_unknown_intrinsic(ctx.errors, annotation.pos, instr_name);
             None
         }
     }?;
@@ -312,28 +312,24 @@ fn setup_func_intrinsic<'ctx, E: ErrorReporter>(
     };
 
     if !is_valid {
-        ctx.errors.intrinsic_signature_mismatch(func.pos);
+        errors::report_intrinsic_signature_mismatch(ctx.errors, func.pos);
     }
 
     Some(intrinsic)
 }
 
-fn check_functions<'ctx, E: ErrorReporter>(ctx: &Context<'ctx, E>, functions: &[Function<'ctx>]) {
+fn check_functions<'ctx>(ctx: &Context<'ctx>, functions: &[Function<'ctx>]) {
     check_duplicated_main(ctx, functions);
     check_imports_exports(ctx, functions);
     check_compilation_strategy(ctx, functions);
 }
 
-fn check_duplicated_main<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
-    functions: &[Function<'ctx>],
-) {
+fn check_duplicated_main<'ctx>(ctx: &Context<'ctx>, functions: &[Function<'ctx>]) {
     let mut main = None;
     for func in functions {
         if func.is_main {
             if let Some(declared_at) = main {
-                ctx.errors
-                    .multiple_main(func.pos, ctx.files.location(declared_at));
+                errors::report_multiple_main(ctx.errors, func.pos, ctx.files.location(declared_at));
             } else {
                 main = Some(func.pos);
             }
@@ -341,17 +337,15 @@ fn check_duplicated_main<'ctx, E: ErrorReporter>(
     }
 }
 
-fn check_imports_exports<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
-    functions: &[Function<'ctx>],
-) {
+fn check_imports_exports<'ctx>(ctx: &Context<'ctx>, functions: &[Function<'ctx>]) {
     let mut imports = HashMap::<(&str, &str), Pos>::default();
     let mut exports = HashMap::<&str, Pos>::default();
 
     for func in functions {
         if let Some((im_module, im_name)) = &func.import {
             if let Some(declared_at) = imports.get(&(im_module, im_name)) {
-                ctx.errors.duplicated_import(
+                errors::report_duplicated_import(
+                    ctx.errors,
                     func.pos,
                     im_module,
                     im_name,
@@ -364,24 +358,25 @@ fn check_imports_exports<'ctx, E: ErrorReporter>(
 
         if let Some(name) = &func.export {
             if let Some(declared_at) = exports.get(name) {
-                ctx.errors
-                    .duplicated_export(func.pos, name, ctx.files.location(*declared_at));
+                errors::report_duplicated_export(
+                    ctx.errors,
+                    func.pos,
+                    name,
+                    ctx.files.location(*declared_at),
+                );
             } else {
                 exports.insert(name, func.pos);
             }
         }
 
         if func.export.is_some() && func.import.is_some() {
-            ctx.errors.func_both_imported_and_exported(func.pos);
+            errors::report_func_both_imported_and_exported(ctx.errors, func.pos);
         }
     }
 }
 
 #[allow(clippy::nonminimal_bool)]
-fn check_compilation_strategy<'ctx, E: ErrorReporter>(
-    ctx: &Context<'ctx, E>,
-    functions: &[Function<'ctx>],
-) {
+fn check_compilation_strategy<'ctx>(ctx: &Context<'ctx>, functions: &[Function<'ctx>]) {
     for func in functions {
         let is_import = func.import.is_some();
         let is_export = func.export.is_some();
@@ -395,7 +390,7 @@ fn check_compilation_strategy<'ctx, E: ErrorReporter>(
             || (!is_import && !is_export && !is_intrinsic && is_user);
 
         if !is_valid {
-            ctx.errors.unknown_compilation_strategy(func.pos);
+            errors::report_unknown_compilation_strategy(ctx.errors, func.pos);
         }
     }
 }
@@ -457,9 +452,9 @@ impl<'ctx> FuncMapper<'ctx> {
     }
 }
 
-pub(crate) fn build_intrinsic_func<'ctx, E>(
+pub(crate) fn build_intrinsic_func<'ctx>(
     type_manager: &TypeManager<'ctx>,
-    data_manager: &DataManager<'ctx, E>,
+    data_manager: &DataManager<'ctx>,
     func: &Function<'ctx>,
 ) -> wasm::Func {
     let kind = func.intrinsic.as_ref().unwrap();

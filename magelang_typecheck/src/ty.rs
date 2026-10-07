@@ -1,12 +1,10 @@
 use crate::analyze::{Context, Scopes, TypeObject};
-use crate::errors::SemanticError;
+use crate::errors;
 use crate::interner::Interner;
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{
-    ErrorReporter, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
-};
+use magelang_syntax::{Pos, SignatureNode, TypeExprNode, TypeParameterNode};
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
@@ -66,7 +64,7 @@ impl<'a> Debug for Type<'a> {
 }
 
 impl<'a> Type<'a> {
-    pub(crate) fn init_body<E: ErrorReporter>(&'a self, ctx: &Context<'a, '_, E>) {
+    pub(crate) fn init_body(&'a self, ctx: &Context<'a, '_>) {
         let TypeRepr::Struct(struct_type) = &self.repr else {
             return;
         };
@@ -102,7 +100,8 @@ impl<'a> Type<'a> {
             let field_name = ctx.define_symbol(field_node.name.value.as_str());
             let pos = field_node.name.pos;
             if let Some(defined_at) = field_pos.get(&field_name) {
-                ctx.errors.redeclared_symbol(
+                errors::report_redeclared_symbol(
+                    ctx.errors,
                     pos,
                     ctx.files.location(*defined_at),
                     &field_node.name.value,
@@ -139,9 +138,9 @@ impl<'a> Type<'a> {
         };
     }
 
-    pub(crate) fn specialize<E: ErrorReporter>(
+    pub(crate) fn specialize(
         &'a self,
-        ctx: &Context<'a, '_, E>,
+        ctx: &Context<'a, '_>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
         match &self.kind {
@@ -214,9 +213,9 @@ impl<'a> Type<'a> {
         }
     }
 
-    pub(crate) fn substitute<E: ErrorReporter>(
+    pub(crate) fn substitute(
         &'a self,
-        ctx: &Context<'a, '_, E>,
+        ctx: &Context<'a, '_>,
         type_args: &'a TypeArgs<'a>,
     ) -> &'a Type<'a> {
         assert!(
@@ -620,9 +619,9 @@ pub struct FuncType<'a> {
 }
 
 impl<'a> FuncType<'a> {
-    pub(crate) fn substitute<'b, E: ErrorReporter>(
+    pub(crate) fn substitute<'b>(
         &self,
-        ctx: &'b Context<'a, '_, E>,
+        ctx: &'b Context<'a, '_>,
         type_args: &'a TypeArgs<'a>,
     ) -> FuncType<'a> {
         let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
@@ -687,8 +686,8 @@ impl<'a> TypeArg<'a> {
     }
 }
 
-pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, '_, E>,
+pub(crate) fn get_type_from_node<'a, 'b>(
+    ctx: &'b Context<'a, '_>,
     scope: &'b Scopes<'a>,
     node: &TypeExprNode,
 ) -> &'a Type<'a> {
@@ -742,8 +741,8 @@ pub(crate) fn get_type_from_node<'a, 'b, E: ErrorReporter>(
     }
 }
 
-fn get_type_from_named<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, '_, E>,
+fn get_type_from_named<'a, 'b>(
+    ctx: &'b Context<'a, '_>,
     scope: &'b Scopes<'a>,
     node: &TypeExprNode,
     args: &[TypeExprNode],
@@ -757,7 +756,7 @@ fn get_type_from_named<'a, 'b, E: ErrorReporter>(
 
     let TypeKind::GenericStruct(generic_type) = &object.kind else {
         if !args.is_empty() {
-            ctx.errors.non_generic_value(node.pos());
+            errors::report_non_generic_value(ctx.errors, node.pos());
         }
         return object.ty;
     };
@@ -769,8 +768,12 @@ fn get_type_from_named<'a, 'b, E: ErrorReporter>(
         .collect::<Vec<_>>();
 
     if type_args.len() != required_type_param {
-        ctx.errors
-            .type_arguments_count_mismatch(node.pos(), required_type_param, type_args.len());
+        errors::report_type_arguments_count_mismatch(
+            ctx.errors,
+            node.pos(),
+            required_type_param,
+            type_args.len(),
+        );
     }
 
     while type_args.len() < required_type_param {
@@ -785,8 +788,8 @@ fn get_type_from_named<'a, 'b, E: ErrorReporter>(
     object.specialize(ctx, type_args)
 }
 
-fn get_type_object_from_name<'a, 'b, E: ErrorReporter>(
-    ctx: &'b Context<'a, '_, E>,
+fn get_type_object_from_name<'a, 'b>(
+    ctx: &'b Context<'a, '_>,
     scope: &'b Scopes<'a>,
     node: &TypeExprNode,
 ) -> Option<&'b TypeObject<'a>> {
@@ -794,35 +797,39 @@ fn get_type_object_from_name<'a, 'b, E: ErrorReporter>(
         TypeExprNode::Ident(name) => {
             let name_symbol = ctx.define_symbol(name.value.as_str());
             let Some(object) = scope.type_scopes.lookup(name_symbol) else {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
             Some(object)
         }
         TypeExprNode::Selection(selection) => {
             let TypeExprNode::Ident(package) = selection.value.as_ref() else {
-                ctx.errors.undeclared_symbol(selection.selection.pos, &selection.selection.value);
+                errors::report_undeclared_symbol(
+                    ctx.errors,
+                    selection.selection.pos,
+                    &selection.selection.value,
+                );
                 return None;
             };
             let name = &selection.selection;
             let package_symbol = ctx.define_symbol(package.value.as_str());
             let Some(import_object) = scope.import_scopes.lookup(package_symbol) else {
                 if scope.type_scopes.lookup(package_symbol).is_some() {
-                    ctx.errors.undeclared_symbol(name.pos, &name.value);
+                    errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 } else {
-                    ctx.errors.undeclared_symbol(package.pos, &package.value);
+                    errors::report_undeclared_symbol(ctx.errors, package.pos, &package.value);
                 }
                 return None;
             };
 
             let Some(scope) = ctx.scopes.get(&import_object.package) else {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
 
             let name_symbol = ctx.define_symbol(name.value.as_str());
             let Some(object) = scope.type_scopes.lookup(name_symbol) else {
-                ctx.errors.undeclared_symbol(name.pos, &name.value);
+                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
 
@@ -832,8 +839,8 @@ fn get_type_object_from_name<'a, 'b, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+pub(crate) fn get_func_type_from_signature<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     type_params: &[TypeArg<'a>],
     signature: &SignatureNode,
@@ -846,7 +853,8 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
         let name = ctx.define_symbol(&param_node.name.value);
         let pos = param_node.name.pos;
         if let Some(defined_at) = param_pos.get(&name) {
-            ctx.errors.redeclared_symbol(
+            errors::report_redeclared_symbol(
+                ctx.errors,
                 pos,
                 ctx.files.location(*defined_at),
                 &param_node.name.value,
@@ -874,8 +882,8 @@ pub(crate) fn get_func_type_from_signature<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+pub(crate) fn get_typeparams<'a>(
+    ctx: &Context<'a, '_>,
     nodes: &[TypeParameterNode],
 ) -> &'a [TypeArg<'a>] {
     let mut type_params = BumpVec::with_capacity_in(nodes.len(), ctx.arena);
@@ -885,8 +893,7 @@ pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
         type_params.push(TypeArg::new(i, name));
         if let Some(declared_at) = param_pos.get(&name) {
             let declared_at = ctx.files.location(*declared_at);
-            ctx.errors
-                .redeclared_symbol(type_param.name.pos, declared_at, name);
+            errors::report_redeclared_symbol(ctx.errors, type_param.name.pos, declared_at, name);
         } else {
             param_pos.insert(name, type_param.name.pos);
         }
@@ -894,8 +901,8 @@ pub(crate) fn get_typeparams<'a, E: ErrorReporter>(
     type_params.into_bump_slice()
 }
 
-pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+pub(crate) fn get_typeparam_scope<'a>(
+    ctx: &Context<'a, '_>,
     scope: &Scopes<'a>,
     type_params: &[TypeArg<'a>],
 ) -> Scopes<'a> {
@@ -919,7 +926,7 @@ pub(crate) fn get_typeparam_scope<'a, E: ErrorReporter>(
     scope
 }
 
-pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
+pub(crate) fn check_circular_type(ctx: &Context<'_, '_>) {
     let dep_list = build_struct_dependency_list(ctx);
 
     let mut visited = IndexSet::<DefId>::default();
@@ -951,8 +958,8 @@ pub(crate) fn check_circular_type<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
     }
 }
 
-fn build_struct_dependency_list<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn build_struct_dependency_list<'a>(
+    ctx: &Context<'a, '_>,
 ) -> IndexMap<DefId<'a>, IndexSet<DefId<'a>>> {
     let mut adjlist = IndexMap::<DefId, IndexSet<DefId>>::default();
     let type_objects = ctx
@@ -985,11 +992,7 @@ fn build_struct_dependency_list<'a, E: ErrorReporter>(
     adjlist
 }
 
-fn report_circular_type<E: ErrorReporter>(
-    ctx: &Context<'_, '_, E>,
-    in_chain: &IndexSet<DefId>,
-    start: DefId,
-) {
+fn report_circular_type(ctx: &Context<'_, '_>, in_chain: &IndexSet<DefId>, start: DefId) {
     let mut chain = Vec::default();
     let mut started = false;
     for name in in_chain {
@@ -1020,5 +1023,5 @@ fn report_circular_type<E: ErrorReporter>(
         .as_ref()
         .expect("missing strut node in type object")
         .pos;
-    ctx.errors.circular_type(pos, &chain_str);
+    errors::report_circular_type(ctx.errors, pos, &chain_str);
 }

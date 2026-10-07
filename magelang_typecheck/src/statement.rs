@@ -1,14 +1,14 @@
 use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
-use crate::errors::SemanticError;
+use crate::errors;
 use crate::expr::{Expr, ExprKind, get_binary_expr, get_expr_from_node};
 use crate::interner::Interner;
 use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ErrorReporter,
-    ForStatementNode, IfStatementNode, LetKind, LetStatementNode, Pos, ReturnStatementNode,
-    StatementNode, WhileStatementNode,
+    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ForStatementNode,
+    IfStatementNode, LetKind, LetStatementNode, Pos, ReturnStatementNode, StatementNode,
+    WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -41,9 +41,9 @@ pub enum Statement<'a> {
 }
 
 impl<'a> Statement<'a> {
-    pub(crate) fn monomorphize<'b, E: ErrorReporter>(
+    pub(crate) fn monomorphize<'b>(
         &self,
-        ctx: &'b Context<'a, '_, E>,
+        ctx: &'b Context<'a, '_>,
         type_args: &'a TypeArgs<'a>,
     ) -> Statement<'a> {
         match self {
@@ -158,8 +158,8 @@ pub(crate) struct StatementResult<'a> {
     pub(crate) last_unused_local: usize,
 }
 
-pub(crate) struct StatementContext<'a, 'b, 'syn, E: ErrorReporter> {
-    ctx: &'b Context<'a, 'syn, E>,
+pub(crate) struct StatementContext<'a, 'b, 'syn> {
+    ctx: &'b Context<'a, 'syn>,
     scope: &'b Scopes<'a>,
     last_unused_local: usize,
     return_type: &'a Type<'a>,
@@ -167,9 +167,9 @@ pub(crate) struct StatementContext<'a, 'b, 'syn, E: ErrorReporter> {
     is_inside_defer: bool,
 }
 
-impl<'a, 'b, 'syn, E: ErrorReporter> StatementContext<'a, 'b, 'syn, E> {
+impl<'a, 'b, 'syn> StatementContext<'a, 'b, 'syn> {
     pub(crate) fn new(
-        ctx: &'b Context<'a, 'syn, E>,
+        ctx: &'b Context<'a, 'syn>,
         scope: &'b Scopes<'a>,
         last_unused_local: usize,
         return_type: &'a Type<'a>,
@@ -185,8 +185,8 @@ impl<'a, 'b, 'syn, E: ErrorReporter> StatementContext<'a, 'b, 'syn, E> {
     }
 }
 
-pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_node<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &StatementNode,
 ) -> StatementResult<'a> {
     match node {
@@ -209,8 +209,8 @@ pub(crate) fn get_statement_from_node<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_let<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &LetStatementNode,
 ) -> StatementResult<'a> {
     let expr = match &node.kind {
@@ -239,7 +239,7 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
             let mut value_expr = get_expr_from_node(ctx.ctx, ctx.scope, Some(ty), value);
             if !ty.is_assignable_with(value_expr.ty) {
-                ctx.ctx.errors.type_mismatch(value.pos(), ty, value_expr.ty);
+                errors::report_type_mismatch(ctx.ctx.errors, value.pos(), ty, value_expr.ty);
                 value_expr.kind = ExprKind::Invalid
             }
             value_expr
@@ -269,21 +269,19 @@ pub(crate) fn get_statement_from_let<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_assign<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &AssignStatementNode,
 ) -> StatementResult<'a> {
     let receiver = get_expr_from_node(ctx.ctx, ctx.scope, None, &node.receiver);
     if !receiver.assignable {
-        ctx.ctx.errors.expr_is_not_assignable(node.receiver.pos());
+        errors::report_expr_is_not_assignable(ctx.ctx.errors, node.receiver.pos());
     }
 
     let value = get_expr_from_node(ctx.ctx, ctx.scope, Some(receiver.ty), &node.value);
     let Some(op) = node.op else {
         if !receiver.ty.is_assignable_with(value.ty) {
-            ctx.ctx
-                .errors
-                .type_mismatch(node.value.pos(), receiver.ty, value.ty);
+            errors::report_type_mismatch(ctx.ctx.errors, node.value.pos(), receiver.ty, value.ty);
         }
         return StatementResult {
             statement: Statement::Assign {
@@ -306,9 +304,7 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
         value,
     );
     if !receiver.ty.is_assignable_with(operation.ty) {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.value.pos(), receiver.ty, operation.ty);
+        errors::report_type_mismatch(ctx.ctx.errors, node.value.pos(), receiver.ty, operation.ty);
     }
 
     StatementResult {
@@ -323,8 +319,8 @@ pub(crate) fn get_statement_from_assign<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_block<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &BlockStatementNode,
 ) -> StatementResult<'a> {
     let mut scope = ctx.scope.clone();
@@ -334,7 +330,7 @@ pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
     let mut unreachable_error = false;
     for stmt in &node.statements {
         if is_returning && !unreachable_error {
-            ctx.ctx.errors.unreachable_statement(stmt.pos());
+            errors::report_unreachable_statement(ctx.ctx.errors, stmt.pos());
             unreachable_error = true;
         }
 
@@ -367,8 +363,8 @@ pub(crate) fn get_statement_from_block<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_if<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &IfStatementNode,
 ) -> StatementResult<'a> {
     let bool_type = ctx.ctx.define_type(Type {
@@ -378,9 +374,12 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
     let cond = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !cond.ty.is_bool() {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.condition.pos(), TypeRepr::Bool, cond.ty);
+        errors::report_type_mismatch(
+            ctx.ctx.errors,
+            node.condition.pos(),
+            TypeRepr::Bool,
+            cond.ty,
+        );
     }
 
     let result = get_statement_from_block(ctx, &node.body);
@@ -422,8 +421,8 @@ pub(crate) fn get_statement_from_if<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_while<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &WhileStatementNode,
 ) -> StatementResult<'a> {
     let bool_type = ctx.ctx.define_type(Type {
@@ -433,9 +432,12 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     let condition = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !condition.ty.is_bool() {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.condition.pos(), TypeRepr::Bool, condition.ty);
+        errors::report_type_mismatch(
+            ctx.ctx.errors,
+            node.condition.pos(),
+            TypeRepr::Bool,
+            condition.ty,
+        );
     }
 
     let body_stmt = get_statement_from_block(
@@ -461,8 +463,8 @@ pub(crate) fn get_statement_from_while<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_for<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &ForStatementNode,
 ) -> StatementResult<'a> {
     let mut scope = ctx.scope.clone();
@@ -497,9 +499,7 @@ pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
         });
         let cond = get_expr_from_node(ctx.ctx, &scope, Some(bool_type), cond_node);
         if !cond.ty.is_bool() {
-            ctx.ctx
-                .errors
-                .type_mismatch(cond_node.pos(), TypeRepr::Bool, cond.ty);
+            errors::report_type_mismatch(ctx.ctx.errors, cond_node.pos(), TypeRepr::Bool, cond.ty);
         }
         cond
     });
@@ -548,8 +548,8 @@ pub(crate) fn get_statement_from_for<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_defer<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_defer<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &DeferStatementNode,
 ) -> StatementResult<'a> {
     // break and continue is not allowed inside defer because it causes confusion.
@@ -573,12 +573,12 @@ pub(crate) fn get_statement_from_defer<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_continue<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_continue<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     pos: Pos,
 ) -> StatementResult<'a> {
     if !ctx.is_inside_loop {
-        ctx.ctx.errors.operation_outside_loop(pos, "continue");
+        errors::report_operation_outside_loop(ctx.ctx.errors, pos, "continue");
     }
     StatementResult {
         statement: Statement::Continue,
@@ -588,12 +588,12 @@ pub(crate) fn get_statement_from_continue<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_break<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_break<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     pos: Pos,
 ) -> StatementResult<'a> {
     if !ctx.is_inside_loop {
-        ctx.ctx.errors.operation_outside_loop(pos, "break");
+        errors::report_operation_outside_loop(ctx.ctx.errors, pos, "break");
     }
     StatementResult {
         statement: Statement::Break,
@@ -603,12 +603,12 @@ pub(crate) fn get_statement_from_break<'a, E: ErrorReporter>(
     }
 }
 
-pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
-    ctx: &StatementContext<'a, '_, '_, E>,
+pub(crate) fn get_statement_from_return<'a>(
+    ctx: &StatementContext<'a, '_, '_>,
     node: &ReturnStatementNode,
 ) -> StatementResult<'a> {
     if ctx.is_inside_defer {
-        ctx.ctx.errors.return_inside_defer(node.pos);
+        errors::report_return_inside_defer(ctx.ctx.errors, node.pos);
     }
 
     let return_type = ctx.return_type;
@@ -627,9 +627,7 @@ pub(crate) fn get_statement_from_return<'a, E: ErrorReporter>(
         }));
 
     if !return_type.is_assignable_with(value_ty) {
-        ctx.ctx
-            .errors
-            .type_mismatch(node.pos, return_type, value_ty);
+        errors::report_type_mismatch(ctx.ctx.errors, node.pos, return_type, value_ty);
     };
 
     StatementResult {

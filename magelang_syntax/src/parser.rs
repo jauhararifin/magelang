@@ -1,11 +1,11 @@
 use crate::ast::*;
-use crate::error::{ErrorManager, ErrorReporter};
+use crate::error::ErrorManager;
 use crate::scanner::scan;
 use crate::token::{File, Pos, Token, TokenKind};
 use std::collections::VecDeque;
 use std::fmt::Display;
 
-pub fn parse(errors: &impl ErrorReporter, file: &File) -> PackageNode {
+pub fn parse(errors: &ErrorManager, file: &File) -> PackageNode {
     let scan_result = scan(errors, file);
 
     let mut comments = Vec::default();
@@ -27,12 +27,12 @@ pub fn parse(errors: &impl ErrorReporter, file: &File) -> PackageNode {
     PackageNode { items, comments }
 }
 
-struct FileParser<'a, Error> {
-    errors: &'a Error,
+struct FileParser<'a> {
+    errors: &'a ErrorManager,
     tokens: VecDeque<Token>,
 }
 
-fn parse_root<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<ItemNode> {
+fn parse_root(f: &mut FileParser) -> Vec<ItemNode> {
     let mut items = Vec::<ItemNode>::default();
 
     while f.kind() != &TokenKind::Eof {
@@ -44,7 +44,7 @@ fn parse_root<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<ItemNode> {
     items
 }
 
-fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> {
+fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
     let annotations = parse_annotations(f);
 
     let tok = f.token();
@@ -55,7 +55,7 @@ fn parse_item_node<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ItemNode> 
         TokenKind::Fn => parse_func(f, annotations).map(ItemNode::Function),
         TokenKind::Eof => {
             if let Some(annotation) = annotations.last() {
-                f.errors.dangling_annotations(annotation.pos);
+                report_dangling_annotations(f.errors, annotation.pos);
             }
             None
         }
@@ -81,7 +81,7 @@ const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] = &[
     TokenKind::SemiColon,
 ];
 
-fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationNode> {
+fn parse_annotations(f: &mut FileParser) -> Vec<AnnotationNode> {
     let mut result = Vec::default();
 
     while let Some(at_sign) = f.take_if(&TokenKind::AtSign) {
@@ -117,15 +117,15 @@ fn parse_annotations<E: ErrorReporter>(f: &mut FileParser<E>) -> Vec<AnnotationN
     result
 }
 
-fn parse_sequence<T, F, E: ErrorReporter>(
-    f: &mut FileParser<E>,
+fn parse_sequence<T, F>(
+    f: &mut FileParser,
     begin_tok: TokenKind,
     delim_tok: TokenKind,
     end_tok: TokenKind,
     parse_fn: F,
 ) -> Option<(Token, Vec<T>, Token)>
 where
-    F: Fn(&mut FileParser<E>) -> Option<T>,
+    F: Fn(&mut FileParser) -> Option<T>,
 {
     let opening = f.take_if(&begin_tok)?;
 
@@ -146,7 +146,7 @@ where
         let token = f.token();
         if let Some(item) = parse_fn(f) {
             if needs_delimiter {
-                f.errors.unexpected_parsing(token.pos, &delim_tok, token);
+                report_unexpected_parsing(f.errors, token.pos, &delim_tok, token);
             }
             items.push(item);
             needs_delimiter = true;
@@ -162,15 +162,12 @@ where
     if let Some(closing) = f.take_if(&end_tok) {
         Some((opening, items, closing))
     } else {
-        f.errors.missing(opening.pos, format!("closing {end_tok}"));
+        report_missing(f.errors, opening.pos, format!("closing {end_tok}"));
         None
     }
 }
 
-fn parse_import<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    annotations: Vec<AnnotationNode>,
-) -> Option<ImportNode> {
+fn parse_import(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<ImportNode> {
     let import_tok = f.take_if(&TokenKind::Import)?;
     let pos = import_tok.pos;
     let name = f.take_ident()?;
@@ -184,10 +181,7 @@ fn parse_import<E: ErrorReporter>(
     })
 }
 
-fn parse_global<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    annotations: Vec<AnnotationNode>,
-) -> Option<GlobalNode> {
+fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<GlobalNode> {
     let let_tok = f.take_if(&TokenKind::Let)?;
     let pos = let_tok.pos;
 
@@ -198,7 +192,7 @@ fn parse_global<E: ErrorReporter>(
         ty
     } else {
         let pos = f.token().pos;
-        f.errors.missing(pos, "type expression");
+        report_missing(f.errors, pos, "type expression");
         TypeExprNode::Invalid(pos)
     };
 
@@ -212,7 +206,7 @@ fn parse_global<E: ErrorReporter>(
     let value = if f.take_if(&TokenKind::Equal).is_some() {
         Some(parse_expr(f, true).unwrap_or_else(|| {
             let pos = f.token().pos;
-            f.errors.missing(pos, "initializer value expression");
+            report_missing(f.errors, pos, "initializer value expression");
             ExprNode::Invalid(pos)
         }))
     } else {
@@ -229,7 +223,7 @@ fn parse_global<E: ErrorReporter>(
     })
 }
 
-fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNode> {
+fn parse_type_expr(f: &mut FileParser) -> Option<TypeExprNode> {
     let tok = f.token();
     match &tok.kind {
         TokenKind::OpenSquare => {
@@ -243,7 +237,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             let ty = if let Some(ty) = parse_type_expr(f) {
                 ty
             } else {
-                f.errors.missing(close_tok.pos, "pointee type");
+                report_missing(f.errors, close_tok.pos, "pointee type");
                 TypeExprNode::Invalid(tok.pos)
             };
             Some(TypeExprNode::ArrayPtr(ArrayPtrTypeNode {
@@ -256,7 +250,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             let ty = if let Some(ty) = parse_type_expr(f) {
                 ty
             } else {
-                f.errors.missing(tok.pos, "pointee type");
+                report_missing(f.errors, tok.pos, "pointee type");
                 TypeExprNode::Invalid(tok.pos)
             };
             Some(TypeExprNode::Ptr(PtrTypeNode {
@@ -275,14 +269,14 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
                 parse_func_type_parameter,
             );
             if param_result.is_none() {
-                f.errors.missing(tok.pos, "function parameter list");
+                report_missing(f.errors, tok.pos, "function parameter list");
             }
 
             let return_type = if let Some(colon_tok) = f.take_if(&TokenKind::Colon) {
                 if let Some(expr) = parse_type_expr(f) {
                     Some(expr)
                 } else {
-                    f.errors.missing(colon_tok.pos, "return type");
+                    report_missing(f.errors, colon_tok.pos, "return type");
                     None
                 }
             } else {
@@ -310,7 +304,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
             f.pop();
             let inner_ty = parse_type_expr(f).unwrap_or_else(|| {
                 let pos = f.token().pos;
-                f.errors.missing(pos, "grouped type");
+                report_missing(f.errors, pos, "grouped type");
                 TypeExprNode::Invalid(pos)
             });
             f.take(TokenKind::CloseBrac);
@@ -333,7 +327,7 @@ fn parse_type_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNo
     }
 }
 
-fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<FuncTypeParam> {
+fn parse_func_type_parameter(f: &mut FileParser) -> Option<FuncTypeParam> {
     let name = if f.tokens.len() >= 2
         && matches!(f.tokens[0].kind, TokenKind::Ident(..))
         && matches!(f.tokens[1].kind, TokenKind::Colon)
@@ -349,7 +343,7 @@ fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<
         ty
     } else if name.is_some() {
         let pos = f.token().pos;
-        f.errors.missing(pos, "parameter type");
+        report_missing(f.errors, pos, "parameter type");
         TypeExprNode::Invalid(pos)
     } else {
         return None;
@@ -358,7 +352,7 @@ fn parse_func_type_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<
     Some(FuncTypeParam { pos, name, ty })
 }
 
-fn parse_named_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprNode> {
+fn parse_named_type(f: &mut FileParser) -> Option<TypeExprNode> {
     let ident = f.take_if_ident()?;
     let mut ty = TypeExprNode::Ident(ident);
     while f.take_if(&TokenKind::Dot).is_some() {
@@ -377,7 +371,7 @@ fn parse_named_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprN
             parse_type_expr,
         )?;
         if args.is_empty() {
-            f.errors.missing(opening.pos, "at least one type argument");
+            report_missing(f.errors, opening.pos, "at least one type argument");
         }
         ty = TypeExprNode::Inst(InstTypeNode {
             value: Box::new(ty),
@@ -388,10 +382,7 @@ fn parse_named_type<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<TypeExprN
     Some(ty)
 }
 
-fn parse_struct<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    annotations: Vec<AnnotationNode>,
-) -> Option<StructNode> {
+fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<StructNode> {
     let struct_tok = f.take_if(&TokenKind::Struct)?;
     let pos = struct_tok.pos;
 
@@ -407,7 +398,7 @@ fn parse_struct<E: ErrorReporter>(
         );
         result.map(|(opening, type_params, _)| {
             if type_params.is_empty() {
-                f.errors.missing(opening.pos, "at least one type parameter");
+                report_missing(f.errors, opening.pos, "at least one type parameter");
             }
             type_params
                 .into_iter()
@@ -429,7 +420,7 @@ fn parse_struct<E: ErrorReporter>(
             let ty = if parser.take(TokenKind::Colon).is_some() {
                 parse_type_expr(parser).unwrap_or_else(|| {
                     let pos = parser.token().pos;
-                    parser.errors.missing(pos, "struct field type");
+                    report_missing(parser.errors, pos, "struct field type");
                     TypeExprNode::Invalid(pos)
                 })
             } else {
@@ -439,8 +430,7 @@ fn parse_struct<E: ErrorReporter>(
         },
     );
     if fields.is_none() {
-        f.errors
-            .unexpected_parsing(f.token().pos, "struct body", f.token().kind);
+        report_unexpected_parsing(f.errors, f.token().pos, "struct body", f.token().kind);
     }
     let fields = fields.map(|(_, fields, _)| fields).unwrap_or_default();
 
@@ -453,10 +443,7 @@ fn parse_struct<E: ErrorReporter>(
     })
 }
 
-fn parse_func<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    annotations: Vec<AnnotationNode>,
-) -> Option<FunctionNode> {
+fn parse_func(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<FunctionNode> {
     let signature = parse_signature(f, annotations)?;
     let pos = signature.pos;
     if f.take_if(&TokenKind::SemiColon).is_some() {
@@ -468,7 +455,7 @@ fn parse_func<E: ErrorReporter>(
     }
 
     let Some(body) = parse_block_stmt(f) else {
-        f.errors.missing(signature.end_pos, "function body");
+        report_missing(f.errors, signature.end_pos, "function body");
         return None;
     };
     Some(FunctionNode {
@@ -478,10 +465,7 @@ fn parse_func<E: ErrorReporter>(
     })
 }
 
-fn parse_signature<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    annotations: Vec<AnnotationNode>,
-) -> Option<SignatureNode> {
+fn parse_signature(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<SignatureNode> {
     let func = f.take(TokenKind::Fn)?;
     let pos = func.pos;
     let name: Identifier = f.take_ident()?;
@@ -495,7 +479,7 @@ fn parse_signature<E: ErrorReporter>(
             |parser| parser.take_ident(),
         )?;
         if type_parameters.is_empty() {
-            f.errors.missing(opening.pos, "at least one type parameter");
+            report_missing(f.errors, opening.pos, "at least one type parameter");
         }
         type_parameters
             .into_iter()
@@ -514,14 +498,14 @@ fn parse_signature<E: ErrorReporter>(
         parse_parameter,
     );
     if param_result.is_none() {
-        f.errors.missing(name.pos, "function parameter list");
+        report_missing(f.errors, name.pos, "function parameter list");
     }
 
     let return_type = if let Some(colon_tok) = f.take_if(&TokenKind::Colon) {
         if let Some(expr) = parse_type_expr(f) {
             Some(expr)
         } else {
-            f.errors.missing(colon_tok.pos, "return type");
+            report_missing(f.errors, colon_tok.pos, "return type");
             None
         }
     } else {
@@ -549,13 +533,13 @@ fn parse_signature<E: ErrorReporter>(
     })
 }
 
-fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterNode> {
+fn parse_parameter(f: &mut FileParser) -> Option<ParameterNode> {
     let name = f.take_if_ident()?;
     let pos = name.pos;
     let ty = if f.take(TokenKind::Colon).is_some() {
         parse_type_expr(f).unwrap_or_else(|| {
             let pos = f.token().pos;
-            f.errors.missing(pos, "parameter type");
+            report_missing(f.errors, pos, "parameter type");
             TypeExprNode::Invalid(pos)
         })
     } else {
@@ -564,7 +548,7 @@ fn parse_parameter<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ParameterN
     Some(ParameterNode { pos, name, ty })
 }
 
-fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> {
+fn parse_stmt(f: &mut FileParser) -> Option<StatementNode> {
     Some(match f.kind() {
         TokenKind::If => StatementNode::If(parse_if_stmt(f)?),
         TokenKind::While => StatementNode::While(parse_while_stmt(f)?),
@@ -592,10 +576,7 @@ fn parse_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<StatementNode> 
 
 // a simple statement is a let, an assignment or an expression statement. it is parsed without its
 // ';' since it is also used as the initialization and the update of a for statement.
-fn parse_simple_stmt<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    allow_struct_lit: bool,
-) -> Option<StatementNode> {
+fn parse_simple_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<StatementNode> {
     if f.kind() == &TokenKind::Let {
         return Some(StatementNode::Let(parse_let_stmt(f, allow_struct_lit)?));
     }
@@ -618,7 +599,7 @@ fn parse_simple_stmt<E: ErrorReporter>(
     f.pop();
     let value = parse_expr(f, allow_struct_lit).unwrap_or_else(|| {
         let pos = f.token().pos;
-        f.errors.missing(pos, "right-hand operand");
+        report_missing(f.errors, pos, "right-hand operand");
         ExprNode::Invalid(pos)
     });
     Some(StatementNode::Assign(AssignStatementNode {
@@ -629,10 +610,7 @@ fn parse_simple_stmt<E: ErrorReporter>(
     }))
 }
 
-fn parse_let_stmt<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    allow_struct_lit: bool,
-) -> Option<LetStatementNode> {
+fn parse_let_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<LetStatementNode> {
     let let_tok = f.take(TokenKind::Let)?;
     let pos = let_tok.pos;
 
@@ -641,13 +619,13 @@ fn parse_let_stmt<E: ErrorReporter>(
     if f.take_if(&TokenKind::Colon).is_some() {
         let ty = parse_type_expr(f).unwrap_or_else(|| {
             let pos = f.token().pos;
-            f.errors.missing(pos, "local variable type");
+            report_missing(f.errors, pos, "local variable type");
             TypeExprNode::Invalid(pos)
         });
         if f.take_if(&TokenKind::Equal).is_some() {
             let value = parse_expr(f, allow_struct_lit).unwrap_or_else(|| {
                 let pos = f.token().pos;
-                f.errors.missing(pos, "initial value expression");
+                report_missing(f.errors, pos, "initial value expression");
                 ExprNode::Invalid(pos)
             });
             Some(LetStatementNode {
@@ -665,7 +643,7 @@ fn parse_let_stmt<E: ErrorReporter>(
     } else if f.take(TokenKind::Equal).is_some() {
         let value = parse_expr(f, allow_struct_lit).unwrap_or_else(|| {
             let pos = f.token().pos;
-            f.errors.missing(pos, "initial value expression");
+            report_missing(f.errors, pos, "initial value expression");
             ExprNode::Invalid(pos)
         });
         Some(LetStatementNode {
@@ -684,17 +662,17 @@ fn parse_let_stmt<E: ErrorReporter>(
     }
 }
 
-fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementNode> {
+fn parse_if_stmt(f: &mut FileParser) -> Option<IfStatementNode> {
     let if_tok = f.take(TokenKind::If)?;
     let pos = if_tok.pos;
 
     let Some(condition) = parse_expr(f, false) else {
-        f.errors.missing(if_tok.pos, "if condition");
+        report_missing(f.errors, if_tok.pos, "if condition");
         return None;
     };
 
     let Some(body) = parse_block_stmt(f) else {
-        f.errors.missing(if_tok.pos, "if body");
+        report_missing(f.errors, if_tok.pos, "if body");
         return None;
     };
 
@@ -704,7 +682,7 @@ fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementN
         } else if f.kind() == &TokenKind::OpenBlock {
             parse_block_stmt(f).map(StatementNode::Block).map(Box::new)
         } else {
-            f.errors.missing(else_tok.pos, "else body");
+            report_missing(f.errors, else_tok.pos, "else body");
             None
         }
     } else {
@@ -719,17 +697,17 @@ fn parse_if_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<IfStatementN
     })
 }
 
-fn parse_while_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhileStatementNode> {
+fn parse_while_stmt(f: &mut FileParser) -> Option<WhileStatementNode> {
     let while_tok = f.take(TokenKind::While)?;
     let pos = while_tok.pos;
 
     let Some(condition) = parse_expr(f, false) else {
-        f.errors.missing(while_tok.pos, "while condition");
+        report_missing(f.errors, while_tok.pos, "while condition");
         return None;
     };
 
     let Some(body) = parse_block_stmt(f) else {
-        f.errors.missing(while_tok.pos, "while body");
+        report_missing(f.errors, while_tok.pos, "while body");
         return None;
     };
 
@@ -740,7 +718,7 @@ fn parse_while_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<WhileStat
     })
 }
 
-fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatementNode> {
+fn parse_for_stmt(f: &mut FileParser) -> Option<ForStatementNode> {
     let for_tok = f.take(TokenKind::For)?;
     let pos = for_tok.pos;
     let mut open_block = false;
@@ -750,7 +728,7 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
     } else if let Some(init) = parse_simple_stmt(f, true) {
         Some(Box::new(init))
     } else {
-        f.errors.missing(f.token().pos, "for init statement");
+        report_missing(f.errors, f.token().pos, "for init statement");
         f.skip_until_before(&[TokenKind::SemiColon, TokenKind::OpenBlock]);
         open_block = f.kind() == &TokenKind::OpenBlock;
         None
@@ -764,7 +742,7 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
     } else if let Some(condition) = parse_expr(f, false) {
         Some(condition)
     } else {
-        f.errors.missing(f.token().pos, "for condition");
+        report_missing(f.errors, f.token().pos, "for condition");
         f.skip_until_before(&[TokenKind::SemiColon, TokenKind::OpenBlock]);
         open_block = f.kind() == &TokenKind::OpenBlock;
         None
@@ -778,14 +756,14 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
     } else if let Some(update) = parse_simple_stmt(f, false) {
         Some(Box::new(update))
     } else {
-        f.errors.missing(f.token().pos, "for update statement");
+        report_missing(f.errors, f.token().pos, "for update statement");
         f.skip_until_before(&[TokenKind::SemiColon, TokenKind::OpenBlock]);
         f.take_if(&TokenKind::SemiColon);
         None
     };
 
     let Some(body) = parse_block_stmt(f) else {
-        f.errors.missing(pos, "for body");
+        report_missing(f.errors, pos, "for body");
         return None;
     };
 
@@ -798,7 +776,7 @@ fn parse_for_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ForStatemen
     })
 }
 
-fn parse_defer_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<DeferStatementNode> {
+fn parse_defer_stmt(f: &mut FileParser) -> Option<DeferStatementNode> {
     let defer_tok = f.take(TokenKind::Defer)?;
     let pos = defer_tok.pos;
     let body_token = f.token();
@@ -815,7 +793,7 @@ fn parse_defer_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<DeferStat
     })
 }
 
-fn parse_block_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<BlockStatementNode> {
+fn parse_block_stmt(f: &mut FileParser) -> Option<BlockStatementNode> {
     let open = f.take_if(&TokenKind::OpenBlock)?;
     let pos = open.pos;
     let mut statements = vec![];
@@ -836,7 +814,7 @@ fn parse_block_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<BlockStat
     Some(BlockStatementNode { pos, statements })
 }
 
-fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnStatementNode> {
+fn parse_return_stmt(f: &mut FileParser) -> Option<ReturnStatementNode> {
     let return_tok = f.take(TokenKind::Return)?;
     let pos = return_tok.pos;
     if f.take_if(&TokenKind::SemiColon).is_some() {
@@ -845,8 +823,7 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
 
     let Some(value) = parse_expr(f, true) else {
         let token = f.token();
-        f.errors
-            .unexpected_parsing(token.pos, "return value expression", &token);
+        report_unexpected_parsing(f.errors, token.pos, "return value expression", &token);
         return Some(ReturnStatementNode {
             pos,
             value: Some(ExprNode::Invalid(token.pos)),
@@ -863,7 +840,7 @@ fn parse_return_stmt<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ReturnSt
 // parse_expr returns None when there is no expression that can be parsed. Returning
 // None means no token is consumed. parse_expr may parses incomplete expression, which
 // in that case, it will return Some(ExprNode::Invalid) and report error internally.
-fn parse_expr<E: ErrorReporter>(f: &mut FileParser<E>, allow_struct_lit: bool) -> Option<ExprNode> {
+fn parse_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<ExprNode> {
     parse_binary_expr(f, &[TokenKind::Or], allow_struct_lit)
 }
 
@@ -880,8 +857,8 @@ const BINOP_PRECEDENCE: &[&[TokenKind]] = &[
     &[TokenKind::Mul, TokenKind::Div, TokenKind::Mod],
 ];
 
-fn parse_binary_expr<E: ErrorReporter>(
-    f: &mut FileParser<E>,
+fn parse_binary_expr(
+    f: &mut FileParser,
     op: &[TokenKind],
     allow_struct_lit: bool,
 ) -> Option<ExprNode> {
@@ -904,7 +881,7 @@ fn parse_binary_expr<E: ErrorReporter>(
 
         let b = b.unwrap_or_else(|| {
             let pos = f.token().pos;
-            f.errors.missing(pos, "second operand".to_string());
+            report_missing(f.errors, pos, "second operand".to_string());
             ExprNode::Invalid(pos)
         });
         result = ExprNode::Binary(BinaryExprNode {
@@ -917,10 +894,7 @@ fn parse_binary_expr<E: ErrorReporter>(
     Some(result)
 }
 
-fn parse_cast_expr<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    allow_struct_lit: bool,
-) -> Option<ExprNode> {
+fn parse_cast_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<ExprNode> {
     let value = parse_unary_expr(f, allow_struct_lit)?;
     if f.take_if(&TokenKind::As).is_some() {
         let target = match parse_type_expr(f) {
@@ -928,7 +902,7 @@ fn parse_cast_expr<E: ErrorReporter>(
             None => {
                 let pos = f.token().pos;
                 f.skip_until_before(&[TokenKind::SemiColon]);
-                f.errors.missing(pos, "target type");
+                report_missing(f.errors, pos, "target type");
                 TypeExprNode::Invalid(pos)
             }
         };
@@ -949,10 +923,7 @@ const UNARY_OP: &[TokenKind] = &[
     TokenKind::Not,
 ];
 
-fn parse_unary_expr<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    allow_struct_lit: bool,
-) -> Option<ExprNode> {
+fn parse_unary_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<ExprNode> {
     let mut ops = vec![];
     while UNARY_OP.contains(f.kind()) {
         let op = f.tokens.pop_front().unwrap();
@@ -964,7 +935,7 @@ fn parse_unary_expr<E: ErrorReporter>(
         None if ops.is_empty() => return None,
         None => {
             let pos = f.token().pos;
-            f.errors.missing(pos, "unary operand");
+            report_missing(f.errors, pos, "unary operand");
             return Some(ExprNode::Invalid(pos));
         }
     };
@@ -979,10 +950,7 @@ fn parse_unary_expr<E: ErrorReporter>(
     Some(value)
 }
 
-fn parse_sequence_of_expr<E: ErrorReporter>(
-    f: &mut FileParser<E>,
-    allow_struct_lit: bool,
-) -> Option<ExprNode> {
+fn parse_sequence_of_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<ExprNode> {
     let mut target = parse_primary_expr(f)?;
     let mut pos = target.pos();
 
@@ -1024,7 +992,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
             TokenKind::OpenSquare => {
                 let open = f.take(TokenKind::OpenSquare).unwrap();
                 let Some(index) = parse_expr(f, true) else {
-                    f.errors.missing(f.token().pos, "index expression");
+                    report_missing(f.errors, f.token().pos, "index expression");
                     f.take_if(&TokenKind::CloseSquare);
                     return Some(ExprNode::Invalid(open.pos));
                 };
@@ -1046,7 +1014,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                         Some(argument) => Some(argument),
                         None if this.kind() == &TokenKind::Comma => {
                             let pos = this.token().pos;
-                            this.errors.missing(pos, "function argument");
+                            report_missing(this.errors, pos, "function argument");
                             Some(ExprNode::Invalid(pos))
                         }
                         None => None,
@@ -1075,7 +1043,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
                         let value = if parser.take(TokenKind::Colon).is_some() {
                             parse_expr(parser, true).unwrap_or_else(|| {
                                 let pos = parser.token().pos;
-                                parser.errors.missing(pos, "struct field value");
+                                report_missing(parser.errors, pos, "struct field value");
                                 ExprNode::Invalid(pos)
                             })
                         } else {
@@ -1107,7 +1075,7 @@ fn parse_sequence_of_expr<E: ErrorReporter>(
     Some(target)
 }
 
-fn convert_expr_to_type_expr<E: ErrorReporter>(errors: &E, node: ExprNode) -> TypeExprNode {
+fn convert_expr_to_type_expr(errors: &ErrorManager, node: ExprNode) -> TypeExprNode {
     match node {
         ExprNode::Invalid(pos) => TypeExprNode::Invalid(pos),
         ExprNode::Ident(ident) => TypeExprNode::Ident(ident),
@@ -1135,7 +1103,7 @@ fn convert_expr_to_type_expr<E: ErrorReporter>(errors: &E, node: ExprNode) -> Ty
         | ExprNode::Cast(..)
         | ExprNode::Struct(..)
         | ExprNode::Index(..) => {
-            errors.invalid_struct_literal_target(node.pos());
+            report_invalid_struct_literal_target(errors, node.pos());
             TypeExprNode::Invalid(node.pos())
         }
     }
@@ -1151,7 +1119,7 @@ const EXPR_RECOVERY_TOKENS: &[TokenKind] = &[
     TokenKind::Else,
 ];
 
-fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNode> {
+fn parse_primary_expr(f: &mut FileParser) -> Option<ExprNode> {
     match f.kind() {
         TokenKind::Ident { .. } => f.take_if_ident().map(ExprNode::Ident),
         TokenKind::NumberLit { .. } => f.take_number_lit().map(ExprNode::Number),
@@ -1169,7 +1137,7 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
         TokenKind::OpenBrac => {
             let open = f.take(TokenKind::OpenBrac).unwrap();
             let Some(expr) = parse_expr(f, true) else {
-                f.errors.missing(f.token().pos, "grouped expression");
+                report_missing(f.errors, f.token().pos, "grouped expression");
                 f.take_if(&TokenKind::CloseBrac);
                 return Some(ExprNode::Invalid(open.pos));
             };
@@ -1192,15 +1160,15 @@ fn parse_primary_expr<E: ErrorReporter>(f: &mut FileParser<E>) -> Option<ExprNod
         | TokenKind::Eof => None,
         _ => {
             let tok = f.pop();
-            f.errors.unexpected_token(tok.pos, tok.kind);
+            report_unexpected_token(f.errors, tok.pos, tok.kind);
             f.skip_until_before(EXPR_RECOVERY_TOKENS);
             Some(ExprNode::Invalid(tok.pos))
         }
     }
 }
 
-impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
-    fn new(errors: &'a Error, tokens: VecDeque<Token>) -> Self {
+impl<'a> FileParser<'a> {
+    fn new(errors: &'a ErrorManager, tokens: VecDeque<Token>) -> Self {
         debug_assert!(
             tokens
                 .back()
@@ -1249,7 +1217,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
             || starts_cast
             || starts_struct_literal
             || ends_expression;
-        if args.is_empty() || errors.has_errors() || !has_valid_follower {
+        if args.is_empty() || !errors.is_empty() || !has_valid_follower {
             return None;
         }
 
@@ -1259,7 +1227,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
 
     fn unexpected(&mut self, expected: impl Display) {
         let token = self.token();
-        self.errors.unexpected_parsing(token.pos, expected, token);
+        report_unexpected_parsing(self.errors, token.pos, expected, token);
     }
 
     fn token(&self) -> Token {
@@ -1290,7 +1258,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
         if token.kind == kind {
             Some(self.pop())
         } else {
-            self.errors.unexpected_parsing(token.pos, kind, token);
+            report_unexpected_parsing(self.errors, token.pos, kind, token);
             None
         }
     }
@@ -1307,7 +1275,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 pos: token.pos,
             })
         } else {
-            self.errors.unexpected_parsing(token.pos, "IDENT", token);
+            report_unexpected_parsing(self.errors, token.pos, "IDENT", token);
             None
         }
     }
@@ -1325,8 +1293,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 pos: token.pos,
             })
         } else {
-            self.errors
-                .unexpected_parsing(token.pos, "STRING_LIT", token);
+            report_unexpected_parsing(self.errors, token.pos, "STRING_LIT", token);
             None
         }
     }
@@ -1344,8 +1311,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 pos: token.pos,
             })
         } else {
-            self.errors
-                .unexpected_parsing(token.pos, "NUMBER_LIT", token);
+            report_unexpected_parsing(self.errors, token.pos, "NUMBER_LIT", token);
             None
         }
     }
@@ -1363,7 +1329,7 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
                 pos: token.pos,
             })
         } else {
-            self.errors.unexpected_parsing(token.pos, "CHAR_LIT", token);
+            report_unexpected_parsing(self.errors, token.pos, "CHAR_LIT", token);
             None
         }
     }
@@ -1547,32 +1513,33 @@ impl<'a, Error: ErrorReporter> FileParser<'a, Error> {
     }
 }
 
-trait ParsingError: ErrorReporter {
-    fn unexpected_parsing(&self, pos: Pos, expected: impl Display, found: impl Display) {
-        self.report(pos, format!("Expected {expected}, but found {found}"));
-    }
-
-    fn missing(&self, pos: Pos, component: impl Display) {
-        self.report(pos, format!("Missing {component}"));
-    }
-
-    fn unexpected_token(&self, pos: Pos, kind: TokenKind) {
-        self.report(pos, format!("Unexpected token {kind}"));
-    }
-
-    fn dangling_annotations(&self, pos: Pos) {
-        self.report(pos, String::from("There is no object to annotate"));
-    }
-
-    fn invalid_struct_literal_target(&self, pos: Pos) {
-        self.report(
-            pos,
-            String::from("Struct literal target must be a type expression"),
-        );
-    }
+fn report_unexpected_parsing(
+    errors: &ErrorManager,
+    pos: Pos,
+    expected: impl Display,
+    found: impl Display,
+) {
+    errors.report(pos, format!("Expected {expected}, but found {found}"));
 }
 
-impl<T> ParsingError for T where T: ErrorReporter {}
+fn report_missing(errors: &ErrorManager, pos: Pos, component: impl Display) {
+    errors.report(pos, format!("Missing {component}"));
+}
+
+fn report_unexpected_token(errors: &ErrorManager, pos: Pos, kind: TokenKind) {
+    errors.report(pos, format!("Unexpected token {kind}"));
+}
+
+fn report_dangling_annotations(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, String::from("There is no object to annotate"));
+}
+
+fn report_invalid_struct_literal_target(errors: &ErrorManager, pos: Pos) {
+    errors.report(
+        pos,
+        String::from("Struct literal target must be a type expression"),
+    );
+}
 
 #[cfg(test)]
 mod tests {
@@ -1625,7 +1592,7 @@ mod tests {
             let eof = tokens.last().unwrap().clone();
             let mut parser = FileParser::new(&errors, tokens.into());
             parse_root(&mut parser);
-            assert!(errors.has_errors(), "{source}");
+            assert!(!errors.is_empty(), "{source}");
             assert_eq!(parser.tokens.len(), 1, "{source}");
             assert_eq!(parser.token(), eof, "{source}");
         }

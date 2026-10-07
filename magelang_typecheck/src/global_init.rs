@@ -1,20 +1,18 @@
+use crate::DefId;
 use crate::analyze::{Context, ValueObject};
-use crate::errors::SemanticError;
+use crate::errors;
 use crate::expr::{Expr, ExprKind};
 use crate::statement::Statement;
-use crate::DefId;
 use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{ErrorReporter, Pos};
+use magelang_syntax::Pos;
 
-pub(crate) fn check_circular_global_intitialization<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
-) -> Vec<DefId<'a>> {
+pub(crate) fn check_circular_global_intitialization<'a>(ctx: &Context<'a, '_>) -> Vec<DefId<'a>> {
     let dep_list = build_global_initialization_dependency_list(ctx);
     sort_global_initialization_order(ctx, &dep_list)
 }
 
-fn build_global_initialization_dependency_list<'a, E>(
-    ctx: &Context<'a, '_, E>,
+fn build_global_initialization_dependency_list<'a>(
+    ctx: &Context<'a, '_>,
 ) -> IndexMap<DefId<'a>, (Pos, IndexSet<DefId<'a>>)> {
     let mut adjlist = IndexMap::<DefId, (Pos, IndexSet<DefId>)>::default();
 
@@ -38,10 +36,7 @@ fn build_global_initialization_dependency_list<'a, E>(
     adjlist
 }
 
-fn collect_global_dependencies<'a, E>(
-    ctx: &Context<'a, '_, E>,
-    expr: &Expr<'a>,
-) -> IndexSet<DefId<'a>> {
+fn collect_global_dependencies<'a>(ctx: &Context<'a, '_>, expr: &Expr<'a>) -> IndexSet<DefId<'a>> {
     let mut dependencies = IndexSet::default();
     let mut visited_funcs = IndexSet::default();
     let mut visiting_funcs = IndexSet::default();
@@ -55,8 +50,8 @@ fn collect_global_dependencies<'a, E>(
     dependencies
 }
 
-fn collect_func_dependencies<'a, E>(
-    ctx: &Context<'a, '_, E>,
+fn collect_func_dependencies<'a>(
+    ctx: &Context<'a, '_>,
     def_id: DefId<'a>,
     dependencies: &mut IndexSet<DefId<'a>>,
     visited_funcs: &mut IndexSet<DefId<'a>>,
@@ -86,8 +81,8 @@ fn collect_func_dependencies<'a, E>(
     visited_funcs.insert(def_id);
 }
 
-fn collect_statement_dependencies<'a, E>(
-    ctx: &Context<'a, '_, E>,
+fn collect_statement_dependencies<'a>(
+    ctx: &Context<'a, '_>,
     stmt: &Statement<'a>,
     dependencies: &mut IndexSet<DefId<'a>>,
     visited_funcs: &mut IndexSet<DefId<'a>>,
@@ -186,8 +181,8 @@ fn collect_statement_dependencies<'a, E>(
     }
 }
 
-fn collect_expr_dependencies<'a, E>(
-    ctx: &Context<'a, '_, E>,
+fn collect_expr_dependencies<'a>(
+    ctx: &Context<'a, '_>,
     expr: &Expr<'a>,
     dependencies: &mut IndexSet<DefId<'a>>,
     visited_funcs: &mut IndexSet<DefId<'a>>,
@@ -274,8 +269,8 @@ fn collect_expr_dependencies<'a, E>(
     }
 }
 
-fn sort_global_initialization_order<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn sort_global_initialization_order<'a>(
+    ctx: &Context<'a, '_>,
     dep_list: &IndexMap<DefId<'a>, (Pos, IndexSet<DefId<'a>>)>,
 ) -> Vec<DefId<'a>> {
     let mut init_order = Vec::default();
@@ -299,8 +294,8 @@ fn sort_global_initialization_order<'a, E: ErrorReporter>(
     init_order
 }
 
-fn visit_global<'a, E: ErrorReporter>(
-    ctx: &Context<'a, '_, E>,
+fn visit_global<'a>(
+    ctx: &Context<'a, '_>,
     dep_list: &IndexMap<DefId<'a>, (Pos, IndexSet<DefId<'a>>)>,
     name: DefId<'a>,
     visited: &mut IndexSet<DefId<'a>>,
@@ -339,8 +334,8 @@ fn visit_global<'a, E: ErrorReporter>(
     init_order.push(name);
 }
 
-fn report_circular_initialization<E: ErrorReporter>(
-    ctx: &Context<'_, '_, E>,
+fn report_circular_initialization(
+    ctx: &Context<'_, '_>,
     in_chain: &IndexSet<DefId>,
     start: DefId,
     pos: Pos,
@@ -362,5 +357,5 @@ fn report_circular_initialization<E: ErrorReporter>(
         chain_str.push(display);
     }
 
-    ctx.errors.circular_initialization(pos, &chain_str);
+    errors::report_circular_initialization(ctx.errors, pos, &chain_str);
 }

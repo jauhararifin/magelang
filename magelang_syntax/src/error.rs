@@ -25,20 +25,14 @@ impl Error {
     }
 }
 
-pub trait ErrorReporter {
-    fn report(&self, pos: impl Into<Option<Pos>>, message: String);
-
-    fn has_errors(&self) -> bool;
-}
-
 #[derive(Default)]
 pub struct ErrorManager {
     panic_on_error: bool,
     errors: RefCell<IndexSet<Error>>,
 }
 
-impl ErrorReporter for ErrorManager {
-    fn report(&self, pos: impl Into<Option<Pos>>, message: String) {
+impl ErrorManager {
+    pub fn report(&self, pos: impl Into<Option<Pos>>, message: String) {
         let err = Error::new(pos, message);
         if self.panic_on_error {
             panic!("pos={:?} message={}", err.pos, err.message);
@@ -46,12 +40,6 @@ impl ErrorReporter for ErrorManager {
         self.errors.borrow_mut().insert(err);
     }
 
-    fn has_errors(&self) -> bool {
-        !self.errors.borrow().is_empty()
-    }
-}
-
-impl ErrorManager {
     pub fn new_for_debug() -> Self {
         Self {
             panic_on_error: true,
@@ -60,9 +48,9 @@ impl ErrorManager {
     }
 
     pub fn take(&mut self) -> Vec<Error> {
-        let mut errs = self.errors.borrow_mut();
+        let errs = self.errors.get_mut();
         let mut errors: Vec<Error> = errs.drain(..).collect();
-        errors.sort_by(|a, b| a.pos.cmp(&b.pos));
+        errors.sort_by_key(|error| error.pos);
         errors
     }
 
@@ -74,6 +62,33 @@ impl ErrorManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn take_clears_diagnostics_and_allows_reporting_again() {
+        let mut errors = ErrorManager::default();
+        assert!(errors.is_empty());
+
+        for _ in 0..2 {
+            errors.report(None, "first error".into());
+            errors.report(None, "second error".into());
+            errors.report(None, "first error".into());
+            assert!(!errors.is_empty());
+            let messages: Vec<_> = errors
+                .take()
+                .into_iter()
+                .map(|error| error.message)
+                .collect();
+            assert_eq!(messages, ["first error", "second error"]);
+            assert!(errors.is_empty());
+            assert!(errors.take().is_empty());
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "pos=None message=debug error")]
+    fn debug_manager_panics_on_error() {
+        ErrorManager::new_for_debug().report(None, "debug error".into());
+    }
 
     #[test]
     fn diagnostics_without_positions_display_only_the_message() {

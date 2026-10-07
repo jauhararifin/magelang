@@ -1,10 +1,10 @@
 use crate::ast::BinaryOp;
-use crate::error::ErrorReporter;
+use crate::error::ErrorManager;
 use crate::number::Number;
 use crate::token::{File, Pos, Token, TokenKind};
 use num::BigInt;
 
-pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
+pub(crate) fn scan(errors: &ErrorManager, file: &File) -> Vec<Token> {
     let mut scanner = Scanner::new(errors, file);
     let mut tokens = Vec::default();
     while let Some(token) = scanner.scan() {
@@ -18,14 +18,14 @@ pub(crate) fn scan(errors: &impl ErrorReporter, file: &File) -> Vec<Token> {
     tokens
 }
 
-struct Scanner<'a, Error> {
-    errors: &'a Error,
+struct Scanner<'a> {
+    errors: &'a ErrorManager,
     text: &'a str,
     pos: Pos,
 }
 
-impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
-    fn new(errors: &'a Error, file: &'a File) -> Self {
+impl<'a> Scanner<'a> {
+    fn new(errors: &'a ErrorManager, file: &'a File) -> Self {
         Self {
             errors,
             text: &file.text,
@@ -109,7 +109,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             match c {
                 '\\' => self.scan_char_after_backslash(pos, raw),
                 '\'' => {
-                    self.errors.empty_character_literal(pos);
+                    report_empty_character_literal(self.errors, pos);
                     self.scan_char_closing(pos, raw, 0 as char)
                 }
                 _ => {
@@ -141,7 +141,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             '\'' => self.scan_char_closing(pos, raw, '\''),
             'x' => self.scan_char_hex(pos, raw),
             _ => {
-                self.errors.unexpected_char(p, c);
+                report_unexpected_char(self.errors, p, c);
                 self.scan_char_closing(pos, raw, 0 as char)
             }
         }
@@ -168,13 +168,13 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                         self.scan_char_closing(pos, raw, value as char)
                     }
                     _ => {
-                        self.errors.unexpected_char(p, c);
+                        report_unexpected_char(self.errors, p, c);
                         self.scan_char_closing(pos, raw, 0 as char)
                     }
                 }
             }
             _ => {
-                self.errors.unexpected_char(p, c);
+                report_unexpected_char(self.errors, p, c);
                 self.scan_char_closing(pos, raw, 0 as char)
             }
         }
@@ -193,7 +193,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let mut found_multichar = false;
         loop {
             let Some((c, p)) = self.next() else {
-                self.errors.missing_closing_quote(self.pos, "character");
+                report_missing_closing_quote(self.errors, self.pos, "character");
                 return Some(Token {
                     kind: TokenKind::CharLit { raw, value },
                     pos,
@@ -211,7 +211,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             }
 
             if !found_multichar {
-                self.errors.multiple_char_in_literal(p);
+                report_multiple_char_in_literal(self.errors, p);
                 found_multichar = true;
             }
         }
@@ -265,7 +265,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             '\'' => value.push(b'\''),
             '"' => value.push(b'"'),
             'x' => self.scan_string_hex(raw, value),
-            _ => self.errors.unexpected_char(p, c),
+            _ => report_unexpected_char(self.errors, p, c),
         }
     }
 
@@ -273,7 +273,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let Some((c, p)) = self.peek() else { return };
 
         if !c.is_ascii_hexdigit() {
-            self.errors.unexpected_char(p, c);
+            report_unexpected_char(self.errors, p, c);
             return;
         }
 
@@ -284,7 +284,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         let Some((c, p)) = self.peek() else { return };
 
         if !c.is_ascii_hexdigit() {
-            self.errors.unexpected_char(p, c);
+            report_unexpected_char(self.errors, p, c);
             return;
         }
 
@@ -297,7 +297,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
     fn scan_string_closing(&mut self, pos: Pos, mut raw: String, value: Vec<u8>) -> Option<Token> {
         let Some((c, _)) = self.next() else {
-            self.errors.missing_closing_quote(self.pos, "string");
+            report_missing_closing_quote(self.errors, self.pos, "string");
             return Some(Token {
                 kind: TokenKind::StringLit { raw, value },
                 pos,
@@ -452,7 +452,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
                 (Base::Bin, '2'..='9') | (Base::Oct, '8'..='9') => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
-                    self.errors.invalid_digit_in_base(p, c, base as u8);
+                    report_invalid_digit_in_base(self.errors, p, c, base as u8);
                     has_invalid_digit = true;
                 }
                 (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z')
@@ -464,7 +464,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         if !has_digit && !has_invalid_digit {
-            self.errors.missing_base_digits(self.pos, base as u8);
+            report_missing_base_digits(self.errors, self.pos, base as u8);
         }
 
         Some(Token {
@@ -509,7 +509,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
     fn scan_number_exponent(&mut self, pos: Pos, mut raw: String, value: Number) -> Option<Token> {
         assert!(value.float);
         let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
-            self.errors.missing_exponent_digits(self.pos);
+            report_missing_exponent_digits(self.errors, self.pos);
             return Some(Token {
                 kind: TokenKind::NumberLit { raw, value },
                 pos,
@@ -526,7 +526,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             '0'..='9' => self.scan_number_exponent_after_sign(false, pos, raw, value),
             'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
             _ => {
-                self.errors.missing_exponent_digits(p);
+                report_missing_exponent_digits(self.errors, p);
                 Some(Token {
                     kind: TokenKind::NumberLit { raw, value },
                     pos,
@@ -566,7 +566,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
         }
 
         if !has_exponent {
-            self.errors.missing_exponent_digits(self.pos);
+            report_missing_exponent_digits(self.errors, self.pos);
         }
 
         value.exp += exp_after_e;
@@ -594,8 +594,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
             invalid_suffix.push(c);
         }
 
-        self.errors
-            .invalid_number_suffix(invalid_suffix_pos, &invalid_suffix);
+        report_invalid_number_suffix(self.errors, invalid_suffix_pos, &invalid_suffix);
         Some(Token {
             kind: TokenKind::NumberLit { raw, value },
             pos,
@@ -708,7 +707,7 @@ impl<'a, Error: ErrorReporter> Scanner<'a, Error> {
 
     fn scan_invalid(&mut self) -> Option<Token> {
         let (c, pos) = self.next()?;
-        self.errors.unexpected_char(pos, c);
+        report_unexpected_char(self.errors, pos, c);
         Some(Token {
             kind: TokenKind::Invalid(c),
             pos,
@@ -764,61 +763,56 @@ enum Base {
     Hex = 16,
 }
 
-trait ScanningError: ErrorReporter {
-    fn unexpected_char(&self, pos: Pos, ch: char) {
-        self.report(pos, format!("Unexpected char '{ch}'"));
-    }
-
-    fn multiple_char_in_literal(&self, pos: Pos) {
-        self.report(
-            pos,
-            "Character literal may only contain one code point".to_string(),
-        );
-    }
-
-    fn empty_character_literal(&self, pos: Pos) {
-        self.report(pos, "Character literal cannot be empty".to_string());
-    }
-
-    fn missing_closing_quote(&self, pos: Pos, literal_kind: &str) {
-        self.report(
-            pos,
-            format!("Missing closing quote in {literal_kind} literal"),
-        );
-    }
-
-    fn invalid_digit_in_base(&self, pos: Pos, digit: char, base: u8) {
-        self.report(
-            pos,
-            format!("Cannot use '{digit}' in {base}-base integer literal"),
-        );
-    }
-
-    fn invalid_number_suffix(&self, pos: Pos, invalid_suffix: &str) {
-        self.report(
-            pos,
-            format!("Invalid suffix \"{invalid_suffix}\" for number literal"),
-        );
-    }
-
-    fn missing_base_digits(&self, pos: Pos, base: u8) {
-        self.report(
-            pos,
-            format!("Expected at least one digit in {base}-base integer literal"),
-        );
-    }
-
-    fn missing_exponent_digits(&self, pos: Pos) {
-        self.report(pos, String::from("The exponent has no digits"));
-    }
+fn report_unexpected_char(errors: &ErrorManager, pos: Pos, ch: char) {
+    errors.report(pos, format!("Unexpected char '{ch}'"));
 }
 
-impl<T> ScanningError for T where T: ErrorReporter {}
+fn report_multiple_char_in_literal(errors: &ErrorManager, pos: Pos) {
+    errors.report(
+        pos,
+        "Character literal may only contain one code point".to_string(),
+    );
+}
+
+fn report_empty_character_literal(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, "Character literal cannot be empty".to_string());
+}
+
+fn report_missing_closing_quote(errors: &ErrorManager, pos: Pos, literal_kind: &str) {
+    errors.report(
+        pos,
+        format!("Missing closing quote in {literal_kind} literal"),
+    );
+}
+
+fn report_invalid_digit_in_base(errors: &ErrorManager, pos: Pos, digit: char, base: u8) {
+    errors.report(
+        pos,
+        format!("Cannot use '{digit}' in {base}-base integer literal"),
+    );
+}
+
+fn report_invalid_number_suffix(errors: &ErrorManager, pos: Pos, invalid_suffix: &str) {
+    errors.report(
+        pos,
+        format!("Invalid suffix \"{invalid_suffix}\" for number literal"),
+    );
+}
+
+fn report_missing_base_digits(errors: &ErrorManager, pos: Pos, base: u8) {
+    errors.report(
+        pos,
+        format!("Expected at least one digit in {base}-base integer literal"),
+    );
+}
+
+fn report_missing_exponent_digits(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, String::from("The exponent has no digits"));
+}
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::error::ErrorManager;
     use crate::token::FileManager;
     use core::str::FromStr;
     use std::path::PathBuf;
@@ -925,7 +919,7 @@ string""#
             }
         );
 
-        assert!(!error_manager.has_errors());
+        assert!(error_manager.is_empty());
     }
 
     #[test]
@@ -1484,7 +1478,7 @@ string""#
             .unwrap();
         let errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
-        assert!(!errors.has_errors());
+        assert!(errors.is_empty());
         assert_eq!(tokens.len(), 7);
         for (token, expected_raw) in tokens
             .iter()

@@ -1,10 +1,10 @@
 use crate::data::DataManager;
-use crate::errors::CodegenError;
+use crate::errors;
 use crate::expr::ExprBuilder;
 use crate::func::{FuncMapper, Function};
-use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
+use crate::ty::{AlignNormalize, PrimitiveType, TypeManager, build_val_type};
 use crate::var::{GlobalManager, LocalManager};
-use magelang_syntax::{BinaryOp, ErrorReporter};
+use magelang_syntax::{BinaryOp, ErrorManager};
 use magelang_typecheck::{
     Expr, ExprKind, ForStatement, IfStatement, Module, Statement, WhileStatement,
 };
@@ -12,9 +12,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use wasm_helper as wasm;
 
-pub(crate) fn build_function<'a, 'ctx, E: ErrorReporter>(
-    errors: &'ctx E,
-    data_manager: &'a DataManager<'ctx, E>,
+pub(crate) fn build_function<'a, 'ctx>(
+    errors: &'ctx ErrorManager,
+    data_manager: &'a DataManager<'ctx>,
     type_manager: &'a TypeManager<'ctx>,
     global_manager: &'a GlobalManager<'ctx>,
     func_manager: &'a FuncMapper<'ctx>,
@@ -55,9 +55,9 @@ pub(crate) fn build_function<'a, 'ctx, E: ErrorReporter>(
     builder.build()
 }
 
-pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
-    errors: &'ctx E,
-    data_manager: &'a DataManager<'ctx, E>,
+pub(crate) fn build_init_function<'a, 'ctx>(
+    errors: &'ctx ErrorManager,
+    data_manager: &'a DataManager<'ctx>,
     type_manager: &'a TypeManager<'ctx>,
     global_manager: &'a GlobalManager<'ctx>,
     func_manager: &'a FuncMapper<'ctx>,
@@ -123,17 +123,17 @@ pub(crate) fn build_init_function<'a, 'ctx, E: ErrorReporter>(
     }
 }
 
-struct FuncBuilder<'a, 'ctx, E> {
-    errors: &'a E,
+struct FuncBuilder<'a, 'ctx> {
+    errors: &'a ErrorManager,
     locals: &'a LocalManager,
     globals: &'a GlobalManager<'ctx>,
     types: &'a TypeManager<'ctx>,
     func: &'a Function<'ctx>,
-    exprs: ExprBuilder<'a, 'ctx, E>,
+    exprs: ExprBuilder<'a, 'ctx>,
     pending_defers: RefCell<Vec<&'ctx Statement<'ctx>>>,
 }
 
-impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
+impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
     fn build(self) -> wasm::Func {
         let stmt = if let Some(body) = self.func.body {
             let mut stmt = self.build_statement(0, 0, 0, body);
@@ -399,7 +399,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
 
         let val_types = build_val_type(value.ty);
         let Some(mem_layout) = self.types.get_mem_layout(value.ty) else {
-            self.errors.storing_opaque(value.pos);
+            errors::report_storing_opaque(self.errors, value.pos);
             return vec![wasm::Instr::Unreachable];
         };
 
@@ -416,7 +416,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
                 align: component.align.normalize(),
             };
             let Some(store_instr) = ty.store_instr() else {
-                self.errors.storing_opaque(value.pos);
+                errors::report_storing_opaque(self.errors, value.pos);
                 return vec![wasm::Instr::Unreachable];
             };
 
@@ -484,7 +484,7 @@ impl<'a, 'ctx, E: ErrorReporter> FuncBuilder<'a, 'ctx, E> {
             val_type.load_instr(),
             val_type.store_instr(),
         ) else {
-            self.errors.storing_opaque(target.pos);
+            errors::report_storing_opaque(self.errors, target.pos);
             return vec![wasm::Instr::Unreachable];
         };
         let component = &mem_layout.components[0];
