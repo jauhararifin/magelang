@@ -1,4 +1,4 @@
-use num::{bigint::TryFromBigIntError, traits::Signed, BigInt, Zero};
+use num::{BigInt, Zero, bigint::TryFromBigIntError, traits::Signed};
 use std::num::ParseFloatError;
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Hash)]
@@ -13,11 +13,7 @@ impl Number {
     where
         T: Into<BigInt>,
     {
-        Self {
-            val: base.into(),
-            exp: exp.into(),
-            float,
-        }
+        Self { val: base.into(), exp: exp.into(), float }
     }
 
     pub fn is_int(&self) -> bool {
@@ -28,11 +24,7 @@ impl Number {
             exp += 1;
         }
 
-        if exp.is_negative() {
-            false
-        } else {
-            !self.float
-        }
+        if exp.is_negative() { false } else { !self.float }
     }
 
     pub fn to_int(&self) -> Result<BigInt, TryFromNumberError> {
@@ -137,13 +129,7 @@ mod tests {
 
     test!(test_0e0, 0, 0, 0, u8);
     test!(test_1e0, 1, 0, 1, u8);
-    test!(
-        test_5744368105847e0,
-        5744368105847i64,
-        0,
-        5744368105847i64,
-        i64
-    );
+    test!(test_5744368105847e0, 5744368105847i64, 0, 5744368105847i64, i64);
 
     test!(test_123_p_123, 123123, -3, 123.123f64, f64);
     test!(test_123e123, 123, 123, 123e123, f64);

@@ -16,20 +16,12 @@ fn build_global_initialization_dependency_list<'a>(
 ) -> IndexMap<DefId<'a>, (Pos, IndexSet<DefId<'a>>)> {
     let mut adjlist = IndexMap::<DefId, (Pos, IndexSet<DefId>)>::default();
 
-    for value_object in ctx
-        .scopes
-        .values()
-        .flat_map(|scopes| scopes.value_scopes.iter())
-        .map(|(_, obj)| obj)
-    {
+    for value_object in ctx.scopes.values().flat_map(|scopes| scopes.value_scopes.iter()).map(|(_, obj)| obj) {
         let ValueObject::Global(global_object) = value_object else {
             continue;
         };
 
-        let dependencies = collect_global_dependencies(
-            ctx,
-            global_object.value.get().expect("missing global expr"),
-        );
+        let dependencies = collect_global_dependencies(ctx, global_object.value.get().expect("missing global expr"));
         adjlist.insert(global_object.def_id, (global_object.node.pos, dependencies));
     }
 
@@ -40,13 +32,7 @@ fn collect_global_dependencies<'a>(ctx: &Context<'a, '_>, expr: &Expr<'a>) -> In
     let mut dependencies = IndexSet::default();
     let mut visited_funcs = IndexSet::default();
     let mut visiting_funcs = IndexSet::default();
-    collect_expr_dependencies(
-        ctx,
-        expr,
-        &mut dependencies,
-        &mut visited_funcs,
-        &mut visiting_funcs,
-    );
+    collect_expr_dependencies(ctx, expr, &mut dependencies, &mut visited_funcs, &mut visiting_funcs);
     dependencies
 }
 
@@ -61,10 +47,8 @@ fn collect_func_dependencies<'a>(
         return;
     }
 
-    let Some(ValueObject::Func(func_object)) = ctx
-        .scopes
-        .get(def_id.package)
-        .and_then(|scope| scope.value_scopes.lookup(def_id.name))
+    let Some(ValueObject::Func(func_object)) =
+        ctx.scopes.get(def_id.package).and_then(|scope| scope.value_scopes.lookup(def_id.name))
     else {
         return;
     };
@@ -95,73 +79,31 @@ fn collect_statement_dependencies<'a>(
         }
         Statement::Block(statements) => {
             for stmt in statements.iter() {
-                collect_statement_dependencies(
-                    ctx,
-                    stmt,
-                    dependencies,
-                    visited_funcs,
-                    visiting_funcs,
-                );
+                collect_statement_dependencies(ctx, stmt, dependencies, visited_funcs, visiting_funcs);
             }
         }
         Statement::If(stmt) => {
             collect_expr_dependencies(ctx, &stmt.cond, dependencies, visited_funcs, visiting_funcs);
-            collect_statement_dependencies(
-                ctx,
-                &stmt.body,
-                dependencies,
-                visited_funcs,
-                visiting_funcs,
-            );
+            collect_statement_dependencies(ctx, &stmt.body, dependencies, visited_funcs, visiting_funcs);
             if let Some(else_stmt) = &stmt.else_stmt {
-                collect_statement_dependencies(
-                    ctx,
-                    else_stmt,
-                    dependencies,
-                    visited_funcs,
-                    visiting_funcs,
-                );
+                collect_statement_dependencies(ctx, else_stmt, dependencies, visited_funcs, visiting_funcs);
             }
         }
         Statement::While(stmt) => {
             collect_expr_dependencies(ctx, &stmt.cond, dependencies, visited_funcs, visiting_funcs);
-            collect_statement_dependencies(
-                ctx,
-                &stmt.body,
-                dependencies,
-                visited_funcs,
-                visiting_funcs,
-            );
+            collect_statement_dependencies(ctx, &stmt.body, dependencies, visited_funcs, visiting_funcs);
         }
         Statement::For(stmt) => {
             if let Some(init) = &stmt.init {
-                collect_statement_dependencies(
-                    ctx,
-                    init,
-                    dependencies,
-                    visited_funcs,
-                    visiting_funcs,
-                );
+                collect_statement_dependencies(ctx, init, dependencies, visited_funcs, visiting_funcs);
             }
             if let Some(cond) = &stmt.cond {
                 collect_expr_dependencies(ctx, cond, dependencies, visited_funcs, visiting_funcs);
             }
             if let Some(update) = &stmt.update {
-                collect_statement_dependencies(
-                    ctx,
-                    update,
-                    dependencies,
-                    visited_funcs,
-                    visiting_funcs,
-                );
+                collect_statement_dependencies(ctx, update, dependencies, visited_funcs, visiting_funcs);
             }
-            collect_statement_dependencies(
-                ctx,
-                &stmt.body,
-                dependencies,
-                visited_funcs,
-                visiting_funcs,
-            );
+            collect_statement_dependencies(ctx, &stmt.body, dependencies, visited_funcs, visiting_funcs);
         }
         Statement::Defer(stmt) => {
             collect_statement_dependencies(ctx, stmt, dependencies, visited_funcs, visiting_funcs);
@@ -234,13 +176,7 @@ fn collect_expr_dependencies<'a>(
 
             match callee.kind {
                 ExprKind::Func(def_id) | ExprKind::FuncInst(def_id, _) => {
-                    collect_func_dependencies(
-                        ctx,
-                        def_id,
-                        dependencies,
-                        visited_funcs,
-                        visiting_funcs,
-                    );
+                    collect_func_dependencies(ctx, def_id, dependencies, visited_funcs, visiting_funcs);
                 }
                 _ => {}
             }
@@ -281,14 +217,7 @@ fn sort_global_initialization_order<'a>(
         if visited.contains(name) {
             continue;
         }
-        visit_global(
-            ctx,
-            dep_list,
-            *name,
-            &mut visited,
-            &mut in_chain,
-            &mut init_order,
-        );
+        visit_global(ctx, dep_list, *name, &mut visited, &mut in_chain, &mut init_order);
     }
 
     init_order
@@ -334,12 +263,7 @@ fn visit_global<'a>(
     init_order.push(name);
 }
 
-fn report_circular_initialization(
-    ctx: &Context<'_, '_>,
-    in_chain: &IndexSet<DefId>,
-    start: DefId,
-    pos: Pos,
-) {
+fn report_circular_initialization(ctx: &Context<'_, '_>, in_chain: &IndexSet<DefId>, start: DefId, pos: Pos) {
     let mut chain = Vec::default();
     let mut started = false;
     for name in in_chain {

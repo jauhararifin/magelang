@@ -2,7 +2,7 @@ use crate::context::Context;
 use crate::data::DataManager;
 use crate::errors;
 use crate::mangling::Mangle;
-use crate::ty::{PrimitiveType, TypeManager, build_val_type};
+use crate::ty::{build_val_type, PrimitiveType, TypeManager};
 use magelang_syntax::Pos;
 use magelang_typecheck::{Annotation, DefId, Func, FuncType, Statement, TypeArgs};
 use std::collections::HashMap;
@@ -47,10 +47,7 @@ const WASM_EXPORT_ANNOTATION: &str = "wasm_export";
 const INTRINSIC_ANNOTATION: &str = "intrinsic";
 const MAIN_ANNOTATION: &str = "main";
 
-pub(crate) fn setup_functions<'ctx>(
-    ctx: &Context<'ctx>,
-    type_manager: &TypeManager<'ctx>,
-) -> Vec<Function<'ctx>> {
+pub(crate) fn setup_functions<'ctx>(ctx: &Context<'ctx>, type_manager: &TypeManager<'ctx>) -> Vec<Function<'ctx>> {
     let mut functions = init_functions(ctx, type_manager);
 
     // it is important that the imported function appear first due to wasm specification
@@ -66,10 +63,7 @@ pub(crate) fn setup_functions<'ctx>(
     functions
 }
 
-fn init_functions<'ctx>(
-    ctx: &Context<'ctx>,
-    type_manager: &TypeManager<'ctx>,
-) -> Vec<Function<'ctx>> {
+fn init_functions<'ctx>(ctx: &Context<'ctx>, type_manager: &TypeManager<'ctx>) -> Vec<Function<'ctx>> {
     let mut results = Vec::default();
 
     let functions = ctx.module.packages.iter().flat_map(|pkg| &pkg.functions);
@@ -82,28 +76,15 @@ fn init_functions<'ctx>(
             parameters.extend(val_types.into_iter().map(Into::<wasm::ValType>::into));
         }
 
-        let returns = build_val_type(func_type.return_type)
-            .into_iter()
-            .map(PrimitiveType::into)
-            .collect();
-        let func_wasm_type_id = type_manager.get_func_type(wasm::FuncType {
-            parameters,
-            returns,
-        });
+        let returns = build_val_type(func_type.return_type).into_iter().map(PrimitiveType::into).collect();
+        let func_wasm_type_id = type_manager.get_func_type(wasm::FuncType { parameters, returns });
 
         let mangled_name = func.get_mangled_name(ctx);
 
-        let body = if matches!(func.statement, Statement::Native) {
-            None
-        } else {
-            Some(func.statement)
-        };
+        let body = if matches!(func.statement, Statement::Native) { None } else { Some(func.statement) };
 
         let mut result = Function {
-            id: FuncId {
-                def_id: func.name,
-                typeargs: func.typeargs,
-            },
+            id: FuncId { def_id: func.name, typeargs: func.typeargs },
             ty: func_type,
             mangled_name,
             pos: func.pos,
@@ -214,11 +195,7 @@ const INTRINSIC_SIZE_OF: &str = "size_of";
 const INTRINSIC_ALIGN_OF: &str = "align_of";
 const INTRINSIC_TRAP: &str = "unreachable";
 
-fn setup_func_intrinsic<'ctx>(
-    ctx: &Context<'ctx>,
-    annotation: &Annotation,
-    func: &Func<'ctx>,
-) -> Option<Intrinsic> {
+fn setup_func_intrinsic<'ctx>(ctx: &Context<'ctx>, annotation: &Annotation, func: &Func<'ctx>) -> Option<Intrinsic> {
     let intrinsic_name = annotation.arguments[0].as_str();
     let intrinsic = match intrinsic_name {
         INTRINSIC_MEMORY_SIZE => Some(Intrinsic::MemorySize),
@@ -242,9 +219,7 @@ fn setup_func_intrinsic<'ctx>(
     let func_type = func.ty.as_func().unwrap();
     let is_valid = match intrinsic {
         Intrinsic::MemorySize => {
-            func.typeargs.is_none()
-                && func_type.return_type.is_usize()
-                && func_type.params.is_empty()
+            func.typeargs.is_none() && func_type.return_type.is_usize() && func_type.params.is_empty()
         }
         Intrinsic::MemoryGrow => {
             func.typeargs.is_none()
@@ -277,9 +252,7 @@ fn setup_func_intrinsic<'ctx>(
                 && func_type.params[0].is_f64()
         }
         Intrinsic::DataEnd => {
-            func.typeargs.is_none()
-                && func_type.return_type.is_usize()
-                && func_type.params.is_empty()
+            func.typeargs.is_none() && func_type.return_type.is_usize() && func_type.params.is_empty()
         }
         Intrinsic::TableGet => {
             func.typeargs.is_none()
@@ -304,11 +277,7 @@ fn setup_func_intrinsic<'ctx>(
                 && func_type.return_type.is_usize()
                 && func_type.params.is_empty()
         }
-        Intrinsic::Trap => {
-            func.typeargs.is_none()
-                && func_type.return_type.is_void()
-                && func_type.params.is_empty()
-        }
+        Intrinsic::Trap => func.typeargs.is_none() && func_type.return_type.is_void() && func_type.params.is_empty(),
     };
 
     if !is_valid {
@@ -358,12 +327,7 @@ fn check_imports_exports<'ctx>(ctx: &Context<'ctx>, functions: &[Function<'ctx>]
 
         if let Some(name) = &func.export {
             if let Some(declared_at) = exports.get(name) {
-                errors::report_duplicated_export(
-                    ctx.errors,
-                    func.pos,
-                    name,
-                    ctx.files.location(*declared_at),
-                );
+                errors::report_duplicated_export(ctx.errors, func.pos, name, ctx.files.location(*declared_at));
             } else {
                 exports.insert(name, func.pos);
             }
@@ -427,10 +391,7 @@ impl<'ctx> FuncMapper<'ctx> {
             });
 
             if let Some(name) = func.export {
-                exports.push(wasm::Export {
-                    name: name.to_string(),
-                    desc: wasm::ExportDesc::Func(func_id),
-                });
+                exports.push(wasm::Export { name: name.to_string(), desc: wasm::ExportDesc::Func(func_id) });
             }
 
             if let Some((module_name, object_name)) = func.import {
@@ -442,13 +403,7 @@ impl<'ctx> FuncMapper<'ctx> {
             }
         }
 
-        Self {
-            func_map,
-            func_elems,
-            main_func,
-            imports,
-            exports,
-        }
+        Self { func_map, func_elems, main_func, imports, exports }
     }
 }
 
@@ -487,11 +442,7 @@ pub(crate) fn build_intrinsic_func<'ctx>(
                 vec![wasm::Instr::LocalGet(0), wasm::Instr::TableGet(1)]
             }
             Intrinsic::TableSet => {
-                vec![
-                    wasm::Instr::LocalGet(0),
-                    wasm::Instr::LocalGet(1),
-                    wasm::Instr::TableSet(1),
-                ]
+                vec![wasm::Instr::LocalGet(0), wasm::Instr::LocalGet(1), wasm::Instr::TableSet(1)]
             }
             Intrinsic::SizeOf => {
                 let typeargs = func.id.typeargs.unwrap();

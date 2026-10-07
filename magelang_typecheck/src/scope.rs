@@ -13,37 +13,24 @@ struct ScopeInternal<'a, T> {
 
 impl<'a, T> Default for Scope<'a, T> {
     fn default() -> Self {
-        Self {
-            internal: Rc::new(ScopeInternal {
-                table: IndexMap::default(),
-                parent: None,
-            }),
-        }
+        Self { internal: Rc::new(ScopeInternal { table: IndexMap::default(), parent: None }) }
     }
 }
 
 impl<'a, T> Clone for Scope<'a, T> {
     fn clone(&self) -> Self {
-        Self {
-            internal: self.internal.clone(),
-        }
+        Self { internal: self.internal.clone() }
     }
 }
 
 impl<'a, T> Scope<'a, T> {
     pub(crate) fn new(table: IndexMap<Symbol<'a>, T>) -> Self {
-        let internal = Rc::new(ScopeInternal {
-            table,
-            parent: None,
-        });
+        let internal = Rc::new(ScopeInternal { table, parent: None });
         Self { internal }
     }
 
     pub(crate) fn new_child(&self, table: IndexMap<Symbol<'a>, T>) -> Self {
-        let internal = Rc::new(ScopeInternal {
-            table,
-            parent: Some(self.internal.clone()),
-        });
+        let internal = Rc::new(ScopeInternal { table, parent: Some(self.internal.clone()) });
         Self { internal }
     }
 

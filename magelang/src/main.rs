@@ -1,13 +1,13 @@
 use bumpalo::Bump;
 use clap::{Parser, Subcommand};
-use magelang_syntax::{ErrorManager, FileManager, parse};
+use magelang_syntax::{parse, ErrorManager, FileManager};
 use magelang_typecheck::analyze;
 use magelang_wasmgen::generate;
 use std::io::Write;
 use wasm_helper::Serializer;
 use wasmtime::{Engine, Linker, Module, Store};
-use wasmtime_wasi::WasiCtxBuilder;
 use wasmtime_wasi::p1::{self, WasiP1Ctx};
+use wasmtime_wasi::WasiCtxBuilder;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -56,21 +56,9 @@ fn main() {
     let args = Cli::parse();
     match args.command {
         Commands::Parse { file_name, output } => parse_ast(file_name, output),
-        Commands::Analyze {
-            package_name,
-            debug,
-            output,
-        } => analyze_package(package_name, debug, output),
-        Commands::Compile {
-            package_name,
-            debug,
-            noopt,
-            output,
-        } => compile(package_name, debug, !noopt, output),
-        Commands::Run {
-            package_name,
-            debug,
-        } => run(package_name, debug),
+        Commands::Analyze { package_name, debug, output } => analyze_package(package_name, debug, output),
+        Commands::Compile { package_name, debug, noopt, output } => compile(package_name, debug, !noopt, output),
+        Commands::Run { package_name, debug } => run(package_name, debug),
     }
 }
 
@@ -81,10 +69,7 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
     let file = match file_manager.open(file_name) {
         Ok(file) => file,
         Err(err) => {
-            eprintln!(
-                "Cannot open file {}: {err}",
-                displayed_path.to_string_lossy()
-            );
+            eprintln!("Cannot open file {}: {err}", displayed_path.to_string_lossy());
             std::process::exit(-1);
         }
     };
@@ -111,11 +96,7 @@ fn parse_ast(file_name: std::path::PathBuf, output: Option<std::path::PathBuf>) 
 }
 
 fn analyze_package(package_name: String, debug: bool, output: Option<std::path::PathBuf>) {
-    let mut error_manager = if debug {
-        ErrorManager::new_for_debug()
-    } else {
-        ErrorManager::default()
-    };
+    let mut error_manager = if debug { ErrorManager::new_for_debug() } else { ErrorManager::default() };
     let mut file_manager = FileManager::default();
     let arena = Bump::default();
     let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
@@ -136,11 +117,7 @@ fn analyze_package(package_name: String, debug: bool, output: Option<std::path::
 }
 
 fn compile(package_name: String, debug: bool, optimize: bool, output: std::path::PathBuf) {
-    let mut error_manager = if debug {
-        ErrorManager::new_for_debug()
-    } else {
-        ErrorManager::default()
-    };
+    let mut error_manager = if debug { ErrorManager::new_for_debug() } else { ErrorManager::default() };
     let mut file_manager = FileManager::default();
 
     let arena = Bump::default();
@@ -160,34 +137,21 @@ fn compile(package_name: String, debug: bool, optimize: bool, output: std::path:
     };
 
     let mut raw_module = Vec::<u8>::default();
-    wasm_module
-        .serialize(&mut raw_module)
-        .expect("cannot serialize wasm module");
+    wasm_module.serialize(&mut raw_module).expect("cannot serialize wasm module");
 
     let mut f = std::fs::File::create(output).expect("cannot create output file");
     if optimize {
-        let mut wasm_module =
-            binaryen::Module::read(&raw_module).expect("can't read wasm module for optimization");
-        wasm_module.optimize(&binaryen::CodegenConfig {
-            shrink_level: 2,
-            optimization_level: 2,
-            debug_info: true,
-        });
+        let mut wasm_module = binaryen::Module::read(&raw_module).expect("can't read wasm module for optimization");
+        wasm_module.optimize(&binaryen::CodegenConfig { shrink_level: 2, optimization_level: 2, debug_info: true });
 
-        f.write_all(&wasm_module.write())
-            .expect("cannot write wasm module to output file");
+        f.write_all(&wasm_module.write()).expect("cannot write wasm module to output file");
     } else {
-        f.write_all(&raw_module)
-            .expect("cannot write wasm module to output file");
+        f.write_all(&raw_module).expect("cannot write wasm module to output file");
     }
 }
 
 fn run(package_name: String, debug: bool) {
-    let mut error_manager = if debug {
-        ErrorManager::new_for_debug()
-    } else {
-        ErrorManager::default()
-    };
+    let mut error_manager = if debug { ErrorManager::new_for_debug() } else { ErrorManager::default() };
     let mut file_manager = FileManager::default();
 
     let arena = Bump::default();
@@ -207,19 +171,14 @@ fn run(package_name: String, debug: bool) {
     };
 
     let mut module = Vec::<u8>::default();
-    wasm_module
-        .serialize(&mut module)
-        .expect("cannot write wasm to target file");
+    wasm_module.serialize(&mut module).expect("cannot write wasm to target file");
 
     let engine = Engine::default();
 
     let module = Module::from_binary(&engine, &module).expect("cannot load wasm module");
     let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
     p1::add_to_linker_sync(&mut linker, |s| s).expect("cannot link wasi to the linker");
-    let wasi = WasiCtxBuilder::new()
-        .inherit_stdio()
-        .inherit_args()
-        .build_p1();
+    let wasi = WasiCtxBuilder::new().inherit_stdio().inherit_args().build_p1();
     let mut store = Store::new(&engine, wasi);
     linker.instantiate(&mut store, &module).unwrap();
 }

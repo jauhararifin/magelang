@@ -152,12 +152,7 @@ impl<'ctx> DataManager<'ctx> {
             self.init_from_annotations(&global.annotations);
         }
 
-        let functions = self
-            .ctx
-            .module
-            .packages
-            .iter()
-            .flat_map(|pkg| &pkg.functions);
+        let functions = self.ctx.module.packages.iter().flat_map(|pkg| &pkg.functions);
         for func in functions {
             self.init_from_stmt(func.statement);
         }
@@ -245,10 +240,7 @@ impl<'ctx> DataManager<'ctx> {
         self.ctx.arena.alloc_slice_copy(&buff)
     }
 
-    pub(crate) fn get_embed_file_annotation(
-        &self,
-        annotations: &'ctx [Annotation],
-    ) -> Option<(Pos, &'ctx Path)> {
+    pub(crate) fn get_embed_file_annotation(&self, annotations: &'ctx [Annotation]) -> Option<(Pos, &'ctx Path)> {
         let mut result = None;
         for annotation in annotations.iter().rev() {
             let name = annotation.name.as_str();

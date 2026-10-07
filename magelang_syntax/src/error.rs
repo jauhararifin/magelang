@@ -11,10 +11,7 @@ pub struct Error {
 
 impl Error {
     pub fn new(pos: impl Into<Option<Pos>>, message: String) -> Self {
-        Self {
-            pos: pos.into(),
-            message,
-        }
+        Self { pos: pos.into(), message }
     }
 
     pub fn display(&self, file_manager: &FileManager) -> impl Display {
@@ -41,10 +38,7 @@ impl ErrorManager {
     }
 
     pub fn new_for_debug() -> Self {
-        Self {
-            panic_on_error: true,
-            errors: RefCell::default(),
-        }
+        Self { panic_on_error: true, errors: RefCell::default() }
     }
 
     pub fn take(&mut self) -> Vec<Error> {
@@ -73,11 +67,7 @@ mod tests {
             errors.report(None, "second error".into());
             errors.report(None, "first error".into());
             assert!(!errors.is_empty());
-            let messages: Vec<_> = errors
-                .take()
-                .into_iter()
-                .map(|error| error.message)
-                .collect();
+            let messages: Vec<_> = errors.take().into_iter().map(|error| error.message).collect();
             assert_eq!(messages, ["first error", "second error"]);
             assert!(errors.is_empty());
             assert!(errors.take().is_empty());
@@ -107,36 +97,14 @@ mod tests {
     #[test]
     fn diagnostics_are_ordered_by_file_line_and_column() {
         let mut files = FileManager::default();
-        let first = files
-            .add_file("first.mg".into(), "one\nabcdefgh\nthree".into())
-            .unwrap();
+        let first = files.add_file("first.mg".into(), "one\nabcdefgh\nthree".into()).unwrap();
         let second = files.add_file("second.mg".into(), "two".into()).unwrap();
         let positions = [
-            Pos {
-                file: first.id,
-                line: 1,
-                col: 1,
-            },
-            Pos {
-                file: first.id,
-                line: 2,
-                col: 3,
-            },
-            Pos {
-                file: first.id,
-                line: 2,
-                col: 9,
-            },
-            Pos {
-                file: first.id,
-                line: 3,
-                col: 1,
-            },
-            Pos {
-                file: second.id,
-                line: 1,
-                col: 1,
-            },
+            Pos { file: first.id, line: 1, col: 1 },
+            Pos { file: first.id, line: 2, col: 3 },
+            Pos { file: first.id, line: 2, col: 9 },
+            Pos { file: first.id, line: 3, col: 1 },
+            Pos { file: second.id, line: 1, col: 1 },
         ];
         let mut errors = ErrorManager::default();
         for pos in positions.into_iter().rev() {

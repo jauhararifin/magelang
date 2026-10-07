@@ -11,9 +11,7 @@ pub(crate) fn get_stdlib_path() -> PathBuf {
 }
 
 fn get_stdlib_path_from_cargo() -> Option<PathBuf> {
-    let pathbuf = std::env::var("CARGO_MANIFEST_DIR")
-        .map(PathBuf::from)
-        .ok()?;
+    let pathbuf = std::env::var("CARGO_MANIFEST_DIR").map(PathBuf::from).ok()?;
     let pathbuf = pathbuf.join("lib/");
     if !pathbuf.exists() {
         return None;
@@ -51,9 +49,7 @@ fn get_stdlib_path_from_current_exe() -> Option<PathBuf> {
 }
 
 fn get_stdlib_path_from_current_home() -> PathBuf {
-    let pathbuf = home::home_dir()
-        .map(|path| path.join("magelang"))
-        .expect("cannot get home directory");
+    let pathbuf = home::home_dir().map(|path| path.join("magelang")).expect("cannot get home directory");
     pathbuf.join("lib/")
 }
 
@@ -75,9 +71,5 @@ fn get_stdlib_package_path(stdlib_path: &Path, package_name: &str) -> Option<Pat
     let path = PathBuf::from(package_name);
     package_path.push(path);
     package_path.as_mut_os_string().push(".mg");
-    if package_path.exists() {
-        Some(package_path)
-    } else {
-        None
-    }
+    if package_path.exists() { Some(package_path) } else { None }
 }

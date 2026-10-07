@@ -10,11 +10,7 @@ pub(crate) fn scan(errors: &ErrorManager, file: &File) -> Vec<Token> {
     while let Some(token) = scanner.scan() {
         tokens.push(token);
     }
-    tokens.push(Token {
-        kind: TokenKind::Eof,
-        pos: scanner.pos,
-        spacing: false,
-    });
+    tokens.push(Token { kind: TokenKind::Eof, pos: scanner.pos, spacing: false });
     tokens
 }
 
@@ -26,15 +22,7 @@ struct Scanner<'a> {
 
 impl<'a> Scanner<'a> {
     fn new(errors: &'a ErrorManager, file: &'a File) -> Self {
-        Self {
-            errors,
-            text: &file.text,
-            pos: Pos {
-                file: file.id,
-                line: 1,
-                col: 1,
-            },
-        }
+        Self { errors, text: &file.text, pos: Pos { file: file.id, line: 1, col: 1 } }
     }
 
     fn scan(&mut self) -> Option<Token> {
@@ -94,11 +82,7 @@ impl<'a> Scanner<'a> {
             _ => TokenKind::Ident(value),
         };
 
-        Some(Token {
-            kind,
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind, pos, spacing: false })
     }
 
     fn scan_char_lit(&mut self) -> Option<Token> {
@@ -194,20 +178,12 @@ impl<'a> Scanner<'a> {
         loop {
             let Some((c, p)) = self.next() else {
                 report_missing_closing_quote(self.errors, self.pos, "character");
-                return Some(Token {
-                    kind: TokenKind::CharLit { raw, value },
-                    pos,
-                    spacing: false,
-                });
+                return Some(Token { kind: TokenKind::CharLit { raw, value }, pos, spacing: false });
             };
             raw.push(c);
 
             if c == '\'' {
-                return Some(Token {
-                    kind: TokenKind::CharLit { raw, value },
-                    pos,
-                    spacing: false,
-                });
+                return Some(Token { kind: TokenKind::CharLit { raw, value }, pos, spacing: false });
             }
 
             if !found_multichar {
@@ -225,12 +201,7 @@ impl<'a> Scanner<'a> {
         self.scan_string_internal(pos, raw, value)
     }
 
-    fn scan_string_internal(
-        &mut self,
-        pos: Pos,
-        mut raw: String,
-        mut value: Vec<u8>,
-    ) -> Option<Token> {
+    fn scan_string_internal(&mut self, pos: Pos, mut raw: String, mut value: Vec<u8>) -> Option<Token> {
         while let Some((c, _)) = self.peek() {
             match c {
                 '\\' => self.scan_string_after_backslash(&mut raw, &mut value),
@@ -298,20 +269,12 @@ impl<'a> Scanner<'a> {
     fn scan_string_closing(&mut self, pos: Pos, mut raw: String, value: Vec<u8>) -> Option<Token> {
         let Some((c, _)) = self.next() else {
             report_missing_closing_quote(self.errors, self.pos, "string");
-            return Some(Token {
-                kind: TokenKind::StringLit { raw, value },
-                pos,
-                spacing: false,
-            });
+            return Some(Token { kind: TokenKind::StringLit { raw, value }, pos, spacing: false });
         };
         raw.push(c);
         assert_eq!(c, '\"');
 
-        Some(Token {
-            kind: TokenKind::StringLit { raw, value },
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::StringLit { raw, value }, pos, spacing: false })
     }
 
     fn scan_number_lit(&mut self) -> Option<Token> {
@@ -339,11 +302,7 @@ impl<'a> Scanner<'a> {
         let mut value = Number::new(BigInt::default(), BigInt::default(), false);
 
         let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
-            return Some(Token {
-                kind: TokenKind::NumberLit { raw, value },
-                pos,
-                spacing: false,
-            });
+            return Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false });
         };
 
         match c {
@@ -381,11 +340,7 @@ impl<'a> Scanner<'a> {
                 self.scan_number_fraction(pos, raw, value)
             }
             'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
-            _ => Some(Token {
-                kind: TokenKind::NumberLit { raw, value },
-                pos,
-                spacing: false,
-            }),
+            _ => Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false }),
         }
     }
 
@@ -455,8 +410,7 @@ impl<'a> Scanner<'a> {
                     report_invalid_digit_in_base(self.errors, p, c, base as u8);
                     has_invalid_digit = true;
                 }
-                (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z')
-                | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
+                (Base::Bin | Base::Dec | Base::Oct, 'a'..='z' | 'A'..='Z') | (Base::Hex, 'g'..='z' | 'G'..='Z') => {
                     return self.scan_number_invalid_suffix(pos, raw, value);
                 }
                 _ => break,
@@ -467,19 +421,10 @@ impl<'a> Scanner<'a> {
             report_missing_base_digits(self.errors, self.pos, base as u8);
         }
 
-        Some(Token {
-            kind: TokenKind::NumberLit { raw, value },
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false })
     }
 
-    fn scan_number_fraction(
-        &mut self,
-        pos: Pos,
-        mut raw: String,
-        mut value: Number,
-    ) -> Option<Token> {
+    fn scan_number_fraction(&mut self, pos: Pos, mut raw: String, mut value: Number) -> Option<Token> {
         assert!(value.float);
         while let Some((c, _)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
             match c {
@@ -499,22 +444,14 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        Some(Token {
-            kind: TokenKind::NumberLit { raw, value },
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false })
     }
 
     fn scan_number_exponent(&mut self, pos: Pos, mut raw: String, value: Number) -> Option<Token> {
         assert!(value.float);
         let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) else {
             report_missing_exponent_digits(self.errors, self.pos);
-            return Some(Token {
-                kind: TokenKind::NumberLit { raw, value },
-                pos,
-                spacing: false,
-            });
+            return Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false });
         };
 
         match c {
@@ -527,11 +464,7 @@ impl<'a> Scanner<'a> {
             'a'..='z' | 'A'..='Z' => self.scan_number_invalid_suffix(pos, raw, value),
             _ => {
                 report_missing_exponent_digits(self.errors, p);
-                Some(Token {
-                    kind: TokenKind::NumberLit { raw, value },
-                    pos,
-                    spacing: false,
-                })
+                Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false })
             }
         }
     }
@@ -570,19 +503,10 @@ impl<'a> Scanner<'a> {
         }
 
         value.exp += exp_after_e;
-        Some(Token {
-            kind: TokenKind::NumberLit { raw, value },
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false })
     }
 
-    fn scan_number_invalid_suffix(
-        &mut self,
-        pos: Pos,
-        mut raw: String,
-        value: Number,
-    ) -> Option<Token> {
+    fn scan_number_invalid_suffix(&mut self, pos: Pos, mut raw: String, value: Number) -> Option<Token> {
         let mut invalid_suffix = String::default();
 
         let (c, invalid_suffix_pos) = self.next().unwrap();
@@ -595,11 +519,7 @@ impl<'a> Scanner<'a> {
         }
 
         report_invalid_number_suffix(self.errors, invalid_suffix_pos, &invalid_suffix);
-        Some(Token {
-            kind: TokenKind::NumberLit { raw, value },
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::NumberLit { raw, value }, pos, spacing: false })
     }
 
     fn scan_comments(&mut self) -> Option<Token> {
@@ -622,11 +542,7 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        Some(Token {
-            kind: TokenKind::Comment(value),
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::Comment(value), pos, spacing: false })
     }
 
     const SYMBOLS: &'static [(&'static str, TokenKind)] = &[
@@ -698,21 +614,13 @@ impl<'a> Scanner<'a> {
             self.next();
         }
 
-        Some(Token {
-            kind: kind?,
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: kind?, pos, spacing: false })
     }
 
     fn scan_invalid(&mut self) -> Option<Token> {
         let (c, pos) = self.next()?;
         report_unexpected_char(self.errors, pos, c);
-        Some(Token {
-            kind: TokenKind::Invalid(c),
-            pos,
-            spacing: false,
-        })
+        Some(Token { kind: TokenKind::Invalid(c), pos, spacing: false })
     }
 
     fn next_if(&mut self, func: impl FnOnce(char) -> bool) -> Option<(char, Pos)> {
@@ -768,10 +676,7 @@ fn report_unexpected_char(errors: &ErrorManager, pos: Pos, ch: char) {
 }
 
 fn report_multiple_char_in_literal(errors: &ErrorManager, pos: Pos) {
-    errors.report(
-        pos,
-        "Character literal may only contain one code point".to_string(),
-    );
+    errors.report(pos, "Character literal may only contain one code point".to_string());
 }
 
 fn report_empty_character_literal(errors: &ErrorManager, pos: Pos) {
@@ -779,31 +684,19 @@ fn report_empty_character_literal(errors: &ErrorManager, pos: Pos) {
 }
 
 fn report_missing_closing_quote(errors: &ErrorManager, pos: Pos, literal_kind: &str) {
-    errors.report(
-        pos,
-        format!("Missing closing quote in {literal_kind} literal"),
-    );
+    errors.report(pos, format!("Missing closing quote in {literal_kind} literal"));
 }
 
 fn report_invalid_digit_in_base(errors: &ErrorManager, pos: Pos, digit: char, base: u8) {
-    errors.report(
-        pos,
-        format!("Cannot use '{digit}' in {base}-base integer literal"),
-    );
+    errors.report(pos, format!("Cannot use '{digit}' in {base}-base integer literal"));
 }
 
 fn report_invalid_number_suffix(errors: &ErrorManager, pos: Pos, invalid_suffix: &str) {
-    errors.report(
-        pos,
-        format!("Invalid suffix \"{invalid_suffix}\" for number literal"),
-    );
+    errors.report(pos, format!("Invalid suffix \"{invalid_suffix}\" for number literal"));
 }
 
 fn report_missing_base_digits(errors: &ErrorManager, pos: Pos, base: u8) {
-    errors.report(
-        pos,
-        format!("Expected at least one digit in {base}-base integer literal"),
-    );
+    errors.report(pos, format!("Expected at least one digit in {base}-base integer literal"));
 }
 
 fn report_missing_exponent_digits(errors: &ErrorManager, pos: Pos) {
@@ -849,54 +742,27 @@ string"
 
         let tokens = scan(&error_manager, &file);
 
-        assert_eq!(
-            tokens[0].kind,
-            TokenKind::Comment("// a simple comment\n".to_string())
-        );
+        assert_eq!(tokens[0].kind, TokenKind::Comment("// a simple comment\n".to_string()));
 
-        assert_eq!(
-            tokens[1].kind,
-            TokenKind::Comment("// another comment\n".to_string())
-        );
-        assert_eq!(
-            tokens[2].kind,
-            TokenKind::Comment("// with multiline\n".to_string())
-        );
-        assert_eq!(
-            tokens[3].kind,
-            TokenKind::Comment("// grouped comment\n".to_string())
-        );
+        assert_eq!(tokens[1].kind, TokenKind::Comment("// another comment\n".to_string()));
+        assert_eq!(tokens[2].kind, TokenKind::Comment("// with multiline\n".to_string()));
+        assert_eq!(tokens[3].kind, TokenKind::Comment("// grouped comment\n".to_string()));
 
         assert_eq!(tokens[4].kind, TokenKind::Let);
         assert_eq!(tokens[5].kind, TokenKind::Ident("a".to_string()));
         assert_eq!(tokens[6].kind, TokenKind::Equal);
-        assert_eq!(
-            tokens[7].kind,
-            TokenKind::NumberLit {
-                raw: "10".to_string(),
-                value: Number::new(10, 0, false)
-            }
-        );
+        assert_eq!(tokens[7].kind, TokenKind::NumberLit { raw: "10".to_string(), value: Number::new(10, 0, false) });
         assert_eq!(tokens[8].kind, TokenKind::SemiColon);
-        assert_eq!(
-            tokens[9].kind,
-            TokenKind::Comment("// comment in the end\n".to_string())
-        );
+        assert_eq!(tokens[9].kind, TokenKind::Comment("// comment in the end\n".to_string()));
 
         assert_eq!(
             tokens[10].kind,
             TokenKind::Comment("// nested comment // is considered a single comment\n".to_string())
         );
 
-        assert_eq!(
-            tokens[11].kind,
-            TokenKind::Comment("// unicode\n".to_string())
-        );
+        assert_eq!(tokens[11].kind, TokenKind::Comment("// unicode\n".to_string()));
         assert_eq!(tokens[12].kind, TokenKind::Comment("// a۰۱۸\n".to_string()));
-        assert_eq!(
-            tokens[13].kind,
-            TokenKind::Comment("// foo६४\n".to_string())
-        );
+        assert_eq!(tokens[13].kind, TokenKind::Comment("// foo६४\n".to_string()));
         assert_eq!(tokens[14].kind, TokenKind::Comment("// ŝ\n".to_string()));
         assert_eq!(tokens[15].kind, TokenKind::Comment("// ŝfoo\n".to_string()));
 
@@ -925,67 +791,23 @@ string""#
     #[test]
     fn character_literal() {
         let mut files = FileManager::default();
-        let file = files
-            .add_file(
-                PathBuf::from("dummy.mg"),
-                r#"''; '\0' '\x00' 'a' '😀' 'z"#.to_string(),
-            )
-            .unwrap();
+        let file = files.add_file(PathBuf::from("dummy.mg"), r#"''; '\0' '\x00' 'a' '😀' 'z"#.to_string()).unwrap();
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
 
         assert_eq!(tokens.len(), 8);
-        assert_eq!(
-            tokens[0].kind,
-            TokenKind::CharLit {
-                raw: "''".to_string(),
-                value: '\0',
-            }
-        );
+        assert_eq!(tokens[0].kind, TokenKind::CharLit { raw: "''".to_string(), value: '\0' });
         assert_eq!(tokens[1].kind, TokenKind::SemiColon);
-        assert_eq!(
-            tokens[2].kind,
-            TokenKind::CharLit {
-                raw: "'\\0'".to_string(),
-                value: '\0',
-            }
-        );
-        assert_eq!(
-            tokens[3].kind,
-            TokenKind::CharLit {
-                raw: "'\\x00'".to_string(),
-                value: '\0',
-            }
-        );
-        assert_eq!(
-            tokens[4].kind,
-            TokenKind::CharLit {
-                raw: "'a'".to_string(),
-                value: 'a',
-            }
-        );
-        assert_eq!(
-            tokens[5].kind,
-            TokenKind::CharLit {
-                raw: "'😀'".to_string(),
-                value: '😀',
-            }
-        );
-        assert_eq!(
-            tokens[6].kind,
-            TokenKind::CharLit {
-                raw: "'z".to_string(),
-                value: 'z',
-            }
-        );
+        assert_eq!(tokens[2].kind, TokenKind::CharLit { raw: "'\\0'".to_string(), value: '\0' });
+        assert_eq!(tokens[3].kind, TokenKind::CharLit { raw: "'\\x00'".to_string(), value: '\0' });
+        assert_eq!(tokens[4].kind, TokenKind::CharLit { raw: "'a'".to_string(), value: 'a' });
+        assert_eq!(tokens[5].kind, TokenKind::CharLit { raw: "'😀'".to_string(), value: '😀' });
+        assert_eq!(tokens[6].kind, TokenKind::CharLit { raw: "'z".to_string(), value: 'z' });
 
         let errors = errors.take();
         assert_eq!(errors.len(), 2);
         assert_eq!(errors[0].message, "Character literal cannot be empty");
-        assert_eq!(
-            errors[1].message,
-            "Missing closing quote in character literal"
-        );
+        assert_eq!(errors[1].message, "Missing closing quote in character literal");
         let location = files.location(errors[0].pos.unwrap());
         assert_eq!((location.line, location.col), (1, 1));
     }
@@ -1013,19 +835,13 @@ string""#
 
         assert_eq!(
             tokens[0].kind,
-            TokenKind::StringLit {
-                raw: r#""basic string""#.to_string(),
-                value: b"basic string".to_vec(),
-            }
+            TokenKind::StringLit { raw: r#""basic string""#.to_string(), value: b"basic string".to_vec() }
         );
         assert_eq!(
             tokens[1].kind,
             TokenKind::StringLit {
-                raw: r#""this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly""#
-                    .to_string(),
-                value: "this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly"
-                    .bytes()
-                    .collect(),
+                raw: r#""this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly""#.to_string(),
+                value: "this is an emoji 😀 😃 😄 😁 😆 😅 😂. It should scanned properly".bytes().collect(),
             }
         );
         assert_eq!(
@@ -1044,10 +860,7 @@ string""#
         );
         assert_eq!(
             tokens[4].kind,
-            TokenKind::StringLit {
-                raw: r#""\n\r\t\\\0\"\''""#.to_string(),
-                value: b"\n\r\t\\\0\"\''".to_vec(),
-            }
+            TokenKind::StringLit { raw: r#""\n\r\t\\\0\"\''""#.to_string(), value: b"\n\r\t\\\0\"\''".to_vec() }
         );
         assert_eq!(
             tokens[5].kind,
@@ -1108,10 +921,7 @@ string""#
         assert_eq!(errors[21].message, "Unexpected char 'z'");
         assert_eq!(errors[22].message, "Unexpected char 'g'");
         assert_eq!(errors[23].message, "Unexpected char '\\'");
-        assert_eq!(
-            errors[24].message,
-            "Missing closing quote in string literal"
-        );
+        assert_eq!(errors[24].message, "Missing closing quote in string literal");
     }
 
     #[test]
@@ -1157,25 +967,9 @@ string""#
 
         let tokens = scan(&error_manager, &file);
 
-        assert!(
-            tokens[0..8]
-                .iter()
-                .all(|token| matches!(token.kind, TokenKind::NumberLit { .. }))
-        );
-        assert_eq!(
-            tokens[0].kind,
-            TokenKind::NumberLit {
-                raw: "0".to_string(),
-                value: Number::new(0, 0, false)
-            }
-        );
-        assert_eq!(
-            tokens[1].kind,
-            TokenKind::NumberLit {
-                raw: "1".to_string(),
-                value: Number::new(1, 0, false),
-            }
-        );
+        assert!(tokens[0..8].iter().all(|token| matches!(token.kind, TokenKind::NumberLit { .. })));
+        assert_eq!(tokens[0].kind, TokenKind::NumberLit { raw: "0".to_string(), value: Number::new(0, 0, false) });
+        assert_eq!(tokens[1].kind, TokenKind::NumberLit { raw: "1".to_string(), value: Number::new(1, 0, false) });
         assert_eq!(
             tokens[2].kind,
             TokenKind::NumberLit {
@@ -1185,10 +979,7 @@ string""#
         );
         assert_eq!(
             tokens[3].kind,
-            TokenKind::NumberLit {
-                raw: "01234_567".to_string(),
-                value: Number::new(0o1234567, 0, false),
-            }
+            TokenKind::NumberLit { raw: "01234_567".to_string(), value: Number::new(0o1234567, 0, false) }
         );
         assert_eq!(
             tokens[4].kind,
@@ -1206,17 +997,11 @@ string""#
         );
         assert_eq!(
             tokens[6].kind,
-            TokenKind::NumberLit {
-                raw: "0b_11010101001010101010".to_string(),
-                value: Number::new(873130, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0b_11010101001010101010".to_string(), value: Number::new(873130, 0, false) }
         );
         assert_eq!(
             tokens[7].kind,
-            TokenKind::NumberLit {
-                raw: "0_b11010101001010101010".to_string(),
-                value: Number::new(873130, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0_b11010101001010101010".to_string(), value: Number::new(873130, 0, false) }
         );
         assert_eq!(
             tokens[8].kind,
@@ -1228,198 +1013,96 @@ string""#
 
         assert_eq!(
             tokens[9].kind,
-            TokenKind::NumberLit {
-                raw: "123.123".to_string(),
-                value: Number::new(123123, -3, true),
-            }
+            TokenKind::NumberLit { raw: "123.123".to_string(), value: Number::new(123123, -3, true) }
         );
         assert_eq!(
             tokens[10].kind,
-            TokenKind::NumberLit {
-                raw: "123e123".to_string(),
-                value: Number::new(123, 123, true),
-            }
+            TokenKind::NumberLit { raw: "123e123".to_string(), value: Number::new(123, 123, true) }
         );
         assert_eq!(
             tokens[11].kind,
-            TokenKind::NumberLit {
-                raw: "123e-123".to_string(),
-                value: Number::new(123, -123, true),
-            }
+            TokenKind::NumberLit { raw: "123e-123".to_string(), value: Number::new(123, -123, true) }
         );
         assert_eq!(
             tokens[12].kind,
-            TokenKind::NumberLit {
-                raw: "123E123".to_string(),
-                value: Number::new(123, 123, true),
-            }
+            TokenKind::NumberLit { raw: "123E123".to_string(), value: Number::new(123, 123, true) }
         );
         assert_eq!(
             tokens[13].kind,
-            TokenKind::NumberLit {
-                raw: "123E-123".to_string(),
-                value: Number::new(123, -123, true),
-            }
+            TokenKind::NumberLit { raw: "123E-123".to_string(), value: Number::new(123, -123, true) }
         );
         assert_eq!(
             tokens[14].kind,
-            TokenKind::NumberLit {
-                raw: "1.23e123".to_string(),
-                value: Number::new(123, 121, true),
-            }
+            TokenKind::NumberLit { raw: "1.23e123".to_string(), value: Number::new(123, 121, true) }
         );
         assert_eq!(
             tokens[15].kind,
-            TokenKind::NumberLit {
-                raw: "0.123".to_string(),
-                value: Number::new(123, -3, true),
-            }
+            TokenKind::NumberLit { raw: "0.123".to_string(), value: Number::new(123, -3, true) }
         );
         assert_eq!(
             tokens[16].kind,
-            TokenKind::NumberLit {
-                raw: "0e123".to_string(),
-                value: Number::new(0, 123, true),
-            }
+            TokenKind::NumberLit { raw: "0e123".to_string(), value: Number::new(0, 123, true) }
         );
 
         assert_eq!(
             tokens[17].kind,
-            TokenKind::NumberLit {
-                raw: "0123abcdef456".to_string(),
-                value: Number::new(0o123, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0123abcdef456".to_string(), value: Number::new(0o123, 0, false) }
         );
         assert_eq!(
             tokens[18].kind,
-            TokenKind::NumberLit {
-                raw: "0abcde".to_string(),
-                value: Number::new(0, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0abcde".to_string(), value: Number::new(0, 0, false) }
         );
         assert_eq!(
             tokens[19].kind,
-            TokenKind::NumberLit {
-                raw: "0x123".to_string(),
-                value: Number::new(291, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0x123".to_string(), value: Number::new(291, 0, false) }
         );
         assert_eq!(tokens[20].kind, TokenKind::Dot);
         assert_eq!(tokens[21].kind, TokenKind::Ident("abcd".to_string()));
 
-        assert_eq!(
-            tokens[22].kind,
-            TokenKind::NumberLit {
-                raw: "0b101".to_string(),
-                value: Number::new(5, 0, false),
-            }
-        );
+        assert_eq!(tokens[22].kind, TokenKind::NumberLit { raw: "0b101".to_string(), value: Number::new(5, 0, false) });
         assert_eq!(tokens[23].kind, TokenKind::Dot);
-        assert_eq!(
-            tokens[24].kind,
-            TokenKind::NumberLit {
-                raw: "101".to_string(),
-                value: Number::new(101, 0, false),
-            }
-        );
+        assert_eq!(tokens[24].kind, TokenKind::NumberLit { raw: "101".to_string(), value: Number::new(101, 0, false) });
 
         assert_eq!(
             tokens[25].kind,
-            TokenKind::NumberLit {
-                raw: "0o123".to_string(),
-                value: Number::new(83, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0o123".to_string(), value: Number::new(83, 0, false) }
         );
         assert_eq!(tokens[26].kind, TokenKind::Dot);
-        assert_eq!(
-            tokens[27].kind,
-            TokenKind::NumberLit {
-                raw: "123".to_string(),
-                value: Number::new(123, 0, false),
-            }
-        );
+        assert_eq!(tokens[27].kind, TokenKind::NumberLit { raw: "123".to_string(), value: Number::new(123, 0, false) });
 
-        assert_eq!(
-            tokens[28].kind,
-            TokenKind::NumberLit {
-                raw: "0b123".to_string(),
-                value: Number::new(1, 0, false)
-            }
-        );
+        assert_eq!(tokens[28].kind, TokenKind::NumberLit { raw: "0b123".to_string(), value: Number::new(1, 0, false) });
         assert_eq!(
             tokens[29].kind,
-            TokenKind::NumberLit {
-                raw: "123eabc".to_string(),
-                value: Number::new(123, 0, true)
-            }
+            TokenKind::NumberLit { raw: "123eabc".to_string(), value: Number::new(123, 0, true) }
         );
         assert_eq!(
             tokens[30].kind,
-            TokenKind::NumberLit {
-                raw: "123e-1a".to_string(),
-                value: Number::new(123, -1, true)
-            }
+            TokenKind::NumberLit { raw: "123e-1a".to_string(), value: Number::new(123, -1, true) }
         );
         assert_eq!(
             tokens[31].kind,
-            TokenKind::NumberLit {
-                raw: "0xabcghijklmnopqrstuvwxyz".to_string(),
-                value: Number::new(0xabc, 0, false),
-            }
+            TokenKind::NumberLit { raw: "0xabcghijklmnopqrstuvwxyz".to_string(), value: Number::new(0xabc, 0, false) }
         );
         assert_eq!(
             tokens[32].kind,
-            TokenKind::NumberLit {
-                raw: "123.abcde".to_string(),
-                value: Number::new(123, 0, true),
-            }
+            TokenKind::NumberLit { raw: "123.abcde".to_string(), value: Number::new(123, 0, true) }
         );
-        assert_eq!(
-            tokens[33].kind,
-            TokenKind::NumberLit {
-                raw: "123e".to_string(),
-                value: Number::new(123, 0, true),
-            }
-        );
+        assert_eq!(tokens[33].kind, TokenKind::NumberLit { raw: "123e".to_string(), value: Number::new(123, 0, true) });
         assert_eq!(
             tokens[34].kind,
-            TokenKind::NumberLit {
-                raw: "123e-".to_string(),
-                value: Number::new(123, 0, true),
-            }
+            TokenKind::NumberLit { raw: "123e-".to_string(), value: Number::new(123, 0, true) }
         );
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 10);
-        assert_eq!(
-            errors[0].message,
-            "Invalid suffix \"abcdef456\" for number literal"
-        );
-        assert_eq!(
-            errors[1].message,
-            "Invalid suffix \"abcde\" for number literal"
-        );
-        assert_eq!(
-            errors[2].message,
-            "Cannot use '2' in 2-base integer literal",
-        );
-        assert_eq!(
-            errors[3].message,
-            "Cannot use '3' in 2-base integer literal",
-        );
-        assert_eq!(
-            errors[4].message,
-            "Invalid suffix \"abc\" for number literal",
-        );
+        assert_eq!(errors[0].message, "Invalid suffix \"abcdef456\" for number literal");
+        assert_eq!(errors[1].message, "Invalid suffix \"abcde\" for number literal");
+        assert_eq!(errors[2].message, "Cannot use '2' in 2-base integer literal",);
+        assert_eq!(errors[3].message, "Cannot use '3' in 2-base integer literal",);
+        assert_eq!(errors[4].message, "Invalid suffix \"abc\" for number literal",);
         assert_eq!(errors[5].message, "Invalid suffix \"a\" for number literal",);
-        assert_eq!(
-            errors[6].message,
-            "Invalid suffix \"ghijklmnopqrstuvwxyz\" for number literal",
-        );
-        assert_eq!(
-            errors[7].message,
-            "Invalid suffix \"abcde\" for number literal",
-        );
+        assert_eq!(errors[6].message, "Invalid suffix \"ghijklmnopqrstuvwxyz\" for number literal",);
+        assert_eq!(errors[7].message, "Invalid suffix \"abcde\" for number literal",);
         assert_eq!(errors[8].message, "The exponent has no digits",);
         assert_eq!(errors[9].message, "The exponent has no digits",);
     }
@@ -1428,18 +1111,15 @@ string""#
     fn radix_prefix_requires_digit() {
         let mut files = FileManager::default();
         let file = files
-            .add_file(
-                PathBuf::from("dummy.mg"),
-                "0x 0b 0o 0x_ 0b___ 0o_ 0_x 0_b___ 0b2 0o8 0xg 0__o_".to_string(),
-            )
+            .add_file(PathBuf::from("dummy.mg"), "0x 0b 0o 0x_ 0b___ 0o_ 0_x 0_b___ 0b2 0o8 0xg 0__o_".to_string())
             .unwrap();
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
 
         assert_eq!(tokens.len(), 13);
-        for (token, expected_raw) in tokens.iter().zip([
-            "0x", "0b", "0o", "0x_", "0b___", "0o_", "0_x", "0_b___", "0b2", "0o8", "0xg", "0__o_",
-        ]) {
+        for (token, expected_raw) in
+            tokens.iter().zip(["0x", "0b", "0o", "0x_", "0b___", "0o_", "0_x", "0_b___", "0b2", "0o8", "0xg", "0__o_"])
+        {
             let TokenKind::NumberLit { raw, value } = &token.kind else {
                 panic!("expected number literal");
             };
@@ -1447,11 +1127,7 @@ string""#
             assert_eq!(value, &Number::default());
         }
 
-        let messages: Vec<_> = errors
-            .take()
-            .into_iter()
-            .map(|error| error.message)
-            .collect();
+        let messages: Vec<_> = errors.take().into_iter().map(|error| error.message).collect();
         assert_eq!(
             messages,
             [
@@ -1470,20 +1146,12 @@ string""#
             ]
         );
 
-        let file = files
-            .add_file(
-                PathBuf::from("valid.mg"),
-                "0x0 0b0 0o0 0x_0 0b___0 0o_0".to_string(),
-            )
-            .unwrap();
+        let file = files.add_file(PathBuf::from("valid.mg"), "0x0 0b0 0o0 0x_0 0b___0 0o_0".to_string()).unwrap();
         let errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
         assert!(errors.is_empty());
         assert_eq!(tokens.len(), 7);
-        for (token, expected_raw) in tokens
-            .iter()
-            .zip(["0x0", "0b0", "0o0", "0x_0", "0b___0", "0o_0"])
-        {
+        for (token, expected_raw) in tokens.iter().zip(["0x0", "0b0", "0o0", "0x_0", "0b___0", "0o_0"]) {
             let TokenKind::NumberLit { raw, value } = &token.kind else {
                 panic!("expected number literal");
             };
@@ -1498,8 +1166,7 @@ string""#
         let file = files
             .add_file(
                 PathBuf::from("dummy.mg"),
-                "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&"
-                    .to_string(),
+                "+= -= *= /= %= &= |= ^= <<= >>= a+=1 a<<=b >>=<<= == <= >= &&= ||= &&|| &=&".to_string(),
             )
             .unwrap();
         let tokens = scan(&ErrorManager::default(), &file);
@@ -1620,13 +1287,7 @@ string""#
         assert_eq!(tokens[67].kind, TokenKind::AtSign);
 
         assert_eq!(tokens[68].kind, TokenKind::Sub);
-        assert_eq!(
-            tokens[69].kind,
-            TokenKind::NumberLit {
-                raw: "1".to_string(),
-                value: Number::new(1, 0, false),
-            }
-        );
+        assert_eq!(tokens[69].kind, TokenKind::NumberLit { raw: "1".to_string(), value: Number::new(1, 0, false) });
 
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);
@@ -1636,9 +1297,7 @@ string""#
     #[test]
     fn token_spacing_distinguishes_joint_operators() {
         let mut files = FileManager::default();
-        let file = files
-            .add_file(PathBuf::from("dummy.mg"), ">== >= =".to_string())
-            .unwrap();
+        let file = files.add_file(PathBuf::from("dummy.mg"), ">== >= =".to_string()).unwrap();
         let tokens = scan(&ErrorManager::default(), &file);
 
         assert_eq!(tokens[0].kind, TokenKind::GEq);
@@ -1654,12 +1313,7 @@ string""#
     #[test]
     fn adjacent_colons_are_separate_tokens() {
         let mut files = FileManager::default();
-        let file = files
-            .add_file(
-                PathBuf::from("dummy.mg"),
-                "pkg::value function::<i32>()".to_string(),
-            )
-            .unwrap();
+        let file = files.add_file(PathBuf::from("dummy.mg"), "pkg::value function::<i32>()".to_string()).unwrap();
         let mut errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
         assert_eq!(tokens[1].kind, TokenKind::Colon);
@@ -1672,9 +1326,7 @@ string""#
     #[test]
     fn positions_use_code_points_and_peeking_does_not_advance() {
         let mut files = FileManager::default();
-        let file = files
-            .add_file("positions.mg".into(), "é😀\t\r\n中e\u{301}".into())
-            .unwrap();
+        let file = files.add_file("positions.mg".into(), "é😀\t\r\n中e\u{301}".into()).unwrap();
         let errors = ErrorManager::default();
         let mut scanner = Scanner::new(&errors, &file);
         for (ch, line, col) in [
@@ -1687,38 +1339,21 @@ string""#
             ('e', 2, 2),
             ('\u{301}', 2, 3),
         ] {
-            let expected = Some((
-                ch,
-                Pos {
-                    file: file.id,
-                    line,
-                    col,
-                },
-            ));
+            let expected = Some((ch, Pos { file: file.id, line, col }));
             assert_eq!(scanner.peek(), expected);
             assert_eq!(scanner.peek(), expected);
             assert_eq!(scanner.next(), expected);
         }
         assert_eq!(scanner.peek(), None);
         assert_eq!(scanner.next(), None);
-        assert_eq!(
-            scanner.pos,
-            Pos {
-                file: file.id,
-                line: 2,
-                col: 4
-            }
-        );
+        assert_eq!(scanner.pos, Pos { file: file.id, line: 2, col: 4 });
     }
 
     #[test]
     fn token_positions_include_whitespace_comments_and_multiline_strings() {
         let mut files = FileManager::default();
         let file = files
-            .add_file(
-                "positions.mg".into(),
-                " \tlet café = \"é\n😀\"; // comment\r\n \u{2003}café".into(),
-            )
+            .add_file("positions.mg".into(), " \tlet café = \"é\n😀\"; // comment\r\n \u{2003}café".into())
             .unwrap();
         let errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
@@ -1732,72 +1367,36 @@ string""#
                 (token.pos.line, token.pos.col)
             })
             .collect();
-        assert_eq!(
-            positions,
-            [(1, 3), (1, 7), (1, 12), (1, 14), (2, 3), (2, 5), (3, 3)]
-        );
-        assert_eq!(
-            eof.pos,
-            Pos {
-                file: file.id,
-                line: 3,
-                col: 7
-            }
-        );
+        assert_eq!(positions, [(1, 3), (1, 7), (1, 12), (1, 14), (2, 3), (2, 5), (3, 3)]);
+        assert_eq!(eof.pos, Pos { file: file.id, line: 3, col: 7 });
     }
 
     #[test]
     fn empty_and_comment_only_sources_end_with_an_eof_token() {
         let mut files = FileManager::default();
-        for (source, line, col) in [
-            ("", 1, 1),
-            (" \t\r\n", 2, 1),
-            ("// 😀", 1, 5),
-            ("// 😀\n  ", 2, 3),
-        ] {
+        for (source, line, col) in [("", 1, 1), (" \t\r\n", 2, 1), ("// 😀", 1, 5), ("// 😀\n  ", 2, 3)] {
             let file = files.add_file("empty.mg".into(), source.into()).unwrap();
             let errors = ErrorManager::default();
             let tokens = scan(&errors, &file);
             let (eof, tokens) = tokens.split_last().unwrap();
             assert_eq!(eof.kind, TokenKind::Eof);
             assert!(errors.is_empty());
-            assert!(
-                tokens
-                    .iter()
-                    .all(|token| matches!(token.kind, TokenKind::Comment(_)))
-            );
-            assert_eq!(
-                eof.pos,
-                Pos {
-                    file: file.id,
-                    line,
-                    col
-                }
-            );
+            assert!(tokens.iter().all(|token| matches!(token.kind, TokenKind::Comment(_))));
+            assert_eq!(eof.pos, Pos { file: file.id, line, col });
         }
     }
 
     #[test]
     fn unterminated_literals_report_the_eof_position() {
         let mut files = FileManager::default();
-        for (source, line, col) in [("\"é\n😀", 2, 2), ("'é", 1, 3), ("0x", 1, 3), ("1e", 1, 3)]
-        {
-            let file = files
-                .add_file("unterminated.mg".into(), source.into())
-                .unwrap();
+        for (source, line, col) in [("\"é\n😀", 2, 2), ("'é", 1, 3), ("0x", 1, 3), ("1e", 1, 3)] {
+            let file = files.add_file("unterminated.mg".into(), source.into()).unwrap();
             let mut errors = ErrorManager::default();
             let tokens = scan(&errors, &file);
             assert_eq!(tokens.len(), 2);
             let eof = tokens.last().unwrap();
             assert_eq!(eof.kind, TokenKind::Eof);
-            assert_eq!(
-                eof.pos,
-                Pos {
-                    file: file.id,
-                    line,
-                    col
-                }
-            );
+            assert_eq!(eof.pos, Pos { file: file.id, line, col });
             let errors = errors.take();
             assert_eq!(errors.len(), 1);
             assert_eq!(errors[0].pos, Some(eof.pos));
@@ -1805,10 +1404,6 @@ string""#
     }
 
     fn number_from_str(base: &str, exp: &str, float: bool) -> Number {
-        Number {
-            val: BigInt::from_str(base).unwrap(),
-            exp: BigInt::from_str(exp).unwrap(),
-            float,
-        }
+        Number { val: BigInt::from_str(base).unwrap(), exp: BigInt::from_str(exp).unwrap(), float }
     }
 }

@@ -25,10 +25,7 @@ impl<'ctx> GlobalManager<'ctx> {
             for val_type in val_types {
                 let init = wasm::Expr(val_type.zero());
                 s.globals.push(wasm::Global {
-                    ty: wasm::GlobalType {
-                        mutability: wasm::Mut::Var,
-                        ty: val_type.into(),
-                    },
+                    ty: wasm::GlobalType { mutability: wasm::Mut::Var, ty: val_type.into() },
                     init,
                 })
             }
@@ -67,14 +64,10 @@ impl LocalManager {
             let local_id = internal.last_unused_local;
             internal.local_maps.insert(i, local_id);
             internal.last_unused_local += locals.len() as u32;
-            internal
-                .is_in_use
-                .resize(internal.is_in_use.len() + locals.len(), true);
+            internal.is_in_use.resize(internal.is_in_use.len() + locals.len(), true);
         }
 
-        Self {
-            internal: RefCell::new(internal),
-        }
+        Self { internal: RefCell::new(internal) }
     }
 
     pub(crate) fn take(&self) -> Vec<wasm::Local> {
@@ -88,21 +81,14 @@ impl LocalManager {
         locals
     }
 
-    pub(crate) fn new_local(
-        &self,
-        local_id: usize,
-        types: impl Iterator<Item = PrimitiveType>,
-    ) -> u32 {
+    pub(crate) fn new_local(&self, local_id: usize, types: impl Iterator<Item = PrimitiveType>) -> u32 {
         let mut internal = self.internal.borrow_mut();
 
         let wasm_local_id = internal.last_unused_local;
         internal.local_maps.insert(local_id, wasm_local_id);
         for ty in types {
             internal.last_unused_local += 1;
-            internal.locals.push(wasm::Local {
-                name: "!local".into(),
-                ty: ty.into(),
-            });
+            internal.locals.push(wasm::Local { name: "!local".into(), ty: ty.into() });
             internal.is_in_use.push(true);
         }
         wasm_local_id
@@ -116,10 +102,7 @@ impl LocalManager {
         let spec = spec.into_iter().map(Into::<wasm::ValType>::into).collect();
         let mut internal = self.internal.borrow_mut();
         let result = internal.get_temporary_locals(spec);
-        LocalTemp {
-            result,
-            manager: self,
-        }
+        LocalTemp { result, manager: self }
     }
 }
 
@@ -145,10 +128,7 @@ impl LocalManagerInternal {
 
             let local_id = self.last_unused_local;
             self.last_unused_local += 1;
-            self.locals.push(wasm::Local {
-                name: "!temp".to_string(),
-                ty,
-            });
+            self.locals.push(wasm::Local { name: "!temp".to_string(), ty });
             self.is_in_use.push(true);
             indexes.push(local_id);
             result.push(local_id);

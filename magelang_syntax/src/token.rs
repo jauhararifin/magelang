@@ -49,39 +49,25 @@ impl FileManager {
         let file = std::fs::File::open(&path)?;
         let size = file.metadata()?.len();
         if size > MAX_FILE_SIZE as u64 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Source file exceeds the 2 GiB size limit",
-            ));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Source file exceeds the 2 GiB size limit"));
         }
 
         let mut source = String::with_capacity(size as usize);
-        file.take(MAX_FILE_SIZE as u64 + 1)
-            .read_to_string(&mut source)?;
+        file.take(MAX_FILE_SIZE as u64 + 1).read_to_string(&mut source)?;
         self.add_file(path, source)
     }
 
     pub fn add_file(&mut self, path: PathBuf, source: String) -> io::Result<File> {
         if source.len() > MAX_FILE_SIZE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Source file exceeds the 2 GiB size limit",
-            ));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Source file exceeds the 2 GiB size limit"));
         }
-        let id = FileId(
-            u32::try_from(self.paths.len())
-                .map_err(|_| io::Error::other("Too many source files"))?,
-        );
+        let id = FileId(u32::try_from(self.paths.len()).map_err(|_| io::Error::other("Too many source files"))?);
         self.paths.push(path);
         Ok(File { id, text: source })
     }
 
     pub fn location(&self, pos: Pos) -> Location<'_> {
-        Location {
-            path: &self.paths[pos.file.0 as usize],
-            line: pos.line,
-            col: pos.col,
-        }
+        Location { path: &self.paths[pos.file.0 as usize], line: pos.line, col: pos.col }
     }
 }
 
@@ -316,14 +302,8 @@ mod tests {
     #[test]
     fn locations_preserve_file_identity() {
         let mut files = FileManager::default();
-        let first = files
-            .add_file("first.mg".into(), "é\nvalue".into())
-            .unwrap();
-        let first_pos = Pos {
-            file: first.id,
-            line: 2,
-            col: 6,
-        };
+        let first = files.add_file("first.mg".into(), "é\nvalue".into()).unwrap();
+        let first_pos = Pos { file: first.id, line: 2, col: 6 };
         let second = files.add_file("second.mg".into(), String::new()).unwrap();
         let third = files.add_file("third.mg".into(), String::new()).unwrap();
         assert_ne!(first.id, second.id);
@@ -335,11 +315,7 @@ mod tests {
         assert_eq!(location.to_string(), "first.mg:2:6");
 
         for (file, path) in [(second, "second.mg"), (third, "third.mg")] {
-            let pos = Pos {
-                file: file.id,
-                line: 1,
-                col: 1,
-            };
+            let pos = Pos { file: file.id, line: 1, col: 1 };
             let location = files.location(pos);
             assert_eq!(location.path, Path::new(path));
             assert_eq!((location.line, location.col), (1, 1));
@@ -348,14 +324,8 @@ mod tests {
 
     #[test]
     fn oversized_files_are_rejected_before_reading() {
-        let suffix = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "magelang-oversized-{}-{suffix}.mg",
-            std::process::id()
-        ));
+        let suffix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let path = std::env::temp_dir().join(format!("magelang-oversized-{}-{suffix}.mg", std::process::id()));
         let file = std::fs::File::create_new(&path).unwrap();
         file.set_len(MAX_FILE_SIZE as u64 + 1).unwrap();
 
@@ -366,10 +336,7 @@ mod tests {
 
         let error = result.err().expect("oversized source must be rejected");
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
-        assert_eq!(
-            error.to_string(),
-            "Source file exceeds the 2 GiB size limit"
-        );
+        assert_eq!(error.to_string(), "Source file exceeds the 2 GiB size limit");
         assert!(files.paths.is_empty());
     }
 }

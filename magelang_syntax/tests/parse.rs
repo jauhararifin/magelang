@@ -1,6 +1,5 @@
 use magelang_syntax::{
-    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, StatementNode,
-    TypeExprNode, parse,
+    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, StatementNode, TypeExprNode, parse,
 };
 use std::path::PathBuf;
 
@@ -10,9 +9,7 @@ fn test_parsing() {
 
     let mut error_manager = ErrorManager::default();
     let mut file_manager = FileManager::default();
-    let file = file_manager
-        .add_file("testcase.mg".into(), source.into())
-        .unwrap();
+    let file = file_manager.add_file("testcase.mg".into(), source.into()).unwrap();
     let mut node = parse(&error_manager, &file);
 
     node.comments.sort_by_key(|token| token.pos);
@@ -27,9 +24,7 @@ fn test_parsing() {
         let s = s.strip_prefix("line=").expect("missing line argument");
         let (line_opt, s) = s.split_once(' ').expect("missing line argument");
         let s = s.strip_prefix("col=").expect("missing column argument");
-        let end = s
-            .find(|c: char| !c.is_numeric())
-            .expect("missing error message");
+        let end = s.find(|c: char| !c.is_numeric()).expect("missing error message");
         let col_opt = &s[..end];
 
         let position = file_manager.location(comment.pos);
@@ -55,11 +50,7 @@ fn test_parsing() {
         let (_, message) = s.split_once(':').expect("missing error message");
         let message = message.trim();
 
-        let loc = Location {
-            path: &path,
-            line,
-            col,
-        };
+        let loc = Location { path: &path, line, col };
 
         expected_errors.push((format!("{loc}"), String::from(message)));
     }
@@ -80,27 +71,19 @@ fn unicode_diagnostics_stay_with_source_file() {
     let main = files
         .add_file(
             "unicode_main.mg".into(),
-            concat!(
-                "import dep \"unicode_dep\";\n",
-                "// 😀😀😀😀😀😀😀😀😀😀\n",
-                "fn broken(;\n"
-            )
-            .into(),
+            concat!("import dep \"unicode_dep\";\n", "// 😀😀😀😀😀😀😀😀😀😀\n", "fn broken(;\n").into(),
         )
         .unwrap();
     let mut errors = ErrorManager::default();
     parse(&errors, &main);
 
-    files
-        .add_file("unicode_dep.mg".into(), "fn ok() {}\n".into())
-        .unwrap();
+    files.add_file("unicode_dep.mg".into(), "fn ok() {}\n".into()).unwrap();
 
     let errors = errors.take();
     assert_eq!(errors.len(), 2);
-    for (error, expected) in errors.iter().zip([
-        (3, 4, "Missing function parameter list"),
-        (3, 10, "Missing closing ')'"),
-    ]) {
+    for (error, expected) in
+        errors.iter().zip([(3, 4, "Missing function parameter list"), (3, 10, "Missing closing ')'")])
+    {
         let location = files.location(error.pos.unwrap());
         assert_eq!(location.path, PathBuf::from("unicode_main.mg"));
         assert_eq!((location.line, location.col), (expected.0, expected.1));
@@ -111,10 +94,7 @@ fn unicode_diagnostics_stay_with_source_file() {
 #[test]
 fn diagnostic_columns_count_code_points_after_unicode() {
     let mut files = FileManager::default();
-    for (source, col) in [
-        ("let café: i32 = 1 unexpected;", 19),
-        ("let s: [*]u8 = \"😀e\u{301}\" unexpected;", 22),
-    ] {
+    for (source, col) in [("let café: i32 = 1 unexpected;", 19), ("let s: [*]u8 = \"😀e\u{301}\" unexpected;", 22)] {
         let file = files.add_file("unicode.mg".into(), source.into()).unwrap();
         let mut errors = ErrorManager::default();
         parse(&errors, &file);
@@ -126,10 +106,7 @@ fn diagnostic_columns_count_code_points_after_unicode() {
         let pos = error.pos.unwrap();
         assert_eq!(pos.file, file.id);
         assert_eq!((pos.line, pos.col), (1, col), "{source:?}");
-        assert_eq!(
-            error.display(&files).to_string(),
-            format!("unicode.mg:1:{col}: {}", error.message)
-        );
+        assert_eq!(error.display(&files).to_string(), format!("unicode.mg:1:{col}: {}", error.message));
     }
 }
 
@@ -156,9 +133,7 @@ fn eof_diagnostics_include_trailing_whitespace_and_comments() {
         ("let x: i32 = 123 // 😀", 1, 22),
         ("let x: i32 = 123\r\n\t", 2, 2),
     ] {
-        let file = files
-            .add_file("missing_semicolon.mg".into(), source.into())
-            .unwrap();
+        let file = files.add_file("missing_semicolon.mg".into(), source.into()).unwrap();
         let mut errors = ErrorManager::default();
         parse(&errors, &file);
         files.add_file("next.mg".into(), String::new()).unwrap();
@@ -170,10 +145,7 @@ fn eof_diagnostics_include_trailing_whitespace_and_comments() {
         let pos = error.pos.unwrap();
         assert_eq!(pos.file, file.id);
         assert_eq!((pos.line, pos.col), (line, col), "{source:?}");
-        assert_eq!(
-            files.location(pos).path,
-            PathBuf::from("missing_semicolon.mg")
-        );
+        assert_eq!(files.location(pos).path, PathBuf::from("missing_semicolon.mg"));
     }
 }
 
@@ -211,10 +183,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(pair) = &statements[0] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Selection(field),
-    } = &pair.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Selection(field) } = &pair.kind else {
         panic!("expected field");
     };
     let ExprNode::Call(call) = field.value.as_ref() else {
@@ -234,10 +203,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(reference) = &statements[1] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Inst(inst),
-    } = &reference.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Inst(inst) } = &reference.kind else {
         panic!("expected generic reference");
     };
     assert!(matches!(inst.value.as_ref(), ExprNode::Ident(name) if name.value == "identity"));
@@ -246,10 +212,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(cast) = &statements[2] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Cast(cast),
-    } = &cast.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Cast(cast) } = &cast.kind else {
         panic!("expected cast of generic reference");
     };
     assert!(matches!(
@@ -260,10 +223,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(equal) = &statements[3] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Binary(equal),
-    } = &equal.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Binary(equal) } = &equal.kind else {
         panic!("expected comparison of generic reference");
     };
     assert_eq!(equal.op, BinaryOp::Eq);
@@ -275,10 +235,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(comparison) = &statements[4] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Binary(outer),
-    } = &comparison.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Binary(outer) } = &comparison.kind else {
         panic!("expected comparison");
     };
     assert_eq!(outer.op, BinaryOp::Gt);
@@ -290,10 +247,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(shifted) = &statements[5] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Binary(less_than),
-    } = &shifted.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Binary(less_than) } = &shifted.kind else {
         panic!("expected comparison with shifted operand");
     };
     assert_eq!(less_than.op, BinaryOp::Lt);
@@ -305,10 +259,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(other) = &statements[6] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Binary(outer),
-    } = &other.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Binary(outer) } = &other.kind else {
         panic!("expected conjunction");
     };
     assert_eq!(outer.op, BinaryOp::And);
@@ -316,11 +267,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(typed) = &statements[7] else {
         panic!("expected let");
     };
-    let LetKind::TypeValue {
-        ty: TypeExprNode::Inst(inst),
-        value: ExprNode::Struct(_),
-    } = &typed.kind
-    else {
+    let LetKind::TypeValue { ty: TypeExprNode::Inst(inst), value: ExprNode::Struct(_) } = &typed.kind else {
         panic!("expected named type and struct literal");
     };
     assert!(matches!(
@@ -333,10 +280,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(chain) = &statements[8] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly {
-        value: ExprNode::Selection(c),
-    } = &chain.kind
-    else {
+    let LetKind::ValueOnly { value: ExprNode::Selection(c) } = &chain.kind else {
         panic!("expected selected field");
     };
     assert_eq!(c.selection.value, "c");
@@ -349,12 +293,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(indexed) = &statements[9] else {
         panic!("expected let");
     };
-    assert!(matches!(
-        &indexed.kind,
-        LetKind::ValueOnly {
-            value: ExprNode::Index(_)
-        }
-    ));
+    assert!(matches!(&indexed.kind, LetKind::ValueOnly { value: ExprNode::Index(_) }));
 }
 
 #[test]
@@ -378,11 +317,7 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
     let mut errors = ErrorManager::default();
     let ast = parse(&errors, &file);
 
-    let messages: Vec<_> = errors
-        .take()
-        .into_iter()
-        .map(|error| error.message)
-        .collect();
+    let messages: Vec<_> = errors.take().into_iter().map(|error| error.message).collect();
     assert_eq!(
         messages,
         [
@@ -448,11 +383,12 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
 #[test]
 fn nested_type_selection_is_parsed() {
     let mut files = FileManager::default();
-    let file = files.add_file(
-        "nested.mg".into(),
-        "fn main() { let typed: pkg.Outer.Inner<i32>; let literal = pkg.Outer.Inner{value: 1}; }"
-            .into(),
-    ).unwrap();
+    let file = files
+        .add_file(
+            "nested.mg".into(),
+            "fn main() { let typed: pkg.Outer.Inner<i32>; let literal = pkg.Outer.Inner{value: 1}; }".into(),
+        )
+        .unwrap();
     let mut errors = ErrorManager::default();
     let ast = parse(&errors, &file);
     assert!(errors.take().is_empty());
@@ -463,10 +399,7 @@ fn nested_type_selection_is_parsed() {
     let StatementNode::Let(typed) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected typed let");
     };
-    let LetKind::TypeOnly {
-        ty: TypeExprNode::Inst(inst),
-    } = &typed.kind
-    else {
+    let LetKind::TypeOnly { ty: TypeExprNode::Inst(inst) } = &typed.kind else {
         panic!("expected generic type");
     };
     assert!(matches!(

@@ -5,17 +5,16 @@ use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
 use crate::statement::{Statement, StatementContext, StatementInterner, get_statement_from_block};
 use crate::ty::{
-    BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs, TypeArgsInterner,
-    TypeInterner, TypeKind, TypeRepr, UserType, check_circular_type, get_func_type_from_signature,
-    get_type_from_node, get_typeparam_scope, get_typeparams,
+    BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs, TypeArgsInterner, TypeInterner, TypeKind,
+    TypeRepr, UserType, check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
+    get_typeparams,
 };
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
 use bumpalo::Bump;
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode,
-    Pos, StructNode, parse,
+    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode, Pos, StructNode, parse,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -32,31 +31,15 @@ pub fn analyze<'a>(
     let types = TypeInterner::new(arena);
     let typeargs = TypeArgsInterner::new(arena);
     let statements = StatementInterner::new(arena);
-    let interners = Interners {
-        symbols,
-        types,
-        typeargs,
-        statements,
-    };
+    let interners = Interners { symbols, types, typeargs, statements };
 
     let stdlib_path = get_stdlib_path();
     let main_package = interners.symbols.define(main_package);
-    let package_asts = get_all_package_asts(
-        file_manager,
-        error_manager,
-        &interners.symbols,
-        &stdlib_path,
-        main_package,
-    );
+    let package_asts =
+        get_all_package_asts(file_manager, error_manager, &interners.symbols, &stdlib_path, main_package);
     check_circular_imports(error_manager, &interners.symbols, &package_asts);
 
-    let mut ctx = Context {
-        arena,
-        files: file_manager,
-        errors: error_manager,
-        interners,
-        scopes: IndexMap::default(),
-    };
+    let mut ctx = Context { arena, files: file_manager, errors: error_manager, interners, scopes: IndexMap::default() };
 
     let mut import_items = IndexMap::<Symbol, Vec<ItemNode>>::default();
     let mut struct_items = IndexMap::<Symbol, Vec<ItemNode>>::default();
@@ -129,10 +112,7 @@ impl<'a, 'syn> Context<'a, 'syn> {
         self.interners.statements.define(stmt)
     }
 
-    fn set_import_scope(
-        &mut self,
-        import_scopes: IndexMap<Symbol<'a>, Scope<'a, ImportObject<'a>>>,
-    ) {
+    fn set_import_scope(&mut self, import_scopes: IndexMap<Symbol<'a>, Scope<'a, ImportObject<'a>>>) {
         for (package, scope) in import_scopes {
             let s = self.scopes.entry(package).or_default();
             s.import_scopes = scope;
@@ -170,19 +150,11 @@ pub(crate) struct Scopes<'a> {
 
 impl<'a> Scopes<'a> {
     pub(crate) fn with_type_scope(&self, type_scopes: Scope<'a, TypeObject<'a>>) -> Self {
-        Self {
-            import_scopes: self.import_scopes.clone(),
-            type_scopes,
-            value_scopes: self.value_scopes.clone(),
-        }
+        Self { import_scopes: self.import_scopes.clone(), type_scopes, value_scopes: self.value_scopes.clone() }
     }
 
     pub(crate) fn with_value_scope(&self, value_scopes: Scope<'a, ValueObject<'a>>) -> Self {
-        Self {
-            import_scopes: self.import_scopes.clone(),
-            type_scopes: self.type_scopes.clone(),
-            value_scopes,
-        }
+        Self { import_scopes: self.import_scopes.clone(), type_scopes: self.type_scopes.clone(), value_scopes }
     }
 }
 
@@ -270,10 +242,7 @@ fn get_all_package_asts<'a>(
             Ok(file) => parse(errors, &file),
             Err(err) => {
                 errors::report_cannot_open_file(errors, &path, err);
-                PackageNode {
-                    items: Vec::new(),
-                    comments: Vec::new(),
-                }
+                PackageNode { items: Vec::new(), comments: Vec::new() }
             }
         };
         let root = package_asts.entry(package_name).or_insert(root);
@@ -358,12 +327,7 @@ fn visit_import<'a>(
     in_chain.shift_remove(package_name);
 }
 
-fn report_circular_import(
-    errors: &ErrorManager,
-    in_chain: &IndexSet<Symbol>,
-    start: Symbol,
-    pos: Pos,
-) {
+fn report_circular_import(errors: &ErrorManager, in_chain: &IndexSet<Symbol>, start: Symbol, pos: Pos) {
     let mut chain = Vec::default();
     let mut started = false;
     for name in in_chain {
@@ -394,10 +358,7 @@ fn build_imports<'a>(
             };
 
             let object_name = ctx.define_symbol(item.name());
-            let object_id = DefId {
-                package: package_name,
-                name: object_name,
-            };
+            let object_id = DefId { package: package_name, name: object_name };
 
             let package_path = match std::str::from_utf8(&import_node.path.value) {
                 Ok(v) => v,
@@ -443,10 +404,7 @@ fn build_type_scopes<'a, 'syn>(
             };
 
             let object_name = ctx.define_symbol(&struct_node.name.value);
-            let def_id = DefId {
-                package: package_name,
-                name: object_name,
-            };
+            let def_id = DefId { package: package_name, name: object_name };
 
             let pos = struct_node.pos;
             if let Some(declared_at) = object_pos.get(&def_id) {
@@ -461,23 +419,11 @@ fn build_type_scopes<'a, 'syn>(
             let kind = if type_params.is_empty() {
                 TypeKind::User(UserType { def_id })
             } else {
-                TypeKind::GenericStruct(GenericType {
-                    def_id,
-                    type_params,
-                    mono_cache: RefCell::default(),
-                })
+                TypeKind::GenericStruct(GenericType { def_id, type_params, mono_cache: RefCell::default() })
             };
 
-            let ty = ctx.define_type(Type {
-                kind,
-                repr: TypeRepr::Struct(StructType {
-                    body: OnceCell::default(),
-                }),
-            });
-            let object = TypeObject {
-                ty,
-                node: Some(struct_node),
-            };
+            let ty = ctx.define_type(Type { kind, repr: TypeRepr::Struct(StructType { body: OnceCell::default() }) });
+            let object = TypeObject { ty, node: Some(struct_node) };
 
             table.insert(object_name, object);
         }
@@ -490,66 +436,21 @@ fn build_type_scopes<'a, 'syn>(
 }
 
 fn get_builtin_scope<'a>(ctx: &Context<'a, '_>) -> Scope<'a, TypeObject<'a>> {
-    let i8_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(true, BitSize::I8),
-    });
-    let i16_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(true, BitSize::I16),
-    });
-    let i32_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(true, BitSize::I32),
-    });
-    let i64_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(true, BitSize::I64),
-    });
-    let isize_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(true, BitSize::ISize),
-    });
-    let u8_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::I8),
-    });
-    let u16_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::I16),
-    });
-    let u32_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::I32),
-    });
-    let u64_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::I64),
-    });
-    let usize_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Int(false, BitSize::ISize),
-    });
-    let f32_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Float(FloatType::F32),
-    });
-    let f64_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Float(FloatType::F64),
-    });
-    let void_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Void,
-    });
-    let opaque_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Opaque,
-    });
-    let bool_type = ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Bool,
-    });
+    let i8_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I8) });
+    let i16_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I16) });
+    let i32_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I32) });
+    let i64_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I64) });
+    let isize_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::ISize) });
+    let u8_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::I8) });
+    let u16_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::I16) });
+    let u32_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::I32) });
+    let u64_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::I64) });
+    let usize_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::ISize) });
+    let f32_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Float(FloatType::F32) });
+    let f64_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Float(FloatType::F64) });
+    let void_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Void });
+    let opaque_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Opaque });
+    let bool_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool });
 
     let builtin_scope = Scope::new(IndexMap::from([
         (ctx.define_symbol("i8"), i8_type.into()),
@@ -591,17 +492,11 @@ fn build_value_scopes<'a>(
         let mut table = IndexMap::<Symbol, ValueObject>::default();
         let mut object_pos = HashMap::<DefId, Pos>::default();
 
-        let scopes = ctx
-            .scopes
-            .get(&package_name)
-            .expect("missing package scope");
+        let scopes = ctx.scopes.get(&package_name).expect("missing package scope");
 
         for item in items {
             let object_name = ctx.define_symbol(item.name());
-            let def_id = DefId {
-                package: package_name,
-                name: object_name,
-            };
+            let def_id = DefId { package: package_name, name: object_name };
 
             let pos = item.pos();
             if let Some(declared_at) = object_pos.get(&def_id) {
@@ -613,17 +508,10 @@ fn build_value_scopes<'a>(
 
             let object = match item {
                 ItemNode::Global(node) => {
-                    let annotations: Rc<[Annotation]> =
-                        build_annotations_from_node(ctx, &node.annotations).into();
+                    let annotations: Rc<[Annotation]> = build_annotations_from_node(ctx, &node.annotations).into();
 
                     let ty = get_type_from_node(ctx, scopes, &node.ty);
-                    ValueObject::Global(GlobalObject {
-                        def_id,
-                        ty,
-                        node,
-                        value: OnceCell::default(),
-                        annotations,
-                    })
+                    ValueObject::Global(GlobalObject { def_id, ty, node, value: OnceCell::default(), annotations })
                 }
                 ItemNode::Function(func_node) => {
                     let annotations: Rc<[Annotation]> =
@@ -633,23 +521,11 @@ fn build_value_scopes<'a>(
                     let kind = if type_params.is_empty() {
                         TypeKind::Anonymous
                     } else {
-                        TypeKind::GenericFunc(GenericType {
-                            def_id,
-                            type_params,
-                            mono_cache: RefCell::default(),
-                        })
+                        TypeKind::GenericFunc(GenericType { def_id, type_params, mono_cache: RefCell::default() })
                     };
 
-                    let func_type = get_func_type_from_signature(
-                        ctx,
-                        scopes,
-                        type_params,
-                        &func_node.signature,
-                    );
-                    let ty = ctx.define_type(Type {
-                        kind,
-                        repr: TypeRepr::Func(func_type),
-                    });
+                    let func_type = get_func_type_from_signature(ctx, scopes, type_params, &func_node.signature);
+                    let ty = ctx.define_type(Type { kind, repr: TypeRepr::Func(func_type) });
 
                     ValueObject::Func(FuncObject {
                         def_id,
@@ -714,30 +590,17 @@ fn generate_global_value(ctx: &Context<'_, '_>) {
                 Expr {
                     ty,
                     kind: ExprKind::Zero,
-                    pos: global_object
-                        .node
-                        .value
-                        .as_ref()
-                        .map(|val| val.pos())
-                        .unwrap_or(global_object.node.pos),
+                    pos: global_object.node.value.as_ref().map(|val| val.pos()).unwrap_or(global_object.node.pos),
                     assignable: false,
                 }
             };
 
             if !ty.is_assignable_with(value_expr.ty) {
-                let pos = global_object
-                    .node
-                    .value
-                    .as_ref()
-                    .map(|expr| expr.pos())
-                    .unwrap_or(global_object.node.pos);
+                let pos = global_object.node.value.as_ref().map(|expr| expr.pos()).unwrap_or(global_object.node.pos);
                 errors::report_type_mismatch(ctx.errors, pos, ty, value_expr.ty);
             }
 
-            global_object
-                .value
-                .set(value_expr)
-                .expect("cannot set global value expression");
+            global_object.value.set(value_expr).expect("cannot set global value expression");
         }
     }
 }
@@ -756,11 +619,7 @@ fn generate_func_bodies(ctx: &Context<'_, '_>) {
     }
 }
 
-fn get_func_body<'a>(
-    ctx: &Context<'a, '_>,
-    scope: &Scopes<'a>,
-    func_object: &FuncObject<'a>,
-) -> Statement<'a> {
+fn get_func_body<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, func_object: &FuncObject<'a>) -> Statement<'a> {
     let Some(ref body) = func_object.node.body else {
         return Statement::Native;
     };
@@ -777,14 +636,7 @@ fn get_func_body<'a>(
             continue;
         }
         let ty = func_type.params[i];
-        symbol_table.insert(
-            name,
-            ValueObject::Local(LocalObject {
-                id: last_unused_local,
-                ty,
-                name,
-            }),
-        );
+        symbol_table.insert(name, ValueObject::Local(LocalObject { id: last_unused_local, ty, name }));
         last_unused_local += 1;
     }
     let new_scope = scope.value_scopes.new_child(symbol_table);
@@ -818,10 +670,8 @@ fn monomorphize_statements(ctx: &Context<'_, '_>) {
         };
         assert!(!generic_func.type_params.is_empty());
 
-        let mut monomorphized = BumpVec::<(&TypeArgs, &Type, &Statement)>::with_capacity_in(
-            all_typeargs.len(),
-            ctx.arena,
-        );
+        let mut monomorphized =
+            BumpVec::<(&TypeArgs, &Type, &Statement)>::with_capacity_in(all_typeargs.len(), ctx.arena);
         for typeargs in all_typeargs {
             let body = generic_func.body.get().expect("missing func body");
             let ty = generic_func.ty.specialize(ctx, typeargs);
@@ -830,16 +680,11 @@ fn monomorphize_statements(ctx: &Context<'_, '_>) {
             monomorphized.push((typeargs, ty, monomorphized_body));
         }
 
-        generic_func
-            .monomorphized
-            .set(monomorphized.into_bump_slice())
-            .expect("cannot set monomorphized functions");
+        generic_func.monomorphized.set(monomorphized.into_bump_slice()).expect("cannot set monomorphized functions");
     }
 }
 
-fn get_all_monomorphized_funcs<'a>(
-    ctx: &Context<'a, '_>,
-) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
+fn get_all_monomorphized_funcs<'a>(ctx: &Context<'a, '_>) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
         Expr(&'b Expr<'a>, &'a TypeArgs<'a>),
@@ -860,10 +705,7 @@ fn get_all_monomorphized_funcs<'a>(
                     }
                 }
                 ValueObject::Global(global_object) => {
-                    let value = global_object
-                        .value
-                        .get()
-                        .expect("missing global value expr");
+                    let value = global_object.value.get().expect("missing global value expr");
                     queue.push_back(Source::Expr(value, empty_typeargs));
                 }
                 _ => continue,
@@ -899,10 +741,8 @@ fn get_all_monomorphized_funcs<'a>(
                     }
                 }
                 ExprKind::FuncInst(def_id, inner_typeargs) => {
-                    let substituted_typeargs = inner_typeargs
-                        .iter()
-                        .map(|ty| ty.substitute(ctx, type_args))
-                        .collect::<Vec<_>>();
+                    let substituted_typeargs =
+                        inner_typeargs.iter().map(|ty| ty.substitute(ctx, type_args)).collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
                     queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));
                 }
@@ -942,15 +782,12 @@ fn get_all_monomorphized_funcs<'a>(
                     queue.push_back(Source::Expr(a, type_args));
                     queue.push_back(Source::Expr(b, type_args));
                 }
-                ExprKind::Neg(value)
-                | ExprKind::BitNot(value)
-                | ExprKind::Not(value)
-                | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, type_args)),
-            },
-            Source::Statement(stmt, type_args) => match stmt {
-                Statement::NewLocal { id: _, value } => {
+                ExprKind::Neg(value) | ExprKind::BitNot(value) | ExprKind::Not(value) | ExprKind::Cast(value, _) => {
                     queue.push_back(Source::Expr(value, type_args))
                 }
+            },
+            Source::Statement(stmt, type_args) => match stmt {
+                Statement::NewLocal { id: _, value } => queue.push_back(Source::Expr(value, type_args)),
                 Statement::Block(stmts) => {
                     for stmt in stmts.iter() {
                         queue.push_back(Source::Statement(stmt, type_args));
@@ -1018,15 +855,9 @@ fn get_all_monomorphized_funcs<'a>(
                 };
                 assert!(!generic_func.type_params.is_empty());
 
-                queue.push_back(Source::Statement(
-                    generic_func.body.get().expect("missing body"),
-                    typeargs,
-                ));
+                queue.push_back(Source::Statement(generic_func.body.get().expect("missing body"), typeargs));
 
-                monomorphized_funcs
-                    .entry(def_id)
-                    .or_default()
-                    .push(typeargs);
+                monomorphized_funcs.entry(def_id).or_default().push(typeargs);
             }
         }
     }
@@ -1034,11 +865,7 @@ fn get_all_monomorphized_funcs<'a>(
     monomorphized_funcs.into_iter().collect()
 }
 
-fn build_module<'a>(
-    ctx: Context<'a, '_>,
-    is_valid: bool,
-    global_init_order: Vec<DefId<'a>>,
-) -> Module<'a> {
+fn build_module<'a>(ctx: Context<'a, '_>, is_valid: bool, global_init_order: Vec<DefId<'a>>) -> Module<'a> {
     let mut packages = Vec::default();
     for (name, scope) in ctx.scopes.into_iter() {
         let mut globals = Vec::default();
@@ -1048,10 +875,7 @@ fn build_module<'a>(
                 ValueObject::Global(mut global_object) => globals.push(Global {
                     name: global_object.def_id,
                     ty: global_object.ty,
-                    value: global_object
-                        .value
-                        .take()
-                        .expect("missing global value expr"),
+                    value: global_object.value.take().expect("missing global value expr"),
                     annotations: global_object.annotations.clone(),
                 }),
                 ValueObject::Func(func_object) => {
@@ -1081,16 +905,8 @@ fn build_module<'a>(
                 _ => continue,
             }
         }
-        packages.push(Package {
-            name,
-            globals,
-            functions,
-        })
+        packages.push(Package { name, globals, functions })
     }
 
-    Module {
-        packages,
-        is_valid,
-        global_init_order,
-    }
+    Module { packages, is_valid, global_init_order }
 }

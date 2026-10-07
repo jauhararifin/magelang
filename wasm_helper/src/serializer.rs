@@ -19,27 +19,15 @@ impl<'a> Serializer for Module<'a> {
 
         self.types.as_section(0x01).serialize(writer)?;
         self.imports.as_section(0x02).serialize(writer)?;
-        self.funcs
-            .iter()
-            .map(|func| func.ty)
-            .collect::<Vec<_>>()
-            .as_section(0x03)
-            .serialize(writer)?;
+        self.funcs.iter().map(|func| func.ty).collect::<Vec<_>>().as_section(0x03).serialize(writer)?;
         self.tables.as_section(0x04).serialize(writer)?;
         self.mems.as_section(0x05).serialize(writer)?;
         self.globals.as_section(0x06).serialize(writer)?;
         self.exports.as_section(0x07).serialize(writer)?;
-        self.start
-            .as_ref()
-            .map(|start| Section::new(0x08, start))
-            .serialize(writer)?;
+        self.start.as_ref().map(|start| Section::new(0x08, start)).serialize(writer)?;
         self.elems.as_section(0x09).serialize(writer)?;
         let data_len = self.datas.len() as u32;
-        Section {
-            id: 0x0c,
-            content: &data_len,
-        }
-        .serialize(writer)?;
+        Section { id: 0x0c, content: &data_len }.serialize(writer)?;
         self.funcs.as_section(0x0a).serialize(writer)?;
         self.datas.as_section(0x0b).serialize(writer)?;
 
@@ -54,13 +42,8 @@ impl<'a> Serializer for Module<'a> {
         for func in &self.funcs {
             names.push((names.len(), func.name.clone()));
         }
-        NameSection {
-            functions: names
-                .iter()
-                .map(|(idx, name)| (*idx as u32, name.as_str()))
-                .collect(),
-        }
-        .serialize(writer)?;
+        NameSection { functions: names.iter().map(|(idx, name)| (*idx as u32, name.as_str())).collect() }
+            .serialize(writer)?;
 
         Ok(())
     }
@@ -181,11 +164,7 @@ trait AsSection: Sized {
 
 impl<T> AsSection for Vec<T> {
     fn as_section(&self, id: u8) -> Option<Section<'_, Self>> {
-        if self.is_empty() {
-            None
-        } else {
-            Some(Section { id, content: self })
-        }
+        if self.is_empty() { None } else { Some(Section { id, content: self }) }
     }
 }
 
@@ -203,11 +182,7 @@ where
     where
         W: std::io::Write + ?Sized,
     {
-        if let Some(val) = &self {
-            val.serialize(writer)
-        } else {
-            Ok(())
-        }
+        if let Some(val) = &self { val.serialize(writer) } else { Ok(()) }
     }
 }
 
@@ -435,20 +410,10 @@ impl Serializer for Elem {
         let func_ids: Vec<FuncIdx> = self
             .init
             .iter()
-            .filter_map(|expr| {
-                if let &[Instr::RefFunc(func_id)] = &expr.0[..] {
-                    Some(func_id)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|expr| if let &[Instr::RefFunc(func_id)] = &expr.0[..] { Some(func_id) } else { None })
             .collect();
 
-        let func_ids = if func_ids.len() == self.init.len() {
-            Some(func_ids)
-        } else {
-            None
-        };
+        let func_ids = if func_ids.len() == self.init.len() { Some(func_ids) } else { None };
 
         match (&self.ty, func_ids, &self.mode) {
             (RefType::FuncRef, Some(func_ids), ElemMode::Active { table: 0, offset }) => {
@@ -506,10 +471,7 @@ impl Serializer for Func {
         let mut buff = Vec::<u8>::default();
 
         let mut local_groups = Vec::default();
-        let mut last_group = ValTypeGroup {
-            count: 0,
-            ty: ValType::Num(NumType::I32),
-        };
+        let mut last_group = ValTypeGroup { count: 0, ty: ValType::Num(NumType::I32) };
         for val_ty in &self.locals {
             if val_ty.ty == last_group.ty {
                 last_group.count += 1;

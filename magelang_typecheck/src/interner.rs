@@ -14,12 +14,7 @@ struct InternerInternal<'a, T: ?Sized> {
 
 impl<'a, T: ?Sized> Interner<'a, T> {
     pub(crate) fn new(bump: &'a Bump) -> Self {
-        Self {
-            internal: RefCell::new(InternerInternal {
-                bump,
-                items: IndexSet::default(),
-            }),
-        }
+        Self { internal: RefCell::new(InternerInternal { bump, items: IndexSet::default() }) }
     }
 }
 

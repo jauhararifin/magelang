@@ -123,13 +123,7 @@ impl<'a> Type<'a> {
                 .mono_cache
                 .borrow()
                 .values()
-                .filter_map(|ty| {
-                    if let TypeKind::Inst(inst) = ty.kind {
-                        Some(inst.type_args)
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(|ty| if let TypeKind::Inst(inst) = ty.kind { Some(inst.type_args) } else { None })
                 .collect();
 
             for type_args in instanced_types {
@@ -138,11 +132,7 @@ impl<'a> Type<'a> {
         };
     }
 
-    pub(crate) fn specialize(
-        &'a self,
-        ctx: &Context<'a, '_>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> &'a Type<'a> {
+    pub(crate) fn specialize(&'a self, ctx: &Context<'a, '_>, type_args: &'a TypeArgs<'a>) -> &'a Type<'a> {
         match &self.kind {
             TypeKind::GenericStruct(generic_type) => {
                 // TODO: maybe it's better to put the cache in the ctx instead of type itself.
@@ -157,29 +147,16 @@ impl<'a> Type<'a> {
                     return ty;
                 }
                 let ty = ctx.define_type(Type {
-                    kind: TypeKind::Inst(InstType {
-                        def_id: generic_type.def_id,
-                        type_args,
-                    }),
-                    repr: TypeRepr::Struct(StructType {
-                        body: OnceCell::default(),
-                    }),
+                    kind: TypeKind::Inst(InstType { def_id: generic_type.def_id, type_args }),
+                    repr: TypeRepr::Struct(StructType { body: OnceCell::default() }),
                 });
                 cache.insert(type_args, ty);
                 drop(cache);
 
                 // it is important to call initialize the body after the cache is inserted and
                 // dropped to avoid infinite loop due to circular traversal in the type graph.
-                if let Some(body) = self
-                    .repr
-                    .as_struct()
-                    .expect("generic structs have struct repr")
-                    .body
-                    .get()
-                {
-                    let TypeRepr::Struct(ref instanced_repr) = ty.repr else {
-                        unreachable!()
-                    };
+                if let Some(body) = self.repr.as_struct().expect("generic structs have struct repr").body.get() {
+                    let TypeRepr::Struct(ref instanced_repr) = ty.repr else { unreachable!() };
                     instanced_repr.body.get_or_init(|| {
                         let fields = body
                             .fields
@@ -193,18 +170,13 @@ impl<'a> Type<'a> {
                 ty
             }
             TypeKind::GenericFunc(generic_type) => {
-                let TypeRepr::Func(ref func_type) = self.repr else {
-                    unreachable!()
-                };
+                let TypeRepr::Func(ref func_type) = self.repr else { unreachable!() };
                 let mut cache = generic_type.mono_cache.borrow_mut();
                 // it is ok to not prefilled the cache like the one we have for generic struct
                 // because generic function type is never circular
                 cache.entry(type_args).or_insert_with(|| {
                     ctx.define_type(Type {
-                        kind: TypeKind::Inst(InstType {
-                            def_id: generic_type.def_id,
-                            type_args,
-                        }),
+                        kind: TypeKind::Inst(InstType { def_id: generic_type.def_id, type_args }),
                         repr: TypeRepr::Func(func_type.substitute(ctx, type_args)),
                     })
                 })
@@ -213,16 +185,9 @@ impl<'a> Type<'a> {
         }
     }
 
-    pub(crate) fn substitute(
-        &'a self,
-        ctx: &Context<'a, '_>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> &'a Type<'a> {
+    pub(crate) fn substitute(&'a self, ctx: &Context<'a, '_>, type_args: &'a TypeArgs<'a>) -> &'a Type<'a> {
         assert!(
-            !matches!(
-                self.kind,
-                TypeKind::GenericFunc(..) | TypeKind::GenericStruct(..)
-            ),
+            !matches!(self.kind, TypeKind::GenericFunc(..) | TypeKind::GenericStruct(..)),
             "a struct field can't contain generic type. generic type is only defined in top level"
         );
 
@@ -238,13 +203,11 @@ impl<'a> Type<'a> {
                         .type_scopes
                         .lookup(inst_type.def_id.name)
                         .expect("generic type is defined");
-                    let mut substituted_typeargs =
-                        BumpVec::with_capacity_in(inst_type.type_args.len(), ctx.arena);
+                    let mut substituted_typeargs = BumpVec::with_capacity_in(inst_type.type_args.len(), ctx.arena);
                     for type_arg in inst_type.type_args {
                         substituted_typeargs.push(type_arg.substitute(ctx, type_args));
                     }
-                    let substituted_typeargs =
-                        ctx.define_typeargs(substituted_typeargs.into_bump_slice());
+                    let substituted_typeargs = ctx.define_typeargs(substituted_typeargs.into_bump_slice());
                     object.ty.specialize(ctx, substituted_typeargs)
                 }
                 TypeKind::User(..) => self,
@@ -259,9 +222,7 @@ impl<'a> Type<'a> {
                         .collect::<IndexMap<_, _>>();
                     ctx.define_type(Type {
                         kind: TypeKind::Anonymous,
-                        repr: TypeRepr::Struct(StructType {
-                            body: OnceCell::from(StructBody { fields }),
-                        }),
+                        repr: TypeRepr::Struct(StructType { body: OnceCell::from(StructBody { fields }) }),
                     })
                 }
             },
@@ -271,19 +232,14 @@ impl<'a> Type<'a> {
                 }
                 TypeKind::User(..) => self,
                 TypeKind::Inst(inst_type) => {
-                    let mut substituted_typeargs =
-                        BumpVec::with_capacity_in(inst_type.type_args.len(), ctx.arena);
+                    let mut substituted_typeargs = BumpVec::with_capacity_in(inst_type.type_args.len(), ctx.arena);
                     for type_arg in inst_type.type_args {
                         substituted_typeargs.push(type_arg.substitute(ctx, type_args));
                     }
-                    let substituted_typeargs =
-                        ctx.define_typeargs(substituted_typeargs.into_bump_slice());
+                    let substituted_typeargs = ctx.define_typeargs(substituted_typeargs.into_bump_slice());
 
                     ctx.define_type(Type {
-                        kind: TypeKind::Inst(InstType {
-                            def_id: inst_type.def_id,
-                            type_args: substituted_typeargs,
-                        }),
+                        kind: TypeKind::Inst(InstType { def_id: inst_type.def_id, type_args: substituted_typeargs }),
                         repr: TypeRepr::Func(func_type.substitute(ctx, substituted_typeargs)),
                     })
                 }
@@ -299,10 +255,9 @@ impl<'a> Type<'a> {
             TypeRepr::Int(..) => self,
             TypeRepr::UntypedFloat => self,
             TypeRepr::Float(..) => self,
-            TypeRepr::Ptr(el) => ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Ptr(el.substitute(ctx, type_args)),
-            }),
+            TypeRepr::Ptr(el) => {
+                ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Ptr(el.substitute(ctx, type_args)) })
+            }
             TypeRepr::ArrayPtr(el) => ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::ArrayPtr(el.substitute(ctx, type_args)),
@@ -496,19 +451,11 @@ pub enum TypeRepr<'a> {
 
 impl<'a> TypeRepr<'a> {
     pub fn as_func(&self) -> Option<&FuncType<'a>> {
-        if let Self::Func(t) = self {
-            Some(t)
-        } else {
-            None
-        }
+        if let Self::Func(t) = self { Some(t) } else { None }
     }
 
     pub fn as_struct(&self) -> Option<&StructType<'a>> {
-        if let Self::Struct(t) = self {
-            Some(t)
-        } else {
-            None
-        }
+        if let Self::Struct(t) = self { Some(t) } else { None }
     }
 
     pub(crate) fn is_opaque(&self) -> bool {
@@ -619,20 +566,13 @@ pub struct FuncType<'a> {
 }
 
 impl<'a> FuncType<'a> {
-    pub(crate) fn substitute<'b>(
-        &self,
-        ctx: &'b Context<'a, '_>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> FuncType<'a> {
+    pub(crate) fn substitute<'b>(&self, ctx: &'b Context<'a, '_>, type_args: &'a TypeArgs<'a>) -> FuncType<'a> {
         let mut params = BumpVec::with_capacity_in(self.params.len(), ctx.arena);
         for ty in self.params {
             params.push(ty.substitute(ctx, type_args));
         }
         let return_type = self.return_type.substitute(ctx, type_args);
-        FuncType {
-            params: params.into_bump_slice(),
-            return_type,
-        }
+        FuncType { params: params.into_bump_slice(), return_type }
     }
 }
 
@@ -680,9 +620,7 @@ impl<'a> TypeArg<'a> {
     }
 
     pub(crate) fn substitute(&self, type_args: &'a TypeArgs<'a>) -> &'a Type<'a> {
-        type_args
-            .get(self.index)
-            .expect("missing type arg at the index")
+        type_args.get(self.index).expect("missing type arg at the index")
     }
 }
 
@@ -692,27 +630,16 @@ pub(crate) fn get_type_from_node<'a, 'b>(
     node: &TypeExprNode,
 ) -> &'a Type<'a> {
     match node {
-        TypeExprNode::Invalid(..) => ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Unknown,
-        }),
-        TypeExprNode::Ident(..) | TypeExprNode::Selection(..) => {
-            get_type_from_named(ctx, scope, node, &[])
-        }
+        TypeExprNode::Invalid(..) => ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+        TypeExprNode::Ident(..) | TypeExprNode::Selection(..) => get_type_from_named(ctx, scope, node, &[]),
         TypeExprNode::Inst(inst) => get_type_from_named(ctx, scope, &inst.value, &inst.args),
         TypeExprNode::Ptr(node) => {
             let element_ty = get_type_from_node(ctx, scope, &node.ty);
-            ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Ptr(element_ty),
-            })
+            ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Ptr(element_ty) })
         }
         TypeExprNode::ArrayPtr(node) => {
             let element_ty = get_type_from_node(ctx, scope, &node.ty);
-            ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::ArrayPtr(element_ty),
-            })
+            ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::ArrayPtr(element_ty) })
         }
         TypeExprNode::Func(node) => {
             let mut params = BumpVec::with_capacity_in(node.params.len(), ctx.arena);
@@ -723,18 +650,12 @@ pub(crate) fn get_type_from_node<'a, 'b>(
             let return_type = if let Some(expr) = &node.return_type {
                 get_type_from_node(ctx, scope, expr)
             } else {
-                ctx.define_type(Type {
-                    kind: TypeKind::Anonymous,
-                    repr: TypeRepr::Void,
-                })
+                ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Void })
             };
 
             ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
-                repr: TypeRepr::Func(FuncType {
-                    params: params.into_bump_slice(),
-                    return_type,
-                }),
+                repr: TypeRepr::Func(FuncType { params: params.into_bump_slice(), return_type }),
             })
         }
         TypeExprNode::Grouped(node) => get_type_from_node(ctx, scope, node),
@@ -748,10 +669,7 @@ fn get_type_from_named<'a, 'b>(
     args: &[TypeExprNode],
 ) -> &'a Type<'a> {
     let Some(object) = get_type_object_from_name(ctx, scope, node) else {
-        return ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Unknown,
-        });
+        return ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
     };
 
     let TypeKind::GenericStruct(generic_type) = &object.kind else {
@@ -762,25 +680,14 @@ fn get_type_from_named<'a, 'b>(
     };
 
     let required_type_param = generic_type.type_params.len();
-    let mut type_args = args
-        .iter()
-        .map(|node| get_type_from_node(ctx, scope, node))
-        .collect::<Vec<_>>();
+    let mut type_args = args.iter().map(|node| get_type_from_node(ctx, scope, node)).collect::<Vec<_>>();
 
     if type_args.len() != required_type_param {
-        errors::report_type_arguments_count_mismatch(
-            ctx.errors,
-            node.pos(),
-            required_type_param,
-            type_args.len(),
-        );
+        errors::report_type_arguments_count_mismatch(ctx.errors, node.pos(), required_type_param, type_args.len());
     }
 
     while type_args.len() < required_type_param {
-        let unknown_type = ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Unknown,
-        });
+        let unknown_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
         type_args.push(unknown_type);
     }
     let type_args = ctx.define_typeargs(&type_args);
@@ -804,11 +711,7 @@ fn get_type_object_from_name<'a, 'b>(
         }
         TypeExprNode::Selection(selection) => {
             let TypeExprNode::Ident(package) = selection.value.as_ref() else {
-                errors::report_undeclared_symbol(
-                    ctx.errors,
-                    selection.selection.pos,
-                    &selection.selection.value,
-                );
+                errors::report_undeclared_symbol(ctx.errors, selection.selection.pos, &selection.selection.value);
                 return None;
             };
             let name = &selection.selection;
@@ -853,12 +756,7 @@ pub(crate) fn get_func_type_from_signature<'a>(
         let name = ctx.define_symbol(&param_node.name.value);
         let pos = param_node.name.pos;
         if let Some(defined_at) = param_pos.get(&name) {
-            errors::report_redeclared_symbol(
-                ctx.errors,
-                pos,
-                ctx.files.location(*defined_at),
-                &param_node.name.value,
-            );
+            errors::report_redeclared_symbol(ctx.errors, pos, ctx.files.location(*defined_at), &param_node.name.value);
         } else {
             param_pos.insert(name, pos);
         }
@@ -870,22 +768,13 @@ pub(crate) fn get_func_type_from_signature<'a>(
     let return_type = if let Some(expr) = &signature.return_type {
         get_type_from_node(ctx, &scope, expr)
     } else {
-        ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Void,
-        })
+        ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Void })
     };
 
-    FuncType {
-        params: params.into_bump_slice(),
-        return_type,
-    }
+    FuncType { params: params.into_bump_slice(), return_type }
 }
 
-pub(crate) fn get_typeparams<'a>(
-    ctx: &Context<'a, '_>,
-    nodes: &[TypeParameterNode],
-) -> &'a [TypeArg<'a>] {
+pub(crate) fn get_typeparams<'a>(ctx: &Context<'a, '_>, nodes: &[TypeParameterNode]) -> &'a [TypeArg<'a>] {
     let mut type_params = BumpVec::with_capacity_in(nodes.len(), ctx.arena);
     let mut param_pos = HashMap::<Symbol, Pos>::default();
     for (i, type_param) in nodes.iter().enumerate() {
@@ -909,10 +798,7 @@ pub(crate) fn get_typeparam_scope<'a>(
     let mut type_param_table = IndexMap::<Symbol, TypeObject>::default();
     for type_param in type_params {
         if !type_param_table.contains_key(&type_param.name) {
-            let ty = ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::TypeArg(*type_param),
-            });
+            let ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::TypeArg(*type_param) });
             type_param_table.insert(type_param.name, ty.into());
         }
     }
@@ -958,15 +844,9 @@ pub(crate) fn check_circular_type(ctx: &Context<'_, '_>) {
     }
 }
 
-fn build_struct_dependency_list<'a>(
-    ctx: &Context<'a, '_>,
-) -> IndexMap<DefId<'a>, IndexSet<DefId<'a>>> {
+fn build_struct_dependency_list<'a>(ctx: &Context<'a, '_>) -> IndexMap<DefId<'a>, IndexSet<DefId<'a>>> {
     let mut adjlist = IndexMap::<DefId, IndexSet<DefId>>::default();
-    let type_objects = ctx
-        .scopes
-        .values()
-        .flat_map(|scopes| scopes.type_scopes.iter())
-        .map(|(_, obj)| obj);
+    let type_objects = ctx.scopes.values().flat_map(|scopes| scopes.type_scopes.iter()).map(|(_, obj)| obj);
 
     for type_object in type_objects {
         let TypeRepr::Struct(struct_type) = &type_object.repr else {
@@ -1010,18 +890,8 @@ fn report_circular_type(ctx: &Context<'_, '_>, in_chain: &IndexSet<DefId>, start
         chain_str.push(display);
     }
 
-    let object = ctx
-        .scopes
-        .get(&start.package)
-        .unwrap()
-        .type_scopes
-        .lookup(start.name)
-        .unwrap();
+    let object = ctx.scopes.get(&start.package).unwrap().type_scopes.lookup(start.name).unwrap();
 
-    let pos = object
-        .node
-        .as_ref()
-        .expect("missing strut node in type object")
-        .pos;
+    let pos = object.node.as_ref().expect("missing strut node in type object").pos;
     errors::report_circular_type(ctx.errors, pos, &chain_str);
 }

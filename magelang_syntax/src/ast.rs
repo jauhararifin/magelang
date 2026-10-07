@@ -41,11 +41,7 @@ impl ItemNode {
     }
 
     pub fn as_import(&self) -> Option<&ImportNode> {
-        if let Self::Import(node) = self {
-            Some(node)
-        } else {
-            None
-        }
+        if let Self::Import(node) = self { Some(node) } else { None }
     }
 }
 
@@ -67,11 +63,7 @@ pub struct StringLit {
 impl From<Token> for StringLit {
     fn from(token: Token) -> Self {
         if let TokenKind::StringLit { raw, value } = token.kind {
-            Self {
-                raw,
-                value,
-                pos: token.pos,
-            }
+            Self { raw, value, pos: token.pos }
         } else {
             panic!("token is not a string literal");
         }
@@ -87,10 +79,7 @@ pub struct Identifier {
 impl From<Token> for Identifier {
     fn from(token: Token) -> Self {
         if let TokenKind::Ident(value) = token.kind {
-            Self {
-                value,
-                pos: token.pos,
-            }
+            Self { value, pos: token.pos }
         } else {
             panic!("token is not an ident")
         }
@@ -285,10 +274,7 @@ pub struct BoolLiteral {
 
 impl From<Token> for BoolLiteral {
     fn from(value: Token) -> Self {
-        Self {
-            value: value.kind == TokenKind::True,
-            pos: value.pos,
-        }
+        Self { value: value.kind == TokenKind::True, pos: value.pos }
     }
 }
 

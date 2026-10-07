@@ -1,7 +1,7 @@
 use crate::code::{build_function, build_init_function};
 use crate::context::Context;
 use crate::data::DataManager;
-use crate::func::{FuncMapper, build_intrinsic_func, setup_functions};
+use crate::func::{build_intrinsic_func, setup_functions, FuncMapper};
 use crate::ty::TypeManager;
 use crate::var::GlobalManager;
 use bumpalo::Bump;
@@ -15,12 +15,7 @@ pub fn generate<'ctx>(
     error_manager: &'ctx ErrorManager,
     module: &'ctx Module<'ctx>,
 ) -> Option<wasm::Module<'ctx>> {
-    let ctx = Context {
-        arena,
-        files: file_manager,
-        errors: error_manager,
-        module,
-    };
+    let ctx = Context { arena, files: file_manager, errors: error_manager, module };
 
     let data_manager = DataManager::build(ctx);
     let type_manager = TypeManager::default();
@@ -40,14 +35,8 @@ pub fn generate<'ctx>(
             let result = build_intrinsic_func(&type_manager, &data_manager, func);
             module_functions.push(result);
         } else if func.body.is_some() {
-            let wasm_func = build_function(
-                error_manager,
-                &data_manager,
-                &type_manager,
-                &global_manager,
-                &func_manager,
-                func,
-            );
+            let wasm_func =
+                build_function(error_manager, &data_manager, &type_manager, &global_manager, &func_manager, func);
             module_functions.push(wasm_func);
         }
     }
@@ -75,36 +64,22 @@ pub fn generate<'ctx>(
 
     let func_elems = func_manager.func_elems;
     let func_table = wasm::Table {
-        limits: wasm::Limits {
-            min: func_elems.len() as u32,
-            max: None,
-        },
+        limits: wasm::Limits { min: func_elems.len() as u32, max: None },
         ref_type: wasm::RefType::FuncRef,
     };
-    let opaque_table = wasm::TableType {
-        limits: wasm::Limits { min: 32, max: None },
-        ref_type: wasm::RefType::ExternRef,
-    };
+    let opaque_table =
+        wasm::TableType { limits: wasm::Limits { min: 32, max: None }, ref_type: wasm::RefType::ExternRef };
     let tables = vec![func_table, opaque_table];
 
     let data = data_manager.take();
 
     let min_page = data.num_pages;
-    let mems = vec![wasm::Mem {
-        min: min_page as u32,
-        max: None,
-    }];
+    let mems = vec![wasm::Mem { min: min_page as u32, max: None }];
 
     let mut exports = Vec::<wasm::Export>::default();
-    exports.push(wasm::Export {
-        name: "memory".to_string(),
-        desc: wasm::ExportDesc::Mem(0),
-    });
+    exports.push(wasm::Export { name: "memory".to_string(), desc: wasm::ExportDesc::Mem(0) });
     exports.extend(func_manager.exports);
-    exports.push(wasm::Export {
-        name: "func_table".into(),
-        desc: wasm::ExportDesc::Table(0),
-    });
+    exports.push(wasm::Export { name: "func_table".into(), desc: wasm::ExportDesc::Table(0) });
 
     Some(wasm::Module {
         types: type_manager.take(),

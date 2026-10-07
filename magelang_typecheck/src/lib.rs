@@ -13,7 +13,7 @@ use magelang_syntax::Pos;
 use std::fmt::Display;
 use std::rc::Rc;
 
-pub use analyze::{analyze, Annotation, FuncObject, GlobalObject, ValueObject};
+pub use analyze::{Annotation, FuncObject, GlobalObject, ValueObject, analyze};
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
 pub type Symbol<'a> = &'a str;
@@ -33,8 +33,8 @@ impl<'a> Display for DefId<'a> {
 pub use expr::{Expr, ExprKind};
 pub use statement::{ForStatement, IfStatement, Statement, WhileStatement};
 pub use ty::{
-    BitSize, FloatType, FuncType, InstType, IntSign, StructBody, StructType, Type, TypeArg,
-    TypeArgs, TypeKind, TypeRepr,
+    BitSize, FloatType, FuncType, InstType, IntSign, StructBody, StructType, Type, TypeArg, TypeArgs, TypeKind,
+    TypeRepr,
 };
 
 #[derive(Debug)]

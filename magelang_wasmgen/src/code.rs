@@ -2,12 +2,10 @@ use crate::data::DataManager;
 use crate::errors;
 use crate::expr::ExprBuilder;
 use crate::func::{FuncMapper, Function};
-use crate::ty::{AlignNormalize, PrimitiveType, TypeManager, build_val_type};
+use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
 use magelang_syntax::{BinaryOp, ErrorManager};
-use magelang_typecheck::{
-    Expr, ExprKind, ForStatement, IfStatement, Module, Statement, WhileStatement,
-};
+use magelang_typecheck::{Expr, ExprKind, ForStatement, IfStatement, Module, Statement, WhileStatement};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use wasm_helper as wasm;
@@ -23,15 +21,7 @@ pub(crate) fn build_function<'a, 'ctx>(
     let mut locals = Vec::default();
     for ty in func.ty.params {
         let val_types = build_val_type(ty);
-        locals.push(
-            val_types
-                .iter()
-                .map(|ty| wasm::Local {
-                    name: "".to_string(),
-                    ty: (*ty).into(),
-                })
-                .collect(),
-        );
+        locals.push(val_types.iter().map(|ty| wasm::Local { name: "".to_string(), ty: (*ty).into() }).collect());
     }
     let local_manager = LocalManager::new(locals.into_iter());
 
@@ -91,8 +81,7 @@ pub(crate) fn build_init_function<'a, 'ctx>(
             if !global.ty.is_byte_array() {
                 continue;
             }
-            let Some((_, path)) = data_manager.get_embed_file_annotation(&global.annotations)
-            else {
+            let Some((_, path)) = data_manager.get_embed_file_annotation(&global.annotations) else {
                 continue;
             };
             let ptr = data_manager.get_file(path).expect("missing path");
@@ -114,10 +103,7 @@ pub(crate) fn build_init_function<'a, 'ctx>(
 
     wasm::Func {
         name: "__init".to_string(),
-        ty: type_manager.get_func_type(wasm::FuncType {
-            parameters: vec![],
-            returns: vec![],
-        }),
+        ty: type_manager.get_func_type(wasm::FuncType { parameters: vec![], returns: vec![] }),
         locals: local_manager.take(),
         body: wasm::Expr(body),
     }
@@ -176,31 +162,19 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
             Statement::Block(statements) => {
                 self.build_block_stmt(continue_label, break_label, loop_defer_mark, statements)
             }
-            Statement::If(if_stmt) => {
-                self.build_if_stmt(continue_label, break_label, loop_defer_mark, if_stmt)
-            }
+            Statement::If(if_stmt) => self.build_if_stmt(continue_label, break_label, loop_defer_mark, if_stmt),
             Statement::While(while_stmt) => self.build_while_stmt(while_stmt),
-            Statement::For(for_stmt) => {
-                self.build_for_stmt(continue_label, break_label, loop_defer_mark, for_stmt)
-            }
-            Statement::Return(value) => {
-                self.build_return_stmt(continue_label, break_label, loop_defer_mark, value)
-            }
+            Statement::For(for_stmt) => self.build_for_stmt(continue_label, break_label, loop_defer_mark, for_stmt),
+            Statement::Return(value) => self.build_return_stmt(continue_label, break_label, loop_defer_mark, value),
             Statement::Expr(expr) => self.build_expr_stmt(expr),
             Statement::Assign { target, value } => self.build_assign_stmt(target, value),
-            Statement::AssignOp { target, op, value } => {
-                self.build_assign_op_stmt(target, *op, value)
-            }
+            Statement::AssignOp { target, op, value } => self.build_assign_op_stmt(target, *op, value),
             Statement::Defer(stmt) => {
                 self.pending_defers.borrow_mut().push(stmt);
                 vec![]
             }
-            Statement::Continue => {
-                self.build_jump_stmt(continue_label, break_label, loop_defer_mark, continue_label)
-            }
-            Statement::Break => {
-                self.build_jump_stmt(continue_label, break_label, loop_defer_mark, break_label)
-            }
+            Statement::Continue => self.build_jump_stmt(continue_label, break_label, loop_defer_mark, continue_label),
+            Statement::Break => self.build_jump_stmt(continue_label, break_label, loop_defer_mark, break_label),
         }
     }
 
@@ -228,12 +202,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         for stmt in statements.iter() {
             result.extend(self.build_statement(continue_label, break_label, loop_defer_mark, stmt));
         }
-        result.extend(self.build_deferred_stmts(
-            continue_label,
-            break_label,
-            loop_defer_mark,
-            defer_mark,
-        ));
+        result.extend(self.build_deferred_stmts(continue_label, break_label, loop_defer_mark, defer_mark));
         result
     }
 
@@ -260,20 +229,10 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         if_stmt: &'ctx IfStatement<'ctx>,
     ) -> Vec<wasm::Instr> {
         let mut result = self.exprs.build(&if_stmt.cond);
-        let body = self.build_statement(
-            continue_label + 1,
-            break_label + 1,
-            loop_defer_mark,
-            &if_stmt.body,
-        );
+        let body = self.build_statement(continue_label + 1, break_label + 1, loop_defer_mark, &if_stmt.body);
 
         let else_body = if let Some(ref else_body) = if_stmt.else_stmt {
-            self.build_statement(
-                continue_label + 1,
-                break_label + 1,
-                loop_defer_mark,
-                else_body,
-            )
+            self.build_statement(continue_label + 1, break_label + 1, loop_defer_mark, else_body)
         } else {
             vec![]
         };
@@ -293,10 +252,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         inner_block.extend(body);
         inner_block.push(wasm::Instr::Br(0));
 
-        vec![wasm::Instr::Block(
-            wasm::BlockType::None,
-            vec![wasm::Instr::Loop(wasm::BlockType::None, inner_block)],
-        )]
+        vec![wasm::Instr::Block(wasm::BlockType::None, vec![wasm::Instr::Loop(wasm::BlockType::None, inner_block)])]
     }
 
     fn build_for_stmt(
@@ -365,19 +321,12 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         result
     }
 
-    fn build_assign_stmt(
-        &self,
-        target: &'ctx Expr<'ctx>,
-        expr: &'ctx Expr<'ctx>,
-    ) -> Vec<wasm::Instr> {
+    fn build_assign_stmt(&self, target: &'ctx Expr<'ctx>, expr: &'ctx Expr<'ctx>) -> Vec<wasm::Instr> {
         if let ExprKind::Deref(ptr) = &target.kind {
             self.build_mem_assign_stmt(ptr, expr)
         } else {
             let Some(variable) = self.get_variable_loc(target) else {
-                unreachable!(
-                    "assignment target is not a storage location: {:?}",
-                    target.kind
-                );
+                unreachable!("assignment target is not a storage location: {:?}", target.kind);
             };
 
             let types = build_val_type(expr.ty);
@@ -411,10 +360,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         for (i, component) in mem_layout.components.iter().enumerate().rev() {
             let ty = val_types[i];
 
-            let mem_arg = wasm::MemArg {
-                offset: component.offset,
-                align: component.align.normalize(),
-            };
+            let mem_arg = wasm::MemArg { offset: component.offset, align: component.align.normalize() };
             let Some(store_instr) = ty.store_instr() else {
                 errors::report_storing_opaque(self.errors, value.pos);
                 return vec![wasm::Instr::Unreachable];
@@ -439,12 +385,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         target_label: u32,
     ) -> Vec<wasm::Instr> {
         let pending = self.pending_defers.borrow().clone();
-        let mut result = self.build_deferred_stmts(
-            continue_label,
-            break_label,
-            loop_defer_mark,
-            loop_defer_mark,
-        );
+        let mut result = self.build_deferred_stmts(continue_label, break_label, loop_defer_mark, loop_defer_mark);
         *self.pending_defers.borrow_mut() = pending;
         result.push(wasm::Instr::Br(target_label));
         result
@@ -467,10 +408,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
 
         let ExprKind::Deref(ptr) = &target.kind else {
             let Some(variable) = self.get_variable_loc(target) else {
-                unreachable!(
-                    "assignment target is not a storage location: {:?}",
-                    target.kind
-                );
+                unreachable!("assignment target is not a storage location: {:?}", target.kind);
             };
             let current = vec![variable.get_get_instr(0)];
             let mut result = self.exprs.build_binary_op(op, target.ty, current, value);
@@ -479,11 +417,9 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         };
 
         let val_type = val_types[0];
-        let (Some(mem_layout), Some(load_instr), Some(store_instr)) = (
-            self.types.get_mem_layout(target.ty),
-            val_type.load_instr(),
-            val_type.store_instr(),
-        ) else {
+        let (Some(mem_layout), Some(load_instr), Some(store_instr)) =
+            (self.types.get_mem_layout(target.ty), val_type.load_instr(), val_type.store_instr())
+        else {
             errors::report_storing_opaque(self.errors, target.pos);
             return vec![wasm::Instr::Unreachable];
         };
@@ -496,10 +432,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
 
         let current = vec![
             wasm::Instr::LocalGet(ptr_tmp_id),
-            load_instr(wasm::MemArg {
-                offset: component.offset,
-                align: component.align.normalize(),
-            }),
+            load_instr(wasm::MemArg { offset: component.offset, align: component.align.normalize() }),
         ];
         result.extend(self.exprs.build_binary_op(op, target.ty, current, value));
 
@@ -508,10 +441,7 @@ impl<'a, 'ctx> FuncBuilder<'a, 'ctx> {
         result.push(wasm::Instr::LocalSet(value_tmp_id));
         result.push(wasm::Instr::LocalGet(ptr_tmp_id));
         result.push(wasm::Instr::LocalGet(value_tmp_id));
-        result.push(store_instr(wasm::MemArg {
-            offset: component.offset,
-            align: component.align.normalize(),
-        }));
+        result.push(store_instr(wasm::MemArg { offset: component.offset, align: component.align.normalize() }));
         result
     }
 

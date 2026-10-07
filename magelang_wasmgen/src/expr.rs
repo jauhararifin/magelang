@@ -1,7 +1,7 @@
 use crate::data::DataManager;
 use crate::errors;
 use crate::func::{FuncId, FuncMapper};
-use crate::ty::{AlignNormalize, PrimitiveType, TypeManager, build_val_type};
+use crate::ty::{build_val_type, AlignNormalize, PrimitiveType, TypeManager};
 use crate::var::{GlobalManager, LocalManager};
 use magelang_syntax::{BinaryOp, ErrorManager};
 use magelang_typecheck::{BitSize, DefId, Expr, ExprKind, FloatType, Type, TypeArgs, TypeRepr};
@@ -101,9 +101,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_bytes(&self, bytes: &[u8]) -> Vec<wasm::Instr> {
-        vec![wasm::Instr::I32Const(
-            self.data.get_bytes(bytes).unwrap() as i32
-        )]
+        vec![wasm::Instr::I32Const(self.data.get_bytes(bytes).unwrap() as i32)]
     }
 
     fn build_local(&self, ty: &Type, idx: usize) -> Vec<wasm::Instr> {
@@ -127,27 +125,13 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_func(&self, def_id: DefId<'ctx>) -> Vec<wasm::Instr> {
-        let func_id = FuncId {
-            def_id,
-            typeargs: None,
-        };
-        vec![wasm::Instr::I32Const(
-            *self.funcs.func_map.get(&func_id).unwrap() as i32,
-        )]
+        let func_id = FuncId { def_id, typeargs: None };
+        vec![wasm::Instr::I32Const(*self.funcs.func_map.get(&func_id).unwrap() as i32)]
     }
 
-    fn build_func_inst(
-        &self,
-        def_id: DefId<'ctx>,
-        typeargs: &'ctx TypeArgs<'ctx>,
-    ) -> Vec<wasm::Instr> {
-        let func_id = FuncId {
-            def_id,
-            typeargs: Some(typeargs),
-        };
-        vec![wasm::Instr::I32Const(
-            *self.funcs.func_map.get(&func_id).unwrap() as i32,
-        )]
+    fn build_func_inst(&self, def_id: DefId<'ctx>, typeargs: &'ctx TypeArgs<'ctx>) -> Vec<wasm::Instr> {
+        let func_id = FuncId { def_id, typeargs: Some(typeargs) };
+        vec![wasm::Instr::I32Const(*self.funcs.func_map.get(&func_id).unwrap() as i32)]
     }
 
     fn build_get_element(&self, struct_expr: &Expr<'ctx>, field: usize) -> Vec<wasm::Instr> {
@@ -185,9 +169,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_get_element_addr(&self, addr: &Expr<'ctx>, field: usize) -> Vec<wasm::Instr> {
-        let TypeRepr::Ptr(element_type) = addr.ty.repr else {
-            unreachable!()
-        };
+        let TypeRepr::Ptr(element_type) = addr.ty.repr else { unreachable!() };
         let Some(struct_layout) = self.types.get_mem_layout(element_type) else {
             errors::report_dereferencing_opaque(self.errors, addr.pos);
             return vec![wasm::Instr::Unreachable];
@@ -201,9 +183,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_get_index(&self, arr: &Expr<'ctx>, index: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let TypeRepr::ArrayPtr(element_type) = arr.ty.repr else {
-            unreachable!()
-        };
+        let TypeRepr::ArrayPtr(element_type) = arr.ty.repr else { unreachable!() };
         let Some(layout) = self.types.get_mem_layout(element_type) else {
             errors::report_dereferencing_opaque(self.errors, arr.pos);
             return vec![wasm::Instr::Unreachable];
@@ -226,9 +206,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_deref(&self, addr: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let TypeRepr::Ptr(element_type) = &addr.ty.repr else {
-            unreachable!()
-        };
+        let TypeRepr::Ptr(element_type) = &addr.ty.repr else { unreachable!() };
 
         let Some(layout) = self.types.get_mem_layout(element_type) else {
             errors::report_dereferencing_opaque(self.errors, addr.pos);
@@ -243,10 +221,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
         result.push(wasm::Instr::LocalSet(temp_var));
 
         for (component_layout, val_type) in zip(&layout.components, val_types) {
-            let mem_arg = wasm::MemArg {
-                offset: component_layout.offset,
-                align: component_layout.align.normalize(),
-            };
+            let mem_arg = wasm::MemArg { offset: component_layout.offset, align: component_layout.align.normalize() };
             let Some(load_instr) = val_type.load_instr() else {
                 errors::report_dereferencing_opaque(self.errors, addr.pos);
                 return vec![wasm::Instr::Unreachable];
@@ -267,28 +242,16 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
         }
 
         let ty = callee.ty;
-        let TypeRepr::Func(func_type) = &ty.repr else {
-            unreachable!("cannot call non-function expression")
-        };
+        let TypeRepr::Func(func_type) = &ty.repr else { unreachable!("cannot call non-function expression") };
 
         match callee.kind {
             ExprKind::Func(def_id) => {
-                let func_id = FuncId {
-                    def_id,
-                    typeargs: None,
-                };
-                result.push(wasm::Instr::Call(
-                    *self.funcs.func_map.get(&func_id).unwrap(),
-                ))
+                let func_id = FuncId { def_id, typeargs: None };
+                result.push(wasm::Instr::Call(*self.funcs.func_map.get(&func_id).unwrap()))
             }
             ExprKind::FuncInst(def_id, typeargs) => {
-                let func_id = FuncId {
-                    def_id,
-                    typeargs: Some(typeargs),
-                };
-                result.push(wasm::Instr::Call(
-                    *self.funcs.func_map.get(&func_id).unwrap(),
-                ))
+                let func_id = FuncId { def_id, typeargs: Some(typeargs) };
+                result.push(wasm::Instr::Call(*self.funcs.func_map.get(&func_id).unwrap()))
             }
             _ => {
                 let mut parameters = Vec::default();
@@ -296,14 +259,8 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
                     let val_types = build_val_type(param);
                     parameters.extend(val_types.into_iter().map(Into::<wasm::ValType>::into));
                 }
-                let returns = build_val_type(func_type.return_type)
-                    .into_iter()
-                    .map(PrimitiveType::into)
-                    .collect();
-                let wasm_type_id = self.types.get_func_type(wasm::FuncType {
-                    parameters,
-                    returns,
-                });
+                let returns = build_val_type(func_type.return_type).into_iter().map(PrimitiveType::into).collect();
+                let wasm_type_id = self.types.get_func_type(wasm::FuncType { parameters, returns });
 
                 result.extend(self.build(callee));
                 result.push(wasm::Instr::CallIndirect(0, wasm_type_id));
@@ -352,16 +309,12 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Add],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Add],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![
-                wasm::Instr::I32Add,
-                wasm::Instr::I32Const(0xff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(false, BitSize::I16) => vec![
-                wasm::Instr::I32Add,
-                wasm::Instr::I32Const(0xffff),
-                wasm::Instr::I32And,
-            ],
+            TypeRepr::Int(false, BitSize::I8) => {
+                vec![wasm::Instr::I32Add, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+            }
+            TypeRepr::Int(false, BitSize::I16) => {
+                vec![wasm::Instr::I32Add, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+            }
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Add],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Add],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Add],
@@ -392,16 +345,12 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Sub],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Sub],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![
-                wasm::Instr::I32Sub,
-                wasm::Instr::I32Const(0xff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(false, BitSize::I16) => vec![
-                wasm::Instr::I32Sub,
-                wasm::Instr::I32Const(0xffff),
-                wasm::Instr::I32And,
-            ],
+            TypeRepr::Int(false, BitSize::I8) => {
+                vec![wasm::Instr::I32Sub, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+            }
+            TypeRepr::Int(false, BitSize::I16) => {
+                vec![wasm::Instr::I32Sub, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+            }
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Sub],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Sub],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Sub],
@@ -432,16 +381,12 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32Mul],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64Mul],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![
-                wasm::Instr::I32Mul,
-                wasm::Instr::I32Const(0xff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(false, BitSize::I16) => vec![
-                wasm::Instr::I32Mul,
-                wasm::Instr::I32Const(0xffff),
-                wasm::Instr::I32And,
-            ],
+            TypeRepr::Int(false, BitSize::I8) => {
+                vec![wasm::Instr::I32Mul, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+            }
+            TypeRepr::Int(false, BitSize::I16) => {
+                vec![wasm::Instr::I32Mul, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+            }
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32Mul],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32Mul],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64Mul],
@@ -472,16 +417,12 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32DivS],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64DivS],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![
-                wasm::Instr::I32DivU,
-                wasm::Instr::I32Const(0xff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(false, BitSize::I16) => vec![
-                wasm::Instr::I32DivU,
-                wasm::Instr::I32Const(0xffff),
-                wasm::Instr::I32And,
-            ],
+            TypeRepr::Int(false, BitSize::I8) => {
+                vec![wasm::Instr::I32DivU, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+            }
+            TypeRepr::Int(false, BitSize::I16) => {
+                vec![wasm::Instr::I32DivU, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+            }
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32DivU],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32DivU],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64DivU],
@@ -512,16 +453,12 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             TypeRepr::Int(true, BitSize::ISize) => vec![wasm::Instr::I32RemS],
             TypeRepr::Int(true, BitSize::I64) => vec![wasm::Instr::I64RemS],
 
-            TypeRepr::Int(false, BitSize::I8) => vec![
-                wasm::Instr::I32RemU,
-                wasm::Instr::I32Const(0xff),
-                wasm::Instr::I32And,
-            ],
-            TypeRepr::Int(false, BitSize::I16) => vec![
-                wasm::Instr::I32RemU,
-                wasm::Instr::I32Const(0xffff),
-                wasm::Instr::I32And,
-            ],
+            TypeRepr::Int(false, BitSize::I8) => {
+                vec![wasm::Instr::I32RemU, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+            }
+            TypeRepr::Int(false, BitSize::I16) => {
+                vec![wasm::Instr::I32RemU, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+            }
             TypeRepr::Int(false, BitSize::I32) => vec![wasm::Instr::I32RemU],
             TypeRepr::Int(false, BitSize::ISize) => vec![wasm::Instr::I32RemU],
             TypeRepr::Int(false, BitSize::I64) => vec![wasm::Instr::I64RemU],
@@ -672,14 +609,8 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
         let TypeRepr::Int(b_sign, b_bitsize) = b.ty.repr else {
             unreachable!("cannot perform shl with {:?}", b.ty);
         };
-        let b_is_32bit = matches!(
-            b_bitsize,
-            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize
-        );
-        let a_is_32bit = matches!(
-            bitsize,
-            BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize
-        );
+        let b_is_32bit = matches!(b_bitsize, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize);
+        let a_is_32bit = matches!(bitsize, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize);
 
         // if a is represented as i32 but b is represented as i64, we need to convert b to i32
         // first. likewise, if a is represented as i64 but b is represented as i32, we need to cast
@@ -955,34 +886,16 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             }
 
             TypeRepr::Int(true, BitSize::I8) => {
-                vec![
-                    wasm::Instr::I32Const(-1),
-                    wasm::Instr::I32Mul,
-                    wasm::Instr::I32Extend8S,
-                ]
+                vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Mul, wasm::Instr::I32Extend8S]
             }
             TypeRepr::Int(true, BitSize::I16) => {
-                vec![
-                    wasm::Instr::I32Const(-1),
-                    wasm::Instr::I32Mul,
-                    wasm::Instr::I32Extend16S,
-                ]
+                vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Mul, wasm::Instr::I32Extend16S]
             }
             TypeRepr::Int(false, BitSize::I8) => {
-                vec![
-                    wasm::Instr::I32Const(-1),
-                    wasm::Instr::I32Mul,
-                    wasm::Instr::I32Const(0xff),
-                    wasm::Instr::I32And,
-                ]
+                vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Mul, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
             }
             TypeRepr::Int(false, BitSize::I16) => {
-                vec![
-                    wasm::Instr::I32Const(-1),
-                    wasm::Instr::I32Mul,
-                    wasm::Instr::I32Const(0xffff),
-                    wasm::Instr::I32And,
-                ]
+                vec![wasm::Instr::I32Const(-1), wasm::Instr::I32Mul, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
             }
 
             TypeRepr::Int(..) => {
@@ -1043,9 +956,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
                 TypeRepr::Int(false, BitSize::I16) => {
                     vec![wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
                 }
-                TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
-                | TypeRepr::Ptr(..)
-                | TypeRepr::ArrayPtr(..) => vec![],
+                TypeRepr::Int(_, BitSize::I32 | BitSize::ISize) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => vec![],
                 _ => unreachable!(),
             },
             TypeRepr::Int(source_sign, source_size) => {
@@ -1055,28 +966,22 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
                         vec![wasm::Instr::I32WrapI64, wasm::Instr::I32Extend8S]
                     }
                     // i64, u64 -> u8
-                    (_, BitSize::I64, TypeRepr::Int(false, BitSize::I8)) => vec![
-                        wasm::Instr::I32WrapI64,
-                        wasm::Instr::I32Const(0xff),
-                        wasm::Instr::I32And,
-                    ],
+                    (_, BitSize::I64, TypeRepr::Int(false, BitSize::I8)) => {
+                        vec![wasm::Instr::I32WrapI64, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+                    }
                     // i64, u64 -> i16
                     (_, BitSize::I64, TypeRepr::Int(true, BitSize::I16)) => {
                         vec![wasm::Instr::I32WrapI64, wasm::Instr::I32Extend16S]
                     }
                     // i64, u64 -> u16
-                    (_, BitSize::I64, TypeRepr::Int(false, BitSize::I16)) => vec![
-                        wasm::Instr::I32WrapI64,
-                        wasm::Instr::I32Const(0xffff),
-                        wasm::Instr::I32And,
-                    ],
+                    (_, BitSize::I64, TypeRepr::Int(false, BitSize::I16)) => {
+                        vec![wasm::Instr::I32WrapI64, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+                    }
                     // i64, u64 -> i32, isize, u32, usize, *T, [*]T
                     (
                         _,
                         BitSize::I64,
-                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
-                        | TypeRepr::Ptr(..)
-                        | TypeRepr::ArrayPtr(..),
+                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize) | TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..),
                     ) => vec![wasm::Instr::I32WrapI64],
                     // i64, u64 -> i64, u64
                     (_, BitSize::I64, TypeRepr::Int(_, BitSize::I64)) => vec![],
@@ -1116,9 +1021,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
                     (
                         _,
                         _,
-                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize)
-                        | TypeRepr::ArrayPtr(..)
-                        | TypeRepr::Ptr(..),
+                        TypeRepr::Int(_, BitSize::I32 | BitSize::ISize) | TypeRepr::ArrayPtr(..) | TypeRepr::Ptr(..),
                     ) => vec![],
 
                     // i64 -> f32
@@ -1159,38 +1062,32 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
                 }
             }
             TypeRepr::Float(source_float_type) => match target_type.repr {
-                TypeRepr::Float(target_float_type) => {
-                    match (source_float_type, target_float_type) {
-                        (FloatType::F32, FloatType::F64) => {
-                            vec![wasm::Instr::F64PromoteF32]
-                        }
-                        (FloatType::F64, FloatType::F32) => {
-                            vec![wasm::Instr::F32DemoteF64]
-                        }
-                        _ => vec![],
+                TypeRepr::Float(target_float_type) => match (source_float_type, target_float_type) {
+                    (FloatType::F32, FloatType::F64) => {
+                        vec![wasm::Instr::F64PromoteF32]
                     }
-                }
+                    (FloatType::F64, FloatType::F32) => {
+                        vec![wasm::Instr::F32DemoteF64]
+                    }
+                    _ => vec![],
+                },
                 TypeRepr::Int(sign, size) => match (source_float_type, sign, size) {
                     // f32 -> i8
                     (FloatType::F32, true, BitSize::I8) => {
                         vec![wasm::Instr::I32TruncF32S, wasm::Instr::I32Extend8S]
                     }
                     // f32 -> u8
-                    (FloatType::F32, false, BitSize::I8) => vec![
-                        wasm::Instr::I32TruncF32U,
-                        wasm::Instr::I32Const(0xff),
-                        wasm::Instr::I32And,
-                    ],
+                    (FloatType::F32, false, BitSize::I8) => {
+                        vec![wasm::Instr::I32TruncF32U, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+                    }
                     // f32 -> i16
                     (FloatType::F32, true, BitSize::I16) => {
                         vec![wasm::Instr::I32TruncF32S, wasm::Instr::I32Extend16S]
                     }
                     // f32 -> u16
-                    (FloatType::F32, false, BitSize::I16) => vec![
-                        wasm::Instr::I32TruncF32U,
-                        wasm::Instr::I32Const(0xffff),
-                        wasm::Instr::I32And,
-                    ],
+                    (FloatType::F32, false, BitSize::I16) => {
+                        vec![wasm::Instr::I32TruncF32U, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+                    }
                     // f32 -> i32, isize
                     (FloatType::F32, true, BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32TruncF32S]
@@ -1213,21 +1110,17 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
                         vec![wasm::Instr::I32TruncF64S, wasm::Instr::I32Extend8S]
                     }
                     // f64 -> u8
-                    (FloatType::F64, false, BitSize::I8) => vec![
-                        wasm::Instr::I32TruncF64U,
-                        wasm::Instr::I32Const(0xff),
-                        wasm::Instr::I32And,
-                    ],
+                    (FloatType::F64, false, BitSize::I8) => {
+                        vec![wasm::Instr::I32TruncF64U, wasm::Instr::I32Const(0xff), wasm::Instr::I32And]
+                    }
                     // f64 -> i16
                     (FloatType::F64, true, BitSize::I16) => {
                         vec![wasm::Instr::I32TruncF64S, wasm::Instr::I32Extend16S]
                     }
                     // f64 -> u16
-                    (FloatType::F64, false, BitSize::I16) => vec![
-                        wasm::Instr::I32TruncF64U,
-                        wasm::Instr::I32Const(0xffff),
-                        wasm::Instr::I32And,
-                    ],
+                    (FloatType::F64, false, BitSize::I16) => {
+                        vec![wasm::Instr::I32TruncF64U, wasm::Instr::I32Const(0xffff), wasm::Instr::I32And]
+                    }
                     // f64 -> i32, isize
                     (FloatType::F64, true, BitSize::I32 | BitSize::ISize) => {
                         vec![wasm::Instr::I32TruncF64S]

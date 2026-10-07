@@ -41,8 +41,7 @@ impl<'ctx> TypeManager<'ctx> {
                     }
                 }
 
-                let layout = self
-                    .get_struct_stack_layout(struct_type.body.get().expect("missing struct body"));
+                let layout = self.get_struct_stack_layout(struct_type.body.get().expect("missing struct body"));
 
                 let mut internal = self.internal.borrow_mut();
                 internal.stacks.insert(ty, layout.clone());
@@ -70,17 +69,10 @@ impl<'ctx> TypeManager<'ctx> {
         for (i, ty) in body.fields.values().enumerate() {
             field_index.push(i);
             let type_layout = self.get_stack_layout(ty);
-            idx_offset.push(StackComponent {
-                offset: curr_idx,
-                size: type_layout.size,
-            });
+            idx_offset.push(StackComponent { offset: curr_idx, size: type_layout.size });
             curr_idx += type_layout.size;
         }
-        Rc::new(StackLayout {
-            size: curr_idx,
-            field_index,
-            components: idx_offset,
-        })
+        Rc::new(StackLayout { size: curr_idx, field_index, components: idx_offset })
     }
 
     pub(crate) fn get_mem_layout(&self, ty: &'ctx Type<'ctx>) -> Option<Rc<MemLayout>> {
@@ -101,8 +93,7 @@ impl<'ctx> TypeManager<'ctx> {
                     }
                 }
 
-                let layout = self
-                    .get_struct_mem_layout(struct_type.body.get().expect("missing struct body"));
+                let layout = self.get_struct_mem_layout(struct_type.body.get().expect("missing struct body"));
 
                 let mut internal = self.internal.borrow_mut();
                 internal.mems.insert(ty, layout.clone());
@@ -142,10 +133,7 @@ impl<'ctx> TypeManager<'ctx> {
             field_layout.push((curr_mem, size));
 
             for component in &type_layout.components {
-                components.push(MemComponent {
-                    offset: curr_mem + component.offset,
-                    align: component.align,
-                });
+                components.push(MemComponent { offset: curr_mem + component.offset, align: component.align });
             }
 
             curr_mem += size;
@@ -156,12 +144,7 @@ impl<'ctx> TypeManager<'ctx> {
             mem_size = mem_size + total_align - (mem_size % total_align)
         }
 
-        Some(Rc::new(MemLayout {
-            size: mem_size,
-            align: total_align,
-            fields: field_layout,
-            components,
-        }))
+        Some(Rc::new(MemLayout { size: mem_size, align: total_align, fields: field_layout, components }))
     }
 
     pub(crate) fn take(self) -> Vec<wasm::FuncType> {
@@ -189,12 +172,7 @@ pub(crate) struct MemComponent {
 
 impl MemLayout {
     fn primitive(size: u32, align: u32) -> Self {
-        Self {
-            size,
-            align,
-            fields: vec![(0, size)],
-            components: vec![MemComponent { offset: 0, align }],
-        }
+        Self { size, align, fields: vec![(0, size)], components: vec![MemComponent { offset: 0, align }] }
     }
 }
 
@@ -232,11 +210,7 @@ pub(crate) struct StackComponent {
 
 impl From<u32> for StackLayout {
     fn from(size: u32) -> Self {
-        Self {
-            size,
-            field_index: vec![0],
-            components: vec![StackComponent { offset: 0, size }],
-        }
+        Self { size, field_index: vec![0], components: vec![StackComponent { offset: 0, size }] }
     }
 }
 
@@ -247,13 +221,7 @@ pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<PrimitiveType> {
         TypeRepr::UntypedFloat => unreachable!("found untyped float"),
         TypeRepr::Struct(struct_type) => {
             let mut fields = vec![];
-            for field_ty in struct_type
-                .body
-                .get()
-                .expect("missing struct body")
-                .fields
-                .values()
-            {
+            for field_ty in struct_type.body.get().expect("missing struct body").fields.values() {
                 fields.extend(build_val_type(field_ty));
             }
             fields

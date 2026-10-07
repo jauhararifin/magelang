@@ -6,8 +6,8 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use wasm_helper::Serializer;
 use wasmtime::{Engine, Linker, Module, Store};
-use wasmtime_wasi::WasiCtxBuilder;
 use wasmtime_wasi::p1::{self, WasiP1Ctx};
+use wasmtime_wasi::WasiCtxBuilder;
 
 macro_rules! test_success {
     ($name:ident) => {
@@ -57,25 +57,16 @@ test_success!(test_026_fail);
 #[test]
 fn missing_source_diagnostics_have_no_position() {
     for command in ["parse", "analyze", "compile", "run"] {
-        let source = if command == "parse" {
-            "tests/missing_source_diagnostic.mg"
-        } else {
-            "tests/missing_source_diagnostic"
-        };
+        let source =
+            if command == "parse" { "tests/missing_source_diagnostic.mg" } else { "tests/missing_source_diagnostic" };
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_magelang"))
             .current_dir(env!("CARGO_MANIFEST_DIR"))
             .args([command, source])
             .output()
             .unwrap();
         let stderr = String::from_utf8(output.stderr).unwrap();
-        assert!(
-            stderr.starts_with("Cannot open file "),
-            "{command}: {stderr}"
-        );
-        assert!(
-            stderr.contains("missing_source_diagnostic.mg"),
-            "{command}: {stderr}"
-        );
+        assert!(stderr.starts_with("Cannot open file "), "{command}: {stderr}");
+        assert!(stderr.contains("missing_source_diagnostic.mg"), "{command}: {stderr}");
         assert!(!stderr.contains(":1:1:"), "{command}: {stderr}");
         if command != "analyze" {
             assert!(!output.status.success(), "{command}");
@@ -89,10 +80,8 @@ fn test_package(name: &str) {
     }
     let package_name = format!("tests/{}/main", name);
 
-    let expected_error_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join(name)
-        .join("expected_errors");
+    let expected_error_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join(name).join("expected_errors");
     let should_error = expected_error_path.exists();
 
     let mut error_manager = ErrorManager::default();
@@ -106,8 +95,7 @@ fn test_package(name: &str) {
             for error in error_manager.take() {
                 errors.push_str(&format!("{}\n", error.display(&file_manager)));
             }
-            let expected_error =
-                read_to_string(expected_error_path).expect("cannot read expected error");
+            let expected_error = read_to_string(expected_error_path).expect("cannot read expected error");
             assert_eq!(expected_error, errors);
             return;
         } else {
@@ -124,8 +112,7 @@ fn test_package(name: &str) {
             for error in error_manager.take() {
                 errors.push_str(&format!("{}\n", error.display(&file_manager)));
             }
-            let expected_error =
-                read_to_string(expected_error_path).expect("cannot read expected error");
+            let expected_error = read_to_string(expected_error_path).expect("cannot read expected error");
             assert_eq!(expected_error, errors);
             return;
         } else {
@@ -141,19 +128,14 @@ fn test_package(name: &str) {
     }
 
     let mut module = Vec::<u8>::default();
-    wasm_module
-        .serialize(&mut module)
-        .expect("cannot write wasm to target file");
+    wasm_module.serialize(&mut module).expect("cannot write wasm to target file");
 
     let engine = Engine::default();
 
     let module = Module::from_binary(&engine, &module).expect("cannot load wasm module");
     let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
     p1::add_to_linker_sync(&mut linker, |s| s).expect("cannot link wasi to the linker");
-    let wasi = WasiCtxBuilder::new()
-        .inherit_stdio()
-        .inherit_args()
-        .build_p1();
+    let wasi = WasiCtxBuilder::new().inherit_stdio().inherit_args().build_p1();
     let mut store = Store::new(&engine, wasi);
     linker.instantiate(&mut store, &module).unwrap();
 }

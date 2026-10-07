@@ -6,9 +6,8 @@ use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ForStatementNode,
-    IfStatementNode, LetKind, LetStatementNode, Pos, ReturnStatementNode, StatementNode,
-    WhileStatementNode,
+    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ForStatementNode, IfStatementNode, LetKind,
+    LetStatementNode, Pos, ReturnStatementNode, StatementNode, WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -16,10 +15,7 @@ pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Statement<'a> {
     Native,
-    NewLocal {
-        id: usize,
-        value: Expr<'a>,
-    },
+    NewLocal { id: usize, value: Expr<'a> },
     Block(&'a [Statement<'a>]),
     If(IfStatement<'a>),
     While(WhileStatement<'a>),
@@ -27,25 +23,14 @@ pub enum Statement<'a> {
     Defer(Box<Statement<'a>>),
     Return(Option<Expr<'a>>),
     Expr(Expr<'a>),
-    Assign {
-        target: Expr<'a>,
-        value: Expr<'a>,
-    },
-    AssignOp {
-        target: Expr<'a>,
-        op: BinaryOp,
-        value: &'a Expr<'a>,
-    },
+    Assign { target: Expr<'a>, value: Expr<'a> },
+    AssignOp { target: Expr<'a>, op: BinaryOp, value: &'a Expr<'a> },
     Continue,
     Break,
 }
 
 impl<'a> Statement<'a> {
-    pub(crate) fn monomorphize<'b>(
-        &self,
-        ctx: &'b Context<'a, '_>,
-        type_args: &'a TypeArgs<'a>,
-    ) -> Statement<'a> {
+    pub(crate) fn monomorphize<'b>(&self, ctx: &'b Context<'a, '_>, type_args: &'a TypeArgs<'a>) -> Statement<'a> {
         match self {
             Statement::Native => Statement::Native,
             Statement::Continue => Statement::Continue,
@@ -64,53 +49,24 @@ impl<'a> Statement<'a> {
             Statement::If(if_stmt) => {
                 let cond = if_stmt.cond.monomorphize(ctx, type_args);
                 let body = if_stmt.body.monomorphize(ctx, type_args);
-                let else_stmt = if_stmt
-                    .else_stmt
-                    .as_ref()
-                    .map(|stmt| stmt.monomorphize(ctx, type_args))
-                    .map(Box::new);
-                Statement::If(IfStatement {
-                    cond,
-                    body: Box::new(body),
-                    else_stmt,
-                })
+                let else_stmt = if_stmt.else_stmt.as_ref().map(|stmt| stmt.monomorphize(ctx, type_args)).map(Box::new);
+                Statement::If(IfStatement { cond, body: Box::new(body), else_stmt })
             }
             Statement::While(while_stmt) => {
                 let cond = while_stmt.cond.monomorphize(ctx, type_args);
                 let body = while_stmt.body.monomorphize(ctx, type_args);
-                Statement::While(WhileStatement {
-                    cond,
-                    body: Box::new(body),
-                })
+                Statement::While(WhileStatement { cond, body: Box::new(body) })
             }
             Statement::For(for_stmt) => {
-                let init = for_stmt
-                    .init
-                    .as_ref()
-                    .map(|stmt| stmt.monomorphize(ctx, type_args))
-                    .map(Box::new);
-                let cond = for_stmt
-                    .cond
-                    .as_ref()
-                    .map(|cond| cond.monomorphize(ctx, type_args));
-                let update = for_stmt
-                    .update
-                    .as_ref()
-                    .map(|stmt| stmt.monomorphize(ctx, type_args))
-                    .map(Box::new);
+                let init = for_stmt.init.as_ref().map(|stmt| stmt.monomorphize(ctx, type_args)).map(Box::new);
+                let cond = for_stmt.cond.as_ref().map(|cond| cond.monomorphize(ctx, type_args));
+                let update = for_stmt.update.as_ref().map(|stmt| stmt.monomorphize(ctx, type_args)).map(Box::new);
                 let body = for_stmt.body.monomorphize(ctx, type_args);
-                Statement::For(ForStatement {
-                    init,
-                    cond,
-                    update,
-                    body: Box::new(body),
-                })
+                Statement::For(ForStatement { init, cond, update, body: Box::new(body) })
             }
             Statement::Defer(stmt) => Statement::Defer(Box::new(stmt.monomorphize(ctx, type_args))),
             Statement::Return(value) => {
-                let value = value
-                    .as_ref()
-                    .map(|value| value.monomorphize(ctx, type_args));
+                let value = value.as_ref().map(|value| value.monomorphize(ctx, type_args));
                 Statement::Return(value)
             }
             Statement::Expr(value) => {
@@ -174,14 +130,7 @@ impl<'a, 'b, 'syn> StatementContext<'a, 'b, 'syn> {
         last_unused_local: usize,
         return_type: &'a Type<'a>,
     ) -> Self {
-        Self {
-            ctx,
-            scope,
-            last_unused_local,
-            return_type,
-            is_inside_loop: false,
-            is_inside_defer: false,
-        }
+        Self { ctx, scope, last_unused_local, return_type, is_inside_loop: false, is_inside_defer: false }
     }
 }
 
@@ -215,25 +164,12 @@ pub(crate) fn get_statement_from_let<'a>(
 ) -> StatementResult<'a> {
     let expr = match &node.kind {
         LetKind::Invalid => {
-            let type_id = ctx.ctx.define_type(Type {
-                kind: TypeKind::Anonymous,
-                repr: TypeRepr::Unknown,
-            });
-            Expr {
-                ty: type_id,
-                kind: ExprKind::Zero,
-                pos: node.pos,
-                assignable: false,
-            }
+            let type_id = ctx.ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
+            Expr { ty: type_id, kind: ExprKind::Zero, pos: node.pos, assignable: false }
         }
         LetKind::TypeOnly { ty } => {
             let type_id = get_type_from_node(ctx.ctx, ctx.scope, ty);
-            Expr {
-                ty: type_id,
-                kind: ExprKind::Zero,
-                pos: node.pos,
-                assignable: false,
-            }
+            Expr { ty: type_id, kind: ExprKind::Zero, pos: node.pos, assignable: false }
         }
         LetKind::TypeValue { ty, value } => {
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
@@ -250,14 +186,7 @@ pub(crate) fn get_statement_from_let<'a>(
     let name = ctx.ctx.define_symbol(&node.name.value);
     let mut new_table = IndexMap::default();
     let id = ctx.last_unused_local;
-    new_table.insert(
-        name,
-        ValueObject::Local(LocalObject {
-            id,
-            ty: expr.ty,
-            name,
-        }),
-    );
+    new_table.insert(name, ValueObject::Local(LocalObject { id, ty: expr.ty, name }));
     let new_scope = ctx.scope.value_scopes.new_child(new_table);
     let new_scope = ctx.scope.with_value_scope(new_scope);
 
@@ -284,10 +213,7 @@ pub(crate) fn get_statement_from_assign<'a>(
             errors::report_type_mismatch(ctx.ctx.errors, node.value.pos(), receiver.ty, value.ty);
         }
         return StatementResult {
-            statement: Statement::Assign {
-                target: receiver,
-                value,
-            },
+            statement: Statement::Assign { target: receiver, value },
             new_scope: None,
             is_returning: false,
             last_unused_local: ctx.last_unused_local,
@@ -296,23 +222,13 @@ pub(crate) fn get_statement_from_assign<'a>(
 
     let lhs = get_expr_from_node(ctx.ctx, ctx.scope, None, &node.receiver);
     let value = ctx.ctx.arena.alloc(value);
-    let operation = get_binary_expr(
-        ctx.ctx,
-        op,
-        node.receiver.pos(),
-        ctx.ctx.arena.alloc(lhs),
-        value,
-    );
+    let operation = get_binary_expr(ctx.ctx, op, node.receiver.pos(), ctx.ctx.arena.alloc(lhs), value);
     if !receiver.ty.is_assignable_with(operation.ty) {
         errors::report_type_mismatch(ctx.ctx.errors, node.value.pos(), receiver.ty, operation.ty);
     }
 
     StatementResult {
-        statement: Statement::AssignOp {
-            target: receiver,
-            op,
-            value,
-        },
+        statement: Statement::AssignOp { target: receiver, op, value },
         new_scope: None,
         is_returning: false,
         last_unused_local: ctx.last_unused_local,
@@ -367,19 +283,11 @@ pub(crate) fn get_statement_from_if<'a>(
     ctx: &StatementContext<'a, '_, '_>,
     node: &IfStatementNode,
 ) -> StatementResult<'a> {
-    let bool_type = ctx.ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Bool,
-    });
+    let bool_type = ctx.ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool });
     let cond = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !cond.ty.is_bool() {
-        errors::report_type_mismatch(
-            ctx.ctx.errors,
-            node.condition.pos(),
-            TypeRepr::Bool,
-            cond.ty,
-        );
+        errors::report_type_mismatch(ctx.ctx.errors, node.condition.pos(), TypeRepr::Bool, cond.ty);
     }
 
     let result = get_statement_from_block(ctx, &node.body);
@@ -410,11 +318,7 @@ pub(crate) fn get_statement_from_if<'a>(
     }
 
     StatementResult {
-        statement: Statement::If(IfStatement {
-            cond,
-            body: Box::new(body),
-            else_stmt: else_stmt.map(Box::new),
-        }),
+        statement: Statement::If(IfStatement { cond, body: Box::new(body), else_stmt: else_stmt.map(Box::new) }),
         new_scope: None,
         is_returning: body_is_returning && else_is_returning,
         last_unused_local,
@@ -425,19 +329,11 @@ pub(crate) fn get_statement_from_while<'a>(
     ctx: &StatementContext<'a, '_, '_>,
     node: &WhileStatementNode,
 ) -> StatementResult<'a> {
-    let bool_type = ctx.ctx.define_type(Type {
-        kind: TypeKind::Anonymous,
-        repr: TypeRepr::Bool,
-    });
+    let bool_type = ctx.ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool });
     let condition = get_expr_from_node(ctx.ctx, ctx.scope, Some(bool_type), &node.condition);
 
     if !condition.ty.is_bool() {
-        errors::report_type_mismatch(
-            ctx.ctx.errors,
-            node.condition.pos(),
-            TypeRepr::Bool,
-            condition.ty,
-        );
+        errors::report_type_mismatch(ctx.ctx.errors, node.condition.pos(), TypeRepr::Bool, condition.ty);
     }
 
     let body_stmt = get_statement_from_block(
@@ -453,10 +349,7 @@ pub(crate) fn get_statement_from_while<'a>(
     );
 
     StatementResult {
-        statement: Statement::While(WhileStatement {
-            cond: condition,
-            body: Box::new(body_stmt.statement),
-        }),
+        statement: Statement::While(WhileStatement { cond: condition, body: Box::new(body_stmt.statement) }),
         new_scope: None,
         is_returning: false,
         last_unused_local: body_stmt.last_unused_local,
@@ -493,10 +386,7 @@ pub(crate) fn get_statement_from_for<'a>(
 
     // a for statement without condition loops forever.
     let cond = node.condition.as_ref().map(|cond_node| {
-        let bool_type = ctx.ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Bool,
-        });
+        let bool_type = ctx.ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool });
         let cond = get_expr_from_node(ctx.ctx, &scope, Some(bool_type), cond_node);
         if !cond.ty.is_bool() {
             errors::report_type_mismatch(ctx.ctx.errors, cond_node.pos(), TypeRepr::Bool, cond.ty);
@@ -536,12 +426,7 @@ pub(crate) fn get_statement_from_for<'a>(
     };
 
     StatementResult {
-        statement: Statement::For(ForStatement {
-            init,
-            cond,
-            update,
-            body: Box::new(body_stmt.statement),
-        }),
+        statement: Statement::For(ForStatement { init, cond, update, body: Box::new(body_stmt.statement) }),
         new_scope: None,
         is_returning: false,
         last_unused_local,
@@ -573,10 +458,7 @@ pub(crate) fn get_statement_from_defer<'a>(
     }
 }
 
-pub(crate) fn get_statement_from_continue<'a>(
-    ctx: &StatementContext<'a, '_, '_>,
-    pos: Pos,
-) -> StatementResult<'a> {
+pub(crate) fn get_statement_from_continue<'a>(ctx: &StatementContext<'a, '_, '_>, pos: Pos) -> StatementResult<'a> {
     if !ctx.is_inside_loop {
         errors::report_operation_outside_loop(ctx.ctx.errors, pos, "continue");
     }
@@ -588,10 +470,7 @@ pub(crate) fn get_statement_from_continue<'a>(
     }
 }
 
-pub(crate) fn get_statement_from_break<'a>(
-    ctx: &StatementContext<'a, '_, '_>,
-    pos: Pos,
-) -> StatementResult<'a> {
+pub(crate) fn get_statement_from_break<'a>(ctx: &StatementContext<'a, '_, '_>, pos: Pos) -> StatementResult<'a> {
     if !ctx.is_inside_loop {
         errors::report_operation_outside_loop(ctx.ctx.errors, pos, "break");
     }
@@ -613,18 +492,12 @@ pub(crate) fn get_statement_from_return<'a>(
 
     let return_type = ctx.return_type;
 
-    let value = node
-        .value
-        .as_ref()
-        .map(|expr| get_expr_from_node(ctx.ctx, ctx.scope, Some(return_type), expr));
+    let value = node.value.as_ref().map(|expr| get_expr_from_node(ctx.ctx, ctx.scope, Some(return_type), expr));
 
     let value_ty = value
         .as_ref()
         .map(|expr| expr.ty)
-        .unwrap_or(ctx.ctx.define_type(Type {
-            kind: TypeKind::Anonymous,
-            repr: TypeRepr::Void,
-        }));
+        .unwrap_or(ctx.ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Void }));
 
     if !return_type.is_assignable_with(value_ty) {
         errors::report_type_mismatch(ctx.ctx.errors, node.pos, return_type, value_ty);
