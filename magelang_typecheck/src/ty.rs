@@ -4,9 +4,7 @@ use crate::interner::Interner;
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{
-    ErrorReporter, Pos, SignatureNode, TypeExprNode, TypeParameterNode,
-};
+use magelang_syntax::{ErrorReporter, Pos, SignatureNode, TypeExprNode, TypeParameterNode};
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
@@ -801,7 +799,8 @@ fn get_type_object_from_name<'a, 'b, E: ErrorReporter>(
         }
         TypeExprNode::Selection(selection) => {
             let TypeExprNode::Ident(package) = selection.value.as_ref() else {
-                ctx.errors.undeclared_symbol(selection.selection.pos, &selection.selection.value);
+                ctx.errors
+                    .undeclared_symbol(selection.selection.pos, &selection.selection.value);
                 return None;
             };
             let name = &selection.selection;

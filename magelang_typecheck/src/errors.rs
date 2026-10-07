@@ -195,6 +195,13 @@ pub(crate) trait SemanticError: ErrorReporter {
         )
     }
 
+    fn generic_recursion_limit_reached(&self, pos: Pos, limit: usize) {
+        self.report(
+            pos,
+            format!("Generic instantiation depth reached the limit of {limit}"),
+        )
+    }
+
     fn circular_import(&self, pos: Pos, cycle: &[String]) {
         self.report(
             pos,

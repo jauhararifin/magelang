@@ -1,6 +1,6 @@
 use bumpalo::Bump;
 use magelang_syntax::{ErrorManager, FileManager};
-use magelang_typecheck::analyze;
+use magelang_typecheck::{analyze_with_options, AnalyzeOptions};
 use magelang_wasmgen::generate;
 use std::fs::read_to_string;
 use std::path::PathBuf;
@@ -53,8 +53,43 @@ test_success!(test_023_fail);
 test_success!(test_024_fail);
 test_success!(test_025_fail);
 test_success!(test_026_fail);
+test_success!(test_028);
+
+#[test]
+fn test_027_fail() {
+    test_package_with_options(
+        "test_027_fail",
+        AnalyzeOptions {
+            generic_recursion_limit: 8,
+        },
+    );
+}
+
+#[test]
+fn test_029_fail() {
+    test_package_with_options(
+        "test_029_fail",
+        AnalyzeOptions {
+            generic_recursion_limit: 8,
+        },
+    );
+}
+
+#[test]
+fn test_030_fail() {
+    test_package_with_options(
+        "test_030_fail",
+        AnalyzeOptions {
+            generic_recursion_limit: 6,
+        },
+    );
+}
 
 fn test_package(name: &str) {
+    test_package_with_options(name, AnalyzeOptions::default());
+}
+
+fn test_package_with_options(name: &str, analyze_options: AnalyzeOptions) {
     unsafe {
         std::env::set_var("MAGELANG_ROOT", env!("CARGO_MANIFEST_DIR"));
     }
@@ -70,7 +105,13 @@ fn test_package(name: &str) {
     let mut file_manager = FileManager::default();
 
     let arena = Bump::default();
-    let module = analyze(&arena, &mut file_manager, &error_manager, &package_name);
+    let module = analyze_with_options(
+        &arena,
+        &mut file_manager,
+        &error_manager,
+        &package_name,
+        analyze_options,
+    );
     if !module.is_valid {
         if should_error {
             let mut errors = String::default();

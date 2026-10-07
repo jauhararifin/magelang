@@ -1,32 +1,48 @@
 use crate::errors::SemanticError;
-use crate::expr::{get_expr_from_node, Expr, ExprKind};
+use crate::expr::{Expr, ExprKind, get_expr_from_node};
 use crate::global_init::check_circular_global_intitialization;
 use crate::path::{get_package_path, get_stdlib_path};
 use crate::scope::Scope;
-use crate::statement::{get_statement_from_block, Statement, StatementContext, StatementInterner};
+use crate::statement::{Statement, StatementContext, StatementInterner, get_statement_from_block};
 use crate::ty::{
-    check_circular_type, get_func_type_from_signature, get_type_from_node, get_typeparam_scope,
-    get_typeparams, BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs,
-    TypeArgsInterner, TypeInterner, TypeKind, TypeRepr, UserType,
+    BitSize, FloatType, GenericType, StructType, Type, TypeArg, TypeArgs, TypeArgsInterner,
+    TypeInterner, TypeKind, TypeRepr, UserType, check_circular_type, get_func_type_from_signature,
+    get_type_from_node, get_typeparam_scope, get_typeparams,
 };
 use crate::{DefId, Func, Global, Module, Package, Symbol, SymbolInterner};
-use bumpalo::collections::Vec as BumpVec;
 use bumpalo::Bump;
+use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    parse, AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode,
-    PackageNode, Pos, StructNode,
+    AnnotationNode, ErrorReporter, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode,
+    Pos, StructNode, parse,
 };
 use std::cell::{OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 
-pub fn analyze<'a>(
+pub const DEFAULT_GENERIC_RECURSION_LIMIT: usize = 100;
+
+#[derive(Debug, Clone, Copy)]
+pub struct AnalyzeOptions {
+    pub generic_recursion_limit: usize,
+}
+
+impl Default for AnalyzeOptions {
+    fn default() -> Self {
+        Self {
+            generic_recursion_limit: DEFAULT_GENERIC_RECURSION_LIMIT,
+        }
+    }
+}
+
+pub fn analyze_with_options<'a>(
     arena: &'a Bump,
     file_manager: &mut FileManager,
     error_manager: &impl ErrorReporter,
     main_package: &str,
+    options: AnalyzeOptions,
 ) -> Module<'a> {
     let symbols = SymbolInterner::new(arena);
     let types = TypeInterner::new(arena);
@@ -93,7 +109,7 @@ pub fn analyze<'a>(
 
     generate_global_value(&ctx);
     let global_init_order = check_circular_global_intitialization(&ctx);
-    monomorphize_statements(&ctx);
+    monomorphize_statements(&ctx, options.generic_recursion_limit);
 
     let is_valid = !error_manager.has_errors();
     build_module(ctx, is_valid, global_init_order)
@@ -804,8 +820,20 @@ fn get_func_body<'a, E: ErrorReporter>(
     result.statement
 }
 
-fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
-    let monomorphized_funcs = get_all_monomorphized_funcs(ctx);
+#[derive(Debug, Clone, Copy)]
+struct MonomorphizationContext<'a> {
+    type_args: &'a TypeArgs<'a>,
+    generic_depth: usize,
+}
+
+fn monomorphize_statements<E: ErrorReporter>(
+    ctx: &Context<'_, '_, E>,
+    generic_recursion_limit: usize,
+) {
+    let Some(monomorphized_funcs) = get_all_monomorphized_funcs(ctx, generic_recursion_limit)
+    else {
+        return;
+    };
 
     for (def_id, all_typeargs) in monomorphized_funcs {
         let generic_func = ctx
@@ -841,15 +869,20 @@ fn monomorphize_statements<E: ErrorReporter>(ctx: &Context<'_, '_, E>) {
 
 fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     ctx: &Context<'a, '_, E>,
-) -> Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)> {
+    generic_recursion_limit: usize,
+) -> Option<Vec<(DefId<'a>, Vec<&'a TypeArgs<'a>>)>> {
     #[derive(Debug)]
     enum Source<'a, 'b> {
-        Expr(&'b Expr<'a>, &'a TypeArgs<'a>),
-        Statement(&'b Statement<'a>, &'a TypeArgs<'a>),
-        FuncInst(DefId<'a>, &'a TypeArgs<'a>),
+        Expr(&'b Expr<'a>, MonomorphizationContext<'a>),
+        Statement(&'b Statement<'a>, MonomorphizationContext<'a>),
+        FuncInst(DefId<'a>, &'a TypeArgs<'a>, usize, Pos),
     }
 
     let empty_typeargs = ctx.define_typeargs(&[]);
+    let root_context = MonomorphizationContext {
+        type_args: empty_typeargs,
+        generic_depth: 0,
+    };
 
     let mut queue = VecDeque::<Source>::default();
     for scope in ctx.scopes.values() {
@@ -858,7 +891,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 ValueObject::Func(func_object) => {
                     if func_object.type_params.is_empty() {
                         let body = func_object.body.get().expect("missing func body");
-                        queue.push_back(Source::Statement(body, empty_typeargs));
+                        queue.push_back(Source::Statement(body, root_context));
                     }
                 }
                 ValueObject::Global(global_object) => {
@@ -866,7 +899,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                         .value
                         .get()
                         .expect("missing global value expr");
-                    queue.push_back(Source::Expr(value, empty_typeargs));
+                    queue.push_back(Source::Expr(value, root_context));
                 }
                 _ => continue,
             }
@@ -876,9 +909,9 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
     let empty_scope = Scopes::default();
     let mut monomorphized_funcs = IndexMap::<DefId, Vec<&TypeArgs>>::default();
     let mut func_insts = IndexSet::<(DefId, &TypeArgs)>::default();
-    while let Some(item) = queue.pop_front() {
+    while let Some(item) = queue.pop_back() {
         match item {
-            Source::Expr(expr, type_args) => match &expr.kind {
+            Source::Expr(expr, mono_context) => match &expr.kind {
                 ExprKind::Invalid
                 | ExprKind::ConstInt(..)
                 | ExprKind::ConstI8(..)
@@ -897,30 +930,37 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 | ExprKind::Func(..) => (),
                 ExprKind::StructLit(_, values) => {
                     for val in values.iter() {
-                        queue.push_back(Source::Expr(val, type_args))
+                        queue.push_back(Source::Expr(val, mono_context))
                     }
                 }
                 ExprKind::FuncInst(def_id, inner_typeargs) => {
                     let substituted_typeargs = inner_typeargs
                         .iter()
-                        .map(|ty| ty.substitute(ctx, type_args))
+                        .map(|ty| ty.substitute(ctx, mono_context.type_args))
                         .collect::<Vec<_>>();
                     let substituted_typeargs = ctx.define_typeargs(&substituted_typeargs);
-                    queue.push_back(Source::FuncInst(*def_id, substituted_typeargs));
+                    queue.push_back(Source::FuncInst(
+                        *def_id,
+                        substituted_typeargs,
+                        mono_context.generic_depth.saturating_add(1),
+                        expr.pos,
+                    ));
                 }
-                ExprKind::GetElement(expr, _) => queue.push_back(Source::Expr(expr, type_args)),
-                ExprKind::GetElementAddr(expr, _) => queue.push_back(Source::Expr(expr, type_args)),
+                ExprKind::GetElement(expr, _) => queue.push_back(Source::Expr(expr, mono_context)),
+                ExprKind::GetElementAddr(expr, _) => {
+                    queue.push_back(Source::Expr(expr, mono_context))
+                }
                 ExprKind::GetIndex(arr, index) => {
-                    queue.push_back(Source::Expr(arr, type_args));
-                    queue.push_back(Source::Expr(index, type_args));
+                    queue.push_back(Source::Expr(arr, mono_context));
+                    queue.push_back(Source::Expr(index, mono_context));
                 }
                 ExprKind::Deref(value) => {
-                    queue.push_back(Source::Expr(value, type_args));
+                    queue.push_back(Source::Expr(value, mono_context));
                 }
                 ExprKind::Call(callee, args) => {
-                    queue.push_back(Source::Expr(callee, type_args));
+                    queue.push_back(Source::Expr(callee, mono_context));
                     for arg in args.iter() {
-                        queue.push_back(Source::Expr(arg, type_args));
+                        queue.push_back(Source::Expr(arg, mono_context));
                     }
                 }
                 ExprKind::Add(a, b)
@@ -941,70 +981,75 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
                 | ExprKind::GEq(a, b)
                 | ExprKind::Lt(a, b)
                 | ExprKind::LEq(a, b) => {
-                    queue.push_back(Source::Expr(a, type_args));
-                    queue.push_back(Source::Expr(b, type_args));
+                    queue.push_back(Source::Expr(a, mono_context));
+                    queue.push_back(Source::Expr(b, mono_context));
                 }
                 ExprKind::Neg(value)
                 | ExprKind::BitNot(value)
                 | ExprKind::Not(value)
-                | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, type_args)),
+                | ExprKind::Cast(value, _) => queue.push_back(Source::Expr(value, mono_context)),
             },
-            Source::Statement(stmt, type_args) => match stmt {
+            Source::Statement(stmt, mono_context) => match stmt {
                 Statement::NewLocal { id: _, value } => {
-                    queue.push_back(Source::Expr(value, type_args))
+                    queue.push_back(Source::Expr(value, mono_context))
                 }
                 Statement::Block(stmts) => {
                     for stmt in stmts.iter() {
-                        queue.push_back(Source::Statement(stmt, type_args));
+                        queue.push_back(Source::Statement(stmt, mono_context));
                     }
                 }
                 Statement::If(if_stmt) => {
-                    queue.push_back(Source::Expr(&if_stmt.cond, type_args));
-                    queue.push_back(Source::Statement(&if_stmt.body, type_args));
+                    queue.push_back(Source::Expr(&if_stmt.cond, mono_context));
+                    queue.push_back(Source::Statement(&if_stmt.body, mono_context));
                     if let Some(else_stmt) = &if_stmt.else_stmt {
-                        queue.push_back(Source::Statement(else_stmt.as_ref(), type_args));
+                        queue.push_back(Source::Statement(else_stmt.as_ref(), mono_context));
                     }
                 }
                 Statement::While(while_stmt) => {
-                    queue.push_back(Source::Expr(&while_stmt.cond, type_args));
-                    queue.push_back(Source::Statement(&while_stmt.body, type_args));
+                    queue.push_back(Source::Expr(&while_stmt.cond, mono_context));
+                    queue.push_back(Source::Statement(&while_stmt.body, mono_context));
                 }
                 Statement::For(for_stmt) => {
                     if let Some(init) = &for_stmt.init {
-                        queue.push_back(Source::Statement(init.as_ref(), type_args));
+                        queue.push_back(Source::Statement(init.as_ref(), mono_context));
                     }
                     if let Some(cond) = &for_stmt.cond {
-                        queue.push_back(Source::Expr(cond, type_args));
+                        queue.push_back(Source::Expr(cond, mono_context));
                     }
                     if let Some(update) = &for_stmt.update {
-                        queue.push_back(Source::Statement(update.as_ref(), type_args));
+                        queue.push_back(Source::Statement(update.as_ref(), mono_context));
                     }
-                    queue.push_back(Source::Statement(&for_stmt.body, type_args));
+                    queue.push_back(Source::Statement(&for_stmt.body, mono_context));
                 }
                 Statement::Defer(stmt) => {
-                    queue.push_back(Source::Statement(stmt.as_ref(), type_args));
+                    queue.push_back(Source::Statement(stmt.as_ref(), mono_context));
                 }
                 Statement::Return(value) => {
                     if let Some(value) = value {
-                        queue.push_back(Source::Expr(value, type_args));
+                        queue.push_back(Source::Expr(value, mono_context));
                     }
                 }
                 Statement::Expr(expr) => {
-                    queue.push_back(Source::Expr(expr, type_args));
+                    queue.push_back(Source::Expr(expr, mono_context));
                 }
                 Statement::Assign { target, value } => {
-                    queue.push_back(Source::Expr(target, type_args));
-                    queue.push_back(Source::Expr(value, type_args));
+                    queue.push_back(Source::Expr(target, mono_context));
+                    queue.push_back(Source::Expr(value, mono_context));
                 }
                 Statement::AssignOp { target, value, .. } => {
-                    queue.push_back(Source::Expr(target, type_args));
-                    queue.push_back(Source::Expr(value, type_args));
+                    queue.push_back(Source::Expr(target, mono_context));
+                    queue.push_back(Source::Expr(value, mono_context));
                 }
                 Statement::Native | Statement::Continue | Statement::Break => continue,
             },
-            Source::FuncInst(def_id, typeargs) => {
+            Source::FuncInst(def_id, typeargs, generic_depth, pos) => {
                 if func_insts.contains(&(def_id, typeargs)) {
                     continue;
+                }
+                if generic_depth >= generic_recursion_limit {
+                    ctx.errors
+                        .generic_recursion_limit_reached(pos, generic_recursion_limit);
+                    return None;
                 }
                 func_insts.insert((def_id, typeargs));
 
@@ -1022,7 +1067,10 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
 
                 queue.push_back(Source::Statement(
                     generic_func.body.get().expect("missing body"),
-                    typeargs,
+                    MonomorphizationContext {
+                        type_args: typeargs,
+                        generic_depth,
+                    },
                 ));
 
                 monomorphized_funcs
@@ -1033,7 +1081,7 @@ fn get_all_monomorphized_funcs<'a, E: ErrorReporter>(
         }
     }
 
-    monomorphized_funcs.into_iter().collect()
+    Some(monomorphized_funcs.into_iter().collect())
 }
 
 fn build_module<'a, E>(

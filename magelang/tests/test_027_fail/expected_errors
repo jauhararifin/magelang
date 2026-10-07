@@ -1,0 +1,1 @@
+tests/test_027_fail/main.mg:6:3: Generic instantiation depth reached the limit of 8

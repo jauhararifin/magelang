@@ -1,8 +1,8 @@
+use crate::DefId;
 use crate::analyze::{Context, ValueObject};
 use crate::errors::SemanticError;
 use crate::expr::{Expr, ExprKind};
 use crate::statement::Statement;
-use crate::DefId;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{ErrorReporter, Pos};
 

@@ -13,7 +13,10 @@ use magelang_syntax::Pos;
 use std::fmt::Display;
 use std::rc::Rc;
 
-pub use analyze::{analyze, Annotation, FuncObject, GlobalObject, ValueObject};
+pub use analyze::{
+    AnalyzeOptions, Annotation, DEFAULT_GENERIC_RECURSION_LIMIT, FuncObject, GlobalObject,
+    ValueObject, analyze_with_options,
+};
 
 pub(crate) type SymbolInterner<'a> = Interner<'a, str>;
 pub type Symbol<'a> = &'a str;
