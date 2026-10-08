@@ -34,7 +34,7 @@ fn test_basic() {
   for let i: i32 = 0; i < 5; i = i + 1 {
     sum = sum + i;
   }
-  assert_equal<i32>(10, sum);
+  assert_equal[i32](10, sum);
 }
 
 fn test_continue_runs_update() {
@@ -48,8 +48,8 @@ fn test_continue_runs_update() {
     }
     sum = sum + i;
   }
-  assert_equal<i32>(10, count);
-  assert_equal<i32>(25, sum); // 1 + 3 + 5 + 7 + 9
+  assert_equal[i32](10, count);
+  assert_equal[i32](25, sum); // 1 + 3 + 5 + 7 + 9
 }
 
 fn test_break() {
@@ -60,7 +60,7 @@ fn test_break() {
     }
     last = i;
   }
-  assert_equal<i32>(6, last);
+  assert_equal[i32](6, last);
 }
 
 fn test_empty_init() {
@@ -69,8 +69,8 @@ fn test_empty_init() {
   for ; i < 5; i = i + 1 {
     sum = sum + i;
   }
-  assert_equal<i32>(10, sum);
-  assert_equal<i32>(5, i);
+  assert_equal[i32](10, sum);
+  assert_equal[i32](5, i);
 }
 
 fn test_empty_condition() {
@@ -81,7 +81,7 @@ fn test_empty_condition() {
     }
     sum = sum + i;
   }
-  assert_equal<i32>(10, sum);
+  assert_equal[i32](10, sum);
 }
 
 fn test_empty_update() {
@@ -95,8 +95,8 @@ fn test_empty_update() {
     count = count + 1;
     sum = sum + i;
   }
-  assert_equal<i32>(4, count);
-  assert_equal<i32>(13, sum); // 1 + 3 + 4 + 5
+  assert_equal[i32](4, count);
+  assert_equal[i32](13, sum); // 1 + 3 + 4 + 5
 }
 
 fn test_all_empty() {
@@ -107,7 +107,7 @@ fn test_all_empty() {
       break;
     }
   }
-  assert_equal<i32>(3, count);
+  assert_equal[i32](3, count);
 }
 
 fn test_nested_labels() {
@@ -124,7 +124,7 @@ fn test_nested_labels() {
     }
     sum = sum + i;
   }
-  assert_equal<i32>(5, sum); // 0 + 2 + 3
+  assert_equal[i32](5, sum); // 0 + 2 + 3
 }
 
 fn test_nested_for() {
@@ -141,7 +141,7 @@ fn test_nested_for() {
     }
     total = total + 10;
   }
-  assert_equal<i32>(34, total);
+  assert_equal[i32](34, total);
 }
 
 fn test_for_inside_while() {
@@ -160,7 +160,7 @@ fn test_for_inside_while() {
     }
     total = total + 100;
   }
-  assert_equal<i32>(206, total);
+  assert_equal[i32](206, total);
 }
 
 fn test_while_inside_for() {
@@ -182,7 +182,7 @@ fn test_while_inside_for() {
     }
     total = total + 100;
   }
-  assert_equal<i32>(206, total);
+  assert_equal[i32](206, total);
 }
 
 fn test_assign_init_and_call_update() {
@@ -191,8 +191,8 @@ fn test_assign_init_and_call_update() {
   for n = 0; n < 4; incr() {
     n = n + 1;
   }
-  assert_equal<i32>(4, n);
-  assert_equal<i32>(4, counter);
+  assert_equal[i32](4, n);
+  assert_equal[i32](4, counter);
 }
 
 fn test_expr_init() {
@@ -201,8 +201,8 @@ fn test_expr_init() {
   for incr(); counter < 3; incr() {
     sum = sum + counter;
   }
-  assert_equal<i32>(3, counter);
-  assert_equal<i32>(3, sum); // 1 + 2
+  assert_equal[i32](3, counter);
+  assert_equal[i32](3, sum); // 1 + 2
 }
 
 fn test_scoping() {
@@ -211,16 +211,16 @@ fn test_scoping() {
   for let i: i32 = 0; i < 3; i = i + 1 {
     sum = sum + i;
   }
-  assert_equal<i32>(42, i);
-  assert_equal<i32>(3, sum);
+  assert_equal[i32](42, i);
+  assert_equal[i32](3, sum);
 }
 
 fn test_generic() {
-  assert_equal<i32>(3, count_with<i64>(10, 3));
-  assert_equal<i32>(5, count_with<f64>(1.5, 5));
+  assert_equal[i32](3, count_with[i64](10, 3));
+  assert_equal[i32](5, count_with[f64](1.5, 5));
 }
 
-fn count_with<T>(val: T, n: i32): i32 {
+fn count_with[T](val: T, n: i32): i32 {
   let total: i32 = 0;
   for let i: i32 = 0; i < n; i = i + 1 {
     total = total + 1;
@@ -234,14 +234,14 @@ fn test_unconditional_jump() {
     count = count + 1;
     continue;
   }
-  assert_equal<i32>(5, count);
+  assert_equal[i32](5, count);
 
   let count2: i32 = 0;
   for let i: i32 = 0; i < 5; i = i + 1 {
     count2 = count2 + 1;
     break;
   }
-  assert_equal<i32>(1, count2);
+  assert_equal[i32](1, count2);
 }
 
 fn test_string_literal_in_init_and_update() {
@@ -249,17 +249,17 @@ fn test_string_literal_in_init_and_update() {
   // put in the data segment if the data collector walks those statements.
   let s: [*]u8 = "zzz";
   let n: i32 = 0;
-  assert_equal<u8>(122, s[0].*);
+  assert_equal[u8](122, s[0].*);
   for let t: [*]u8 = "init"; n < 2; s = "post" {
     n = n + 1;
-    assert_equal<u8>(105, t[0].*);
+    assert_equal[u8](105, t[0].*);
   }
-  assert_equal<u8>(112, s[0].*);
+  assert_equal[u8](112, s[0].*);
 }
 
 fn test_return_inside_for() {
-  assert_equal<i32>(2, first_even(10));
-  assert_equal<i32>(-1, first_even(2));
+  assert_equal[i32](2, first_even(10));
+  assert_equal[i32](-1, first_even(2));
 }
 
 fn first_even(n: i32): i32 {
@@ -272,7 +272,7 @@ fn first_even(n: i32): i32 {
 }
 
 fn test_global_init_order() {
-  assert_equal<i32>(300, computed);
+  assert_equal[i32](300, computed);
 }
 
 fn compute_offset(): i32 {
@@ -287,7 +287,7 @@ fn incr() {
   counter = counter + 1;
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal[T](expected: T, actual: T) {
   if expected != actual {
     wasm.unreachable();
   }

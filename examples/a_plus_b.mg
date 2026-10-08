@@ -42,16 +42,16 @@ fn read_i32(): i32 {
 }
 
 fn read_single_char(): u8 {
-  let iovec = mem.alloc<wasi.IoVec>();
-  iovec.p.* = mem.alloc_array<u8>(1);
+  let iovec = mem.alloc[wasi.IoVec]();
+  iovec.p.* = mem.alloc_array[u8](1);
   iovec.len.* = 1;
-  let n_read_ptr = mem.alloc<i32>();
+  let n_read_ptr = mem.alloc[i32]();
   wasi.fd_read(0, iovec, 1, n_read_ptr);
   let n_read = n_read_ptr.*;
 
-  mem.dealloc<wasi.IoVec>(iovec);
-  mem.dealloc_array<u8>(iovec.p.*);
-  mem.dealloc<i32>(n_read_ptr);
+  mem.dealloc[wasi.IoVec](iovec);
+  mem.dealloc_array[u8](iovec.p.*);
+  mem.dealloc[i32](n_read_ptr);
 
   if n_read == 0 {
     return 0;
@@ -60,14 +60,14 @@ fn read_single_char(): u8 {
 }
 
 fn print_single_char(ch: u8) {
-  let iovec = mem.alloc<wasi.IoVec>();
-  iovec.p.* = mem.alloc_array<u8>(1);
+  let iovec = mem.alloc[wasi.IoVec]();
+  iovec.p.* = mem.alloc_array[u8](1);
   iovec.p.*[0].* = ch;
   iovec.len.* = 1;
-  let n_read_ptr = mem.alloc<i32>();
+  let n_read_ptr = mem.alloc[i32]();
 
   wasi.fd_write(1, iovec, 1, n_read_ptr);
-  mem.dealloc<wasi.IoVec>(iovec);
-  mem.dealloc_array<u8>(iovec.p.*);
-  mem.dealloc<i32>(n_read_ptr);
+  mem.dealloc[wasi.IoVec](iovec);
+  mem.dealloc_array[u8](iovec.p.*);
+  mem.dealloc[i32](n_read_ptr);
 }

@@ -1,5 +1,5 @@
 use crate::DefId;
-use crate::analyze::{Context, ValueObject};
+use crate::analyze::{Context, Object, ValueObject};
 use crate::errors;
 use crate::expr::{Expr, ExprKind};
 use crate::statement::Statement;
@@ -16,7 +16,7 @@ fn build_global_initialization_dependency_list<'a>(
 ) -> IndexMap<DefId<'a>, (Pos, IndexSet<DefId<'a>>)> {
     let mut adjlist = IndexMap::<DefId, (Pos, IndexSet<DefId>)>::default();
 
-    for value_object in ctx.scopes.values().flat_map(|scopes| scopes.value_scopes.iter()).map(|(_, obj)| obj) {
+    for value_object in ctx.scopes.values().flat_map(|scope| scope.iter()).filter_map(|(_, object)| object.as_value()) {
         let ValueObject::Global(global_object) = value_object else {
             continue;
         };
@@ -48,7 +48,7 @@ fn collect_func_dependencies<'a>(
     }
 
     let Some(ValueObject::Func(func_object)) =
-        ctx.scopes.get(def_id.package).and_then(|scope| scope.value_scopes.lookup(def_id.name))
+        ctx.scopes.get(def_id.package).and_then(|scope| scope.lookup(def_id.name)).and_then(Object::as_value)
     else {
         return;
     };

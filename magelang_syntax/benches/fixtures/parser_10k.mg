@@ -1,7 +1,7 @@
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -22,11 +22,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -96,13 +96,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -123,11 +123,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -197,13 +197,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -224,11 +224,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -298,13 +298,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -325,11 +325,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -399,13 +399,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -426,11 +426,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -500,13 +500,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -527,11 +527,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -601,13 +601,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -628,11 +628,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -702,13 +702,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -729,11 +729,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -803,13 +803,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -830,11 +830,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -904,13 +904,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -931,11 +931,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1005,13 +1005,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1032,11 +1032,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1106,13 +1106,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1133,11 +1133,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1207,13 +1207,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1234,11 +1234,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1308,13 +1308,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1335,11 +1335,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1409,13 +1409,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1436,11 +1436,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1510,13 +1510,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1537,11 +1537,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1611,13 +1611,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1638,11 +1638,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1712,13 +1712,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1739,11 +1739,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1813,13 +1813,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1840,11 +1840,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -1914,13 +1914,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -1941,11 +1941,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2015,13 +2015,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2042,11 +2042,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2116,13 +2116,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2143,11 +2143,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2217,13 +2217,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2244,11 +2244,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2318,13 +2318,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2345,11 +2345,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2419,13 +2419,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2446,11 +2446,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2520,13 +2520,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2547,11 +2547,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2621,13 +2621,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2648,11 +2648,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2722,13 +2722,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2749,11 +2749,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2823,13 +2823,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2850,11 +2850,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -2924,13 +2924,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -2951,11 +2951,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3025,13 +3025,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3052,11 +3052,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3126,13 +3126,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3153,11 +3153,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3227,13 +3227,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3254,11 +3254,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3328,13 +3328,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3355,11 +3355,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3429,13 +3429,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3456,11 +3456,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3530,13 +3530,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3557,11 +3557,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3631,13 +3631,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3658,11 +3658,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3732,13 +3732,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3759,11 +3759,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3833,13 +3833,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3860,11 +3860,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -3934,13 +3934,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -3961,11 +3961,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4035,13 +4035,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4062,11 +4062,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4136,13 +4136,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4163,11 +4163,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4237,13 +4237,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4264,11 +4264,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4338,13 +4338,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4365,11 +4365,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4439,13 +4439,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4466,11 +4466,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4540,13 +4540,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4567,11 +4567,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4641,13 +4641,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4668,11 +4668,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4742,13 +4742,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4769,11 +4769,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4843,13 +4843,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4870,11 +4870,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -4944,13 +4944,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -4971,11 +4971,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5045,13 +5045,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5072,11 +5072,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5146,13 +5146,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5173,11 +5173,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5247,13 +5247,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5274,11 +5274,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5348,13 +5348,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5375,11 +5375,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5449,13 +5449,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5476,11 +5476,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5550,13 +5550,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5577,11 +5577,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5651,13 +5651,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5678,11 +5678,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5752,13 +5752,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5779,11 +5779,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5853,13 +5853,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5880,11 +5880,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -5954,13 +5954,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -5981,11 +5981,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6055,13 +6055,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6082,11 +6082,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6156,13 +6156,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6183,11 +6183,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6257,13 +6257,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6284,11 +6284,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6358,13 +6358,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6385,11 +6385,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6459,13 +6459,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6486,11 +6486,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6560,13 +6560,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6587,11 +6587,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6661,13 +6661,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6688,11 +6688,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6762,13 +6762,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6789,11 +6789,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6863,13 +6863,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6890,11 +6890,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -6964,13 +6964,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -6991,11 +6991,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7065,13 +7065,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7092,11 +7092,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7166,13 +7166,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7193,11 +7193,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7267,13 +7267,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7294,11 +7294,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7368,13 +7368,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7395,11 +7395,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7469,13 +7469,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7496,11 +7496,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7570,13 +7570,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7597,11 +7597,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7671,13 +7671,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7698,11 +7698,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7772,13 +7772,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7799,11 +7799,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7873,13 +7873,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -7900,11 +7900,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -7974,13 +7974,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8001,11 +8001,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8075,13 +8075,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8102,11 +8102,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8176,13 +8176,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8203,11 +8203,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8277,13 +8277,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8304,11 +8304,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8378,13 +8378,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8405,11 +8405,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8479,13 +8479,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8506,11 +8506,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8580,13 +8580,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8607,11 +8607,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8681,13 +8681,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8708,11 +8708,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8782,13 +8782,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8809,11 +8809,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8883,13 +8883,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -8910,11 +8910,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -8984,13 +8984,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9011,11 +9011,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9085,13 +9085,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9112,11 +9112,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9186,13 +9186,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9213,11 +9213,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9287,13 +9287,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9314,11 +9314,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9388,13 +9388,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9415,11 +9415,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9489,13 +9489,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9516,11 +9516,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9590,13 +9590,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9617,11 +9617,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9691,13 +9691,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9718,11 +9718,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9792,13 +9792,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9819,11 +9819,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9893,13 +9893,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -9920,11 +9920,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -9994,13 +9994,13 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }
 
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair<T, U> {
+struct Pair[T, U] {
     first: T,
     second: U,
 }
@@ -10021,11 +10021,11 @@ let enabled: bool = true;
 let greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
-fn identity<T>(value: T): T {
+fn identity[T](value: T): T {
     return value;
 }
-fn make_pair<T, U>(first: T, second: U): Pair<T, U> {
-    return Pair<T, U>{first: first, second: second};
+fn make_pair[T, U](first: T, second: U): Pair[T, U] {
+    return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
     let x = left.x * right.x;
@@ -10095,5 +10095,5 @@ fn nested(value: i32): i32 {
             return classify(value);
         }
     }
-    return identity<i32>(value);
+    return identity[i32](value);
 }

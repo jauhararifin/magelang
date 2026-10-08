@@ -1,5 +1,5 @@
 use magelang_syntax::{
-    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, StatementNode, TypeExprNode, parse,
+    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, StatementNode, parse,
 };
 use std::path::PathBuf;
 
@@ -150,21 +150,21 @@ fn eof_diagnostics_include_trailing_whitespace_and_comments() {
 }
 
 #[test]
-fn generic_expr_vs_binary_expr() {
+fn bracket_application_and_binary_expressions() {
     let mut files = FileManager::default();
     let file = files
         .add_file(
             "generic.mg".into(),
             concat!(
                 "fn main() { ",
-                "let pair = pkg.make_pair<pkg.Pair<pkg.Pair<i32>>>(1).value; ",
-                "let f = identity<i32>; ",
-                "let cast = identity<i32> as fn(i32): i32; ",
-                "let equal = identity<i32> == other; ",
+                "let pair = pkg.make_pair[pkg.Pair[pkg.Pair[i32]]](1).value; ",
+                "let f = identity[i32]; ",
+                "let cast = identity[i32] as fn(i32): i32; ",
+                "let equal = identity[i32] == other; ",
                 "let cmp = a < b > c; ",
                 "let shifted = a < b >> 1; ",
                 "let other = a < b && c > d; ",
-                "let typed: pkg.Pair<i32> = pkg.Pair<i32>{value: 1}; ",
+                "let typed: pkg.Pair[i32] = pkg.Pair[i32]{value: 1}; ",
                 "let chain = a.b.c; ",
                 "let indexed = arr[0]; ",
                 "}"
@@ -189,7 +189,7 @@ fn generic_expr_vs_binary_expr() {
     let ExprNode::Call(call) = field.value.as_ref() else {
         panic!("expected call");
     };
-    let ExprNode::Inst(inst) = call.callee.as_ref() else {
+    let ExprNode::Bracket(inst) = call.callee.as_ref() else {
         panic!("expected generic instantiation");
     };
     let ExprNode::Selection(callee) = inst.value.as_ref() else {
@@ -203,7 +203,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(reference) = &statements[1] else {
         panic!("expected let");
     };
-    let LetKind::ValueOnly { value: ExprNode::Inst(inst) } = &reference.kind else {
+    let LetKind::ValueOnly { value: ExprNode::Bracket(inst) } = &reference.kind else {
         panic!("expected generic reference");
     };
     assert!(matches!(inst.value.as_ref(), ExprNode::Ident(name) if name.value == "identity"));
@@ -217,7 +217,7 @@ fn generic_expr_vs_binary_expr() {
     };
     assert!(matches!(
         cast.value.as_ref(),
-        ExprNode::Inst(inst) if inst.args.len() == 1
+        ExprNode::Bracket(inst) if inst.args.len() == 1
     ));
 
     let StatementNode::Let(equal) = &statements[3] else {
@@ -229,7 +229,7 @@ fn generic_expr_vs_binary_expr() {
     assert_eq!(equal.op, BinaryOp::Eq);
     assert!(matches!(
         equal.a.as_ref(),
-        ExprNode::Inst(inst) if inst.args.len() == 1
+        ExprNode::Bracket(inst) if inst.args.len() == 1
     ));
 
     let StatementNode::Let(comparison) = &statements[4] else {
@@ -267,14 +267,14 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(typed) = &statements[7] else {
         panic!("expected let");
     };
-    let LetKind::TypeValue { ty: TypeExprNode::Inst(inst), value: ExprNode::Struct(_) } = &typed.kind else {
+    let LetKind::TypeValue { ty: ExprNode::Bracket(inst), value: ExprNode::Struct(_) } = &typed.kind else {
         panic!("expected named type and struct literal");
     };
     assert!(matches!(
         inst.value.as_ref(),
-        TypeExprNode::Selection(selection)
+        ExprNode::Selection(selection)
             if selection.selection.value == "Pair"
-                && matches!(selection.value.as_ref(), TypeExprNode::Ident(package) if package.value == "pkg")
+                && matches!(selection.value.as_ref(), ExprNode::Ident(package) if package.value == "pkg")
     ));
 
     let StatementNode::Let(chain) = &statements[8] else {
@@ -293,7 +293,7 @@ fn generic_expr_vs_binary_expr() {
     let StatementNode::Let(indexed) = &statements[9] else {
         panic!("expected let");
     };
-    assert!(matches!(&indexed.kind, LetKind::ValueOnly { value: ExprNode::Index(_) }));
+    assert!(matches!(&indexed.kind, LetKind::ValueOnly { value: ExprNode::Bracket(node) } if node.args.len() == 1));
 }
 
 #[test]
@@ -306,7 +306,7 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
                 "let binary: i32 = left +; ",
                 "let chain: i32 = left + () + right; ",
                 "let grouped: i32 = (); ",
-                "let indexed: i32 = values[]; ",
+                "let indexed: i32 = values[1; ",
                 "let called: i32 = f(, 1); ",
                 "let invalid_struct: i32 = 1{}; ",
                 "let recovered: i32 = 1;"
@@ -324,9 +324,8 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
             "Missing second operand",
             "Missing grouped expression",
             "Missing grouped expression",
-            "Missing index expression",
+            "Missing closing ']'",
             "Missing function argument",
-            "Struct literal target must be a type expression",
         ]
     );
     assert_eq!(ast.items.len(), 7);
@@ -377,7 +376,117 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
     let Some(ExprNode::Struct(struct_expr)) = &global.value else {
         panic!("expected struct expression");
     };
-    assert!(matches!(struct_expr.target, TypeExprNode::Invalid(..)));
+    assert!(matches!(struct_expr.target.as_ref(), ExprNode::Number(..)));
+}
+
+#[test]
+fn types_and_values_share_expression_syntax() {
+    for expression in [
+        "i32",
+        "pkg.Box[Pair[i32]]",
+        "*Box[i32]",
+        "[*]Box[i32]",
+        "fn(Box[i32], [*]u8): *Box[i32]",
+        "(i32)",
+        "Box[]",
+        "(Box)[i32]",
+        "items[1 + 2]",
+        "1 + 2",
+    ] {
+        let mut files = FileManager::default();
+        let file = files
+            .add_file("shared_syntax.mg".into(), format!("let typed: {expression}; let value: i32 = {expression};"))
+            .unwrap();
+        let mut errors = ErrorManager::default();
+        let ast = parse(&errors, &file);
+        assert!(
+            errors.is_empty(),
+            "{expression}: {:?}",
+            errors.take().into_iter().map(|error| error.message).collect::<Vec<_>>()
+        );
+        let [ItemNode::Global(typed), ItemNode::Global(value)] = ast.items.as_slice() else {
+            panic!("expected two globals");
+        };
+        assert_eq!(std::mem::discriminant(&typed.ty), std::mem::discriminant(value.value.as_ref().unwrap()));
+    }
+}
+
+#[test]
+fn bracket_arguments_are_not_classified_by_the_parser() {
+    let mut files = FileManager::default();
+    let file = files
+        .add_file(
+            "brackets.mg".into(),
+            "let x: i32 = producer()[a < b, *Box[Pair[i32]], [*]u8, fn(i32): bool,];".into(),
+        )
+        .unwrap();
+    let mut errors = ErrorManager::default();
+    let ast = parse(&errors, &file);
+    assert!(errors.is_empty(), "{:?}", errors.take().into_iter().map(|error| error.message).collect::<Vec<_>>());
+    let ItemNode::Global(global) = &ast.items[0] else {
+        panic!("expected a global");
+    };
+    let Some(ExprNode::Bracket(node)) = &global.value else {
+        panic!("expected brackets");
+    };
+    assert!(matches!(node.value.as_ref(), ExprNode::Call(_)));
+    assert!(matches!(
+        node.args.as_slice(),
+        [ExprNode::Binary(_), ExprNode::PtrType(_), ExprNode::ArrayPtrType(_), ExprNode::FuncType(_)]
+    ));
+}
+
+#[test]
+fn cast_targets_do_not_consume_binary_operands() {
+    for target in ["i32", "*Box[i32]", "[*]u8", "fn(*Box[i32]): Pair[i32]", "(Pair[i32])"] {
+        let mut files = FileManager::default();
+        let file = files.add_file("cast.mg".into(), format!("let x: i32 = value as {target} + left * right;")).unwrap();
+        let mut errors = ErrorManager::default();
+        let ast = parse(&errors, &file);
+        assert!(
+            errors.is_empty(),
+            "{target}: {:?}",
+            errors.take().into_iter().map(|error| error.message).collect::<Vec<_>>()
+        );
+        let ItemNode::Global(global) = &ast.items[0] else {
+            panic!("expected a global");
+        };
+        let Some(ExprNode::Binary(add)) = &global.value else {
+            panic!("expected addition");
+        };
+        assert_eq!(add.op, BinaryOp::Add);
+        assert!(matches!(add.a.as_ref(), ExprNode::Cast(_)));
+        assert!(matches!(add.b.as_ref(), ExprNode::Binary(mul) if mul.op == BinaryOp::Mul));
+    }
+}
+
+#[test]
+fn angle_brackets_are_operators_not_generic_delimiters() {
+    let mut files = FileManager::default();
+    for source in ["fn identity<T>(value: T): T { return value; }", "struct Box<T> { value: T }"] {
+        let file = files.add_file("old_generics.mg".into(), source.into()).unwrap();
+        let errors = ErrorManager::default();
+        parse(&errors, &file);
+        assert!(!errors.is_empty(), "{source}");
+    }
+    for (expression, outer, inner) in [
+        ("a<b>c", BinaryOp::Gt, BinaryOp::Lt),
+        ("a-b-c", BinaryOp::Sub, BinaryOp::Sub),
+        ("a>>b>>c", BinaryOp::ShiftRight, BinaryOp::ShiftRight),
+    ] {
+        let file = files.add_file("operators.mg".into(), format!("let x: i32 = {expression};")).unwrap();
+        let mut errors = ErrorManager::default();
+        let ast = parse(&errors, &file);
+        assert!(errors.is_empty(), "{:?}", errors.take().into_iter().map(|error| error.message).collect::<Vec<_>>());
+        let ItemNode::Global(global) = &ast.items[0] else {
+            panic!("expected a global");
+        };
+        let Some(ExprNode::Binary(node)) = &global.value else {
+            panic!("expected a binary expression");
+        };
+        assert_eq!(node.op, outer);
+        assert!(matches!(node.a.as_ref(), ExprNode::Binary(left) if left.op == inner));
+    }
 }
 
 #[test]
@@ -386,7 +495,7 @@ fn nested_type_selection_is_parsed() {
     let file = files
         .add_file(
             "nested.mg".into(),
-            "fn main() { let typed: pkg.Outer.Inner<i32>; let literal = pkg.Outer.Inner{value: 1}; }".into(),
+            "fn main() { let typed: pkg.Outer.Inner[i32]; let literal = pkg.Outer.Inner{value: 1}; }".into(),
         )
         .unwrap();
     let mut errors = ErrorManager::default();
@@ -399,14 +508,14 @@ fn nested_type_selection_is_parsed() {
     let StatementNode::Let(typed) = &function.body.as_ref().unwrap().statements[0] else {
         panic!("expected typed let");
     };
-    let LetKind::TypeOnly { ty: TypeExprNode::Inst(inst) } = &typed.kind else {
+    let LetKind::TypeOnly { ty: ExprNode::Bracket(inst) } = &typed.kind else {
         panic!("expected generic type");
     };
     assert!(matches!(
         inst.value.as_ref(),
-        TypeExprNode::Selection(inner)
+        ExprNode::Selection(inner)
             if inner.selection.value == "Inner"
-                && matches!(inner.value.as_ref(), TypeExprNode::Selection(outer)
+                && matches!(inner.value.as_ref(), ExprNode::Selection(outer)
                     if outer.selection.value == "Outer")
     ));
 
@@ -417,6 +526,6 @@ fn nested_type_selection_is_parsed() {
         &literal.kind,
         LetKind::ValueOnly {
             value: ExprNode::Struct(node)
-        } if matches!(&node.target, TypeExprNode::Selection(inner) if inner.selection.value == "Inner")
+        } if matches!(node.target.as_ref(), ExprNode::Selection(inner) if inner.selection.value == "Inner")
     ));
 }

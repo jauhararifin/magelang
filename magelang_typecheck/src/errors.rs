@@ -101,6 +101,18 @@ pub(crate) fn report_non_field_type(errors: &ErrorManager, pos: Pos, name: &str)
     errors.report(pos, format!("The expression doesn't have a field named '{name}'"));
 }
 
+pub(crate) fn report_expected_type(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, "Expected a type expression".into());
+}
+
+pub(crate) fn report_expected_value(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, "Expected a value expression".into());
+}
+
+pub(crate) fn report_index_argument_count(errors: &ErrorManager, pos: Pos, found: usize) {
+    errors.report(pos, format!("Expected one index argument, but found {found}"));
+}
+
 pub(crate) fn report_non_generic_value(errors: &ErrorManager, pos: Pos) {
     errors.report(pos, "The expression is not a generic".to_string());
 }

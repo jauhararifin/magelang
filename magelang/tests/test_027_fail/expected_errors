@@ -1,0 +1,22 @@
+tests/test_027_fail/main.mg:9:11: Expected one index argument, but found 0
+tests/test_027_fail/main.mg:10:11: Expected one index argument, but found 2
+tests/test_027_fail/main.mg:11:18: Cannot use non-int expression as index
+tests/test_027_fail/main.mg:12:18: Expected a value expression
+tests/test_027_fail/main.mg:13:11: Expected 1 type arguments, but no type arguments found
+tests/test_027_fail/main.mg:14:11: Expected 1 type arguments, but found 2
+tests/test_027_fail/main.mg:15:14: Expected a type expression
+tests/test_027_fail/main.mg:16:14: Expected a type expression
+tests/test_027_fail/main.mg:17:14: Expected a type expression
+tests/test_027_fail/main.mg:18:11: The expression is not a generic
+tests/test_027_fail/main.mg:19:11: The expression is not a generic
+tests/test_027_fail/main.mg:20:12: Expression is not indexable
+tests/test_027_fail/main.mg:21:10: The expression is not a generic
+tests/test_027_fail/main.mg:22:10: Expected 1 type arguments, but no type arguments found
+tests/test_027_fail/main.mg:23:14: Expected a type expression
+tests/test_027_fail/main.mg:24:10: Expected a type expression
+tests/test_027_fail/main.mg:25:11: Expected a value expression
+tests/test_027_fail/main.mg:26:11: Expected a value expression
+tests/test_027_fail/main.mg:27:11: Expected a value expression
+tests/test_027_fail/main.mg:28:11: Expected a value expression
+tests/test_027_fail/main.mg:29:11: Expected a value expression
+tests/test_027_fail/main.mg:30:11: Expected a type expression

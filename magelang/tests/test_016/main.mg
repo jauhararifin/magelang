@@ -4,7 +4,7 @@ struct Pair { a: i32, b: i32 }
 struct Triple { x: i32, y: i32, z: i32 }
 struct Nested { p: Pair, q: Pair }
 struct Wide { a: i32, b: i64, c: f64, d: i32 }
-struct Gen<T> { first: T, second: T }
+struct Gen[T] { first: T, second: T }
 
 let seq: i32 = 0;
 let gseq: i32 = 0;
@@ -44,8 +44,8 @@ fn main() {
 }
 
 fn test_global_initializer_order() {
-  assert_equal<i32>(1, gpair.b);
-  assert_equal<i32>(2, gpair.a);
+  assert_equal[i32](1, gpair.b);
+  assert_equal[i32](2, gpair.a);
 }
 
 fn take_pair(p: Pair, extra: i32): i32 {
@@ -62,13 +62,13 @@ fn make_triple(): Triple {
 
 fn test_literal_in_call_and_return() {
   seq = 0;
-  assert_equal<i32>(213, take_pair(Pair{b: tick(), a: tick()}, tick()));
+  assert_equal[i32](213, take_pair(Pair{b: tick(), a: tick()}, tick()));
 
   seq = 0;
   let t = make_triple();
-  assert_equal<i32>(1, t.y);
-  assert_equal<i32>(2, t.x);
-  assert_equal<i32>(3, t.z);
+  assert_equal[i32](1, t.y);
+  assert_equal[i32](2, t.x);
+  assert_equal[i32](3, t.z);
 }
 
 fn test_source_order_is_evaluation_order() {
@@ -77,8 +77,8 @@ fn test_source_order_is_evaluation_order() {
     b: tick(),
     a: tick(),
   };
-  assert_equal<i32>(1, p.b);
-  assert_equal<i32>(2, p.a);
+  assert_equal[i32](1, p.b);
+  assert_equal[i32](2, p.a);
 
   seq = 0;
   let t = Triple{
@@ -86,9 +86,9 @@ fn test_source_order_is_evaluation_order() {
     x: tick(),
     y: tick(),
   };
-  assert_equal<i32>(1, t.z);
-  assert_equal<i32>(2, t.x);
-  assert_equal<i32>(3, t.y);
+  assert_equal[i32](1, t.z);
+  assert_equal[i32](2, t.x);
+  assert_equal[i32](3, t.y);
 
   seq = 0;
   let r = Triple{
@@ -96,9 +96,9 @@ fn test_source_order_is_evaluation_order() {
     z: tick(),
     x: tick(),
   };
-  assert_equal<i32>(1, r.y);
-  assert_equal<i32>(2, r.z);
-  assert_equal<i32>(3, r.x);
+  assert_equal[i32](1, r.y);
+  assert_equal[i32](2, r.z);
+  assert_equal[i32](3, r.x);
 }
 
 fn test_declaration_order_still_works() {
@@ -107,14 +107,14 @@ fn test_declaration_order_still_works() {
     a: tick(),
     b: tick(),
   };
-  assert_equal<i32>(1, p.a);
-  assert_equal<i32>(2, p.b);
+  assert_equal[i32](1, p.a);
+  assert_equal[i32](2, p.b);
 
   seq = 0;
   let t = Triple{x: tick(), y: tick(), z: tick()};
-  assert_equal<i32>(1, t.x);
-  assert_equal<i32>(2, t.y);
-  assert_equal<i32>(3, t.z);
+  assert_equal[i32](1, t.x);
+  assert_equal[i32](2, t.y);
+  assert_equal[i32](3, t.z);
 }
 
 fn test_partial_literal() {
@@ -123,20 +123,20 @@ fn test_partial_literal() {
     z: tick(),
     x: tick(),
   };
-  assert_equal<i32>(1, t.z);
-  assert_equal<i32>(2, t.x);
-  assert_equal<i32>(0, t.y);
+  assert_equal[i32](1, t.z);
+  assert_equal[i32](2, t.x);
+  assert_equal[i32](0, t.y);
 
   seq = 0;
   let u = Triple{y: tick()};
-  assert_equal<i32>(0, u.x);
-  assert_equal<i32>(1, u.y);
-  assert_equal<i32>(0, u.z);
+  assert_equal[i32](0, u.x);
+  assert_equal[i32](1, u.y);
+  assert_equal[i32](0, u.z);
 
   let v = Triple{};
-  assert_equal<i32>(0, v.x);
-  assert_equal<i32>(0, v.y);
-  assert_equal<i32>(0, v.z);
+  assert_equal[i32](0, v.x);
+  assert_equal[i32](0, v.y);
+  assert_equal[i32](0, v.z);
 }
 
 fn test_nested_literal() {
@@ -145,10 +145,10 @@ fn test_nested_literal() {
     q: Pair{b: tick(), a: tick()},
     p: Pair{b: tick(), a: tick()},
   };
-  assert_equal<i32>(1, n.q.b);
-  assert_equal<i32>(2, n.q.a);
-  assert_equal<i32>(3, n.p.b);
-  assert_equal<i32>(4, n.p.a);
+  assert_equal[i32](1, n.q.b);
+  assert_equal[i32](2, n.q.a);
+  assert_equal[i32](3, n.p.b);
+  assert_equal[i32](4, n.p.a);
 }
 
 fn test_mixed_width_fields() {
@@ -159,30 +159,30 @@ fn test_mixed_width_fields() {
     b: tick64(),
     a: tick(),
   };
-  assert_equal<i32>(1, w.d);
-  assert_equal<f64>(2.0, w.c);
-  assert_equal<i64>(3, w.b);
-  assert_equal<i32>(4, w.a);
+  assert_equal[i32](1, w.d);
+  assert_equal[f64](2.0, w.c);
+  assert_equal[i64](3, w.b);
+  assert_equal[i32](4, w.a);
 }
 
 fn test_generic_literal() {
   seq = 0;
-  let g = Gen<i32>{
+  let g = Gen[i32]{
     second: tick(),
     first: tick(),
   };
-  assert_equal<i32>(1, g.second);
-  assert_equal<i32>(2, g.first);
+  assert_equal[i32](1, g.second);
+  assert_equal[i32](2, g.first);
 
   seq = 0;
-  let h = Gen<Pair>{
+  let h = Gen[Pair]{
     second: Pair{b: tick(), a: tick()},
     first: Pair{b: tick(), a: tick()},
   };
-  assert_equal<i32>(1, h.second.b);
-  assert_equal<i32>(2, h.second.a);
-  assert_equal<i32>(3, h.first.b);
-  assert_equal<i32>(4, h.first.a);
+  assert_equal[i32](1, h.second.b);
+  assert_equal[i32](2, h.second.a);
+  assert_equal[i32](3, h.first.b);
+  assert_equal[i32](4, h.first.a);
 }
 
 fn read_and_bump(p: *i32): i32 {
@@ -197,13 +197,13 @@ fn test_nested_struct_field_order() {
     q: Pair{a: read_and_bump(slot), b: read_and_bump(slot)},
     p: Pair{b: read_and_bump(slot), a: read_and_bump(slot)},
   };
-  assert_equal<i32>(1, n.q.a);
-  assert_equal<i32>(2, n.q.b);
-  assert_equal<i32>(3, n.p.b);
-  assert_equal<i32>(4, n.p.a);
+  assert_equal[i32](1, n.q.a);
+  assert_equal[i32](2, n.q.b);
+  assert_equal[i32](3, n.p.b);
+  assert_equal[i32](4, n.p.a);
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal[T](expected: T, actual: T) {
   if expected != actual {
     wasm.unreachable();
   }

@@ -98,7 +98,7 @@ pub struct StructNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructFieldNode {
     pub name: Identifier,
-    pub ty: TypeExprNode,
+    pub ty: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -106,7 +106,7 @@ pub struct GlobalNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
-    pub ty: TypeExprNode,
+    pub ty: ExprNode,
     pub value: Option<ExprNode>,
 }
 
@@ -124,7 +124,7 @@ pub struct SignatureNode {
     pub name: Identifier,
     pub type_params: Vec<TypeParameterNode>,
     pub parameters: Vec<ParameterNode>,
-    pub return_type: Option<TypeExprNode>,
+    pub return_type: Option<ExprNode>,
     pub end_pos: Pos,
 }
 
@@ -150,53 +150,26 @@ impl From<Identifier> for TypeParameterNode {
 pub struct ParameterNode {
     pub pos: Pos,
     pub name: Identifier,
-    pub ty: TypeExprNode,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum TypeExprNode {
-    Invalid(Pos),
-    Ident(Identifier),
-    Selection(SelectionTypeNode),
-    Inst(InstTypeNode),
-    Ptr(PtrTypeNode),
-    ArrayPtr(ArrayPtrTypeNode),
-    Func(FuncTypeNode),
-    Grouped(Box<TypeExprNode>),
-}
-
-impl TypeExprNode {
-    pub fn pos(&self) -> Pos {
-        match self {
-            Self::Invalid(pos) => *pos,
-            Self::Ident(node) => node.pos,
-            Self::Selection(node) => node.value.pos(),
-            Self::Inst(node) => node.value.pos(),
-            Self::Ptr(node) => node.pos,
-            Self::ArrayPtr(node) => node.pos,
-            Self::Func(node) => node.pos,
-            Self::Grouped(node) => node.pos(),
-        }
-    }
+    pub ty: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PtrTypeNode {
     pub pos: Pos,
-    pub ty: Box<TypeExprNode>,
+    pub ty: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ArrayPtrTypeNode {
     pub pos: Pos,
-    pub ty: Box<TypeExprNode>,
+    pub ty: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FuncTypeNode {
     pub pos: Pos,
     pub params: Vec<FuncTypeParam>,
-    pub return_type: Option<Box<TypeExprNode>>,
+    pub return_type: Option<Box<ExprNode>>,
     pub end_pos: Pos,
 }
 
@@ -204,7 +177,7 @@ pub struct FuncTypeNode {
 pub struct FuncTypeParam {
     pub pos: Pos,
     pub name: Option<Identifier>,
-    pub ty: TypeExprNode,
+    pub ty: ExprNode,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -223,8 +196,10 @@ pub enum ExprNode {
     Cast(CastExprNode),
     Struct(StructExprNode),
     Selection(SelectionExprNode),
-    Inst(InstExprNode),
-    Index(IndexExprNode),
+    Bracket(BracketExprNode),
+    PtrType(PtrTypeNode),
+    ArrayPtrType(ArrayPtrTypeNode),
+    FuncType(FuncTypeNode),
     Grouped(Box<ExprNode>),
 }
 
@@ -245,8 +220,10 @@ impl ExprNode {
             Self::Cast(node) => node.value.pos(),
             Self::Struct(node) => node.pos,
             Self::Selection(node) => node.value.pos(),
-            Self::Inst(node) => node.value.pos(),
-            Self::Index(node) => node.value.pos(),
+            Self::Bracket(node) => node.value.pos(),
+            Self::PtrType(node) => node.pos,
+            Self::ArrayPtrType(node) => node.pos,
+            Self::FuncType(node) => node.pos,
             Self::Grouped(node) => node.pos(),
         }
     }
@@ -376,13 +353,13 @@ pub struct CallExprNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CastExprNode {
     pub value: Box<ExprNode>,
-    pub target: Box<TypeExprNode>,
+    pub target: Box<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructExprNode {
     pub pos: Pos,
-    pub target: TypeExprNode,
+    pub target: Box<ExprNode>,
     pub elements: Vec<KeyValue>,
 }
 
@@ -400,27 +377,9 @@ pub struct SelectionExprNode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct SelectionTypeNode {
-    pub value: Box<TypeExprNode>,
-    pub selection: Identifier,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct InstExprNode {
+pub struct BracketExprNode {
     pub value: Box<ExprNode>,
-    pub args: Vec<TypeExprNode>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct InstTypeNode {
-    pub value: Box<TypeExprNode>,
-    pub args: Vec<TypeExprNode>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IndexExprNode {
-    pub value: Box<ExprNode>,
-    pub index: Box<ExprNode>,
+    pub args: Vec<ExprNode>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -471,8 +430,8 @@ pub struct LetStatementNode {
 #[derive(Debug, PartialEq, Eq)]
 pub enum LetKind {
     Invalid,
-    TypeOnly { ty: TypeExprNode },
-    TypeValue { ty: TypeExprNode, value: ExprNode },
+    TypeOnly { ty: ExprNode },
+    TypeValue { ty: ExprNode, value: ExprNode },
     ValueOnly { value: ExprNode },
 }
 

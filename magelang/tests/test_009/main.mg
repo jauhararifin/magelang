@@ -46,7 +46,7 @@ fn test_struct_init_and_field_update() {
   for let b = Big{x: 0, i: Pair{a: 1, b: 10}, f: 0.5, y: 3}; b.x < b.y; b.x = b.x + 1 {
     sum = sum + b.i.b + b.x as i64;
   }
-  assert_equal<i64>(33, sum);
+  assert_equal[i64](33, sum);
 }
 
 fn test_global_loop_var() {
@@ -54,8 +54,8 @@ fn test_global_loop_var() {
   for g = 0; g < 4; g = g + 1 {
     sum = sum + g;
   }
-  assert_equal<i32>(6, sum);
-  assert_equal<i32>(4, g);
+  assert_equal[i32](6, sum);
+  assert_equal[i32](4, g);
 }
 
 fn bump_calls(): bool {
@@ -72,8 +72,8 @@ fn test_cond_evaluated_once_per_iteration() {
       continue;
     }
   }
-  assert_equal<i32>(5, iterations);
-  assert_equal<i32>(6, calls);
+  assert_equal[i32](5, iterations);
+  assert_equal[i32](6, calls);
 }
 
 fn test_cond_evaluated_once_per_iteration_with_update() {
@@ -86,9 +86,9 @@ fn test_cond_evaluated_once_per_iteration_with_update() {
       continue;
     }
   }
-  assert_equal<i32>(5, iterations);
-  assert_equal<i32>(5, updates);
-  assert_equal<i32>(6, calls);
+  assert_equal[i32](5, iterations);
+  assert_equal[i32](5, updates);
+  assert_equal[i32](6, calls);
 }
 
 fn make_big(): Big {
@@ -102,13 +102,13 @@ fn test_call_init_and_update_returning_struct() {
   for make_big(); n < 3; make_big() {
     n = n + 1;
   }
-  assert_equal<i32>(4, calls);
+  assert_equal[i32](4, calls);
 }
 
 fn test_empty_body() {
   let i: i32 = 0;
   for ; i < 10; i = i + 1 {}
-  assert_equal<i32>(10, i);
+  assert_equal[i32](10, i);
 }
 
 fn test_nested_shadowing() {
@@ -118,7 +118,7 @@ fn test_nested_shadowing() {
       count = count + 1;
     }
   }
-  assert_equal<i32>(6, count);
+  assert_equal[i32](6, count);
 }
 
 fn test_body_local_shadows_loop_var() {
@@ -130,7 +130,7 @@ fn test_body_local_shadows_loop_var() {
       wasm.unreachable();
     }
   }
-  assert_equal<i32>(3, count);
+  assert_equal[i32](3, count);
 }
 
 fn test_type_only_init() {
@@ -138,10 +138,10 @@ fn test_type_only_init() {
   for let i: i32; i < 3; i = i + 1 {
     sum = sum + i;
   }
-  assert_equal<i32>(3, sum);
+  assert_equal[i32](3, sum);
 }
 
-fn steps_until_equal<T>(a: T, b: T): i32 {
+fn steps_until_equal[T](a: T, b: T): i32 {
   let n: i32 = 0;
   for ; a != b; a = b {
     n = n + 1;
@@ -150,11 +150,11 @@ fn steps_until_equal<T>(a: T, b: T): i32 {
 }
 
 fn test_generic_cond_and_update() {
-  assert_equal<i32>(1, steps_until_equal<i32>(1, 2));
-  assert_equal<i32>(0, steps_until_equal<i64>(7, 7));
-  assert_equal<i32>(1, steps_until_equal<f64>(1.5, 2.5));
-  assert_equal<i32>(1, steps_until_equal<*i32>(8 as *i32, 16 as *i32));
-  assert_equal<i32>(0, steps_until_equal<bool>(true, true));
+  assert_equal[i32](1, steps_until_equal[i32](1, 2));
+  assert_equal[i32](0, steps_until_equal[i64](7, 7));
+  assert_equal[i32](1, steps_until_equal[f64](1.5, 2.5));
+  assert_equal[i32](1, steps_until_equal[*i32](8 as *i32, 16 as *i32));
+  assert_equal[i32](0, steps_until_equal[bool](true, true));
 }
 
 fn test_deref_update() {
@@ -164,8 +164,8 @@ fn test_deref_update() {
   for ; p.* < 4; p.* = p.* + 1 {
     sum = sum + p.*;
   }
-  assert_equal<i32>(6, sum);
-  assert_equal<i32>(4, p.*);
+  assert_equal[i32](6, sum);
+  assert_equal[i32](4, p.*);
 }
 
 fn test_index_update() {
@@ -177,8 +177,8 @@ fn test_index_update() {
   for ; arr[0].* < 3; arr[0].* = arr[0].* + 1 {
     sum = sum + arr[1].* + arr[2].*;
   }
-  assert_equal<i32>(18, sum);
-  assert_equal<i32>(3, arr[0].*);
+  assert_equal[i32](18, sum);
+  assert_equal[i32](3, arr[0].*);
 }
 
 fn test_zero_iterations() {
@@ -188,9 +188,9 @@ fn test_zero_iterations() {
   for make_big(); false; updates = updates + 1 {
     body = body + 1;
   }
-  assert_equal<i32>(1, calls);
-  assert_equal<i32>(0, updates);
-  assert_equal<i32>(0, body);
+  assert_equal[i32](1, calls);
+  assert_equal[i32](0, updates);
+  assert_equal[i32](0, body);
 }
 
 fn test_triple_nesting() {
@@ -211,7 +211,7 @@ fn test_triple_nesting() {
       }
     }
   }
-  assert_equal<i32>(5, count);
+  assert_equal[i32](5, count);
 }
 
 fn test_while_for_while() {
@@ -232,7 +232,7 @@ fn test_while_for_while() {
     if a == 1 { continue; }
     total = total + 100;
   }
-  assert_equal<i32>(128, total);
+  assert_equal[i32](128, total);
 }
 
 fn find_pair(target: i32): Pair {
@@ -248,11 +248,11 @@ fn find_pair(target: i32): Pair {
 
 fn test_return_struct_from_nested_loops() {
   let p = find_pair(6);
-  assert_equal<i32>(1, p.a);
-  assert_equal<i64>(6, p.b);
+  assert_equal[i32](1, p.a);
+  assert_equal[i64](6, p.b);
   let q = find_pair(1000);
-  assert_equal<i32>(-1, q.a);
-  assert_equal<i64>(-1, q.b);
+  assert_equal[i32](-1, q.a);
+  assert_equal[i64](-1, q.b);
 }
 
 fn test_cast_in_update() {
@@ -260,7 +260,7 @@ fn test_cast_in_update() {
   for let i: i64 = 0; i < 3; i = (i as i32 + 1) as i64 {
     sum = sum + i;
   }
-  assert_equal<i64>(3, sum);
+  assert_equal[i64](3, sum);
 }
 
 fn test_for_in_if_in_while() {
@@ -278,7 +278,7 @@ fn test_for_in_if_in_while() {
     }
     total = total + 10;
   }
-  assert_equal<i32>(12, total);
+  assert_equal[i32](12, total);
 }
 
 fn test_middle_field_in_cond_and_update() {
@@ -287,8 +287,8 @@ fn test_middle_field_in_cond_and_update() {
   for let i: i32 = 0; i < make_big().y - 4; i = i + make_big().x {
     sum = sum + make_big().i.b;
   }
-  assert_equal<i64>(6, sum);
-  assert_equal<i32>(7, calls);
+  assert_equal[i64](6, sum);
+  assert_equal[i32](7, calls);
 }
 
 fn test_init_uses_outer_and_cond_uses_init() {
@@ -297,7 +297,7 @@ fn test_init_uses_outer_and_cond_uses_init() {
   for let i: i32 = start * 2; i < start * 3; i = i + 1 {
     seen = seen + 1;
   }
-  assert_equal<i32>(5, seen);
+  assert_equal[i32](5, seen);
 }
 
 fn test_jumps_in_else_branches() {
@@ -312,7 +312,7 @@ fn test_jumps_in_else_branches() {
     }
     sum = sum + 1;
   }
-  assert_equal<i32>(303, sum);
+  assert_equal[i32](303, sum);
 }
 
 fn test_sequential_loops_reuse_name() {
@@ -320,7 +320,7 @@ fn test_sequential_loops_reuse_name() {
   for let i: i32 = 0; i < 3; i = i + 1 { a = a + i; }
   for let i: i64 = 10; i < 13; i = i + 1 { a = a + i as i32; }
   for let i: i32 = 100; i < 102; i = i + 1 { a = a + i; }
-  assert_equal<i32>(3 + 33 + 201, a);
+  assert_equal[i32](3 + 33 + 201, a);
 }
 
 fn test_inner_init_reads_outer_var() {
@@ -330,7 +330,7 @@ fn test_inner_init_reads_outer_var() {
       count = count + 1;
     }
   }
-  assert_equal<i32>(6, count);
+  assert_equal[i32](6, count);
 }
 
 fn compute(): i32 {
@@ -342,7 +342,7 @@ fn compute(): i32 {
 }
 
 fn test_global_init_order_via_init_and_cond() {
-  assert_equal<i32>(6, computed);
+  assert_equal[i32](6, computed);
 }
 
 fn test_break_from_deep_nesting_with_updates() {
@@ -361,8 +361,8 @@ fn test_break_from_deep_nesting_with_updates() {
       hits = hits + 1;
     }
   }
-  assert_equal<i32>(3, outer_updates);
-  assert_equal<i32>(5, hits);
+  assert_equal[i32](3, outer_updates);
+  assert_equal[i32](5, hits);
 }
 
 fn first_multiple(a: i32, b: i32, m: i32): i32 {
@@ -379,12 +379,12 @@ fn test_whole_struct_update() {
   for let p = Pair{a: 0, b: 0}; p.a < 3; p = (Pair{a: p.a + 1, b: p.b + 10}) {
     sum = sum + p.b + p.a as i64;
   }
-  assert_equal<i64>(33, sum);
+  assert_equal[i64](33, sum);
 }
 
 fn test_params_before_init_local() {
-  assert_equal<i32>(12, first_multiple(10, 20, 6));
-  assert_equal<i32>(-1, first_multiple(10, 12, 7));
+  assert_equal[i32](12, first_multiple(10, 20, 6));
+  assert_equal[i32](-1, first_multiple(10, 12, 7));
   test_whole_struct_update();
 }
 
@@ -394,11 +394,11 @@ fn test_init_shadows_global() {
   for let calls: i32 = 5; calls < 7; calls = calls + 1 {
     seen = seen + calls;
   }
-  assert_equal<i32>(11, seen);
-  assert_equal<i32>(1, calls);
+  assert_equal[i32](11, seen);
+  assert_equal[i32](1, calls);
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal[T](expected: T, actual: T) {
   if expected != actual {
     wasm.unreachable();
   }

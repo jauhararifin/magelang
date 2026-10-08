@@ -2,10 +2,10 @@
 fn data_end(): usize;
 
 @intrinsic("size_of")
-fn size_of<T>(): usize;
+fn size_of[T](): usize;
 
 @intrinsic("align_of")
-fn align_of<T>(): usize;
+fn align_of[T](): usize;
 
 @intrinsic("memory.size")
 fn memory_size(): usize;

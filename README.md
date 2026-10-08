@@ -256,7 +256,7 @@ To dereference a unit pointer `p`, you can write `p.*`. For eaxmple:
 ```
 @main()
 fn main() {
-    let p: *i32 = mem.alloc<i32>();
+    let p: *i32 = mem.alloc[i32]();
     p.* = 10;
     fmt.print_i32(p.*);
 }
@@ -268,7 +268,7 @@ will give you the address of `i`-th element, adding `.*` will dereference it. Fo
 ```
 @main()
 fn main() {
-    let p: [*]i32 = mem.alloc_array<i32>(10);
+    let p: [*]i32 = mem.alloc_array[i32](10);
     set(p[5]);
     p[6].* = 10;
     fmt.print_i32(p[5].*);

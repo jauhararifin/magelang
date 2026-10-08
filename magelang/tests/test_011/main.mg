@@ -51,10 +51,10 @@ fn if_and_else(c: bool) {
 fn test_if_and_else_scopes() {
   trace = 0;
   if_and_else(true);
-  assert_equal<i64>(215, trace);
+  assert_equal[i64](215, trace);
   trace = 0;
   if_and_else(false);
-  assert_equal<i64>(435, trace);
+  assert_equal[i64](435, trace);
 }
 
 fn else_if(n: i64) {
@@ -74,13 +74,13 @@ fn else_if(n: i64) {
 fn test_else_if_scopes() {
   trace = 0;
   else_if(0);
-  assert_equal<i64>(217, trace);
+  assert_equal[i64](217, trace);
   trace = 0;
   else_if(1);
-  assert_equal<i64>(437, trace);
+  assert_equal[i64](437, trace);
   trace = 0;
   else_if(2);
-  assert_equal<i64>(657, trace);
+  assert_equal[i64](657, trace);
 }
 
 fn test_deferred_defer_and_empty_block() {
@@ -92,7 +92,7 @@ fn test_deferred_defer_and_empty_block() {
     defer mark(3);
     mark(4);
   }
-  assert_equal<i64>(4321, trace);
+  assert_equal[i64](4321, trace);
 }
 
 fn test_nested_scopes_inside_deferred_block() {
@@ -110,7 +110,7 @@ fn test_nested_scopes_inside_deferred_block() {
     }
     mark(7);
   }
-  assert_equal<i64>(7354621, trace);
+  assert_equal[i64](7354621, trace);
 }
 
 fn deferred_if(c: bool) {
@@ -121,10 +121,10 @@ fn deferred_if(c: bool) {
 fn test_deferred_if_statement() {
   trace = 0;
   deferred_if(true);
-  assert_equal<i64>(31, trace);
+  assert_equal[i64](31, trace);
   trace = 0;
   deferred_if(false);
-  assert_equal<i64>(32, trace);
+  assert_equal[i64](32, trace);
 }
 
 fn test_three_nested_blocks() {
@@ -141,7 +141,7 @@ fn test_three_nested_blocks() {
     }
     mark(6);
   }
-  assert_equal<i64>(435261, trace);
+  assert_equal[i64](435261, trace);
 }
 
 fn test_while_each_iteration() {
@@ -152,7 +152,7 @@ fn test_while_each_iteration() {
     mark(i + 1);
     i = i + 1;
   }
-  assert_equal<i64>(192939, trace);
+  assert_equal[i64](192939, trace);
 }
 
 fn test_continue_skips_defers_registered_after_it() {
@@ -164,7 +164,7 @@ fn test_continue_skips_defers_registered_after_it() {
     }
     defer mark(2);
   }
-  assert_equal<i64>(21121, trace);
+  assert_equal[i64](21121, trace);
 }
 
 fn break_skips_later_defers() {
@@ -183,7 +183,7 @@ fn break_skips_later_defers() {
 fn test_break_skips_defers_registered_after_it() {
   trace = 0;
   break_skips_later_defers();
-  assert_equal<i64>(321149, trace);
+  assert_equal[i64](321149, trace);
 }
 
 fn test_inner_loop_break_keeps_outer_defers() {
@@ -199,7 +199,7 @@ fn test_inner_loop_break_keeps_outer_defers() {
     }
     mark(4);
   }
-  assert_equal<i64>(3224132241, trace);
+  assert_equal[i64](3224132241, trace);
 }
 
 fn test_inner_loop_continue_keeps_outer_defers() {
@@ -215,7 +215,7 @@ fn test_inner_loop_continue_keeps_outer_defers() {
     }
     mark(4);
   }
-  assert_equal<i64>(2324123241, trace);
+  assert_equal[i64](2324123241, trace);
 }
 
 fn test_infinite_for_with_break() {
@@ -230,7 +230,7 @@ fn test_infinite_for_with_break() {
     mark(2);
   }
   mark(n);
-  assert_equal<i64>(212113, trace);
+  assert_equal[i64](212113, trace);
 }
 
 fn test_while_continue() {
@@ -244,7 +244,7 @@ fn test_while_continue() {
     }
     mark(9);
   }
-  assert_equal<i64>(912934, trace);
+  assert_equal[i64](912934, trace);
 }
 
 fn test_break_through_nested_blocks_and_ifs() {
@@ -264,7 +264,7 @@ fn test_break_through_nested_blocks_and_ifs() {
     }
   }
   mark(6);
-  assert_equal<i64>(52143216, trace);
+  assert_equal[i64](52143216, trace);
 }
 
 fn test_deferred_loop_on_continue() {
@@ -276,7 +276,7 @@ fn test_deferred_loop_on_continue() {
     }
     mark(5);
   }
-  assert_equal<i64>(12512, trace);
+  assert_equal[i64](12512, trace);
 }
 
 fn test_deferred_loop_on_break() {
@@ -293,7 +293,7 @@ fn test_deferred_loop_on_break() {
     }
     mark(9);
   }
-  assert_equal<i64>(90202, trace);
+  assert_equal[i64](90202, trace);
 }
 
 fn defer_inside_deferred_loop() {
@@ -312,7 +312,7 @@ fn defer_inside_deferred_loop() {
 fn test_defer_inside_deferred_loop_with_break() {
   trace = 0;
   defer_inside_deferred_loop();
-  assert_equal<i64>(790912, trace);
+  assert_equal[i64](790912, trace);
 }
 
 fn test_update_sees_deferred_assignment() {
@@ -321,7 +321,7 @@ fn test_update_sees_deferred_assignment() {
     defer i = i + 1;
     mark(i + 1);
   }
-  assert_equal<i64>(135, trace);
+  assert_equal[i64](135, trace);
 }
 
 fn test_inner_while_break_keeps_for_defers() {
@@ -338,7 +338,7 @@ fn test_inner_while_break_keeps_for_defers() {
     }
     mark(k);
   }
-  assert_equal<i64>(22212221, trace);
+  assert_equal[i64](22212221, trace);
 }
 
 fn deferred_while_with_continue() {
@@ -357,7 +357,7 @@ fn deferred_while_with_continue() {
 fn test_deferred_while_with_continue() {
   trace = 0;
   deferred_while_with_continue();
-  assert_equal<i64>(13, trace);
+  assert_equal[i64](13, trace);
 }
 
 fn test_else_if_chain_with_jumps() {
@@ -382,7 +382,7 @@ fn test_else_if_chain_with_jumps() {
     mark(8);
   }
   mark(9);
-  assert_equal<i64>(2143816519, trace);
+  assert_equal[i64](2143816519, trace);
 }
 
 fn test_deferred_block_locals_with_nested_defers_on_continue() {
@@ -399,7 +399,7 @@ fn test_deferred_block_locals_with_nested_defers_on_continue() {
     }
     mark(9);
   }
-  assert_equal<i64>(2194263, trace);
+  assert_equal[i64](2194263, trace);
 }
 
 fn loop_terminated_by_deferred_increment(): i64 {
@@ -413,8 +413,8 @@ fn loop_terminated_by_deferred_increment(): i64 {
 
 fn test_loop_terminated_by_deferred_increment() {
   trace = 0;
-  assert_equal<i64>(3, loop_terminated_by_deferred_increment());
-  assert_equal<i64>(123, trace);
+  assert_equal[i64](3, loop_terminated_by_deferred_increment());
+  assert_equal[i64](123, trace);
 }
 
 fn multiple_defers_per_iteration(): i64 {
@@ -431,8 +431,8 @@ fn multiple_defers_per_iteration(): i64 {
 
 fn test_multiple_defers_per_iteration_with_return() {
   trace = 0;
-  assert_equal<i64>(3, multiple_defers_per_iteration());
-  assert_equal<i64>(1122333, trace);
+  assert_equal[i64](3, multiple_defers_per_iteration());
+  assert_equal[i64](1122333, trace);
 }
 
 fn make_pair(): Pair {
@@ -448,10 +448,10 @@ fn test_dropped_struct_result_on_break() {
       break;
     }
   }
-  assert_equal<i64>(66, trace);
+  assert_equal[i64](66, trace);
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal[T](expected: T, actual: T) {
   if expected != actual {
     wasm.unreachable();
   }

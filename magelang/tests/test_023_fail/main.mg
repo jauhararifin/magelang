@@ -1,6 +1,6 @@
-struct Empty<> {}
+struct Empty[] {}
 
-fn empty_generic<>() {}
+fn empty_generic[]() {}
 
 fn invalid_return(): i32 {
   return ,;
@@ -8,5 +8,5 @@ fn invalid_return(): i32 {
 
 @main()
 fn main() {
-  let value: i32<> = 1;
+  let value: i32[] = 1;
 }

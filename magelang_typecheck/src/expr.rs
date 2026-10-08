@@ -1,12 +1,12 @@
-use crate::analyze::{Context, Scopes, ValueObject};
+use crate::analyze::{Context, Object, ValueObject};
 use crate::errors;
+use crate::scope::Scope;
 use crate::ty::{BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
-    BinaryExprNode, BinaryOp, BoolLiteral, CallExprNode, CastExprNode, CharLit, DerefExprNode, ExprNode, IndexExprNode,
-    InstExprNode, NumberLit, Pos, SelectionExprNode, StringLit, StructExprNode, TryFromNumberError, TypeExprNode,
-    UnaryExprNode, UnaryOp,
+    BinaryExprNode, BinaryOp, BoolLiteral, BracketExprNode, CallExprNode, CastExprNode, CharLit, DerefExprNode,
+    ExprNode, NumberLit, Pos, SelectionExprNode, StringLit, StructExprNode, TryFromNumberError, UnaryExprNode, UnaryOp,
 };
 use num::{BigInt, Signed, Zero};
 use std::collections::HashMap;
@@ -249,7 +249,7 @@ pub enum ExprKind<'a> {
 
 pub(crate) fn get_expr_from_node<'a>(
     ctx: &Context<'a, '_>,
-    scope: &Scopes<'a>,
+    scope: &Scope<'a>,
     expected_type: Option<&'a Type<'a>>,
     node: &ExprNode,
 ) -> Expr<'a> {
@@ -367,7 +367,7 @@ pub(crate) fn get_expr_from_node<'a>(
     }
 }
 
-fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &ExprNode) -> Expr<'a> {
+fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &ExprNode) -> Expr<'a> {
     match node {
         ExprNode::Invalid(pos) => Expr {
             ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
@@ -377,7 +377,7 @@ fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, no
         },
         ExprNode::Ident(name) => {
             let symbol = ctx.define_symbol(&name.value);
-            let object = scope.value_scopes.lookup(symbol);
+            let object = scope.lookup(symbol);
             if object.is_none() {
                 errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
             }
@@ -400,8 +400,16 @@ fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, no
         ExprNode::Cast(node) => get_expr_from_cast_node(ctx, scope, node),
         ExprNode::Struct(struct_lit_node) => get_expr_from_struct_lit_node(ctx, scope, struct_lit_node),
         ExprNode::Selection(selection_node) => get_expr_from_selection_node(ctx, scope, selection_node),
-        ExprNode::Inst(inst) => get_expr_from_inst_node(ctx, scope, inst),
-        ExprNode::Index(node) => get_expr_from_index_node(ctx, scope, node),
+        ExprNode::Bracket(node) => get_expr_from_bracket_node(ctx, scope, node),
+        ExprNode::PtrType(..) | ExprNode::ArrayPtrType(..) | ExprNode::FuncType(..) => {
+            errors::report_expected_value(ctx.errors, node.pos());
+            Expr {
+                ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+                kind: ExprKind::Invalid,
+                pos: node.pos(),
+                assignable: false,
+            }
+        }
         ExprNode::Grouped(node) => get_expr_from_node_internal(ctx, scope, node),
     }
 }
@@ -464,12 +472,15 @@ mod tests {
 
 fn get_expr_from_named_value<'a>(
     ctx: &Context<'a, '_>,
-    scope: &Scopes<'a>,
+    scope: &Scope<'a>,
     pos: Pos,
-    args: &[TypeExprNode],
-    object: Option<&ValueObject<'a>>,
+    args: &[ExprNode],
+    object: Option<&Object<'a>>,
 ) -> Expr<'a> {
-    let Some(object) = object else {
+    let Some(value) = object.and_then(Object::as_value) else {
+        if object.is_some() {
+            errors::report_expected_value(ctx.errors, pos);
+        }
         return Expr {
             ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
             kind: ExprKind::Invalid,
@@ -480,7 +491,7 @@ fn get_expr_from_named_value<'a>(
 
     let is_generic = !args.is_empty();
 
-    match object {
+    match value {
         ValueObject::Func(func_obj) => {
             if func_obj.type_params.is_empty() {
                 if is_generic {
@@ -597,7 +608,7 @@ fn get_expr_from_string_lit<'a>(ctx: &Context<'a, '_>, token: &StringLit) -> Exp
     Expr { ty, kind: ExprKind::Bytes(bytes), pos: token.pos, assignable: false }
 }
 
-fn get_expr_from_binary_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &BinaryExprNode) -> Expr<'a> {
+fn get_expr_from_binary_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BinaryExprNode) -> Expr<'a> {
     let a = get_expr_from_node_internal(ctx, scope, &node.a);
     let b = get_expr_from_node_internal(ctx, scope, &node.b);
 
@@ -1251,7 +1262,7 @@ fn get_binary_bool_exprs<'a, T: BinopEvaluator>(
     Expr { ty: bool_ty, kind: T::build(a, b), pos, assignable: false }
 }
 
-fn get_expr_from_deref_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &DerefExprNode) -> Expr<'a> {
+fn get_expr_from_deref_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &DerefExprNode) -> Expr<'a> {
     let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let ty = value.ty;
     let TypeRepr::Ptr(element_ty) = ty.repr else {
@@ -1269,7 +1280,7 @@ fn get_expr_from_deref_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node:
     Expr { ty: element_ty, kind: ExprKind::Deref(ctx.arena.alloc(value)), pos: node.pos, assignable: true }
 }
 
-fn get_expr_from_unary_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &UnaryExprNode) -> Expr<'a> {
+fn get_expr_from_unary_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &UnaryExprNode) -> Expr<'a> {
     let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let ty = value.ty;
 
@@ -1326,7 +1337,7 @@ fn get_expr_from_unary_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node:
     Expr { ty: type_id, kind, pos: node.pos, assignable: false }
 }
 
-fn get_expr_from_call_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &CallExprNode) -> Expr<'a> {
+fn get_expr_from_call_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &CallExprNode) -> Expr<'a> {
     let func_expr = get_expr_from_node_internal(ctx, scope, &node.callee);
     let func_type = func_expr.ty;
 
@@ -1366,7 +1377,7 @@ fn get_expr_from_call_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: 
     }
 }
 
-fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &CastExprNode) -> Expr<'a> {
+fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &CastExprNode) -> Expr<'a> {
     let target_type = get_type_from_node(ctx, scope, &node.target);
 
     assert!(!matches!(target_type.repr, TypeRepr::UntypedFloat | TypeRepr::UntypedInt));
@@ -1409,7 +1420,7 @@ fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: 
     Expr { ty: target_type, kind, pos: node.value.pos(), assignable: false }
 }
 
-fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &StructExprNode) -> Expr<'a> {
+fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &StructExprNode) -> Expr<'a> {
     let ty = get_type_from_node(ctx, scope, &node.target);
 
     let Some(struct_type) = ty.as_struct() else {
@@ -1470,50 +1481,54 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, 
     Expr { ty, kind: ExprKind::StructLit(ty, full_values.into_bump_slice()), pos: node.pos, assignable: false }
 }
 
-fn get_expr_from_inst_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &InstExprNode) -> Expr<'a> {
-    match node.value.as_ref() {
-        ExprNode::Ident(name) => {
-            let symbol = ctx.define_symbol(&name.value);
-            let object = scope.value_scopes.lookup(symbol);
-            if object.is_none() {
-                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
-            }
-            return get_expr_from_named_value(ctx, scope, name.pos, &node.args, object);
-        }
-        ExprNode::Selection(selection) => {
-            if let ExprNode::Ident(package) = selection.value.as_ref() {
-                let symbol = ctx.define_symbol(&package.value);
-                if scope.value_scopes.lookup(symbol).is_none() {
-                    if let Some(import) = scope.import_scopes.lookup(symbol) {
-                        let name = ctx.define_symbol(&selection.selection.value);
-                        let object =
-                            ctx.scopes.get(&import.package).and_then(|package| package.value_scopes.lookup(name));
-                        if object.is_none() {
-                            errors::report_undeclared_symbol(
-                                ctx.errors,
-                                selection.selection.pos,
-                                &selection.selection.value,
-                            );
-                        }
-                        return get_expr_from_named_value(ctx, scope, node.value.pos(), &node.args, object);
-                    }
-                }
-            }
-        }
-        _ => {}
-    }
+fn get_expr_from_bracket_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketExprNode) -> Expr<'a> {
+    get_generic_instantiation_expr(ctx, scope, node).unwrap_or_else(|| get_index_expr(ctx, scope, node))
+}
 
-    let _ = get_expr_from_node_internal(ctx, scope, &node.value);
+fn get_generic_instantiation_expr<'a>(
+    ctx: &Context<'a, '_>,
+    scope: &Scope<'a>,
+    node: &BracketExprNode,
+) -> Option<Expr<'a>> {
+    let mut base = node.value.as_ref();
+    while let ExprNode::Grouped(inner) = base {
+        base = inner;
+    }
+    let object = match base {
+        ExprNode::Ident(name) => scope.lookup(ctx.define_symbol(&name.value)),
+        ExprNode::Selection(selection) => {
+            let mut package = selection.value.as_ref();
+            while let ExprNode::Grouped(inner) = package {
+                package = inner;
+            }
+            let ExprNode::Ident(package) = package else {
+                return None;
+            };
+            let symbol = ctx.define_symbol(&package.value);
+            let Object::Import(import) = scope.lookup(symbol)? else {
+                return None;
+            };
+            let name = ctx.define_symbol(&selection.selection.value);
+            ctx.scopes.get(&import.package)?.lookup(name)
+        }
+        _ => return None,
+    }?;
+    let ValueObject::Func(function) = object.as_value()? else {
+        return None;
+    };
+    if !function.type_params.is_empty() {
+        return Some(get_expr_from_named_value(ctx, scope, node.value.pos(), &node.args, Some(object)));
+    }
     errors::report_non_generic_value(ctx.errors, node.value.pos());
-    Expr {
+    Some(Expr {
         ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
         kind: ExprKind::Invalid,
         pos: node.value.pos(),
         assignable: false,
-    }
+    })
 }
 
-fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &SelectionExprNode) -> Expr<'a> {
+fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &SelectionExprNode) -> Expr<'a> {
     let mut node_value: &ExprNode = &node.value;
     while let ExprNode::Grouped(v) = node_value {
         node_value = v;
@@ -1521,15 +1536,13 @@ fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, n
 
     if let ExprNode::Ident(base) = node_value {
         let symbol = ctx.define_symbol(&base.value);
-        if scope.value_scopes.lookup(symbol).is_none() {
-            if let Some(import) = scope.import_scopes.lookup(symbol) {
-                let name = ctx.define_symbol(&node.selection.value);
-                let object = ctx.scopes.get(&import.package).and_then(|package| package.value_scopes.lookup(name));
-                if object.is_none() {
-                    errors::report_undeclared_symbol(ctx.errors, node.selection.pos, &node.selection.value);
-                }
-                return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], object);
+        if let Some(Object::Import(import)) = scope.lookup(symbol) {
+            let name = ctx.define_symbol(&node.selection.value);
+            let object = ctx.scopes.get(&import.package).and_then(|package| package.lookup(name));
+            if object.is_none() {
+                errors::report_undeclared_symbol(ctx.errors, node.selection.pos, &node.selection.value);
             }
+            return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], object);
         }
     }
 
@@ -1608,22 +1621,26 @@ fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, n
     }
 }
 
-fn get_expr_from_index_node<'a>(ctx: &Context<'a, '_>, scope: &Scopes<'a>, node: &IndexExprNode) -> Expr<'a> {
+fn get_index_expr<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketExprNode) -> Expr<'a> {
     let value = get_expr_from_node_internal(ctx, scope, &node.value);
     let ty = value.ty;
 
     match ty.repr {
         TypeRepr::ArrayPtr(element) => {
+            let [index_node] = node.args.as_slice() else {
+                errors::report_index_argument_count(ctx.errors, node.value.pos(), node.args.len());
+                return Expr { ty, kind: ExprKind::Invalid, pos: node.value.pos(), assignable: false };
+            };
             let index = get_expr_from_node(
                 ctx,
                 scope,
                 Some(ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::ISize) })),
-                &node.index,
+                index_node,
             );
             let index_type = index.ty;
 
             if !index_type.is_int() {
-                errors::report_non_int_index(ctx.errors, node.index.pos());
+                errors::report_non_int_index(ctx.errors, index_node.pos());
                 return Expr { ty: element, kind: ExprKind::Invalid, pos: node.value.pos(), assignable: false };
             }
 

@@ -53,6 +53,10 @@ test_success!(test_023_fail);
 test_success!(test_024_fail);
 test_success!(test_025_fail);
 test_success!(test_026_fail);
+test_success!(test_027_fail);
+test_success!(test_028);
+test_success!(test_029_fail);
+test_success!(test_030_fail);
 
 #[test]
 fn missing_source_diagnostics_have_no_position() {

@@ -45,36 +45,36 @@ let recovered: i32 = 1;
 // =====================================================
 
 fn invalid_keyword_types() {
-    //syntax_error line=+1 col=12: Expected type expression, but found 'if'
+    //syntax_error line=+1 col=12: Unexpected token 'if'
     let x: if;
-    //syntax_error line=+1 col=12: Expected type expression, but found 'return'
+    //syntax_error line=+1 col=12: Unexpected token 'return'
     let y: return;
     let recovered: i32 = 1;
 }
 
 let _: package.sometype = 10;
-let _: package.sometype<int> = 10;
-let _: package.sometype<int,int> = 10;
+let _: package.sometype[int] = 10;
+let _: package.sometype[int,int] = 10;
 let _: sometype = 10;
 let _: *sometype = 10;
 let _: *package.sometype = 10;
-let _: *package.sometype<i32,package.package<i32>> = 10;
-let _: *package.sometype<i32,(package.package<i32>)> = 10;
+let _: *package.sometype[i32,package.package[i32]] = 10;
+let _: *package.sometype[i32,(package.package[i32])] = 10;
 let _: [*]sometype = 10;
 let _: [*]package.sometype = 10;
-let _: [*]package.sometype<i32,package.package<i32>> = 10;
-let _: [*]package.sometype<i32,(package.package<i32>)> = 10;
+let _: [*]package.sometype[i32,package.package[i32]] = 10;
+let _: [*]package.sometype[i32,(package.package[i32])] = 10;
 //syntax_error line=+1 col=8: Missing pointee type
 let _: * = 10;
 let _: *package = 10;
-//syntax_error line=+1 col=18: Expected IDENT, but found '='
+//syntax_error line=+1 col=18: Expected ident or '*', but found '='
 let _: *package. = 10;
 let _: *package.sometype = 10;
-//syntax_error line=+1 col=25: Missing closing '>'
-let _: *package.sometype< = 10;
-//syntax_error line=+1 col=25: Missing closing '>'
-let _: *package.sometype<i32 = 10;
-let _: *package.sometype<i32> = 10;
+//syntax_error line=+1 col=25: Missing closing ']'
+let _: *package.sometype[ = 10;
+//syntax_error line=+1 col=25: Missing closing ']'
+let _: *package.sometype[i32 = 10;
+let _: *package.sometype[i32] = 10;
 //syntax_error line=+1 col=9: Expected '*', but found 'package'
 let _: [package = 10;
 //syntax_error line=+1 col=10: Expected ']', but found 'package'
@@ -84,16 +84,13 @@ let _: [*]package = 10;
 let _: [*] = 10;
 let _: i32;
 //syntax_error line=+1 col=17: Expected ',', but found 'bool'
-let _: Pair<i32 bool>;
-//syntax_error line=+2 col=12: Missing at least one type argument
+let _: Pair[i32 bool];
 //syntax_error line=+1 col=13: Expected list item, but found ','
-let _: Pair<,>;
-//syntax_error line=+1 col=12: Missing at least one type argument
-let _: Pair<>;
-//syntax_error line=+1 col=17: Missing at least one type argument
-let _: Pair<Pair<>>;
-let _: Pair<i32,>;
-//syntax_error line=+1 col=9: Missing grouped type
+let _: Pair[,];
+let _: Pair[];
+let _: Pair[Pair[]];
+let _: Pair[i32,];
+//syntax_error line=+1 col=9: Missing grouped expression
 let _: ();
 //syntax_error line=+1 col=15: Expected ',', but found 'i32'
 let _: fn(i32 i32);
@@ -101,7 +98,6 @@ let _: fn(i32 i32);
 let _: fn(,);
 //syntax_error line=+1 col=17: Missing parameter type
 let _: fn(value:): i32;
-//syntax_error line=+1 col=8: Missing type expression
 let _: 123 = 10;
 //syntax_error line=+1 col=7: Missing type expression
 let _:;
@@ -114,13 +110,13 @@ let _:;
 struct {}
 struct a
 //syntax_error line=+1 col=1: Expected struct body, but found 'struct'
-struct a<i32>
+struct a[i32]
 //syntax_error line=+2 col=1: Expected struct body, but found 'struct'
-//syntax_error line=+1 col=8: Expected IDENT, but found '<'
-struct <i32>{}
-struct a<i32>{field1: type1}
+//syntax_error line=+1 col=8: Expected IDENT, but found '['
+struct [i32]{}
+struct a[i32]{field1: type1}
 //syntax_error line=+1 col=20: Missing at least one type parameter
-struct EmptyGeneric<> {}
+struct EmptyGeneric[] {}
 //syntax_error line=+1 col=34: Expected ',', but found 'right'
 struct MissingCommas { left: i32 right: i32 }
 //syntax_error line=+1 col=33: Expected ':', but found ','
@@ -139,16 +135,15 @@ let a: i32 = 10 + 20 * (30 - 1) / 2 + 3 >> 5 as i32;
 let a: bool = !!(false && true);
 let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
-let a: i32 = pkg.SomeStruct<a,b,c>{a: 10};
-let a: i32 = pkg.some_func<i32>(a, b)[1].*;
-let a: pkg.Pair<i32>=pkg.Pair<i32>{value: 1};
-let a: bool = pkg.id<i32>==pkg.id<i32>;
-let a: bool = pkg.id<pkg.Pair<i32>>==pkg.id<pkg.Pair<i32>>;
-let a: i32 = pkg.id<i32>>>value;
-let a: i32 = pkg.id<pkg.Pair<pkg.Pair<i32>>>>>value;
-let a: bool = pkg.id<i32>=// comments are transparent to the parser
-=pkg.id<i32>;
-//syntax_error line=+1 col=14: Struct literal target must be a type expression
+let a: i32 = pkg.SomeStruct[a,b,c]{a: 10};
+let a: i32 = pkg.some_func[i32](a, b)[1].*;
+let a: pkg.Pair[i32]=pkg.Pair[i32]{value: 1};
+let a: bool = pkg.id[i32]==pkg.id[i32];
+let a: bool = pkg.id[pkg.Pair[i32]]==pkg.id[pkg.Pair[i32]];
+let a: i32 = pkg.id[i32]>>value;
+let a: i32 = pkg.id[pkg.Pair[pkg.Pair[i32]]]>>value;
+let a: bool = pkg.id[i32]==// comments are transparent to the parser
+pkg.id[i32];
 let _: i32 = 1{};
 //syntax_error line=+1 col=18: Expected ',', but found NUMBER_LIT
 let _: i32 = f(1 2);
@@ -187,7 +182,6 @@ let _: i32 = 0__o_;
 let a: i32 = a +;
 //syntax_error line=+1 col=15: Missing grouped expression
 let _: i32 = ();
-//syntax_error line=+1 col=21: Missing index expression
 let _: i32 = values[];
 //syntax_error line=+1 col=16: Missing function argument
 let _: i32 = f(, 1);
@@ -197,7 +191,7 @@ let _: i32 = SomeStruct{a: };
 let _: i32 = value.;
 //syntax_error line=+1 col=15: Missing closing ')'
 let _: i32 = f(1;
-//syntax_error line=+1 col=22: Expected ']', but found ';'
+//syntax_error line=+1 col=20: Missing closing ']'
 let _: i32 = values[1;
 //syntax_error line=+1 col=14: Unexpected token 'let'
 let _: i32 = let;
@@ -212,13 +206,13 @@ fn;
 fn f;
 fn empty_func();
 //syntax_error line=+1 col=17: Missing at least one type parameter
-fn empty_generic<>();
+fn empty_generic[]();
 //syntax_error line=+1 col=20: Missing return type
 fn missing_return():;
 fn returning():i32;
 fn f(a: i32, b: i32): i32;
 //syntax_error line=+1 col=14: Expected ',', but found 'U'
-fn generic<T U>();
+fn generic[T U]();
 //syntax_error line=+1 col=18: Expected ',', but found 'b'
 fn params(a: i32 b: i32);
 //syntax_error line=+1 col=17: Expected list item, but found ','
@@ -227,14 +221,14 @@ fn comma_params(,);
 fn leading(,a: i32);
 //syntax_error line=+1 col=19: Expected list item, but found ','
 fn doubled(a: i32,, b: i32);
-fn trailing<T,>(value: T,);
+fn trailing[T,](value: T,);
 //syntax_error line=+1 col=33: Expected ':', but found ','
 fn missing_parameter_colon(value,) {}
 //syntax_error line=+1 col=27: Missing parameter type
 fn erased_parameter(value:) {}
 //syntax_error line=+1 col=27: Missing parameter type
 fn partial(good: i32, bad:) {}
-fn func_with_typeargs<T,U>();
+fn func_with_typeargs[T,U]();
 
 // =====================================================
 // Statements

@@ -1,0 +1,4 @@
+tests/test_030_fail/main.mg:3:24: Expected a type expression
+tests/test_030_fail/main.mg:4:21: Expected a type expression
+tests/test_030_fail/main.mg:5:26: Expected a type expression
+tests/test_030_fail/main.mg:6:14: Expected a type expression

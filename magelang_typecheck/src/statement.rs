@@ -1,7 +1,8 @@
-use crate::analyze::{Context, LocalObject, Scopes, ValueObject};
+use crate::analyze::{Context, LocalObject, ValueObject};
 use crate::errors;
 use crate::expr::{Expr, ExprKind, get_binary_expr, get_expr_from_node};
 use crate::interner::Interner;
+use crate::scope::Scope;
 use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
@@ -109,14 +110,14 @@ pub struct ForStatement<'a> {
 
 pub(crate) struct StatementResult<'a> {
     pub(crate) statement: Statement<'a>,
-    pub(crate) new_scope: Option<Scopes<'a>>,
+    pub(crate) new_scope: Option<Scope<'a>>,
     pub(crate) is_returning: bool,
     pub(crate) last_unused_local: usize,
 }
 
 pub(crate) struct StatementContext<'a, 'b, 'syn> {
     ctx: &'b Context<'a, 'syn>,
-    scope: &'b Scopes<'a>,
+    scope: &'b Scope<'a>,
     last_unused_local: usize,
     return_type: &'a Type<'a>,
     is_inside_loop: bool,
@@ -126,7 +127,7 @@ pub(crate) struct StatementContext<'a, 'b, 'syn> {
 impl<'a, 'b, 'syn> StatementContext<'a, 'b, 'syn> {
     pub(crate) fn new(
         ctx: &'b Context<'a, 'syn>,
-        scope: &'b Scopes<'a>,
+        scope: &'b Scope<'a>,
         last_unused_local: usize,
         return_type: &'a Type<'a>,
     ) -> Self {
@@ -186,9 +187,8 @@ pub(crate) fn get_statement_from_let<'a>(
     let name = ctx.ctx.define_symbol(&node.name.value);
     let mut new_table = IndexMap::default();
     let id = ctx.last_unused_local;
-    new_table.insert(name, ValueObject::Local(LocalObject { id, ty: expr.ty, name }));
-    let new_scope = ctx.scope.value_scopes.new_child(new_table);
-    let new_scope = ctx.scope.with_value_scope(new_scope);
+    new_table.insert(name, ValueObject::Local(LocalObject { id, ty: expr.ty, name }).into());
+    let new_scope = ctx.scope.new_child(new_table);
 
     StatementResult {
         statement: Statement::NewLocal { id, value: expr },

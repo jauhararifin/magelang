@@ -32,8 +32,8 @@ fn if_else(c: bool): i64 {
 }
 
 fn test_if_else() {
-  assert_equal<i64>(1, if_else(true));
-  assert_equal<i64>(2, if_else(false));
+  assert_equal[i64](1, if_else(true));
+  assert_equal[i64](2, if_else(false));
 }
 
 fn if_else_with_defer(c: bool): i64 {
@@ -49,11 +49,11 @@ fn if_else_with_defer(c: bool): i64 {
 
 fn test_if_else_with_defer() {
   trace = 0;
-  assert_equal<i64>(1, if_else_with_defer(true));
-  assert_equal<i64>(13, trace);
+  assert_equal[i64](1, if_else_with_defer(true));
+  assert_equal[i64](13, trace);
   trace = 0;
-  assert_equal<i64>(2, if_else_with_defer(false));
-  assert_equal<i64>(23, trace);
+  assert_equal[i64](2, if_else_with_defer(false));
+  assert_equal[i64](23, trace);
 }
 
 fn nested_if_else(c: bool, d: bool): i32 {
@@ -73,10 +73,10 @@ fn nested_if_else(c: bool, d: bool): i32 {
 }
 
 fn test_nested_if_else() {
-  assert_equal<i32>(1, nested_if_else(true, true));
-  assert_equal<i32>(2, nested_if_else(true, false));
-  assert_equal<i32>(3, nested_if_else(false, true));
-  assert_equal<i32>(4, nested_if_else(false, false));
+  assert_equal[i32](1, nested_if_else(true, true));
+  assert_equal[i32](2, nested_if_else(true, false));
+  assert_equal[i32](3, nested_if_else(false, true));
+  assert_equal[i32](4, nested_if_else(false, false));
 }
 
 fn else_if_chain(n: i64): i64 {
@@ -92,10 +92,10 @@ fn else_if_chain(n: i64): i64 {
 }
 
 fn test_else_if_chain() {
-  assert_equal<i64>(10, else_if_chain(0));
-  assert_equal<i64>(11, else_if_chain(1));
-  assert_equal<i64>(12, else_if_chain(2));
-  assert_equal<i64>(13, else_if_chain(3));
+  assert_equal[i64](10, else_if_chain(0));
+  assert_equal[i64](11, else_if_chain(1));
+  assert_equal[i64](12, else_if_chain(2));
+  assert_equal[i64](13, else_if_chain(3));
 }
 
 fn nested_block(c: bool): i64 {
@@ -111,8 +111,8 @@ fn nested_block(c: bool): i64 {
 }
 
 fn test_nested_block() {
-  assert_equal<i64>(5, nested_block(true));
-  assert_equal<i64>(6, nested_block(false));
+  assert_equal[i64](5, nested_block(true));
+  assert_equal[i64](6, nested_block(false));
 }
 
 fn pair_if_else(c: bool): Pair {
@@ -133,13 +133,13 @@ fn f64_if_else(c: bool): f64 {
 
 fn test_struct_and_float_returns() {
   let p = pair_if_else(true);
-  assert_equal<i32>(1, p.a);
-  assert_equal<i64>(2, p.b);
+  assert_equal[i32](1, p.a);
+  assert_equal[i64](2, p.b);
   let q = pair_if_else(false);
-  assert_equal<i32>(3, q.a);
-  assert_equal<i64>(4, q.b);
-  assert_equal<f64>(1.5, f64_if_else(true));
-  assert_equal<f64>(2.5, f64_if_else(false));
+  assert_equal[i32](3, q.a);
+  assert_equal[i64](4, q.b);
+  assert_equal[f64](1.5, f64_if_else(true));
+  assert_equal[f64](2.5, f64_if_else(false));
 }
 
 fn void_if_else(c: bool) {
@@ -165,10 +165,10 @@ fn test_void_functions_do_not_trap() {
   void_if_else(false);
   void_falls_off_the_end(true);
   void_falls_off_the_end(false);
-  assert_equal<i64>(12344, trace);
+  assert_equal[i64](12344, trace);
 }
 
-fn assert_equal<T>(expected: T, actual: T) {
+fn assert_equal[T](expected: T, actual: T) {
   if expected != actual {
     wasm.unreachable();
   }

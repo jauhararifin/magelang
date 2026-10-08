@@ -1,4 +1,4 @@
 tests/test_023_fail/main.mg:1:13: Missing at least one type parameter
 tests/test_023_fail/main.mg:3:17: Missing at least one type parameter
 tests/test_023_fail/main.mg:6:10: Expected return value expression, but found ','
-tests/test_023_fail/main.mg:11:17: Missing at least one type argument
+tests/test_023_fail/main.mg:11:14: The expression is not a generic

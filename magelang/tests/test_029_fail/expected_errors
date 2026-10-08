@@ -1,0 +1,26 @@
+tests/test_029_fail/main.mg:4:1: Symbol TypeFirst is redeclared. First declared at tests/test_029_fail/main.mg:3:1
+tests/test_029_fail/main.mg:7:1: Symbol FunctionFirst is redeclared. First declared at tests/test_029_fail/main.mg:6:1
+tests/test_029_fail/main.mg:10:1: Symbol TypeBeforeGlobal is redeclared. First declared at tests/test_029_fail/main.mg:9:1
+tests/test_029_fail/main.mg:13:1: Symbol GlobalFirst is redeclared. First declared at tests/test_029_fail/main.mg:12:1
+tests/test_029_fail/main.mg:16:1: Symbol ImportFirst is redeclared. First declared at tests/test_029_fail/main.mg:15:1
+tests/test_029_fail/main.mg:19:1: Symbol TypeBeforeImport is redeclared. First declared at tests/test_029_fail/main.mg:18:1
+tests/test_029_fail/main.mg:22:1: Symbol ImportBeforeFunction is redeclared. First declared at tests/test_029_fail/main.mg:21:1
+tests/test_029_fail/main.mg:25:1: Symbol FunctionBeforeImport is redeclared. First declared at tests/test_029_fail/main.mg:24:1
+tests/test_029_fail/main.mg:28:1: Symbol ImportBeforeGlobal is redeclared. First declared at tests/test_029_fail/main.mg:27:1
+tests/test_029_fail/main.mg:31:1: Symbol GlobalBeforeImport is redeclared. First declared at tests/test_029_fail/main.mg:30:1
+tests/test_029_fail/main.mg:33:26: Symbol T is redeclared. First declared at tests/test_029_fail/main.mg:33:23
+tests/test_029_fail/main.mg:40:12: Expected a type expression
+tests/test_029_fail/main.mg:45:12: Expected a type expression
+tests/test_029_fail/main.mg:46:18: Expected a type expression
+tests/test_029_fail/main.mg:51:12: Expected a type expression
+tests/test_029_fail/main.mg:52:19: The expression doesn't have a field named 'id'
+tests/test_029_fail/main.mg:56:13: Expected a value expression
+tests/test_029_fail/main.mg:57:18: Symbol Box is not declared yet
+tests/test_029_fail/main.mg:61:13: Expected a value expression
+tests/test_029_fail/main.mg:65:12: Expected a type expression
+tests/test_029_fail/main.mg:70:12: Expected a type expression
+tests/test_029_fail/main.mg:71:18: Expected a type expression
+tests/test_029_fail/main.mg:75:11: Expected a value expression
+tests/test_029_fail/main.mg:76:10: Expected a type expression
+tests/test_029_fail/main.mg:77:11: Expected a value expression
+tests/test_029_fail/main.mg:78:14: Expected a type expression
