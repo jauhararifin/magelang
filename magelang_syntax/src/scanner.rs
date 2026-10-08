@@ -545,76 +545,60 @@ impl<'a> Scanner<'a> {
         Some(Token { kind: TokenKind::Comment(value), pos, spacing: false })
     }
 
-    const SYMBOLS: &'static [(&'static str, TokenKind)] = &[
-        (":", TokenKind::Colon),
-        (";", TokenKind::SemiColon),
-        (".", TokenKind::Dot),
-        ("!=", TokenKind::NEq),
-        ("!", TokenKind::Not),
-        ("==", TokenKind::Eq),
-        ("=", TokenKind::Equal),
-        ("*=", TokenKind::AssignOp(BinaryOp::Mul)),
-        ("*", TokenKind::Mul),
-        ("+=", TokenKind::AssignOp(BinaryOp::Add)),
-        ("+", TokenKind::Add),
-        ("-=", TokenKind::AssignOp(BinaryOp::Sub)),
-        ("-", TokenKind::Sub),
-        ("/=", TokenKind::AssignOp(BinaryOp::Div)),
-        ("/", TokenKind::Div),
-        (":", TokenKind::Colon),
-        ("<<=", TokenKind::AssignOp(BinaryOp::ShiftLeft)),
-        ("<<", TokenKind::ShiftLeft),
-        ("<=", TokenKind::LEq),
-        ("<", TokenKind::Lt),
-        (">>=", TokenKind::AssignOp(BinaryOp::ShiftRight)),
-        (">>", TokenKind::ShiftRight),
-        (">=", TokenKind::GEq),
-        (">", TokenKind::Gt),
-        ("{", TokenKind::OpenBlock),
-        ("}", TokenKind::CloseBlock),
-        ("(", TokenKind::OpenBrac),
-        (")", TokenKind::CloseBrac),
-        ("[", TokenKind::OpenSquare),
-        ("]", TokenKind::CloseSquare),
-        (",", TokenKind::Comma),
-        ("%=", TokenKind::AssignOp(BinaryOp::Mod)),
-        ("%", TokenKind::Mod),
-        ("&&=", TokenKind::AssignOp(BinaryOp::And)),
-        ("&&", TokenKind::And),
-        ("&=", TokenKind::AssignOp(BinaryOp::BitAnd)),
-        ("&", TokenKind::BitAnd),
-        ("||=", TokenKind::AssignOp(BinaryOp::Or)),
-        ("||", TokenKind::Or),
-        ("|=", TokenKind::AssignOp(BinaryOp::BitOr)),
-        ("|", TokenKind::BitOr),
-        ("^=", TokenKind::AssignOp(BinaryOp::BitXor)),
-        ("^", TokenKind::BitXor),
-        ("~", TokenKind::BitNot),
-        ("@", TokenKind::AtSign),
-    ];
-
     fn scan_symbols(&mut self) -> Option<Token> {
-        let top = self.peek()?;
-        let pos = top.1;
+        let (symbol, pos) = self.peek()?;
+        let (kind, symbol_len) = match symbol {
+            ':' => (TokenKind::Colon, 1),
+            ';' => (TokenKind::SemiColon, 1),
+            '.' => (TokenKind::Dot, 1),
+            '!' if self.text.starts_with("!=") => (TokenKind::NEq, 2),
+            '!' => (TokenKind::Not, 1),
+            '=' if self.text.starts_with("==") => (TokenKind::Eq, 2),
+            '=' => (TokenKind::Equal, 1),
+            '*' if self.text.starts_with("*=") => (TokenKind::AssignOp(BinaryOp::Mul), 2),
+            '*' => (TokenKind::Mul, 1),
+            '+' if self.text.starts_with("+=") => (TokenKind::AssignOp(BinaryOp::Add), 2),
+            '+' => (TokenKind::Add, 1),
+            '-' if self.text.starts_with("-=") => (TokenKind::AssignOp(BinaryOp::Sub), 2),
+            '-' => (TokenKind::Sub, 1),
+            '/' if self.text.starts_with("/=") => (TokenKind::AssignOp(BinaryOp::Div), 2),
+            '/' => (TokenKind::Div, 1),
+            '<' if self.text.starts_with("<<=") => (TokenKind::AssignOp(BinaryOp::ShiftLeft), 3),
+            '<' if self.text.starts_with("<<") => (TokenKind::ShiftLeft, 2),
+            '<' if self.text.starts_with("<=") => (TokenKind::LEq, 2),
+            '<' => (TokenKind::Lt, 1),
+            '>' if self.text.starts_with(">>=") => (TokenKind::AssignOp(BinaryOp::ShiftRight), 3),
+            '>' if self.text.starts_with(">>") => (TokenKind::ShiftRight, 2),
+            '>' if self.text.starts_with(">=") => (TokenKind::GEq, 2),
+            '>' => (TokenKind::Gt, 1),
+            '{' => (TokenKind::OpenBlock, 1),
+            '}' => (TokenKind::CloseBlock, 1),
+            '(' => (TokenKind::OpenBrac, 1),
+            ')' => (TokenKind::CloseBrac, 1),
+            '[' => (TokenKind::OpenSquare, 1),
+            ']' => (TokenKind::CloseSquare, 1),
+            ',' => (TokenKind::Comma, 1),
+            '%' if self.text.starts_with("%=") => (TokenKind::AssignOp(BinaryOp::Mod), 2),
+            '%' => (TokenKind::Mod, 1),
+            '&' if self.text.starts_with("&&=") => (TokenKind::AssignOp(BinaryOp::And), 3),
+            '&' if self.text.starts_with("&&") => (TokenKind::And, 2),
+            '&' if self.text.starts_with("&=") => (TokenKind::AssignOp(BinaryOp::BitAnd), 2),
+            '&' => (TokenKind::BitAnd, 1),
+            '|' if self.text.starts_with("||=") => (TokenKind::AssignOp(BinaryOp::Or), 3),
+            '|' if self.text.starts_with("||") => (TokenKind::Or, 2),
+            '|' if self.text.starts_with("|=") => (TokenKind::AssignOp(BinaryOp::BitOr), 2),
+            '|' => (TokenKind::BitOr, 1),
+            '^' if self.text.starts_with("^=") => (TokenKind::AssignOp(BinaryOp::BitXor), 2),
+            '^' => (TokenKind::BitXor, 1),
+            '~' => (TokenKind::BitNot, 1),
+            '@' => (TokenKind::AtSign, 1),
+            _ => return None,
+        };
 
-        let mut sym = String::new();
-        let mut kind = None;
-
-        while let Some((c, _)) = self.peek() {
-            sym.push(c);
-            let mut found = false;
-            for (_, k) in Self::SYMBOLS.iter().filter(|(op, _)| op.starts_with(&sym)) {
-                found = true;
-                kind = Some(k.clone());
-            }
-            if !found {
-                break;
-            }
-
+        for _ in 0..symbol_len {
             self.next();
         }
-
-        Some(Token { kind: kind?, pos, spacing: false })
+        Some(Token { kind, pos, spacing: false })
     }
 
     fn scan_invalid(&mut self) -> Option<Token> {
