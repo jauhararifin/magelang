@@ -247,10 +247,7 @@ bool opaque void
 
 ### Pointers
 
-Magelang supports two kind of pointer: a unit pointer and an array pointer. A unit pointer is
-just an ordinary pointer pointing to a single value. You can dereference a unit pointer and
-get the pointed value. An array pointer is a pointer pointing to zero or more items with the
-same type. A unit pointer to a type `T` is `*T`, whereas an array pointer to `T` is `[*]T`.
+Magelang supports unit pointers (`*T`), array pointers (`[*]T`), and slice pointer (`*[T]`).
 
 To dereference a unit pointer `p`, you can write `p.*`. For eaxmple:
 ```
@@ -277,6 +274,22 @@ fn main() {
 fn set(value: *i32) {
     value.* = 10;
 }
+```
+
+A slice pointer (`*[T]`) is an array pointer with a runtime length and bounds-checked indexing.
+
+```
+let count: usize = 10;
+let data = mem.alloc_array[i32](count);
+let values: *[i32] = *[i32]{ptr: data, len: count};
+
+values[0].* = 42;
+let first: *i32 = values[0];
+let length: usize = values.len;
+
+let same = values == *[i32]{ptr: data, len: count}; // true
+let different = values != *[i32]{ptr: data, len: count - 1}; // true
+mem.dealloc_array[i32](values.ptr);
 ```
 
 ### Structs

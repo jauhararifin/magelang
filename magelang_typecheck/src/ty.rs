@@ -263,6 +263,10 @@ impl<'a> Type<'a> {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::ArrayPtr(el.substitute(ctx, type_args)),
             }),
+            TypeRepr::SlicePtr(el) => ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::SlicePtr(el.substitute(ctx, type_args)),
+            }),
             TypeRepr::TypeArg(arg) => arg.substitute(type_args),
         }
     }
@@ -447,6 +451,7 @@ pub enum TypeRepr<'a> {
     Float(FloatType),
     Ptr(&'a Type<'a>),
     ArrayPtr(&'a Type<'a>),
+    SlicePtr(&'a Type<'a>),
     TypeArg(TypeArg<'a>),
 }
 
@@ -540,6 +545,9 @@ impl<'a> Display for TypeRepr<'a> {
             }
             TypeRepr::ArrayPtr(ty) => {
                 write!(f, "[*]{}", ty)
+            }
+            TypeRepr::SlicePtr(ty) => {
+                write!(f, "*[{}]", ty)
             }
             TypeRepr::TypeArg(arg) => {
                 write!(f, "{}", arg.name)
@@ -641,6 +649,10 @@ pub(crate) fn get_type_from_node<'a, 'b>(
         ExprNode::ArrayPtrType(node) => {
             let element_ty = get_type_from_node(ctx, scope, &node.ty);
             ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::ArrayPtr(element_ty) })
+        }
+        ExprNode::SlicePtrType(node) => {
+            let element_ty = get_type_from_node(ctx, scope, &node.ty);
+            ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::SlicePtr(element_ty) })
         }
         ExprNode::FuncType(node) => {
             let mut params = BumpVec::with_capacity_in(node.params.len(), ctx.arena);

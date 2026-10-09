@@ -1,0 +1,36 @@
+tests/test_slice_ptr_fail/main.mg:2:15: Expected a value expression
+tests/test_slice_ptr_fail/main.mg:3:30: Mismatch type, expected *[u8] but found *[i32]
+tests/test_slice_ptr_fail/main.mg:4:23: Mismatch type, expected [*]i32 but found *[i32]
+tests/test_slice_ptr_fail/main.mg:5:23: Mismatch type, expected *[i32] but found [*]i32
+tests/test_slice_ptr_fail/main.mg:6:31: Mismatch type, expected [*]i32 but found [*]u8
+tests/test_slice_ptr_fail/main.mg:7:41: Mismatch type, expected usize but found i32
+tests/test_slice_ptr_fail/main.mg:8:44: Field len is already declared at tests/test_slice_ptr_fail/main.mg:8:36
+tests/test_slice_ptr_fail/main.mg:9:24: The field data is not declared yet
+tests/test_slice_ptr_fail/main.mg:10:5: Cannot use non-int expression as index
+tests/test_slice_ptr_fail/main.mg:11:3: Expected one index argument, but found 0
+tests/test_slice_ptr_fail/main.mg:12:3: Expected one index argument, but found 2
+tests/test_slice_ptr_fail/main.mg:13:5: Cannot dereference non-pointer expression
+tests/test_slice_ptr_fail/main.mg:14:5: The field missing is not declared yet
+tests/test_slice_ptr_fail/main.mg:15:3: The expression is not assignable
+tests/test_slice_ptr_fail/main.mg:16:3: The expression is not assignable
+tests/test_slice_ptr_fail/main.mg:17:3: The expression is not assignable
+tests/test_slice_ptr_fail/main.mg:18:3: The expression is not assignable
+tests/test_slice_ptr_fail/main.mg:19:27: Mismatch type, expected isize but found usize
+tests/test_slice_ptr_fail/main.mg:20:3: Cannot perform casting operation from *[i32] into usize
+tests/test_slice_ptr_fail/main.mg:21:3: Cannot perform casting operation from [*]i32 into *[i32]
+tests/test_slice_ptr_fail/main.mg:22:3: Cannot perform casting operation from untyped int into *[i32]
+tests/test_slice_ptr_fail/main.mg:23:3: Cannot perform eq operation for *[i32] and [*]i32
+tests/test_slice_ptr_fail/main.mg:24:3: Cannot perform neq operation for *[i32] and *[u8]
+tests/test_slice_ptr_fail/main.mg:25:3: Cannot perform add binary operation on *[i32]
+tests/test_slice_ptr_fail/main.mg:26:3: Cannot perform shift left binary operation on *[i32]
+tests/test_slice_ptr_fail/main.mg:27:3: Cannot perform shift right binary operation on *[i32]
+tests/test_slice_ptr_fail/main.mg:28:3: Cannot perform shift left binary operation on *[i32]
+tests/test_slice_ptr_fail/main.mg:29:40: Field ptr is already declared at tests/test_slice_ptr_fail/main.mg:29:30
+tests/test_slice_ptr_fail/main.mg:30:39: Mismatch type, expected usize but found i32
+tests/test_slice_ptr_fail/main.mg:30:46: Field len is already declared at tests/test_slice_ptr_fail/main.mg:30:34
+tests/test_slice_ptr_fail/main.mg:30:51: Mismatch type, expected usize but found bool
+tests/test_slice_ptr_fail/main.mg:31:30: The field data is not declared yet
+tests/test_slice_ptr_fail/main.mg:31:36: Symbol missing is not declared yet
+tests/test_slice_ptr_fail/main.mg:32:34: The field data is not declared yet
+tests/test_slice_ptr_fail/main.mg:32:45: The field data is not declared yet
+tests/test_slice_ptr_fail/main.mg:32:45: Field data is already declared at tests/test_slice_ptr_fail/main.mg:32:34

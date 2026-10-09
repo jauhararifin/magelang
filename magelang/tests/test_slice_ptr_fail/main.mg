@@ -1,0 +1,33 @@
+fn bad(s: *[i32], raw: [*]i32, count: i32) {
+  let value = *[i32];
+  let wrong_element: *[u8] = s;
+  let array: [*]i32 = s;
+  let slice: *[i32] = raw;
+  let wrong_ptr = *[i32]{ptr: "abc", len: 3};
+  let wrong_len = *[i32]{ptr: raw, len: count};
+  let duplicate = *[i32]{ptr: raw, len: 1, len: 2};
+  let unknown = *[i32]{data: raw};
+  s[true];
+  s[];
+  s[0, 1];
+  s.*;
+  s.missing;
+  s.len = 1;
+  s.len += 1;
+  s.ptr = raw;
+  s[0] = raw[0];
+  let signed_len: isize = s.len;
+  s as usize;
+  raw as *[i32];
+  0 as *[i32];
+  s == raw;
+  s != *[u8]{};
+  s + s;
+  s << 1;
+  1 as i32 >> s;
+  s <<= 1;
+  let duplicate_ptr = *[i32]{ptr: raw, ptr: raw};
+  let duplicate_invalid = *[i32]{len: count, len: true};
+  let unknown_value = *[i32]{data: missing};
+  let duplicate_unknown = *[i32]{data: raw, data: raw};
+}

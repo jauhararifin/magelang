@@ -183,7 +183,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_get_index(&self, arr: &Expr<'ctx>, index: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let TypeRepr::ArrayPtr(element_type) = arr.ty.repr else { unreachable!() };
+        let (TypeRepr::ArrayPtr(element_type) | TypeRepr::SlicePtr(element_type)) = arr.ty.repr else { unreachable!() };
         let Some(layout) = self.types.get_mem_layout(element_type) else {
             errors::report_dereferencing_opaque(self.errors, arr.pos);
             return vec![wasm::Instr::Unreachable];
@@ -191,15 +191,35 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
         let size = layout.size;
 
         let mut result = self.build(arr);
-        result.push(wasm::Instr::I32Const(size as i32));
-        result.extend(self.build(index));
+        if matches!(arr.ty.repr, TypeRepr::SlicePtr(..)) {
+            let temps = self.locals.get_temporary_locals(vec![PrimitiveType::U32, PrimitiveType::U64]);
+            let (len_local, index_local) = (temps[0], temps[1]);
+            result.push(wasm::Instr::LocalSet(len_local));
+            result.extend(self.build(index));
 
-        if let TypeRepr::Int(_, bit_size) = index.ty.repr {
-            if bit_size == BitSize::I64 {
+            // Check before narrowing, so negative and oversized 64-bit indices cannot wrap into range.
+            if let TypeRepr::Int(sign, bit_size) = index.ty.repr {
+                if bit_size != BitSize::I64 {
+                    result.push(if sign { wasm::Instr::I64ExtendI32S } else { wasm::Instr::I64ExtendI32U });
+                }
+            }
+            result.extend([
+                wasm::Instr::LocalTee(index_local),
+                wasm::Instr::LocalGet(len_local),
+                wasm::Instr::I64ExtendI32U,
+                wasm::Instr::I64GeU,
+                wasm::Instr::If(wasm::BlockType::None, vec![wasm::Instr::Unreachable], vec![]),
+                wasm::Instr::LocalGet(index_local),
+                wasm::Instr::I32WrapI64,
+            ]);
+        } else {
+            result.extend(self.build(index));
+            if let TypeRepr::Int(_, BitSize::I64) = index.ty.repr {
                 result.push(wasm::Instr::I32WrapI64);
             }
         }
 
+        result.push(wasm::Instr::I32Const(size as i32));
         result.push(wasm::Instr::I32Mul);
         result.push(wasm::Instr::I32Add);
         result
@@ -688,6 +708,21 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             | TypeRepr::Ptr(..)
             | TypeRepr::ArrayPtr(..)
             | TypeRepr::Func(..) => vec![wasm::Instr::I32Eq],
+            TypeRepr::SlicePtr(..) => {
+                let temps = self.locals.get_temporary_locals(vec![PrimitiveType::U32; 3]);
+                let (a_len, b_ptr, b_len) = (temps[0], temps[1], temps[2]);
+                vec![
+                    wasm::Instr::LocalSet(b_len),
+                    wasm::Instr::LocalSet(b_ptr),
+                    wasm::Instr::LocalSet(a_len),
+                    wasm::Instr::LocalGet(b_ptr),
+                    wasm::Instr::I32Eq,
+                    wasm::Instr::LocalGet(a_len),
+                    wasm::Instr::LocalGet(b_len),
+                    wasm::Instr::I32Eq,
+                    wasm::Instr::I32And,
+                ]
+            }
             TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
 
             TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
@@ -722,48 +757,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
     }
 
     fn build_ne(&self, a: &Expr<'ctx>, b: &Expr<'ctx>) -> Vec<wasm::Instr> {
-        let a_instr = self.build(a);
-        let b_instr = self.build(b);
-
-        let ty = a.ty;
-        let op_instr = match ty.repr {
-            TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {
-                vec![wasm::Instr::I32Eq]
-            }
-            TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) | TypeRepr::Func(..) => {
-                vec![wasm::Instr::I32Eq]
-            }
-            TypeRepr::Int(_, BitSize::I64) => vec![wasm::Instr::I64Eq],
-
-            TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Eq],
-            TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
-
-            TypeRepr::Bool => vec![wasm::Instr::I32Eq],
-
-            TypeRepr::Opaque => {
-                let mut result = Vec::default();
-                if !matches!(a.kind, ExprKind::Zero) {
-                    result.extend(a_instr);
-                    result.push(wasm::Instr::RefIsNull);
-                } else if !matches!(b.kind, ExprKind::Zero) {
-                    result.extend(b_instr);
-                    result.push(wasm::Instr::RefIsNull);
-                } else {
-                    result.push(wasm::Instr::I32Const(1));
-                }
-                result.push(wasm::Instr::I32Eqz);
-                return result;
-            }
-
-            _ => {
-                unreachable!("cannot perform neq on {ty:?}");
-            }
-        };
-        let mut result = Vec::default();
-
-        result.extend(a_instr);
-        result.extend(b_instr);
-        result.extend(op_instr);
+        let mut result = self.build_eq(a, b);
         result.push(wasm::Instr::I32Eqz);
         result
     }
@@ -1172,5 +1166,6 @@ fn build_zero_type(ty: &Type<'_>) -> Vec<wasm::Instr> {
         TypeRepr::Float(FloatType::F32) => vec![wasm::Instr::F32Const(0f32)],
         TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Const(0f64)],
         TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => vec![wasm::Instr::I32Const(0)],
+        TypeRepr::SlicePtr(..) => vec![wasm::Instr::I32Const(0), wasm::Instr::I32Const(0)],
     }
 }

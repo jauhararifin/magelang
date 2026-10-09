@@ -166,6 +166,12 @@ pub struct ArrayPtrTypeNode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub struct SlicePtrTypeNode {
+    pub pos: Pos,
+    pub ty: Box<ExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FuncTypeNode {
     pub pos: Pos,
     pub params: Vec<FuncTypeParam>,
@@ -199,6 +205,7 @@ pub enum ExprNode {
     Bracket(BracketExprNode),
     PtrType(PtrTypeNode),
     ArrayPtrType(ArrayPtrTypeNode),
+    SlicePtrType(SlicePtrTypeNode),
     FuncType(FuncTypeNode),
     Grouped(Box<ExprNode>),
 }
@@ -223,6 +230,7 @@ impl ExprNode {
             Self::Bracket(node) => node.value.pos(),
             Self::PtrType(node) => node.pos,
             Self::ArrayPtrType(node) => node.pos,
+            Self::SlicePtrType(node) => node.pos,
             Self::FuncType(node) => node.pos,
             Self::Grouped(node) => node.pos(),
         }

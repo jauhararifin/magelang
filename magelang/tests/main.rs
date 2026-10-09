@@ -5,7 +5,7 @@ use magelang_wasmgen::generate;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 use wasm_helper::Serializer;
-use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime::{Engine, Instance, Linker, Module, Store, Trap};
 use wasmtime_wasi::p1::{self, WasiP1Ctx};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -13,7 +13,7 @@ macro_rules! test_success {
     ($name:ident) => {
         #[test]
         fn $name() {
-            test_package(stringify!($name));
+            test_package(stringify!($name), |_, _| {});
         }
     };
 }
@@ -57,6 +57,61 @@ test_success!(test_027_fail);
 test_success!(test_028);
 test_success!(test_029_fail);
 test_success!(test_030_fail);
+test_success!(test_slice_ptr);
+test_success!(test_slice_ptr_fail);
+
+#[test]
+fn test_slice_ptr_bounds() {
+    test_package("test_slice_ptr_bounds", |store, instance| {
+        for name in
+            ["index_i8", "index_u8", "index_i16", "index_u16", "index_i32", "index_u32", "index_isize", "index_usize"]
+        {
+            let index = instance.get_typed_func::<(i32, i32), i32>(&mut *store, name).unwrap();
+            assert_eq!(index.call(&mut *store, (0, 2)).unwrap(), 1024, "{name}");
+            assert_eq!(index.call(&mut *store, (1, 2)).unwrap(), 1025, "{name}");
+            for args in [(2, 2), (3, 2), (0, 0)] {
+                let error = index.call(&mut *store, args).unwrap_err();
+                assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached), "{name}: {args:?}");
+            }
+            if name.starts_with("index_i") {
+                for args in [(-1, 2), (-1, -1)] {
+                    let error = index.call(&mut *store, args).unwrap_err();
+                    assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached), "{name}: {args:?}");
+                }
+            }
+        }
+        for name in ["index_u32", "index_usize"] {
+            let index = instance.get_typed_func::<(i32, i32), i32>(&mut *store, name).unwrap();
+            assert_eq!(index.call(&mut *store, (i32::MAX, -1)).unwrap(), i32::MAX.wrapping_add(1024));
+            let error = index.call(&mut *store, (-1, -1)).unwrap_err();
+            assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached), "{name}");
+        }
+        for name in ["index_i64", "index_u64"] {
+            let index = instance.get_typed_func::<(i64, i32), i32>(&mut *store, name).unwrap();
+            assert_eq!(index.call(&mut *store, (1, 2)).unwrap(), 1025);
+            for args in
+                [(2, 2), (0, 0), (-1, 2), (-1, -1), (1 << 32, 2), ((1 << 32) + 1, 2), (-(1 << 32), 2), (i64::MAX, 2)]
+            {
+                let error = index.call(&mut *store, args).unwrap_err();
+                assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached), "{name}: {args:?}");
+            }
+        }
+        let empty = instance.get_typed_func::<(), i32>(&mut *store, "empty").unwrap();
+        let error = empty.call(&mut *store, ()).unwrap_err();
+        assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached));
+        let read = instance.get_typed_func::<i32, i32>(&mut *store, "read").unwrap();
+        assert_eq!(read.call(&mut *store, 1).unwrap(), 0);
+        let error = read.call(&mut *store, 2).unwrap_err();
+        assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached));
+        for name in ["write", "update"] {
+            let write = instance.get_typed_func::<i32, ()>(&mut *store, name).unwrap();
+            write.call(&mut *store, 1).unwrap();
+            let error = write.call(&mut *store, 2).unwrap_err();
+            assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached), "{name}");
+        }
+        assert_eq!(read.call(&mut *store, 1).unwrap(), 8);
+    });
+}
 
 #[test]
 fn missing_source_diagnostics_have_no_position() {
@@ -78,7 +133,7 @@ fn missing_source_diagnostics_have_no_position() {
     }
 }
 
-fn test_package(name: &str) {
+fn test_package(name: &str, check: impl FnOnce(&mut Store<WasiP1Ctx>, Instance)) {
     unsafe {
         std::env::set_var("MAGELANG_ROOT", env!("CARGO_MANIFEST_DIR"));
     }
@@ -141,5 +196,6 @@ fn test_package(name: &str) {
     p1::add_to_linker_sync(&mut linker, |s| s).expect("cannot link wasi to the linker");
     let wasi = WasiCtxBuilder::new().inherit_stdio().inherit_args().build_p1();
     let mut store = Store::new(&engine, wasi);
-    linker.instantiate(&mut store, &module).unwrap();
+    let instance = linker.instantiate(&mut store, &module).unwrap();
+    check(&mut store, instance);
 }

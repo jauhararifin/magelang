@@ -401,7 +401,7 @@ fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, nod
         ExprNode::Struct(struct_lit_node) => get_expr_from_struct_lit_node(ctx, scope, struct_lit_node),
         ExprNode::Selection(selection_node) => get_expr_from_selection_node(ctx, scope, selection_node),
         ExprNode::Bracket(node) => get_expr_from_bracket_node(ctx, scope, node),
-        ExprNode::PtrType(..) | ExprNode::ArrayPtrType(..) | ExprNode::FuncType(..) => {
+        ExprNode::PtrType(..) | ExprNode::ArrayPtrType(..) | ExprNode::SlicePtrType(..) | ExprNode::FuncType(..) => {
             errors::report_expected_value(ctx.errors, node.pos());
             Expr {
                 ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
@@ -1099,13 +1099,11 @@ fn get_binary_shifts_exprs<'a, T: BinopEvaluator>(
 
     assert!(!a.ty.is_unknown() && !b.ty.is_unknown(), "neither a nor b should have unknown type");
 
-    if !a.ty.is_int() {
-        assert!(!b.ty.is_int(), "if a is not int, then b must be not int as well");
-        errors::report_binop_type_unsupported(ctx.errors, pos, T::name(), a.ty);
+    if !a.ty.is_int() || !b.ty.is_int() {
+        let unsupported_type = if !a.ty.is_int() { a.ty } else { b.ty };
+        errors::report_binop_type_unsupported(ctx.errors, pos, T::name(), unsupported_type);
         return Expr { ty: expected_ty, kind: ExprKind::Invalid, pos, assignable: false };
     }
-
-    assert!(a.ty.is_int() && b.ty.is_int());
     Expr { ty: expected_ty, kind: T::build(a, b), pos, assignable: false }
 }
 
@@ -1423,6 +1421,10 @@ fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &
 fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &StructExprNode) -> Expr<'a> {
     let ty = get_type_from_node(ctx, scope, &node.target);
 
+    if matches!(ty.repr, TypeRepr::SlicePtr(..)) {
+        return get_expr_from_slice_ptr_lit_node(ctx, scope, node, ty);
+    }
+
     let Some(struct_type) = ty.as_struct() else {
         if !ty.is_unknown() {
             errors::report_non_struct_type(ctx.errors, node.target.pos());
@@ -1434,12 +1436,12 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
             assignable: false,
         };
     };
-    let struct_body = struct_type.body.get().expect("missing struct body");
+    let fields = &struct_type.body.get().expect("missing struct body").fields;
 
     let mut values = HashMap::<Symbol, (Pos, Expr)>::default();
     for element in &node.elements {
         let field_name = ctx.define_symbol(&element.key.value);
-        let ty = struct_body.fields.get(&field_name).cloned().unwrap_or_else(|| {
+        let ty = fields.get(&field_name).cloned().unwrap_or_else(|| {
             errors::report_undeclared_field(ctx.errors, element.key.pos, &element.key.value);
             ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown })
         });
@@ -1469,8 +1471,8 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
         }
     }
 
-    let mut full_values = BumpVec::with_capacity_in(struct_body.fields.len(), ctx.arena);
-    for (field_name, type_id) in &struct_body.fields {
+    let mut full_values = BumpVec::with_capacity_in(fields.len(), ctx.arena);
+    for (field_name, type_id) in fields {
         if let Some((_, value)) = values.remove(field_name) {
             full_values.push(value)
         } else {
@@ -1479,6 +1481,59 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
     }
 
     Expr { ty, kind: ExprKind::StructLit(ty, full_values.into_bump_slice()), pos: node.pos, assignable: false }
+}
+
+fn get_expr_from_slice_ptr_lit_node<'a>(
+    ctx: &Context<'a, '_>,
+    scope: &Scope<'a>,
+    node: &StructExprNode,
+    ty: &'a Type<'a>,
+) -> Expr<'a> {
+    let TypeRepr::SlicePtr(element_type) = ty.repr else { unreachable!() };
+    let field_types = [
+        ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::ArrayPtr(element_type) }),
+        ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::ISize) }),
+    ];
+    let mut values = field_types.map(|ty| Expr { ty, kind: ExprKind::Zero, pos: node.pos, assignable: false });
+
+    for (i, element) in node.elements.iter().enumerate() {
+        let field_index = match element.key.value.as_str() {
+            "ptr" => Some(0),
+            "len" => Some(1),
+            _ => {
+                errors::report_undeclared_field(ctx.errors, element.key.pos, &element.key.value);
+                None
+            }
+        };
+        let field_type = field_index
+            .map(|index| field_types[index])
+            .unwrap_or_else(|| ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }));
+        let value = get_expr_from_node(ctx, scope, Some(field_type), &element.value);
+        let value = if !field_type.is_assignable_with(value.ty) {
+            errors::report_type_mismatch(ctx.errors, element.value.pos(), field_type, value.ty);
+            Expr {
+                ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+                kind: ExprKind::Invalid,
+                pos: element.pos,
+                assignable: false,
+            }
+        } else {
+            value
+        };
+
+        if let Some(previous) = node.elements[..i].iter().find(|previous| previous.key.value == element.key.value) {
+            errors::report_redeclared_field(
+                ctx.errors,
+                element.key.pos,
+                ctx.files.location(previous.key.pos),
+                &element.key.value,
+            );
+        } else if let Some(index) = field_index {
+            values[index] = value;
+        }
+    }
+
+    Expr { ty, kind: ExprKind::StructLit(ty, ctx.arena.alloc(values)), pos: node.pos, assignable: false }
 }
 
 fn get_expr_from_bracket_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketExprNode) -> Expr<'a> {
@@ -1547,6 +1602,28 @@ fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, no
     }
 
     let value = get_expr_from_node_internal(ctx, scope, &node.value);
+
+    if let TypeRepr::SlicePtr(element) = value.ty.repr {
+        let (idx, repr) = match node.selection.value.as_str() {
+            "ptr" => (0, TypeRepr::ArrayPtr(element)),
+            "len" => (1, TypeRepr::Int(false, BitSize::ISize)),
+            _ => {
+                errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
+                return Expr {
+                    ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+                    kind: ExprKind::Invalid,
+                    pos: node.value.pos(),
+                    assignable: false,
+                };
+            }
+        };
+        return Expr {
+            ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr }),
+            kind: ExprKind::GetElement(ctx.arena.alloc(value), idx),
+            pos: node.value.pos(),
+            assignable: false,
+        };
+    }
 
     let mut ty = value.ty;
     let mut is_ptr = false;
@@ -1626,7 +1703,7 @@ fn get_index_expr<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketEx
     let ty = value.ty;
 
     match ty.repr {
-        TypeRepr::ArrayPtr(element) => {
+        TypeRepr::ArrayPtr(element) | TypeRepr::SlicePtr(element) => {
             let [index_node] = node.args.as_slice() else {
                 errors::report_index_argument_count(ctx.errors, node.value.pos(), node.args.len());
                 return Expr { ty, kind: ExprKind::Invalid, pos: node.value.pos(), assignable: false };

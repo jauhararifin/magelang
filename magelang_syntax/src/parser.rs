@@ -787,6 +787,22 @@ fn parse_primary_expr(f: &mut FileParser) -> Option<ExprNode> {
         }
         TokenKind::Mul => {
             let tok = f.pop();
+
+            // special handling for *[*]T
+            let is_array_ptr = f.tokens.get(1).is_some_and(|t| t.kind == TokenKind::Mul)
+                && f.tokens.get(2).is_some_and(|t| t.kind == TokenKind::CloseSquare);
+            if f.kind() == &TokenKind::OpenSquare && !is_array_ptr {
+                f.pop();
+                let ty = parse_unary_expr(f, false).unwrap_or_else(|| {
+                    report_missing(f.errors, f.token().pos, "pointee type");
+                    ExprNode::Invalid(tok.pos)
+                });
+                if f.take(TokenKind::CloseSquare).is_none() {
+                    return Some(ExprNode::Invalid(tok.pos));
+                }
+                return Some(ExprNode::SlicePtrType(SlicePtrTypeNode { pos: tok.pos, ty: Box::new(ty) }));
+            }
+
             let ty = if let Some(ty) = parse_unary_expr(f, false) {
                 ty
             } else {

@@ -64,6 +64,25 @@ let _: [*]sometype = 10;
 let _: [*]package.sometype = 10;
 let _: [*]package.sometype[i32,package.package[i32]] = 10;
 let _: [*]package.sometype[i32,(package.package[i32])] = 10;
+let _: *[i32];
+let _: *[pkg.Box[i32]];
+let _: **[i32];
+let _: *[*i32];
+let _: *[[*]i32];
+let _: *[*]i32;
+let _: *[*[i32]];
+let _: *[fn(i32): *[u8]];
+let _: Box[*[i32]];
+//syntax_error line=+1 col=10: Missing pointee type
+let _: *[];
+//syntax_error line=+1 col=13: Expected ']', but found ';'
+let _: *[i32;
+//syntax_error line=+1 col=13: Expected ']', but found ','
+let _: *[i32, u8];
+//syntax_error line=+2 col=10: Missing pointee type
+//syntax_error line=+1 col=10: Expected ']', but found ';'
+let _: *[;
+let _: *[i32];
 //syntax_error line=+1 col=8: Missing pointee type
 let _: * = 10;
 let _: *package = 10;
@@ -137,6 +156,10 @@ let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct[a,b,c]{a: 10};
 let a: i32 = pkg.some_func[i32](a, b)[1].*;
+let _: *[i32] = *[i32]{ptr: data, len: count};
+let _: *i32 = *[i32]{ptr: data, len: count}[index];
+let _: usize = *[i32]{ptr: data, len: count}.len;
+let _: i32 = value as *[i32] + other;
 let a: pkg.Pair[i32]=pkg.Pair[i32]{value: 1};
 let a: bool = pkg.id[i32]==pkg.id[i32];
 let a: bool = pkg.id[pkg.Pair[i32]]==pkg.id[pkg.Pair[i32]];

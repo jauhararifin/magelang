@@ -59,6 +59,11 @@ impl<'ctx> TypeManager<'ctx> {
             TypeRepr::Float(FloatType::F32) => Rc::new(1u32.into()),
             TypeRepr::Float(FloatType::F64) => Rc::new(1u32.into()),
             TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => Rc::new(1u32.into()),
+            TypeRepr::SlicePtr(..) => Rc::new(StackLayout {
+                size: 2,
+                field_index: vec![0, 1],
+                components: vec![StackComponent { offset: 0, size: 1 }, StackComponent { offset: 1, size: 1 }],
+            }),
         }
     }
 
@@ -110,6 +115,12 @@ impl<'ctx> TypeManager<'ctx> {
             TypeRepr::Float(FloatType::F32) => Rc::new(MemLayout::primitive(4, 4)),
             TypeRepr::Float(FloatType::F64) => Rc::new(MemLayout::primitive(8, 8)),
             TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => Rc::new(MemLayout::primitive(4, 4)),
+            TypeRepr::SlicePtr(..) => Rc::new(MemLayout {
+                size: 8,
+                align: 4,
+                fields: vec![(0, 4), (4, 4)],
+                components: vec![MemComponent { offset: 0, align: 4 }, MemComponent { offset: 4, align: 4 }],
+            }),
         })
     }
 
@@ -247,6 +258,7 @@ pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<PrimitiveType> {
 
         TypeRepr::Ptr(..) => vec![PrimitiveType::U32],
         TypeRepr::ArrayPtr(..) => vec![PrimitiveType::U32],
+        TypeRepr::SlicePtr(..) => vec![PrimitiveType::U32, PrimitiveType::U32],
     }
 }
 
