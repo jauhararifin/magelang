@@ -508,6 +508,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd28f593c36afbdc9aa17305c0bb66c39ce0530e1caffcf389fbec053950083e"
 
 [[package]]
+name = "cranelift-module"
+version = "0.135.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89471cd942ab4d966b8c08a258a44042d98a9151dab90128da794e0ceb057927"
+dependencies = [
+ "anyhow",
+ "cranelift-codegen",
+ "cranelift-control",
+]
+
+[[package]]
 name = "cranelift-native"
 version = "0.135.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -515,6 +526,22 @@ checksum = "2987ca47affc261aa31ac643fb80dd7f8274cebf878003ba9f50cd6ff2c1055f"
 dependencies = [
  "cranelift-codegen",
  "libc",
+ "target-lexicon",
+]
+
+[[package]]
+name = "cranelift-object"
+version = "0.135.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "401741f8ba49bca6b5a2d87eb1118c02f375df87693c5bc422b6703625bd9a59"
+dependencies = [
+ "anyhow",
+ "cranelift-codegen",
+ "cranelift-control",
+ "cranelift-module",
+ "gimli",
+ "log",
+ "object",
  "target-lexicon",
 ]
 
@@ -1210,15 +1237,42 @@ checksum = "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b"
 name = "magelang"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "binaryen",
  "bumpalo",
  "clap",
+ "magelang_cranelift",
+ "magelang_llvm",
  "magelang_syntax",
  "magelang_typecheck",
  "magelang_wasmgen",
+ "tempfile",
  "wasm_helper",
  "wasmtime",
  "wasmtime-wasi",
+]
+
+[[package]]
+name = "magelang_cranelift"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "cranelift-codegen",
+ "cranelift-frontend",
+ "cranelift-module",
+ "cranelift-native",
+ "cranelift-object",
+ "magelang_syntax",
+ "magelang_typecheck",
+]
+
+[[package]]
+name = "magelang_llvm"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "magelang_syntax",
+ "magelang_typecheck",
 ]
 
 [[package]]

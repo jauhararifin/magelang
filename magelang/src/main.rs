@@ -1,5 +1,7 @@
+mod native;
+
 use bumpalo::Bump;
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use magelang_syntax::{parse, ErrorManager, FileManager};
 use magelang_typecheck::analyze;
 use magelang_wasmgen::generate;
@@ -14,6 +16,50 @@ use wasmtime_wasi::WasiCtxBuilder;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum Target {
+    Wasm,
+    Native,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+enum NativeBackend {
+    #[default]
+    Cranelift,
+    Llvm,
+}
+
+#[derive(Args)]
+struct CompileOptions {
+    package_name: String,
+
+    #[arg(short)]
+    debug: bool,
+
+    #[arg(short)]
+    noopt: bool,
+
+    /// Compilation target (native compiles for the current host).
+    #[arg(long, value_enum, default_value = "wasm")]
+    target: Target,
+
+    /// Native code generator (defaults to cranelift; requires --target native).
+    #[arg(long, value_enum)]
+    backend: Option<NativeBackend>,
+
+    /// Emit a native object file without linking (requires --target native).
+    #[arg(long)]
+    emit_object: bool,
+
+    /// Emit LLVM IR without invoking Clang (requires --target native --backend llvm).
+    #[arg(long, conflicts_with = "emit_object")]
+    emit_llvm: bool,
+
+    /// Output path (defaults to a.wasm, a.out, a.o, or a.ll).
+    #[arg(short, long)]
+    output: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -33,18 +79,7 @@ enum Commands {
         #[arg(short, long)]
         output: Option<std::path::PathBuf>,
     },
-    Compile {
-        package_name: String,
-
-        #[arg(short)]
-        debug: bool,
-
-        #[arg(short)]
-        noopt: bool,
-
-        #[arg(short, long, default_value = "./a.wasm")]
-        output: std::path::PathBuf,
-    },
+    Compile(CompileOptions),
     Run {
         package_name: String,
         #[arg(short)]
@@ -57,7 +92,7 @@ fn main() {
     match args.command {
         Commands::Parse { file_name, output } => parse_ast(file_name, output),
         Commands::Analyze { package_name, debug, output } => analyze_package(package_name, debug, output),
-        Commands::Compile { package_name, debug, noopt, output } => compile(package_name, debug, !noopt, output),
+        Commands::Compile(options) => compile(options),
         Commands::Run { package_name, debug } => run(package_name, debug),
     }
 }
@@ -116,7 +151,33 @@ fn analyze_package(package_name: String, debug: bool, output: Option<std::path::
     }
 }
 
-fn compile(package_name: String, debug: bool, optimize: bool, output: std::path::PathBuf) {
+fn compile(options: CompileOptions) {
+    let CompileOptions { package_name, debug, noopt, target, backend, emit_object, emit_llvm, output } = options;
+    let optimize = !noopt;
+    if emit_llvm && (target != Target::Native || backend != Some(NativeBackend::Llvm)) {
+        eprintln!("--emit-llvm requires --target native --backend llvm");
+        std::process::exit(1);
+    }
+    if backend.is_some() && target != Target::Native {
+        eprintln!("--backend requires --target native");
+        std::process::exit(1);
+    }
+    if emit_object && target != Target::Native {
+        eprintln!("--emit-object requires --target native");
+        std::process::exit(1);
+    }
+    let output = output.unwrap_or_else(|| {
+        if target == Target::Wasm {
+            "a.wasm"
+        } else if emit_object {
+            "a.o"
+        } else if emit_llvm {
+            "a.ll"
+        } else {
+            "a.out"
+        }
+        .into()
+    });
     let mut error_manager = if debug { ErrorManager::new_for_debug() } else { ErrorManager::default() };
     let mut file_manager = FileManager::default();
 
@@ -128,6 +189,16 @@ fn compile(package_name: String, debug: bool, optimize: bool, output: std::path:
         }
         std::process::exit(-1);
     };
+
+    if target == Target::Native {
+        if let Err(error) =
+            native::compile(&module, optimize, backend.unwrap_or_default(), emit_object, emit_llvm, &output)
+        {
+            eprintln!("Native compilation failed: {error:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
         for error in error_manager.take() {

@@ -1,6 +1,6 @@
 # Magelang
 
-Magelang is a programming language written in Rust. As for now, Magelang is only targetting web assembly.
+Magelang is a programming language written in Rust. It targets WebAssembly and has experimental Cranelift and LLVM backends for native executables.
 The syntax is similar to Go and Rust. Magelang is in early development stage and doesn't have a lot of features yet.
 Since it's still in early development stage, the language syntax and semantic are not stable yet and very likely
 to change.
@@ -19,9 +19,104 @@ cargo run -- compile <the_main_package> -o <output_path>
 cargo run -- compile examples/hello -o hello.wasm
 ```
 
+### Native executables (experimental)
+
+The native backends lower the type-checked, monomorphized program directly to Cranelift IR
+or LLVM IR, emit a native object, and link it with the system C toolchain. No WebAssembly
+intermediate or Wasm runtime is used. Cranelift remains the default native backend; select
+LLVM with `--target native --backend llvm`.
+
+```bash
+export MAGELANG_ROOT=./magelang
+cargo run -- compile examples/native_hello --target native -o hello
+./hello
+
+# Emit only an object file, for linking with additional C objects/libraries:
+cargo run -- compile examples/native_hello --target native --emit-object -o hello.o
+cc hello.o -o hello -lm
+```
+
+Native compilation targets the **current host** on macOS and Linux; cross-compilation and
+Windows are not supported yet. Executable generation requires `cc` (or set `CC` to a C compiler
+executable, e.g. `CC=/usr/bin/clang`). Object-only generation does not need a linker. Default
+outputs are `a.wasm`, `a.out`, and `a.o` respectively. `-n` disables optimization.
+
+#### LLVM backend
+
+```bash
+cargo run -- compile examples/native_hello --target native --backend llvm -o hello-llvm
+./hello-llvm
+
+# LLVM-generated native object:
+cargo run -- compile examples/native_hello --target native --backend llvm --emit-object -o hello.o
+cc hello.o -o hello -lm
+
+# Inspect the LLVM IR without needing Clang or a linker:
+cargo run -- compile examples/native_hello --target native --backend llvm --emit-llvm -o hello.ll
+```
+
+The LLVM backend emits textual LLVM IR with opaque pointers, then invokes **Clang 15+**
+(`clang` on `PATH`) to optimize and produce the native object. It does not require Rust LLVM
+bindings, `llvm-config`, or linking `libLLVM` into Magelang. Set `LLVM_CLANG` to use a particular
+Clang executable; `CC` independently selects the final linker driver:
+
+```bash
+LLVM_CLANG=/opt/homebrew/opt/llvm/bin/clang cargo run -- compile examples/native_hello --target native --backend llvm
+```
+
+LLVM currently supports **x86-64 and ARM64 hosts on macOS/Linux**. Object generation uses `-O2`
+by default or `-O0` with `-n`. `--emit-llvm` always writes the unoptimized, host-specific IR
+(default `a.ll`) and does not invoke any external tools. It cannot be combined with `--emit-object`.
+Both native backends support the language features and C imports below. LLVM lowering preserves
+wrapping arithmetic and masked shifts, and emits explicit traps for invalid integer division,
+float-to-integer conversion, and slice indexing rather than relying on LLVM undefined behavior.
+
+#### Native language support
+
+A native executable needs exactly one `@main()` function with no parameters or return value.
+Global initializers run in dependency order before it; normal completion exits with status zero.
+The emitted object also contains this C `main` entry point, so it is a program object, not a library.
+
+```text
+import native "std/native";
+
+@main()
+fn main() {
+    native.puts("Hello, native world!");
+}
+```
+
+`std/native` provides small libc bindings (`puts`, `putchar`, `malloc`, `free`, `exit`) and
+`size_of[T]()`, `align_of[T]()`, and `trap()`. Additional C functions can be declared using:
+
+```text
+@native_import("strlen")
+fn strlen(text: [*]u8): usize;
+```
+
+The declaration must match the C function's signature. Native imports support fixed-arity
+scalar and pointer arguments/results, including scalar function pointers; variadic calls and
+passing/returning structs or slices by value across the C boundary are not supported. Pass
+aggregates by pointer instead. Additional libraries can be linked manually using `--emit-object`.
+
+Both native backends support integers, floats, booleans, casts, control flow, scope-based `defer`,
+globals, generics, direct/indirect function calls, structs, pointers, strings, and bounds-checked
+slices. Pointers and `isize`/`usize` have the host's native width (64 bits on x86-64 and ARM64).
+Structs use declaration-order fields with natural alignment; slices contain a pointer and a
+native-width length. Invalid slice indices trap. Raw pointers are **not sandboxed**: addresses
+such as `1024 as *i32`, which may work in Wasm linear memory, are not valid native allocations.
+Use `native.malloc`/`native.free` instead.
+
+**Current limitations:** the existing `std/fmt`, `std/mem`, `std/vector`, and `std/wasi` depend
+on WebAssembly memory/WASI and are not ported to native. `@wasm_import`, memory/table/data-end
+intrinsics, Wasm `opaque` values, and global annotations such as `@embed_file` are rejected.
+`@wasm_export` is ignored for native builds; it does not create a native exported symbol.
+The portable `size_of`, `align_of`, `unreachable`, and floating-point floor/ceil intrinsics are
+supported. The `run` command still uses WebAssembly.
+
 ## Running
 
-Magelang produces a web assembly binary module. To run the web assembly, you can use javascript API from the browser
+By default, Magelang produces a web assembly binary module. To run the web assembly, you can use javascript API from the browser
 or any other web assembly runtime such as wasmtime. To run the web assembly module from wasmtime, you can try this:
 
 ```bash

@@ -1,0 +1,9 @@
+[package]
+name = "magelang_llvm"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+magelang_syntax = { path = "../magelang_syntax" }
+magelang_typecheck = { path = "../magelang_typecheck" }
