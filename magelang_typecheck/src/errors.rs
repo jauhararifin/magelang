@@ -31,6 +31,10 @@ pub(crate) fn report_type_arguments_count_mismatch(errors: &ErrorManager, pos: P
     errors.report(pos, format!("Expected {expected} type arguments, but found {found}"));
 }
 
+pub(crate) fn report_cannot_infer_type_argument(errors: &ErrorManager, pos: Pos, name: &str) {
+    errors.report(pos, format!("Cannot infer type argument {name}"));
+}
+
 pub(crate) fn report_type_mismatch(errors: &ErrorManager, pos: Pos, expected: impl Display, found: impl Display) {
     errors.report(pos, format!("Mismatch type, expected {expected} but found {found}"))
 }

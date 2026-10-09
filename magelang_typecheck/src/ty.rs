@@ -241,7 +241,8 @@ impl<'a> Type<'a> {
 
                     ctx.define_type(Type {
                         kind: TypeKind::Inst(InstType { def_id: inst_type.def_id, type_args: substituted_typeargs }),
-                        repr: TypeRepr::Func(func_type.substitute(ctx, substituted_typeargs)),
+                        // The signature is already specialized; remaining type parameters belong to the caller.
+                        repr: TypeRepr::Func(func_type.substitute(ctx, type_args)),
                     })
                 }
                 TypeKind::Anonymous => ctx.define_type(Type {

@@ -2,6 +2,7 @@ mod analyze;
 mod errors;
 mod expr;
 mod global_init;
+mod inference;
 mod interner;
 mod path;
 mod scope;

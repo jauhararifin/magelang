@@ -1,7 +1,8 @@
-use crate::analyze::{Context, Object, ValueObject};
+use crate::analyze::{Context, FuncObject, Object, ValueObject};
 use crate::errors;
+use crate::inference::{self, Constraint, ConstraintKind, InferTerm, InferenceError};
 use crate::scope::Scope;
-use crate::ty::{BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
+use crate::ty::{BitSize, FloatType, Type, TypeArg, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
@@ -254,7 +255,10 @@ pub(crate) fn get_expr_from_node<'a>(
     node: &ExprNode,
 ) -> Expr<'a> {
     let result = get_expr_from_node_internal(ctx, scope, node);
+    apply_expected_type(ctx, expected_type, result)
+}
 
+fn apply_expected_type<'a>(ctx: &Context<'a, '_>, expected_type: Option<&'a Type<'a>>, result: Expr<'a>) -> Expr<'a> {
     let Some(expected_type) = expected_type else {
         if let ExprKind::ConstInt(val) = result.kind {
             return Expr {
@@ -1338,7 +1342,17 @@ fn get_expr_from_unary_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: 
 }
 
 fn get_expr_from_call_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &CallExprNode) -> Expr<'a> {
-    let func_expr = get_expr_from_node_internal(ctx, scope, &node.callee);
+    let mut arguments = BumpVec::with_capacity_in(node.arguments.len(), ctx.arena);
+    for argument in &node.arguments {
+        arguments.push(get_expr_from_node_internal(ctx, scope, argument));
+    }
+
+    let func_expr = match get_named_object(ctx, scope, &node.callee).and_then(Object::as_value) {
+        Some(ValueObject::Func(func)) if !func.type_params.is_empty() => {
+            get_inferred_generic_func(ctx, node.callee.pos(), func, &arguments)
+        }
+        _ => get_expr_from_node_internal(ctx, scope, &node.callee),
+    };
     let func_type = func_expr.ty;
 
     let TypeRepr::Func(func_type) = &func_type.repr else {
@@ -1357,24 +1371,98 @@ fn get_expr_from_call_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &
         errors::report_wrong_number_of_arguments(ctx.errors, node.pos, func_type.params.len(), node.arguments.len());
     }
 
-    let mut arguments = BumpVec::with_capacity_in(node.arguments.len(), ctx.arena);
-    for (i, arg) in node.arguments.iter().enumerate() {
-        let arg_expr = get_expr_from_node(ctx, scope, func_type.params.get(i).cloned(), arg);
-        arguments.push(arg_expr);
+    let mut typed_arguments = BumpVec::with_capacity_in(arguments.len(), ctx.arena);
+    for (i, argument) in arguments.into_iter().enumerate() {
+        typed_arguments.push(apply_expected_type(ctx, func_type.params.get(i).copied(), argument));
     }
 
-    for (i, (arg, param)) in zip(&arguments, func_type.params).enumerate() {
-        if !param.is_assignable_with(arg.ty) {
-            errors::report_type_mismatch(ctx.errors, node.arguments[i].pos(), param, arg.ty);
+    for (i, (argument, parameter)) in zip(&typed_arguments, func_type.params).enumerate() {
+        if !parameter.is_assignable_with(argument.ty) {
+            errors::report_type_mismatch(ctx.errors, node.arguments[i].pos(), parameter, argument.ty);
         }
     }
 
     Expr {
         ty: func_type.return_type,
-        kind: ExprKind::Call(ctx.arena.alloc(func_expr), arguments.into_bump_slice()),
+        kind: ExprKind::Call(ctx.arena.alloc(func_expr), typed_arguments.into_bump_slice()),
         pos: node.pos,
         assignable: false,
     }
+}
+
+fn get_named_object<'a, 'b>(ctx: &'b Context<'a, '_>, scope: &'b Scope<'a>, node: &ExprNode) -> Option<&'b Object<'a>> {
+    match node {
+        ExprNode::Ident(name) => scope.lookup(ctx.define_symbol(&name.value)),
+        ExprNode::Selection(selection) => {
+            let mut package = selection.value.as_ref();
+            while let ExprNode::Grouped(inner) = package {
+                package = inner;
+            }
+            let ExprNode::Ident(package) = package else {
+                return None;
+            };
+            let Object::Import(import) = scope.lookup(ctx.define_symbol(&package.value))? else {
+                return None;
+            };
+            ctx.scopes.get(&import.package)?.lookup(ctx.define_symbol(&selection.selection.value))
+        }
+        ExprNode::Grouped(inner) => get_named_object(ctx, scope, inner),
+        _ => None,
+    }
+}
+
+fn get_inferred_generic_func<'a>(
+    ctx: &Context<'a, '_>,
+    pos: Pos,
+    func: &FuncObject<'a>,
+    arguments: &[Expr<'a>],
+) -> Expr<'a> {
+    let func_type = func.ty.as_func().expect("generic function has function type");
+    if arguments.len() != func_type.params.len() {
+        errors::report_wrong_number_of_arguments(ctx.errors, pos, func_type.params.len(), arguments.len());
+        return Expr {
+            ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    }
+    let constraints = zip(arguments, func_type.params)
+        .map(|(argument, parameter)| Constraint {
+            kind: ConstraintKind::Assignable { target: InferTerm::Parameter(parameter), source: argument.ty },
+            pos: argument.pos,
+        })
+        .collect();
+    let Some(type_args) = get_inferred_type_arguments(ctx, pos, func.type_params, constraints) else {
+        return Expr {
+            ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+            kind: ExprKind::Invalid,
+            pos,
+            assignable: false,
+        };
+    };
+    let instance_type = func.ty.specialize(ctx, type_args);
+    Expr { ty: instance_type, kind: ExprKind::FuncInst(func.def_id, type_args), pos, assignable: false }
+}
+
+fn get_inferred_type_arguments<'a>(
+    ctx: &Context<'a, '_>,
+    pos: Pos,
+    type_params: &[TypeArg<'a>],
+    constraints: Vec<Constraint<'a>>,
+) -> Option<&'a TypeArgs<'a>> {
+    match inference::solve(ctx, type_params.len(), constraints) {
+        Ok(type_args) => return Some(type_args),
+        Err(InferenceError::Underconstrained(indices)) => {
+            for index in indices {
+                errors::report_cannot_infer_type_argument(ctx.errors, pos, type_params[index].name);
+            }
+        }
+        Err(InferenceError::Conflict { pos, expected, actual }) => {
+            errors::report_type_mismatch(ctx.errors, pos, expected, actual);
+        }
+    }
+    None
 }
 
 fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &CastExprNode) -> Expr<'a> {
@@ -1421,7 +1509,17 @@ fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &
 }
 
 fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &StructExprNode) -> Expr<'a> {
-    let ty = get_type_from_node(ctx, scope, &node.target);
+    let mut element_values = BumpVec::with_capacity_in(node.elements.len(), ctx.arena);
+    for element in &node.elements {
+        element_values.push(get_expr_from_node_internal(ctx, scope, &element.value));
+    }
+
+    let ty = match get_named_object(ctx, scope, &node.target).and_then(Object::as_type) {
+        Some(object) if matches!(object.ty.kind, TypeKind::GenericStruct(..)) => {
+            get_inferred_generic_struct(ctx, node, object.ty, &element_values)
+        }
+        _ => get_type_from_node(ctx, scope, &node.target),
+    };
 
     let Some(struct_type) = ty.as_struct() else {
         if !ty.is_unknown() {
@@ -1437,16 +1535,16 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
     let struct_body = struct_type.body.get().expect("missing struct body");
 
     let mut values = HashMap::<Symbol, (Pos, Expr)>::default();
-    for element in &node.elements {
+    for (element, value) in zip(&node.elements, element_values.into_iter()) {
         let field_name = ctx.define_symbol(&element.key.value);
-        let ty = struct_body.fields.get(&field_name).cloned().unwrap_or_else(|| {
+        let field_type = struct_body.fields.get(&field_name).cloned().unwrap_or_else(|| {
             errors::report_undeclared_field(ctx.errors, element.key.pos, &element.key.value);
             ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown })
         });
-        let value = get_expr_from_node(ctx, scope, Some(ty), &element.value);
+        let value = apply_expected_type(ctx, Some(field_type), value);
 
-        let value = if !ty.is_assignable_with(value.ty) {
-            errors::report_type_mismatch(ctx.errors, element.value.pos(), ty, value.ty);
+        let value = if !field_type.is_assignable_with(value.ty) {
+            errors::report_type_mismatch(ctx.errors, element.value.pos(), field_type, value.ty);
             Expr {
                 ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
                 kind: ExprKind::Invalid,
@@ -1481,6 +1579,40 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
     Expr { ty, kind: ExprKind::StructLit(ty, full_values.into_bump_slice()), pos: node.pos, assignable: false }
 }
 
+fn get_inferred_generic_struct<'a>(
+    ctx: &Context<'a, '_>,
+    node: &StructExprNode,
+    ty: &'a Type<'a>,
+    values: &[Expr<'a>],
+) -> &'a Type<'a> {
+    let TypeKind::GenericStruct(generic_struct) = &ty.kind else { unreachable!("expected generic struct") };
+    let struct_body = ty.as_struct().expect("generic struct has struct type").body.get().expect("missing struct body");
+    let mut constraints = Vec::with_capacity(values.len());
+    let mut visited_fields = HashMap::new();
+    for (element, value) in zip(&node.elements, values) {
+        let field_name = ctx.define_symbol(&element.key.value);
+        if let Some(declared_at) = visited_fields.get(&field_name) {
+            errors::report_redeclared_field(ctx.errors, element.key.pos, ctx.files.location(*declared_at), field_name);
+            continue;
+        }
+        visited_fields.insert(field_name, element.key.pos);
+        if let Some(field_type) = struct_body.fields.get(&field_name) {
+            constraints.push(Constraint {
+                kind: ConstraintKind::Assignable { target: InferTerm::Parameter(field_type), source: value.ty },
+                pos: element.value.pos(),
+            });
+        } else {
+            errors::report_undeclared_field(ctx.errors, element.key.pos, field_name);
+        }
+    }
+
+    let Some(type_args) = get_inferred_type_arguments(ctx, node.target.pos(), generic_struct.type_params, constraints)
+    else {
+        return ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
+    };
+    ty.specialize(ctx, type_args)
+}
+
 fn get_expr_from_bracket_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketExprNode) -> Expr<'a> {
     get_generic_instantiation_expr(ctx, scope, node).unwrap_or_else(|| get_index_expr(ctx, scope, node))
 }
@@ -1490,29 +1622,7 @@ fn get_generic_instantiation_expr<'a>(
     scope: &Scope<'a>,
     node: &BracketExprNode,
 ) -> Option<Expr<'a>> {
-    let mut base = node.value.as_ref();
-    while let ExprNode::Grouped(inner) = base {
-        base = inner;
-    }
-    let object = match base {
-        ExprNode::Ident(name) => scope.lookup(ctx.define_symbol(&name.value)),
-        ExprNode::Selection(selection) => {
-            let mut package = selection.value.as_ref();
-            while let ExprNode::Grouped(inner) = package {
-                package = inner;
-            }
-            let ExprNode::Ident(package) = package else {
-                return None;
-            };
-            let symbol = ctx.define_symbol(&package.value);
-            let Object::Import(import) = scope.lookup(symbol)? else {
-                return None;
-            };
-            let name = ctx.define_symbol(&selection.selection.value);
-            ctx.scopes.get(&import.package)?.lookup(name)
-        }
-        _ => return None,
-    }?;
+    let object = get_named_object(ctx, scope, &node.value)?;
     let ValueObject::Func(function) = object.as_value()? else {
         return None;
     };

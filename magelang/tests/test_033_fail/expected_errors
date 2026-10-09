@@ -1,0 +1,22 @@
+tests/test_033_fail/main.mg:19:12: Mismatch type, expected A but found B
+tests/test_033_fail/main.mg:23:9: Mismatch type, expected T but found untyped int
+tests/test_033_fail/main.mg:29:12: Mismatch type, expected i32 but found i64
+tests/test_033_fail/main.mg:30:35: Mismatch type, expected i32 but found i64
+tests/test_033_fail/main.mg:31:3: Cannot infer type argument T
+tests/test_033_fail/main.mg:32:3: Cannot infer type argument T
+tests/test_033_fail/main.mg:33:16: Cannot infer type argument T
+tests/test_033_fail/main.mg:34:15: Cannot infer type argument T
+tests/test_033_fail/main.mg:35:9: Mismatch type, expected bool but found untyped int
+tests/test_033_fail/main.mg:36:9: Mismatch type, expected tests/test_033_fail/main::Box::<T> but found i32
+tests/test_033_fail/main.mg:37:9: Mismatch type, expected tests/test_033_fail/main::Box::<T> but found tests/test_033_fail/main::Other::<i32>
+tests/test_033_fail/main.mg:38:34: Mismatch type, expected tests/test_033_fail/main::A but found tests/test_033_fail/main::B
+tests/test_033_fail/main.mg:39:21: Mismatch type, expected tests/test_033_fail/main::A but found tests/test_033_fail/main::B
+tests/test_033_fail/main.mg:40:8: Mismatch type, expected fn(A):B but found fn(i32,i32):i32
+tests/test_033_fail/main.mg:41:3: Expected 2 arguments, but found 1
+tests/test_033_fail/main.mg:42:3: Expected 1 arguments, but found 2
+tests/test_033_fail/main.mg:43:17: Cannot infer type argument T
+tests/test_033_fail/main.mg:43:21: The field other is not declared yet
+tests/test_033_fail/main.mg:44:33: Field left is already declared at tests/test_033_fail/main.mg:44:24
+tests/test_033_fail/main.mg:44:39: Mismatch type, expected i32 but found i64
+tests/test_033_fail/main.mg:45:18: Expected 1 type arguments, but found 2
+tests/test_033_fail/main.mg:50:3: Cannot infer type argument B
