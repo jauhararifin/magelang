@@ -78,14 +78,11 @@ pub(crate) fn build_init_function<'a, 'ctx>(
         };
 
         let instrs = if let ExprKind::Zero = global.value.kind {
-            if !global.ty.is_byte_array() {
-                continue;
-            }
             let Some((_, path)) = data_manager.get_embed_file_annotation(&global.annotations) else {
                 continue;
             };
-            let ptr = data_manager.get_file(path).expect("missing path");
-            vec![wasm::Instr::I32Const(ptr as i32)]
+            let (ptr, len) = data_manager.get_file(path).expect("missing path");
+            vec![wasm::Instr::I32Const(ptr as i32), wasm::Instr::I32Const(len as i32)]
         } else {
             exprs.build(&global.value)
         };

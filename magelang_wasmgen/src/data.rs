@@ -1,10 +1,8 @@
 use crate::context::Context;
 use crate::errors;
 use magelang_syntax::Pos;
-use magelang_typecheck::{Annotation, Expr, ExprKind, Statement};
+use magelang_typecheck::{Annotation, Expr, ExprKind, Global, Statement};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 use std::rc::Rc;
 use wasm_helper as wasm;
@@ -15,7 +13,7 @@ pub(crate) struct DataManager<'ctx> {
     ctx: Context<'ctx>,
 
     literals: HashMap<&'ctx [u8], usize>,
-    files: HashMap<Rc<Path>, usize>,
+    files: HashMap<Rc<Path>, (usize, usize)>,
     next_offset: usize,
     data: Vec<(&'ctx [u8], usize)>,
 }
@@ -116,8 +114,8 @@ impl<'ctx> DataManager<'ctx> {
         self.literals.get(bytes).cloned()
     }
 
-    pub(crate) fn get_file(&self, path: &Path) -> Option<usize> {
-        self.files.get(path).cloned()
+    pub(crate) fn get_file(&self, path: &Path) -> Option<(usize, usize)> {
+        self.files.get(path).copied()
     }
 
     pub(crate) fn take(self) -> Data<'ctx> {
@@ -149,7 +147,7 @@ impl<'ctx> DataManager<'ctx> {
             self.init_from_expr(&global.value);
         }
         for global in globals {
-            self.init_from_annotations(&global.annotations);
+            self.init_from_annotations(global);
         }
 
         let functions = self.ctx.module.packages.iter().flat_map(|pkg| &pkg.functions);
@@ -158,16 +156,27 @@ impl<'ctx> DataManager<'ctx> {
         }
     }
 
-    fn init_from_annotations(&mut self, annotations: &'ctx [Annotation]) {
-        let Some((pos, filepath)) = self.get_embed_file_annotation(annotations) else {
+    fn init_from_annotations(&mut self, global: &'ctx Global<'ctx>) {
+        let Some((pos, filepath)) = self.get_embed_file_annotation(&global.annotations) else {
             return;
         };
+        if !global.ty.is_byte_slice() || !matches!(global.value.kind, ExprKind::Zero) {
+            self.ctx.errors.report(pos, "@embed_file requires an uninitialized *[u8] global".into());
+            return;
+        }
 
-        let buff = self.get_file_contents(pos, filepath);
-
+        let mut buff = match std::fs::read(filepath) {
+            Ok(buff) => buff,
+            Err(err) => {
+                errors::report_cannot_read_file(self.ctx.errors, pos, filepath, err);
+                Vec::new()
+            }
+        };
+        buff.push(0);
+        let buff = self.ctx.arena.alloc_slice_copy(&buff);
         let next_offset = self.next_offset;
         self.next_offset += buff.len();
-        self.files.insert(filepath.into(), next_offset);
+        self.files.insert(filepath.into(), (next_offset, buff.len() - 1));
         self.data.push((buff, next_offset));
     }
 
@@ -219,25 +228,6 @@ impl<'ctx> DataManager<'ctx> {
             }
             Statement::Native | Statement::Return(..) | Statement::Continue | Statement::Break => {}
         }
-    }
-
-    fn get_file_contents(&self, pos: Pos, filepath: &Path) -> &'ctx [u8] {
-        let mut f = match File::open(filepath) {
-            Ok(f) => f,
-            Err(err) => {
-                errors::report_cannot_read_file(self.ctx.errors, pos, filepath, err);
-                return &[];
-            }
-        };
-
-        let mut buff = Vec::default();
-        if let Err(err) = f.read_to_end(&mut buff) {
-            errors::report_cannot_read_file(self.ctx.errors, pos, filepath, err);
-            return &[];
-        }
-        buff.push(0);
-
-        self.ctx.arena.alloc_slice_copy(&buff)
     }
 
     pub(crate) fn get_embed_file_annotation(&self, annotations: &'ctx [Annotation]) -> Option<(Pos, &'ctx Path)> {

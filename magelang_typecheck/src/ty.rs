@@ -307,9 +307,9 @@ impl<'a> Type<'a> {
         self.is_unknown() || matches!(self.repr, TypeRepr::Float(FloatType::F64))
     }
 
-    pub fn is_byte_array(&self) -> bool {
+    pub fn is_byte_slice(&self) -> bool {
         self.is_unknown()
-            || if let TypeRepr::ArrayPtr(element_ty) = self.repr {
+            || if let TypeRepr::SlicePtr(element_ty) = self.repr {
                 matches!(element_ty.repr, TypeRepr::Int(false, BitSize::I8))
             } else {
                 false
