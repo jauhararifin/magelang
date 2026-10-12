@@ -1,5 +1,5 @@
 use bumpalo::Bump;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use magelang_syntax::{parse, ErrorManager, FileManager};
 use magelang_typecheck::analyze;
 use magelang_wasmgen::generate;
@@ -14,6 +14,12 @@ use wasmtime_wasi::WasiCtxBuilder;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum Backend {
+    Wasm,
+    Naive,
 }
 
 #[derive(Subcommand)]
@@ -42,8 +48,16 @@ enum Commands {
         #[arg(short)]
         noopt: bool,
 
-        #[arg(short, long, default_value = "./a.wasm")]
-        output: std::path::PathBuf,
+        /// Code generation backend (naive targets Apple ARM64).
+        #[arg(long, value_enum, default_value = "wasm")]
+        backend: Backend,
+
+        /// Emit assembly text instead of linking (naive backend only).
+        #[arg(long)]
+        emit_asm: bool,
+
+        #[arg(short, long)]
+        output: Option<std::path::PathBuf>,
     },
     Run {
         package_name: String,
@@ -57,7 +71,9 @@ fn main() {
     match args.command {
         Commands::Parse { file_name, output } => parse_ast(file_name, output),
         Commands::Analyze { package_name, debug, output } => analyze_package(package_name, debug, output),
-        Commands::Compile { package_name, debug, noopt, output } => compile(package_name, debug, !noopt, output),
+        Commands::Compile { package_name, debug, noopt, backend, emit_asm, output } => {
+            compile(package_name, debug, !noopt, backend, emit_asm, output)
+        }
         Commands::Run { package_name, debug } => run(package_name, debug),
     }
 }
@@ -116,7 +132,26 @@ fn analyze_package(package_name: String, debug: bool, output: Option<std::path::
     }
 }
 
-fn compile(package_name: String, debug: bool, optimize: bool, output: std::path::PathBuf) {
+fn compile(
+    package_name: String,
+    debug: bool,
+    optimize: bool,
+    backend: Backend,
+    emit_asm: bool,
+    output: Option<std::path::PathBuf>,
+) {
+    if emit_asm && backend != Backend::Naive {
+        eprintln!("--emit-asm requires --backend naive");
+        std::process::exit(1);
+    }
+    let output = output.unwrap_or_else(|| {
+        match (backend, emit_asm) {
+            (Backend::Wasm, _) => "./a.wasm",
+            (Backend::Naive, true) => "./a.s",
+            (Backend::Naive, false) => "./a.out",
+        }
+        .into()
+    });
     let mut error_manager = if debug { ErrorManager::new_for_debug() } else { ErrorManager::default() };
     let mut file_manager = FileManager::default();
 
@@ -128,6 +163,22 @@ fn compile(package_name: String, debug: bool, optimize: bool, output: std::path:
         }
         std::process::exit(-1);
     };
+
+    if backend == Backend::Naive {
+        let Some(assembly) = magelang_naivegen::generate(&error_manager, &module) else {
+            for error in error_manager.take() {
+                eprintln!("{}", error.display(&file_manager));
+            }
+            std::process::exit(1);
+        };
+        let result =
+            if emit_asm { std::fs::write(&output, assembly) } else { magelang_naivegen::compile(&assembly, &output) };
+        if let Err(error) = result {
+            eprintln!("Cannot compile {}: {error}", output.display());
+            std::process::exit(1);
+        }
+        return;
+    }
 
     let Some(wasm_module) = generate(&arena, &file_manager, &error_manager, &module) else {
         for error in error_manager.take() {

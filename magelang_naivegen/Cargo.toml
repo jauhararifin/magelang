@@ -1,0 +1,12 @@
+[package]
+name = "magelang_naivegen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+magelang_syntax = { path = "../magelang_syntax" }
+magelang_typecheck = { path = "../magelang_typecheck" }
+
+[dev-dependencies]
+bumpalo = "3.14.0"
+tempfile = "3"

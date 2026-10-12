@@ -10,8 +10,12 @@ bumpalo = "3.14.0"
 magelang_syntax = { path = "../magelang_syntax" }
 magelang_typecheck = { path = "../magelang_typecheck" }
 magelang_wasmgen = { path = "../magelang_wasmgen" }
+magelang_naivegen = { path = "../magelang_naivegen" }
 wasm_helper = { path = "../wasm_helper" }
 clap = { version = "4.0", features = ["derive"] }
 wasmtime = "48.0.1"
 wasmtime-wasi = "48.0.1"
 binaryen = "0.13.0"
+
+[dev-dependencies]
+tempfile = "3"

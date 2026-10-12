@@ -59,6 +59,7 @@ test_success!(test_029_fail);
 test_success!(test_030_fail);
 test_success!(test_slice_ptr);
 test_success!(test_slice_ptr_fail);
+test_success!(test_embed_file);
 
 #[test]
 fn test_slice_ptr_bounds() {

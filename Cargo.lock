@@ -1213,12 +1213,24 @@ dependencies = [
  "binaryen",
  "bumpalo",
  "clap",
+ "magelang_naivegen",
  "magelang_syntax",
  "magelang_typecheck",
  "magelang_wasmgen",
+ "tempfile",
  "wasm_helper",
  "wasmtime",
  "wasmtime-wasi",
+]
+
+[[package]]
+name = "magelang_naivegen"
+version = "0.1.0"
+dependencies = [
+ "bumpalo",
+ "magelang_syntax",
+ "magelang_typecheck",
+ "tempfile",
 ]
 
 [[package]]

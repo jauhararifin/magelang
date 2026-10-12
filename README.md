@@ -1,6 +1,7 @@
 # Magelang
 
-Magelang is a programming language written in Rust. As for now, Magelang is only targetting web assembly.
+Magelang is a programming language written in Rust. It targets WebAssembly and, through the experimental
+`magelang_naivegen` backend, native Apple ARM64 (macOS).
 The syntax is similar to Go and Rust. Magelang is in early development stage and doesn't have a lot of features yet.
 Since it's still in early development stage, the language syntax and semantic are not stable yet and very likely
 to change.
@@ -18,6 +19,61 @@ cargo run -- compile <the_main_package> -o <output_path>
 # Example:
 cargo run -- compile examples/hello -o hello.wasm
 ```
+
+### Native Apple ARM64 backend
+
+On an Apple Silicon Mac with `clang` (Xcode Command Line Tools):
+
+```bash
+cargo run -- compile examples/native_hello --backend naive -o hello
+./hello
+
+# Inspect the unoptimized assembly, or assemble/link it yourself:
+cargo run -- compile examples/native_hello --backend naive --emit-asm -o hello.s
+clang -target arm64-apple-macos11 hello.s -o hello
+```
+
+The defaults are `a.wasm` for the Wasm backend, `a.out` for native executables, and
+`a.s` with `--emit-asm`. WebAssembly remains the default backend; `run` still uses Wasmtime.
+The naive backend never optimizes, regardless of the `-n` flag. Assembly emission does not
+require `clang`; assembling/linking requires an Apple toolchain and macOS SDK.
+
+All parameters and locals are stored in stack frames. Expressions push their operands onto
+16-byte-aligned stack slots, pop them into scratch registers, perform the operation, and
+push the result. Mage-to-Mage calls use a private stack-only convention, including aggregate
+arguments/results. There is no register allocation or backend optimization pass (the shared
+frontend still evaluates untyped constant expressions).
+
+The backend supports integers, floats, structs, generics, function values, globals, pointers,
+slices with bounds checks, loops, short-circuit operators, and `defer`. Pointers and
+`isize`/`usize` are 64-bit; structs use natural field alignment.
+
+Use `@native_import("symbol")` on a bodyless function for **fixed-arity C calls**:
+
+```text
+@native_import("puts")
+fn puts(message: [*]u8): i32;
+
+@main()
+fn main() {
+  puts("Hello from native Magelang!");
+}
+```
+
+Imports bridge to Apple's ARM64 C ABI and accept scalar numeric/boolean values and pointers;
+aggregate-by-value signatures, function callbacks, variadic functions, and native exports are
+not supported. A declaration must match the actual C signature. Native memory can be obtained
+from imported `malloc`/`free`; numeric addresses previously used for Wasm linear memory are
+not valid native allocations.
+
+Supported intrinsics are `size_of`, `align_of`, `unreachable`, `f32.floor`, `f64.floor`,
+`f32.ceil`, and `f64.ceil`. `@embed_file` initializes a `*[u8]` global with the file's byte length
+and stores an additional trailing zero outside the slice. Wasm annotations and
+Wasm-specific intrinsics are rejected explicitly. The existing `std/wasm`, `std/wasi`,
+`std/mem`, and `std/fmt` modules target Wasm and are not a native standard library.
+
+For a native SDL3/OpenGL RGB triangle, see [`examples/hello-sdl`](examples/hello-sdl/README.md),
+which includes a build script and a framebuffer-readback smoke test.
 
 ## Running
 
