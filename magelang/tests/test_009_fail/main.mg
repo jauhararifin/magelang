@@ -27,6 +27,6 @@ fn not_assignable() {
 }
 
 fn string_receiver() {
-  let s: [*]u8 = "abc";
+  let s: string = "abc";
   s += 1;
 }

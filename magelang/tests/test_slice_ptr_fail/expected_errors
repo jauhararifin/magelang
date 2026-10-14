@@ -2,7 +2,7 @@ tests/test_slice_ptr_fail/main.mg:2:15: Expected a value expression
 tests/test_slice_ptr_fail/main.mg:3:30: Mismatch type, expected *[u8] but found *[i32]
 tests/test_slice_ptr_fail/main.mg:4:23: Mismatch type, expected [*]i32 but found *[i32]
 tests/test_slice_ptr_fail/main.mg:5:23: Mismatch type, expected *[i32] but found [*]i32
-tests/test_slice_ptr_fail/main.mg:6:31: Mismatch type, expected [*]i32 but found [*]u8
+tests/test_slice_ptr_fail/main.mg:6:31: Mismatch type, expected [*]i32 but found *[u8]
 tests/test_slice_ptr_fail/main.mg:7:41: Mismatch type, expected usize but found i32
 tests/test_slice_ptr_fail/main.mg:8:44: Field len is already declared at tests/test_slice_ptr_fail/main.mg:8:36
 tests/test_slice_ptr_fail/main.mg:9:24: The field data is not declared yet

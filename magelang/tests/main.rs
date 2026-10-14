@@ -63,6 +63,7 @@ test_success!(test_tuple);
 test_success!(test_tuple_fail);
 test_success!(test_tuple_recursive_fail);
 test_success!(test_tuple_codegen_fail);
+test_success!(test_string);
 
 #[test]
 fn test_slice_ptr_bounds() {

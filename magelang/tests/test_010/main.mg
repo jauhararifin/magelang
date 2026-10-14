@@ -260,7 +260,7 @@ fn test_generic() {
 }
 
 fn test_string_literal_in_defer() {
-  let s: [*]u8 = "zzz";
+  let s: string = "zzz";
   {
     defer s = "deferred";
     assert_equal[u8](122, s[0].*);

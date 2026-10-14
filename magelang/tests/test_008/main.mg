@@ -247,10 +247,10 @@ fn test_unconditional_jump() {
 fn test_string_literal_in_init_and_update() {
   // the string literals below only appear in the init and the update statement, so they are only
   // put in the data segment if the data collector walks those statements.
-  let s: [*]u8 = "zzz";
+  let s: string = "zzz";
   let n: i32 = 0;
   assert_equal[u8](122, s[0].*);
-  for let t: [*]u8 = "init"; n < 2; s = "post" {
+  for let t: string = "init"; n < 2; s = "post" {
     n = n + 1;
     assert_equal[u8](105, t[0].*);
   }

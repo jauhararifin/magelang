@@ -13,7 +13,7 @@ struct Node[T] {
 }
 
 let global_length: usize = global_items.len;
-let global_items: *[u8] = *[u8]{ptr: "abc", len: message_length};
+let global_items: *[u8] = *[u8]{ptr: "abc".ptr, len: message_length};
 let message_length: usize = 3;
 let empty_global: *[i32];
 let active: *[i32];

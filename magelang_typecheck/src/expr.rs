@@ -608,13 +608,18 @@ fn get_expr_from_char_lit<'a>(ctx: &Context<'a, '_>, char_lit: &CharLit) -> Expr
 
 fn get_expr_from_string_lit<'a>(ctx: &Context<'a, '_>, token: &StringLit) -> Expr<'a> {
     let u8_ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::I8) });
-    let ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::ArrayPtr(u8_ty) });
+    let array_ptr_ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::ArrayPtr(u8_ty) });
 
     let mut bytes = token.value.clone();
     bytes.push(0);
-
     let bytes = ctx.arena.alloc_slice_copy(&bytes);
-    Expr { ty, kind: ExprKind::Bytes(bytes), pos: token.pos, assignable: false }
+    let ptr = Expr { ty: array_ptr_ty, kind: ExprKind::Bytes(bytes), pos: token.pos, assignable: false };
+
+    let len_ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(false, BitSize::ISize) });
+    let len =
+        Expr { ty: len_ty, kind: ExprKind::ConstIsize(token.value.len() as u64), pos: token.pos, assignable: false };
+    let ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::SlicePtr(u8_ty) });
+    Expr { ty, kind: ExprKind::CompositeLit(ctx.arena.alloc([ptr, len])), pos: token.pos, assignable: false }
 }
 
 fn get_expr_from_binary_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BinaryExprNode) -> Expr<'a> {

@@ -389,6 +389,7 @@ fn get_builtin_scope<'a>(ctx: &Context<'a, '_>) -> Scope<'a> {
     let void_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Void });
     let opaque_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Opaque });
     let bool_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool });
+    let string_type = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::SlicePtr(u8_type) });
 
     let builtin_scope = Scope::new(IndexMap::from([
         (ctx.define_symbol("i8"), i8_type.into()),
@@ -406,6 +407,7 @@ fn get_builtin_scope<'a>(ctx: &Context<'a, '_>) -> Scope<'a> {
         (ctx.define_symbol("void"), void_type.into()),
         (ctx.define_symbol("opaque"), opaque_type.into()),
         (ctx.define_symbol("bool"), bool_type.into()),
+        (ctx.define_symbol("string"), string_type.into()),
     ]));
 
     builtin_scope

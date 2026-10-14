@@ -1,13 +1,8 @@
-struct IoVec {
-  p:   [*]u8,
-  len: usize,
-}
-
 @wasm_import("wasi_snapshot_preview1", "fd_read")
-fn fd_read(fd: usize, iovec_addr: *IoVec, count: usize, n_read: *i32): i32;
+fn fd_read(fd: usize, iovec_addr: **[u8], count: usize, n_read: *i32): i32;
 
 @wasm_import("wasi_snapshot_preview1", "fd_write")
-fn fd_write(fd: usize, iovec_addr: *IoVec, count: usize, n_written_ptr: *i32): i32;
+fn fd_write(fd: usize, iovec_addr: **[u8], count: usize, n_written_ptr: *i32): i32;
 
 @wasm_import("wasi_snapshot_preview1", "fd_close")
 fn fd_close(fd: i32): u16;
@@ -15,7 +10,7 @@ fn fd_close(fd: i32): u16;
 @wasm_import("wasi_snapshot_preview1", "sock_recv")
 fn sock_recv(
   fd: i32,
-  ri_data: [*]IoVec,
+  ri_data: [*]*[u8],
   count: usize,
   ri_flags: u16,
   ro_count: *usize,
@@ -23,7 +18,7 @@ fn sock_recv(
 ): u16;
 
 @wasm_import("wasi_snapshot_preview1", "sock_send")
-fn sock_send(fd: i32, si_data: [*]IoVec, count: usize, si_flags: u16, n_written: *usize): u16;
+fn sock_send(fd: i32, si_data: [*]*[u8], count: usize, si_flags: u16, n_written: *usize): u16;
 
 @wasm_import("wasi_snapshot_preview1", "sock_accept")
 fn sock_accept(fd: i32, flags: u16, out_fd: *i32): u16;

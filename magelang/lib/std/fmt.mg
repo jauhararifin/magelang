@@ -2,16 +2,12 @@ import wasi "std/wasi";
 import mem "std/mem";
 import vector "std/vector";
 
-fn print_str(p: [*]u8) {
-  let len = strlen(p);
-  let iovec = mem.alloc[wasi.IoVec]();
-  iovec.* = wasi.IoVec{
-    len: len,
-    p: p,
-  };
+fn print_str(value: string) {
+  let iovec = mem.alloc[*[u8]]();
+  iovec.* = value;
 
   wasi.fd_write(1, iovec, 1, 0 as *i32);
-  mem.dealloc[wasi.IoVec](iovec);
+  mem.dealloc[*[u8]](iovec);
 }
 
 fn strlen(p: [*]u8): usize {
@@ -66,8 +62,7 @@ fn print_i64(val: i64) {
     j = j - 1;
   }
 
-  vector.push[u8](str, 0);
-  print_str(str.arr.*);
+  print_str(string{ptr: str.arr.*, len: vector.len[u8](str)});
   mem.dealloc[vector.Vector[u8]](str);
 }
 
@@ -99,8 +94,7 @@ fn print_u64(val: u64) {
     j = j - 1;
   }
 
-  vector.push[u8](str, 0);
-  print_str(str.arr.*);
+  print_str(string{ptr: str.arr.*, len: vector.len[u8](str)});
   mem.dealloc[vector.Vector[u8]](str);
 }
 

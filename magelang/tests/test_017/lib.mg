@@ -2,7 +2,7 @@ struct Pair[T] { value: T }
 struct Plain { value: i32 }
 
 let count: i32 = 3;
-let bytes: [*]u8 = "ab";
+let bytes: string = "ab";
 let current: Plain = Plain{value: 2};
 
 fn make_pair[T](value: T): Pair[T] {

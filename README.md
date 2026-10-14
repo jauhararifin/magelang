@@ -118,30 +118,14 @@ fn the_main_function() {
   // use let to define a variable.
   let msg = "Hello, world\n";
 
-  // we can cast a number to a pointer. In this case, we cast the number 40 to pointer to IoVec.
-  // This is like allocating an IoVec struct in address 40. Note that this is not a good way
-  // to allocate memory since address 40 might not be existed, or might be used to store some
-  // other data. Ideally, you should write memory allocator yourself to avoid these problem.
-  // But, since our case is so simple, we know that we can use address 40 to allocate IoVec.
-  let iovec = 40 as *IoVec;
-
-  // iovec.p access the address of field p in the IoVec struct. Note that it doesn't access
-  // the field, but only the address. To dereference the address, you can use .* operator.
-  // The line below assign msg (pointer to u8) to iovec.p field.
-  iovec.p.* = msg;
-  // Similarly, we also assign the len of the msg to iovec.len field.
-  iovec.len.* = 13;
+  // A *[u8] has the same pointer-and-length layout as a WASI iovec. Here we use address 40
+  // to store one. A real program should use an allocator instead of a fixed address.
+  let iovec = 40 as **[u8];
+  iovec.* = msg;
 
   // We use WASI's fd_write (https://github.com/WebAssembly/WASI/blob/main/legacy/preview1/docs.md#-iovec-record)
   // to write bytes to stdout file.
   fd_write(stdout, iovec, 1, 0 as *i32);
-}
-
-// IoVec is WASI's [Iovec](https://github.com/WebAssembly/WASI/blob/main/legacy/preview1/docs.md#-iovec-record)
-// structure representation.
-struct IoVec {
-  p: [*]u8,
-  len: i32,
 }
 
 // stdout is the file descriptor id for standard output.
@@ -153,7 +137,7 @@ let stdout: i32 = 1;
 // In this case, we imported a [WASI](https://wasi.dev/) function from host environment to 
 // write bytes to file.
 @wasm_import("wasi_snapshot_preview1", "fd_write")
-fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
+fn fd_write(fd: i32, iovec_addr: **[u8], count: i32, n_written_ptr: *i32): i32;
 ```
 
 Save this code into a file named `hello.mg` and run `magelang compile hello -o hello.wasm`.
@@ -187,27 +171,16 @@ fn the_main_function() {
 ```
 // fmt.mg
 
-fn print_string(msg: [*]u8) {
-  let len: i32 = 0;
-  while msg[len].* != 0 {
-    len = len + 1;
-  }
-
-  let iovec = 40 as *IoVec;
-  iovec.p.* = msg;
-  iovec.len.* = len;
+fn print_string(msg: string) {
+  let iovec = 40 as **[u8];
+  iovec.* = msg;
   fd_write(stdout, iovec, 1, 0 as *i32);
-}
-
-struct IoVec {
-  p: [*]u8,
-  len: i32,
 }
 
 let stdout: i32 = 1;
 
 @wasm_import("wasi_snapshot_preview1", "fd_write")
-fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
+fn fd_write(fd: i32, iovec_addr: **[u8], count: i32, n_written_ptr: *i32): i32;
 ```
 
 Now, compile it with `magelang compile hello -o hello.wasm`. You should be able to run
@@ -243,7 +216,10 @@ i8 i16 i32 i64 isize
 u8 u16 u32 u64 usize
 f32 f64
 bool opaque void
+string
 ```
+
+`string` is a built-in alias for `*[u8]`.
 
 ### Pointers
 
@@ -466,7 +442,7 @@ fn main() {
 
     // you can redeclare variable with the same name and invalidate the
     // previously declared variable with the same name.
-    let a: [*]u8 = "Hello world\n";
+    let a: string = "Hello world\n";
     fmt.print_str(a);
 }
 ```
@@ -574,7 +550,9 @@ String literal can be expressed like this:
 "use \" to write quote"
 ```
 
-Magelang's string is kind of similar to C, its null terminated and the type is `[*]u8`.
+String literals have type `string`, which is equivalent to `*[u8]`. The `len` field contains the byte length and the
+`ptr` field contains the underlying `[*]u8` pointer. Literal storage also has a trailing zero byte, which is not included
+in `len`.
 
 Similar to other programming languages, Magelang has arithmetic operator such as:
 ```

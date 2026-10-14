@@ -10,8 +10,8 @@ fn id[T](value: T): T { return value; }
 fn import_as_type_param[dep](value: dep): dep { return value; }
 fn function_as_type_param[id](value: id): id { return value; }
 fn builtin_as_type_param[i32](value: i32): i32 { return value; }
-fn type_as_parameter(Box: [*]u8): u8 { return Box[0].*; }
-fn builtin_as_parameter(i32: [*]u8): u8 { return i32[1].*; }
+fn type_as_parameter(Box: string): u8 { return Box[0].*; }
+fn builtin_as_parameter(i32: string): u8 { return i32[1].*; }
 
 @main()
 fn main() {
@@ -39,7 +39,7 @@ fn main() {
   if original.value != 7 { wasm.unreachable(); }
 
   {
-    let dep = dep.Box[[*]u8]{value: dep.bytes};
+    let dep = dep.Box[string]{value: dep.bytes};
     if dep.value[1].* != 98 { wasm.unreachable(); }
   }
   if dep.id[i32](8) != 8 { wasm.unreachable(); }
