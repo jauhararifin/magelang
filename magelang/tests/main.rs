@@ -59,6 +59,10 @@ test_success!(test_029_fail);
 test_success!(test_030_fail);
 test_success!(test_slice_ptr);
 test_success!(test_slice_ptr_fail);
+test_success!(test_tuple);
+test_success!(test_tuple_fail);
+test_success!(test_tuple_recursive_fail);
+test_success!(test_tuple_codegen_fail);
 
 #[test]
 fn test_slice_ptr_bounds() {

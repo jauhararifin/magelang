@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use magelang_typecheck::{BitSize, FloatType, StructBody, Type, TypeRepr};
+use magelang_typecheck::{BitSize, FloatType, Type, TypeRepr};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -33,20 +33,11 @@ impl<'ctx> TypeManager<'ctx> {
             TypeRepr::TypeArg(..) => unreachable!("found typearg type"),
             TypeRepr::UntypedInt => unreachable!("found untyped int"),
             TypeRepr::UntypedFloat => unreachable!("found untyped float"),
-            TypeRepr::Struct(struct_type) => {
-                {
-                    let internal = self.internal.borrow_mut();
-                    if let Some(val) = internal.stacks.get(&ty) {
-                        return val.clone();
-                    }
-                }
-
-                let layout = self.get_struct_stack_layout(struct_type.body.get().expect("missing struct body"));
-
-                let mut internal = self.internal.borrow_mut();
-                internal.stacks.insert(ty, layout.clone());
-                layout
-            }
+            TypeRepr::Struct(struct_type) => self.get_composite_stack_layout(
+                ty,
+                struct_type.body.get().expect("missing struct body").fields.values().copied(),
+            ),
+            TypeRepr::Tuple(elements) => self.get_composite_stack_layout(ty, elements.iter().copied()),
             TypeRepr::Func(..) => Rc::new(1u32.into()),
             TypeRepr::Void => Rc::new(0u32.into()),
             TypeRepr::Opaque => Rc::new(1u32.into()),
@@ -67,17 +58,27 @@ impl<'ctx> TypeManager<'ctx> {
         }
     }
 
-    fn get_struct_stack_layout(&self, body: &StructBody<'ctx>) -> Rc<StackLayout> {
+    fn get_composite_stack_layout(
+        &self,
+        ty: &'ctx Type<'ctx>,
+        fields: impl Iterator<Item = &'ctx Type<'ctx>>,
+    ) -> Rc<StackLayout> {
+        if let Some(layout) = self.internal.borrow().stacks.get(&ty) {
+            return layout.clone();
+        }
+
         let mut field_index = Vec::default();
         let mut idx_offset = Vec::default();
         let mut curr_idx = 0;
-        for (i, ty) in body.fields.values().enumerate() {
+        for (i, field_ty) in fields.enumerate() {
             field_index.push(i);
-            let type_layout = self.get_stack_layout(ty);
+            let type_layout = self.get_stack_layout(field_ty);
             idx_offset.push(StackComponent { offset: curr_idx, size: type_layout.size });
             curr_idx += type_layout.size;
         }
-        Rc::new(StackLayout { size: curr_idx, field_index, components: idx_offset })
+        let layout = Rc::new(StackLayout { size: curr_idx, field_index, components: idx_offset });
+        self.internal.borrow_mut().stacks.insert(ty, layout.clone());
+        layout
     }
 
     pub(crate) fn get_mem_layout(&self, ty: &'ctx Type<'ctx>) -> Option<Rc<MemLayout>> {
@@ -98,14 +99,17 @@ impl<'ctx> TypeManager<'ctx> {
                     }
                 }
 
-                let layout = self.get_struct_mem_layout(struct_type.body.get().expect("missing struct body"));
+                let layout = self.get_aggregate_mem_layout(
+                    struct_type.body.get().expect("missing struct body").fields.values().copied(),
+                );
 
                 let mut internal = self.internal.borrow_mut();
                 internal.mems.insert(ty, layout.clone());
                 return layout;
             }
+            TypeRepr::Tuple(elements) => return self.get_aggregate_mem_layout(elements.iter().copied()),
             TypeRepr::Func(..) => Rc::new(MemLayout::primitive(4, 4)),
-            TypeRepr::Void => Rc::new(MemLayout::primitive(0, 1)),
+            TypeRepr::Void => Rc::new(MemLayout { size: 0, align: 1, fields: vec![], components: vec![] }),
             TypeRepr::Bool => Rc::new(MemLayout::primitive(1, 1)),
             TypeRepr::Int(_, BitSize::I8) => Rc::new(MemLayout::primitive(1, 1)),
             TypeRepr::Int(_, BitSize::I16) => Rc::new(MemLayout::primitive(2, 2)),
@@ -124,13 +128,13 @@ impl<'ctx> TypeManager<'ctx> {
         })
     }
 
-    fn get_struct_mem_layout(&self, body: &StructBody<'ctx>) -> Option<Rc<MemLayout>> {
+    fn get_aggregate_mem_layout(&self, fields: impl Iterator<Item = &'ctx Type<'ctx>>) -> Option<Rc<MemLayout>> {
         let mut field_layout = Vec::default();
         let mut components = Vec::default();
         let mut curr_mem = 0;
         let mut total_align = 1;
 
-        for ty in body.fields.values() {
+        for ty in fields {
             let type_layout = self.get_mem_layout(ty)?;
 
             let (size, align) = (type_layout.size, type_layout.align);
@@ -238,6 +242,7 @@ pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<PrimitiveType> {
             fields
         }
 
+        TypeRepr::Tuple(elements) => elements.iter().flat_map(|ty| build_val_type(ty)).collect(),
         TypeRepr::Func(..) => vec![PrimitiveType::U32],
 
         TypeRepr::Void => vec![],
@@ -334,5 +339,76 @@ impl PrimitiveType {
             PrimitiveType::F64 => Some(wasm::Instr::F64Store),
             PrimitiveType::Extern => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use magelang_typecheck::{StructBody, StructType, TypeKind};
+    use std::cell::OnceCell;
+
+    #[test]
+    fn composite_stack_layouts_share_a_type_based_cache() {
+        let integer = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I32) };
+        let boolean = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool };
+        let slice = Type { kind: TypeKind::Anonymous, repr: TypeRepr::SlicePtr(&integer) };
+        let empty = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(&[]) };
+        let elements = [&integer, &slice, &empty];
+        let tuple = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(&elements) };
+        let equivalent_elements = [&integer, &slice, &empty];
+        let equivalent_tuple = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(&equivalent_elements) };
+        let different_elements = [&boolean, &slice, &empty];
+        let different_tuple = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(&different_elements) };
+        let record = Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Struct(StructType {
+                body: OnceCell::from(StructBody { fields: IndexMap::from([("tuple", &tuple), ("flag", &boolean)]) }),
+            }),
+        };
+        let reordered_record = Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Struct(StructType {
+                body: OnceCell::from(StructBody { fields: IndexMap::from([("flag", &boolean), ("tuple", &tuple)]) }),
+            }),
+        };
+        let outer_elements = [&empty, &record, &tuple];
+        let outer = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(&outer_elements) };
+        let types = TypeManager::default();
+
+        let outer_layout = types.get_stack_layout(&outer);
+        assert_eq!(outer_layout.size, 7);
+        assert_eq!(outer_layout.field_index, [0, 1, 2]);
+        assert_eq!(
+            outer_layout.components.iter().map(|component| (component.offset, component.size)).collect::<Vec<_>>(),
+            [(0, 0), (0, 4), (4, 3)]
+        );
+        assert!(Rc::ptr_eq(&outer_layout, &types.get_stack_layout(&outer)));
+
+        let tuple_layout = types.get_stack_layout(&tuple);
+        assert_eq!(tuple_layout.size, 3);
+        assert!(Rc::ptr_eq(&tuple_layout, &types.get_stack_layout(&tuple)));
+        assert!(Rc::ptr_eq(&tuple_layout, &types.get_stack_layout(&equivalent_tuple)));
+        let record_layout = types.get_stack_layout(&record);
+        assert_eq!(record_layout.size, 4);
+        assert!(Rc::ptr_eq(&record_layout, &types.get_stack_layout(&record)));
+        let empty_layout = types.get_stack_layout(&empty);
+        assert_eq!(empty_layout.size, 0);
+        assert!(Rc::ptr_eq(&empty_layout, &types.get_stack_layout(&empty)));
+        assert_eq!(types.internal.borrow().stacks.len(), 4);
+
+        let different_layout = types.get_stack_layout(&different_tuple);
+        assert_eq!(different_layout.size, tuple_layout.size);
+        assert!(!Rc::ptr_eq(&tuple_layout, &different_layout));
+        assert_eq!(types.internal.borrow().stacks.len(), 5);
+
+        let reordered_layout = types.get_stack_layout(&reordered_record);
+        assert_eq!(reordered_layout.size, record_layout.size);
+        assert!(!Rc::ptr_eq(&record_layout, &reordered_layout));
+        assert_eq!(
+            reordered_layout.components.iter().map(|component| (component.offset, component.size)).collect::<Vec<_>>(),
+            [(0, 1), (1, 3)]
+        );
+        assert_eq!(types.internal.borrow().stacks.len(), 6);
     }
 }

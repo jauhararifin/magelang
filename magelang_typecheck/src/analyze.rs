@@ -654,7 +654,7 @@ fn get_all_monomorphized_funcs<'a>(ctx: &Context<'a, '_>) -> Vec<(DefId<'a>, Vec
                 | ExprKind::Local(..)
                 | ExprKind::Global(..)
                 | ExprKind::Func(..) => (),
-                ExprKind::StructLit(_, values) => {
+                ExprKind::CompositeLit(values) => {
                     for val in values.iter() {
                         queue.push_back(Source::Expr(val, type_args))
                     }

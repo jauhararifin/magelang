@@ -7,7 +7,10 @@ use num::BigInt;
 pub(crate) fn scan(errors: &ErrorManager, file: &File) -> Vec<Token> {
     let mut scanner = Scanner::new(errors, file);
     let mut tokens = Vec::default();
-    while let Some(token) = scanner.scan() {
+    let mut prefer_integer = false;
+    while let Some(token) = scanner.scan(prefer_integer) {
+        // Prefer integers immediately after a dot so `tuple.0.1` does not consume `0.1` as a float.
+        prefer_integer = token.kind == TokenKind::Dot;
         tokens.push(token);
     }
     tokens.push(Token { kind: TokenKind::Eof, pos: scanner.pos, spacing: false });
@@ -25,14 +28,14 @@ impl<'a> Scanner<'a> {
         Self { errors, text: &file.text, pos: Pos { file: file.id, line: 1, col: 1 } }
     }
 
-    fn scan(&mut self) -> Option<Token> {
+    fn scan(&mut self, prefer_integer: bool) -> Option<Token> {
         let has_previous_input = self.pos.line != 1 || self.pos.col != 1;
         let skipped_whitespace = self.skip_whitespace();
         let mut token = self
             .scan_word()
             .or_else(|| self.scan_char_lit())
             .or_else(|| self.scan_string_lit())
-            .or_else(|| self.scan_number_lit())
+            .or_else(|| self.scan_number_lit(prefer_integer))
             .or_else(|| self.scan_comments())
             .or_else(|| self.scan_symbols())
             .or_else(|| self.scan_invalid())?;
@@ -277,8 +280,11 @@ impl<'a> Scanner<'a> {
         Some(Token { kind: TokenKind::StringLit { raw, value }, pos, spacing: false })
     }
 
-    fn scan_number_lit(&mut self) -> Option<Token> {
-        let (c, _) = self.peek()?;
+    fn scan_number_lit(&mut self, prefer_integer: bool) -> Option<Token> {
+        let (c, pos) = self.peek()?;
+        if prefer_integer && c.is_ascii_digit() {
+            return self.scan_number_base(Base::Dec, pos, String::new(), Number::default(), false, prefer_integer);
+        }
         match c {
             '0' => self.scan_number_prefix(),
             '1'..='9' => {
@@ -288,7 +294,7 @@ impl<'a> Scanner<'a> {
                 let (c, pos) = self.next().unwrap();
                 raw.push(c);
                 value.val = BigInt::from(Self::char_to_int(c));
-                self.scan_number_base(Base::Dec, pos, raw, value, true)
+                self.scan_number_base(Base::Dec, pos, raw, value, true, false)
             }
             _ => None,
         }
@@ -309,23 +315,23 @@ impl<'a> Scanner<'a> {
             'x' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
-                self.scan_number_base(Base::Hex, pos, raw, value, false)
+                self.scan_number_base(Base::Hex, pos, raw, value, false, false)
             }
             'b' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
-                self.scan_number_base(Base::Bin, pos, raw, value, false)
+                self.scan_number_base(Base::Bin, pos, raw, value, false, false)
             }
             'o' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
-                self.scan_number_base(Base::Oct, pos, raw, value, false)
+                self.scan_number_base(Base::Oct, pos, raw, value, false, false)
             }
             '0'..='7' => {
                 let (c, _) = self.next().unwrap();
                 raw.push(c);
                 value.val = value.val * 8 + Self::char_to_int(c);
-                self.scan_number_base(Base::Oct, pos, raw, value, true)
+                self.scan_number_base(Base::Oct, pos, raw, value, true, false)
             }
             'e' | 'E' => {
                 let (c, _) = self.next().unwrap();
@@ -363,17 +369,18 @@ impl<'a> Scanner<'a> {
         mut raw: String,
         mut value: Number,
         mut has_digit: bool,
+        prefer_integer: bool,
     ) -> Option<Token> {
         let mut has_invalid_digit = false;
         while let Some((c, p)) = self.scan_number_peek_with_skip_underscore(&mut raw) {
             match (base, c) {
-                (Base::Dec, 'e' | 'E') => {
+                (Base::Dec, 'e' | 'E') if !prefer_integer => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     value.float = true;
                     return self.scan_number_exponent(pos, raw, value);
                 }
-                (Base::Dec, '.') => {
+                (Base::Dec, '.') if !prefer_integer => {
                     let (c, _) = self.next().unwrap();
                     raw.push(c);
                     value.float = true;
@@ -1276,6 +1283,21 @@ string""#
         let errors = error_manager.take();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].message, "Unexpected char '#'");
+    }
+
+    #[test]
+    fn comments_reset_integer_preference() {
+        let mut files = FileManager::default();
+        for (literal, value) in [("0.1", Number::new(1, -1, true)), ("1e2", Number::new(1, 2, true))] {
+            let file = files.add_file("tuple_comment.mg".into(), format!("tuple.// comment\n{literal}")).unwrap();
+            let errors = ErrorManager::default();
+            let tokens = scan(&errors, &file);
+            assert!(errors.is_empty(), "{literal}");
+            assert_eq!(tokens.len(), 5);
+            assert_eq!(tokens[1].kind, TokenKind::Dot);
+            assert!(matches!(tokens[2].kind, TokenKind::Comment(..)));
+            assert_eq!(tokens[3].kind, TokenKind::NumberLit { raw: literal.into(), value });
+        }
     }
 
     #[test]

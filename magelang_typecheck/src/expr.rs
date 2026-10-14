@@ -6,7 +6,8 @@ use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use magelang_syntax::{
     BinaryExprNode, BinaryOp, BoolLiteral, BracketExprNode, CallExprNode, CastExprNode, CharLit, DerefExprNode,
-    ExprNode, NumberLit, Pos, SelectionExprNode, StringLit, StructExprNode, TryFromNumberError, UnaryExprNode, UnaryOp,
+    ExprNode, NumberLit, Pos, SelectionExprNode, StringLit, StructExprNode, TryFromNumberError, TupleExprNode,
+    TupleSelectionExprNode, UnaryExprNode, UnaryOp,
 };
 use num::{BigInt, Signed, Zero};
 use std::collections::HashMap;
@@ -38,13 +39,12 @@ impl<'a> Expr<'a> {
             ExprKind::ConstF64(val) => ExprKind::ConstF64(*val),
             ExprKind::ConstBool(val) => ExprKind::ConstBool(*val),
             ExprKind::Zero => ExprKind::Zero,
-            ExprKind::StructLit(ty, values) => {
-                let ty = ty.substitute(ctx, type_args);
-                let mut fields = BumpVec::with_capacity_in(values.len(), ctx.arena);
-                for val in values.iter() {
-                    fields.push(val.monomorphize(ctx, type_args));
+            ExprKind::CompositeLit(values) => {
+                let mut elements = BumpVec::with_capacity_in(values.len(), ctx.arena);
+                for value in values.iter() {
+                    elements.push(value.monomorphize(ctx, type_args));
                 }
-                ExprKind::StructLit(ty, fields.into_bump_slice())
+                ExprKind::CompositeLit(elements.into_bump_slice())
             }
             ExprKind::Bytes(val) => ExprKind::Bytes(val),
             ExprKind::Local(idx) => ExprKind::Local(*idx),
@@ -208,7 +208,7 @@ pub enum ExprKind<'a> {
     ConstF64(Float<f64>),
     ConstBool(bool),
     Zero,
-    StructLit(&'a Type<'a>, &'a [Expr<'a>]),
+    CompositeLit(&'a [Expr<'a>]),
     Bytes(&'a [u8]),
 
     Local(usize),
@@ -253,6 +253,13 @@ pub(crate) fn get_expr_from_node<'a>(
     expected_type: Option<&'a Type<'a>>,
     node: &ExprNode,
 ) -> Expr<'a> {
+    if let ExprNode::Grouped(node) = node {
+        return get_expr_from_node(ctx, scope, expected_type, node);
+    }
+    if let ExprNode::Tuple(node) = node {
+        return get_expr_from_tuple_node(ctx, scope, expected_type, node);
+    }
+
     let result = get_expr_from_node_internal(ctx, scope, node);
 
     let Some(expected_type) = expected_type else {
@@ -399,7 +406,9 @@ fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, nod
         ExprNode::Call(node) => get_expr_from_call_node(ctx, scope, node),
         ExprNode::Cast(node) => get_expr_from_cast_node(ctx, scope, node),
         ExprNode::Struct(struct_lit_node) => get_expr_from_struct_lit_node(ctx, scope, struct_lit_node),
+        ExprNode::Tuple(node) => get_expr_from_tuple_node(ctx, scope, None, node),
         ExprNode::Selection(selection_node) => get_expr_from_selection_node(ctx, scope, selection_node),
+        ExprNode::TupleSelection(selection_node) => get_expr_from_tuple_selection_node(ctx, scope, selection_node),
         ExprNode::Bracket(node) => get_expr_from_bracket_node(ctx, scope, node),
         ExprNode::PtrType(..) | ExprNode::ArrayPtrType(..) | ExprNode::SlicePtrType(..) | ExprNode::FuncType(..) => {
             errors::report_expected_value(ctx.errors, node.pos());
@@ -1418,6 +1427,25 @@ fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &
     Expr { ty: target_type, kind, pos: node.value.pos(), assignable: false }
 }
 
+fn get_expr_from_tuple_node<'a>(
+    ctx: &Context<'a, '_>,
+    scope: &Scope<'a>,
+    expected_type: Option<&'a Type<'a>>,
+    node: &TupleExprNode,
+) -> Expr<'a> {
+    let expected_elements = match expected_type.map(|ty| &ty.repr) {
+        Some(TypeRepr::Tuple(elements)) => *elements,
+        _ => &[],
+    };
+    let mut values = BumpVec::with_capacity_in(node.elements.len(), ctx.arena);
+    for (i, element) in node.elements.iter().enumerate() {
+        values.push(get_expr_from_node(ctx, scope, expected_elements.get(i).copied(), element));
+    }
+    let elements = ctx.arena.alloc_slice_fill_iter(values.iter().map(|value| value.ty));
+    let ty = ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(elements) });
+    Expr { ty, kind: ExprKind::CompositeLit(values.into_bump_slice()), pos: node.pos, assignable: false }
+}
+
 fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &StructExprNode) -> Expr<'a> {
     let ty = get_type_from_node(ctx, scope, &node.target);
 
@@ -1480,7 +1508,7 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
         }
     }
 
-    Expr { ty, kind: ExprKind::StructLit(ty, full_values.into_bump_slice()), pos: node.pos, assignable: false }
+    Expr { ty, kind: ExprKind::CompositeLit(full_values.into_bump_slice()), pos: node.pos, assignable: false }
 }
 
 fn get_expr_from_slice_ptr_lit_node<'a>(
@@ -1533,7 +1561,7 @@ fn get_expr_from_slice_ptr_lit_node<'a>(
         }
     }
 
-    Expr { ty, kind: ExprKind::StructLit(ty, ctx.arena.alloc(values)), pos: node.pos, assignable: false }
+    Expr { ty, kind: ExprKind::CompositeLit(ctx.arena.alloc(values)), pos: node.pos, assignable: false }
 }
 
 fn get_expr_from_bracket_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketExprNode) -> Expr<'a> {
@@ -1625,45 +1653,74 @@ fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, no
         };
     }
 
-    let mut ty = value.ty;
-    let mut is_ptr = false;
-
-    if let TypeRepr::Ptr(element_ty) = ty.repr {
-        is_ptr = true;
-        ty = element_ty;
-    }
-
-    let Some(struct_type) = ty.as_struct() else {
+    let ty = if let TypeRepr::Ptr(element_ty) = value.ty.repr { element_ty } else { value.ty };
+    let field = if let Some(struct_type) = ty.as_struct() {
+        let struct_body = struct_type.body.get().expect("missing struct body");
+        let selection_name = ctx.define_symbol(&node.selection.value);
+        let field = struct_body.fields.get_full(&selection_name).map(|(idx, _, ty)| (idx, *ty));
+        if field.is_none() {
+            errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
+        }
+        field
+    } else {
         if !ty.is_unknown() {
             errors::report_non_field_type(ctx.errors, node.selection.pos, &node.selection.value);
         }
+        None
+    };
+    get_element_expr(ctx, node.value.pos(), value, field)
+}
+
+fn get_expr_from_tuple_selection_node<'a>(
+    ctx: &Context<'a, '_>,
+    scope: &Scope<'a>,
+    node: &TupleSelectionExprNode,
+) -> Expr<'a> {
+    let value = get_expr_from_node_internal(ctx, scope, &node.value);
+    let ty = if let TypeRepr::Ptr(element_ty) = value.ty.repr { element_ty } else { value.ty };
+    let field = if let TypeRepr::Tuple(elements) = &ty.repr {
+        let field = node
+            .selection
+            .value
+            .to_int()
+            .ok()
+            .and_then(|index| usize::try_from(index).ok())
+            .and_then(|index| elements.get(index).map(|ty| (index, *ty)));
+        if field.is_none() {
+            errors::report_tuple_index_out_of_bounds(ctx.errors, node.selection.pos, &node.selection.raw, ty);
+        }
+        field
+    } else {
+        if !ty.is_unknown() {
+            errors::report_non_tuple_type(ctx.errors, node.selection.pos);
+        }
+        None
+    };
+    get_element_expr(ctx, node.value.pos(), value, field)
+}
+
+fn get_element_expr<'a>(
+    ctx: &Context<'a, '_>,
+    pos: Pos,
+    value: Expr<'a>,
+    field: Option<(usize, &'a Type<'a>)>,
+) -> Expr<'a> {
+    let Some((idx, field_type_id)) = field else {
         return Expr {
             ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
             kind: ExprKind::Invalid,
-            pos: node.value.pos(),
-            assignable: true,
-        };
-    };
-    let struct_body = struct_type.body.get().expect("missing struct body");
-
-    let selection_name = ctx.define_symbol(&node.selection.value);
-    let Some((idx, _, field_type_id)) = struct_body.fields.get_full(&selection_name) else {
-        errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
-        return Expr {
-            ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
-            kind: ExprKind::Invalid,
-            pos: node.value.pos(),
+            pos,
             assignable: true,
         };
     };
 
-    if is_ptr {
+    if matches!(value.ty.repr, TypeRepr::Ptr(..)) {
         // Selecting a field of a pointer yields the address of the field, not
         // the field itself. An address is not assignable
         return Expr {
             ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Ptr(field_type_id) }),
             kind: ExprKind::GetElementAddr(ctx.arena.alloc(value), idx),
-            pos: node.value.pos(),
+            pos,
             assignable: false,
         };
     }
@@ -1683,19 +1740,14 @@ fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, no
         let field_addr = ctx.arena.alloc(Expr {
             ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Ptr(field_type_id) }),
             kind: ExprKind::GetElementAddr(ptr, idx),
-            pos: node.value.pos(),
+            pos,
             assignable: false,
         });
-        return Expr { ty: field_type_id, kind: ExprKind::Deref(field_addr), pos: node.value.pos(), assignable: true };
+        return Expr { ty: field_type_id, kind: ExprKind::Deref(field_addr), pos, assignable: true };
     }
 
     let assignable = value.assignable;
-    Expr {
-        ty: field_type_id,
-        kind: ExprKind::GetElement(ctx.arena.alloc(value), idx),
-        pos: node.value.pos(),
-        assignable,
-    }
+    Expr { ty: field_type_id, kind: ExprKind::GetElement(ctx.arena.alloc(value), idx), pos, assignable }
 }
 
 fn get_index_expr<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &BracketExprNode) -> Expr<'a> {

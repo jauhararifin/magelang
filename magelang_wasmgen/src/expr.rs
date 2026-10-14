@@ -53,7 +53,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             ExprKind::ConstBool(val) => vec![wasm::Instr::I32Const(*val as i32)],
             ExprKind::Zero => build_zero_type(expr.ty),
 
-            ExprKind::StructLit(_, values) => self.build_struct_lit(values),
+            ExprKind::CompositeLit(values) => self.build_composite_lit(values),
             ExprKind::Bytes(bytes) => self.build_bytes(bytes),
 
             ExprKind::Local(idx) => self.build_local(expr.ty, *idx),
@@ -92,7 +92,7 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
         }
     }
 
-    fn build_struct_lit(&self, values: &[Expr<'ctx>]) -> Vec<wasm::Instr> {
+    fn build_composite_lit(&self, values: &[Expr<'ctx>]) -> Vec<wasm::Instr> {
         let mut result = Vec::default();
         for expr in values {
             result.extend(self.build(expr));
@@ -729,6 +729,39 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
             TypeRepr::Float(FloatType::F64) => vec![wasm::Instr::F64Eq],
 
             TypeRepr::Bool => vec![wasm::Instr::I32Eq],
+            TypeRepr::Struct(..) | TypeRepr::Tuple(..) | TypeRepr::Void => {
+                let value_types = build_val_type(ty);
+                let temps = self.locals.get_temporary_locals(value_types.repeat(2));
+                let mut result = a_instr;
+                result.extend(b_instr);
+
+                result.extend(temps.iter().rev().copied().map(wasm::Instr::LocalSet));
+                result.push(wasm::Instr::I32Const(1));
+                for (i, value_type) in value_types.iter().enumerate() {
+                    let compare = match value_type {
+                        PrimitiveType::I8
+                        | PrimitiveType::U8
+                        | PrimitiveType::I16
+                        | PrimitiveType::U16
+                        | PrimitiveType::I32
+                        | PrimitiveType::U32 => wasm::Instr::I32Eq,
+                        PrimitiveType::I64 | PrimitiveType::U64 => wasm::Instr::I64Eq,
+                        PrimitiveType::F32 => wasm::Instr::F32Eq,
+                        PrimitiveType::F64 => wasm::Instr::F64Eq,
+                        PrimitiveType::Extern => {
+                            self.errors.report(a.pos, format!("Cannot compare values of type {ty}"));
+                            return vec![wasm::Instr::Unreachable];
+                        }
+                    };
+                    result.extend([
+                        wasm::Instr::LocalGet(temps[i]),
+                        wasm::Instr::LocalGet(temps[value_types.len() + i]),
+                        compare,
+                        wasm::Instr::I32And,
+                    ]);
+                }
+                return result;
+            }
 
             TypeRepr::Opaque => {
                 let mut result = Vec::default();
@@ -1157,6 +1190,7 @@ fn build_zero_type(ty: &Type<'_>) -> Vec<wasm::Instr> {
             .collect(),
         TypeRepr::Func(..) => vec![wasm::Instr::I32Const(0)],
         TypeRepr::Void => vec![],
+        TypeRepr::Tuple(elements) => elements.iter().flat_map(|ty| build_zero_type(ty)).collect(),
         TypeRepr::Opaque => vec![wasm::Instr::RefNull(wasm::RefType::ExternRef)],
         TypeRepr::Bool => vec![wasm::Instr::I32Const(0)],
         TypeRepr::Int(_, BitSize::I8 | BitSize::I16 | BitSize::I32 | BitSize::ISize) => {

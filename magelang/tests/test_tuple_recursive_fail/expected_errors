@@ -1,0 +1,17 @@
+tests/test_tuple_recursive_fail/main.mg:1:1: Invalid recursive type:
+	tests/test_tuple_recursive_fail/main::Direct refers to
+	tests/test_tuple_recursive_fail/main::Direct
+tests/test_tuple_recursive_fail/main.mg:2:1: Invalid recursive type:
+	tests/test_tuple_recursive_fail/main::Indirect refers to
+	tests/test_tuple_recursive_fail/main::Other refers to
+	tests/test_tuple_recursive_fail/main::Indirect
+tests/test_tuple_recursive_fail/main.mg:4:1: Invalid recursive type:
+	tests/test_tuple_recursive_fail/main::Generic refers to
+	tests/test_tuple_recursive_fail/main::Generic
+tests/test_tuple_recursive_fail/main.mg:6:1: Found a circular global intialization:
+	tests/test_tuple_recursive_fail/main::a depends on
+	tests/test_tuple_recursive_fail/main::b depends on
+	tests/test_tuple_recursive_fail/main::a
+tests/test_tuple_recursive_fail/main.mg:9:1: Invalid recursive type:
+	tests/test_tuple_recursive_fail/main::Grouped refers to
+	tests/test_tuple_recursive_fail/main::Grouped

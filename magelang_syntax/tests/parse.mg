@@ -86,7 +86,7 @@ let _: *[i32];
 //syntax_error line=+1 col=8: Missing pointee type
 let _: * = 10;
 let _: *package = 10;
-//syntax_error line=+1 col=18: Expected ident or '*', but found '='
+//syntax_error line=+1 col=18: Expected ident, tuple index or '*', but found '='
 let _: *package. = 10;
 let _: *package.sometype = 10;
 //syntax_error line=+1 col=25: Missing closing ']'
@@ -109,8 +109,8 @@ let _: Pair[,];
 let _: Pair[];
 let _: Pair[Pair[]];
 let _: Pair[i32,];
-//syntax_error line=+1 col=9: Missing grouped expression
-let _: ();
+//syntax_error line=+1 col=9: Expected list item, but found ','
+let _: (,);
 //syntax_error line=+1 col=15: Expected ',', but found 'i32'
 let _: fn(i32 i32);
 //syntax_error line=+1 col=11: Expected list item, but found ','
@@ -203,14 +203,14 @@ let _: i32 = 0_b___;
 let _: i32 = 0__o_;
 //syntax_error line=+1 col=17: Missing second operand
 let a: i32 = a +;
-//syntax_error line=+1 col=15: Missing grouped expression
-let _: i32 = ();
+//syntax_error line=+1 col=15: Expected list item, but found ','
+let _: i32 = (,);
 let _: i32 = values[];
 //syntax_error line=+1 col=16: Missing function argument
 let _: i32 = f(, 1);
 //syntax_error line=+1 col=28: Missing struct field value
 let _: i32 = SomeStruct{a: };
-//syntax_error line=+1 col=20: Expected ident or '*', but found ';'
+//syntax_error line=+1 col=20: Expected ident, tuple index or '*', but found ';'
 let _: i32 = value.;
 //syntax_error line=+1 col=15: Missing closing ')'
 let _: i32 = f(1;
@@ -218,6 +218,55 @@ let _: i32 = f(1;
 let _: i32 = values[1;
 //syntax_error line=+1 col=14: Unexpected token 'let'
 let _: i32 = let;
+
+// =====================================================
+// Tuples
+// =====================================================
+
+let tuple_empty: () = ();
+let tuple_single: (i32,) = (1,);
+let tuple_single_type: (i32,) = (i32,);
+let tuple_pair: (i32, f32) = (1, 2.5);
+let tuple_types: (i32, f32, Foo, Bar,) = (i32, f32, Foo, Bar,);
+let tuple_nested: ((i32, bool), (i32,), ()) = ((1, true), (2,), ());
+let tuple_grouped: (i32) = (1);
+let tuple_grouped_type: (i32) = (i32);
+let tuple_grouped_pair: ((i32, i32)) = ((1, 2));
+let tuple_selection: i32 = value.0.1.2;
+let tuple_spaced_selection: i32 = value . 0 . 1 . 2;
+let tuple_multiline_selection: i32 = value.
+0.1.2;
+let tuple_named_selection: i32 = value.2.field;
+let named_tuple_selection: i32 = value.field.02;
+let tuple_separator_selection: i32 = value.1_0;
+let α: i32 = value.0.12;
+let _: i32 = value.0.*;
+let _: i32 = value.10(1);
+let _: i32 = value.1[0];
+let _: i32 = (1.25, 2e3).0;
+
+//syntax_error line=+1 col=17: Expected list item, but found ','
+let _: i32 = (1,,2);
+let tuple_recovered_element: i32 = 42;
+//syntax_error line=+1 col=14: Missing closing ')'
+let _: i32 = (1, 2;
+let tuple_recovered_close: i32 = 42;
+//syntax_error line=+1 col=17: Expected ',', but found NUMBER_LIT
+let _: i32 = (1 2);
+let tuple_recovered_comma: i32 = 42;
+//syntax_error line=+1 col=20: Expected ident, tuple index or '*', but found '-'
+let _: i32 = value.-1;
+let tuple_recovered_negative: i32 = 42;
+//syntax_error line=+1 col=21: Invalid suffix "e2" for number literal
+let _: i32 = value.1e2;
+let tuple_recovered_exponent: i32 = 42;
+//syntax_error line=+1 col=21: Invalid suffix "x1" for number literal
+let _: i32 = value.0x1;
+let tuple_recovered_radix: i32 = 42;
+//syntax_error line=+2 col=1: Expected ident, tuple index or '*', but found NUMBER_LIT
+let _: i32 = value.// comment
+0.1.2;
+let tuple_recovered_comment: i32 = 42;
 
 // =====================================================
 // Signatures
@@ -277,9 +326,9 @@ fn f(): i32 {
     let unary = +;
     //syntax_error line=+1 col=10: Missing unary operand
     a = +;
-    //syntax_error line=+2 col=6: Missing grouped expression
-    //syntax_error line=+1 col=10: Missing right-hand operand
-    () = ;
+    //syntax_error line=+2 col=6: Expected list item, but found ','
+    //syntax_error line=+1 col=11: Missing right-hand operand
+    (,) = ;
     let recovered = 1;
     //syntax_error line=+1 col=12: Expected return value expression, but found ','
     return ,;

@@ -1,0 +1,43 @@
+tests/test_tuple_fail/main.mg:5:34: Mismatch type, expected (i32, bool) but found (i32, untyped int)
+tests/test_tuple_fail/main.mg:6:24: Mismatch type, expected () but found void
+tests/test_tuple_fail/main.mg:7:1: Missing return statement
+tests/test_tuple_fail/main.mg:11:21: Tuple index 2 is out of bounds for (i32, bool)
+tests/test_tuple_fail/main.mg:12:20: Tuple index 999999999999999999999999999999999 is out of bounds for (i32, bool)
+tests/test_tuple_fail/main.mg:13:21: The expression doesn't have a field named 'missing'
+tests/test_tuple_fail/main.mg:14:28: Mismatch type, expected (i32, bool) but found (i32,)
+tests/test_tuple_fail/main.mg:15:22: Mismatch type, expected (i32,) but found (i32, bool)
+tests/test_tuple_fail/main.mg:16:36: Mismatch type, expected (i32, bool) but found (bool, bool)
+tests/test_tuple_fail/main.mg:17:38: Mismatch type, expected (i32, (bool,)) but found (i32, (untyped int,))
+tests/test_tuple_fail/main.mg:18:27: Mismatch type, expected (i32,) but found untyped int
+tests/test_tuple_fail/main.mg:19:25: Mismatch type, expected i32 but found (isize,)
+tests/test_tuple_fail/main.mg:20:27: Mismatch type, expected tests/test_tuple_fail/main::Empty but found ()
+tests/test_tuple_fail/main.mg:21:23: Mismatch type, expected () but found tests/test_tuple_fail/main::Empty
+tests/test_tuple_fail/main.mg:22:23: Expected a type expression
+tests/test_tuple_fail/main.mg:23:20: Expected a value expression
+tests/test_tuple_fail/main.mg:24:30: The expression is not a tuple
+tests/test_tuple_fail/main.mg:25:30: The expression is not a tuple
+tests/test_tuple_fail/main.mg:26:24: Tuple index 0 is out of bounds for ()
+tests/test_tuple_fail/main.mg:27:17: Expression is not indexable
+tests/test_tuple_fail/main.mg:29:3: The expression is not assignable
+tests/test_tuple_fail/main.mg:29:15: Mismatch type, expected *i32 but found untyped int
+tests/test_tuple_fail/main.mg:30:17: Mismatch type, expected i32 but found bool
+tests/test_tuple_fail/main.mg:31:31: Tuple index 2 is out of bounds for (i32, bool)
+tests/test_tuple_fail/main.mg:32:13: Mismatch type, expected i32 but found bool
+tests/test_tuple_fail/main.mg:33:11: Mismatch type, expected (i32, bool) but found (i32,)
+tests/test_tuple_fail/main.mg:34:3: The expression is not assignable
+tests/test_tuple_fail/main.mg:35:9: Mismatch type, expected (i32, bool) but found (i32, untyped int)
+tests/test_tuple_fail/main.mg:36:15: Cannot perform eq operation for (i32, bool) and (isize,)
+tests/test_tuple_fail/main.mg:37:14: Cannot perform casting operation from (i32, bool) into i32
+tests/test_tuple_fail/main.mg:41:21: Expected a type expression
+tests/test_tuple_fail/main.mg:43:33: The expression is not a tuple
+tests/test_tuple_fail/main.mg:45:27: The expression is not a tuple
+tests/test_tuple_fail/main.mg:46:23: Symbol missing is not declared yet
+tests/test_tuple_fail/main.mg:47:32: Tuple index 18446744073709551616 is out of bounds for (isize,)
+tests/test_tuple_fail/main.mg:51:30: Mismatch type, expected (i32,) but found untyped int
+tests/test_tuple_fail/main.mg:52:31: Mismatch type, expected ((i32,),) but found (untyped int,)
+tests/test_tuple_fail/main.mg:53:27: Mismatch type, expected ((),) but found ()
+tests/test_tuple_fail/main.mg:56:35: Mismatch type, expected (i32,) but found untyped int
+tests/test_tuple_fail/main.mg:59:20: Cannot perform eq operation for (isize,) and (bool,)
+tests/test_tuple_fail/main.mg:60:20: Cannot perform eq operation for (isize,) and tests/test_tuple_fail/main::Foo
+tests/test_tuple_fail/main.mg:61:26: Cannot perform eq operation for () and tests/test_tuple_fail/main::Empty
+tests/test_tuple_fail/main.mg:62:19: Cannot perform lt binary operation on (isize, isize)

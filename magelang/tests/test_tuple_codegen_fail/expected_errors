@@ -1,0 +1,8 @@
+tests/test_tuple_codegen_fail/main.mg:1:40: Cannot compare values of type (opaque, i32)
+tests/test_tuple_codegen_fail/main.mg:2:44: Cannot compare values of type ((opaque,),)
+tests/test_tuple_codegen_fail/main.mg:8:16: The expression contains an opaque type which can't be dereferenced
+tests/test_tuple_codegen_fail/main.mg:9:15: The expression contains an opaque type which can't be stored in linear memory
+tests/test_tuple_codegen_fail/main.mg:16:16: Cannot compare values of type (opaque, isize)
+tests/test_tuple_codegen_fail/main.mg:17:16: Cannot compare values of type (isize, (opaque,))
+tests/test_tuple_codegen_fail/main.mg:18:16: Cannot compare values of type tests/test_tuple_codegen_fail/main::Hidden
+tests/test_tuple_codegen_fail/main.mg:19:17: Cannot compare values of type (tests/test_tuple_codegen_fail/main::Wrapped,)

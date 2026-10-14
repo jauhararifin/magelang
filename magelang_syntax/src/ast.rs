@@ -201,7 +201,9 @@ pub enum ExprNode {
     Call(CallExprNode),
     Cast(CastExprNode),
     Struct(StructExprNode),
+    Tuple(TupleExprNode),
     Selection(SelectionExprNode),
+    TupleSelection(TupleSelectionExprNode),
     Bracket(BracketExprNode),
     PtrType(PtrTypeNode),
     ArrayPtrType(ArrayPtrTypeNode),
@@ -226,7 +228,9 @@ impl ExprNode {
             Self::Call(node) => node.callee.pos(),
             Self::Cast(node) => node.value.pos(),
             Self::Struct(node) => node.pos,
+            Self::Tuple(node) => node.pos,
             Self::Selection(node) => node.value.pos(),
+            Self::TupleSelection(node) => node.value.pos(),
             Self::Bracket(node) => node.value.pos(),
             Self::PtrType(node) => node.pos,
             Self::ArrayPtrType(node) => node.pos,
@@ -372,6 +376,12 @@ pub struct StructExprNode {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub struct TupleExprNode {
+    pub pos: Pos,
+    pub elements: Vec<ExprNode>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeyValue {
     pub pos: Pos,
     pub key: Identifier,
@@ -382,6 +392,12 @@ pub struct KeyValue {
 pub struct SelectionExprNode {
     pub value: Box<ExprNode>,
     pub selection: Identifier,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct TupleSelectionExprNode {
+    pub value: Box<ExprNode>,
+    pub selection: NumberLit,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

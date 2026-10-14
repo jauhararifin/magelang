@@ -1,5 +1,5 @@
 use magelang_syntax::{
-    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, StatementNode, parse,
+    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, Number, StatementNode, parse,
 };
 use std::path::PathBuf;
 
@@ -63,6 +63,119 @@ fn test_parsing() {
     }
 
     assert_eq!(expected_errors, actual_errors);
+}
+
+#[test]
+fn tuple_expressions_and_selections() {
+    let source = concat!(
+        "let tuple_empty: () = ();\n",
+        "let tuple_single: (i32,) = (1,);\n",
+        "let tuple_single_type: (i32,) = (i32,);\n",
+        "let tuple_pair: (i32, f32) = (1, 2.5);\n",
+        "let tuple_types: (i32, f32, Foo, Bar,) = (i32, f32, Foo, Bar,);\n",
+        "let tuple_nested: ((i32, bool), (i32,), ()) = ((1, true), (2,), ());\n",
+        "let tuple_grouped: (i32) = (1);\n",
+        "let tuple_grouped_type: (i32) = (i32);\n",
+        "let tuple_grouped_pair: ((i32, i32)) = ((1, 2));\n",
+        "let tuple_selection: i32 = value.0.1.2;\n",
+        "let tuple_spaced_selection: i32 = value . 0 . 1 . 2;\n",
+        "let tuple_multiline_selection: i32 = value.\n0.1.2;\n",
+        "let tuple_named_selection: i32 = value.2.field;\n",
+        "let named_tuple_selection: i32 = value.field.02;\n",
+        "let tuple_separator_selection: i32 = value.1_0;\n",
+        "let α: i32 = value.0.12;\n",
+    );
+    let errors = ErrorManager::default();
+    let mut files = FileManager::default();
+    let file = files.add_file("tuples.mg".into(), source.into()).unwrap();
+    let node = parse(&errors, &file);
+    assert!(errors.is_empty());
+
+    let globals = node
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            ItemNode::Global(global) => Some((global.name.value.as_str(), global)),
+            _ => None,
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+
+    for (name, arity) in [
+        ("tuple_empty", Some(0)),
+        ("tuple_single", Some(1)),
+        ("tuple_single_type", Some(1)),
+        ("tuple_pair", Some(2)),
+        ("tuple_types", Some(4)),
+        ("tuple_nested", Some(3)),
+        ("tuple_grouped", None),
+        ("tuple_grouped_type", None),
+        ("tuple_grouped_pair", None),
+    ] {
+        match (arity, globals[name].value.as_ref().unwrap()) {
+            (Some(arity), ExprNode::Tuple(tuple)) => assert_eq!(tuple.elements.len(), arity, "{name}"),
+            (None, ExprNode::Grouped(_)) => (),
+            _ => panic!("unexpected AST for {name}"),
+        }
+    }
+
+    for name in ["tuple_selection", "tuple_spaced_selection", "tuple_multiline_selection"] {
+        let mut value = globals[name].value.as_ref().unwrap();
+        for index in [2, 1, 0] {
+            let ExprNode::TupleSelection(selection) = value else { panic!("expected tuple selection") };
+            assert_eq!(selection.selection.raw, index.to_string());
+            assert_eq!(selection.selection.value, Number::new(index, 0, false));
+            value = &selection.value;
+        }
+        assert!(matches!(value, ExprNode::Ident(name) if name.value == "value"));
+    }
+
+    let Some(ExprNode::Selection(named)) = &globals["tuple_named_selection"].value else {
+        panic!("expected named selection");
+    };
+    assert_eq!(named.selection.value, "field");
+    let ExprNode::TupleSelection(tuple) = named.value.as_ref() else { panic!("expected tuple selection") };
+    assert_eq!(tuple.selection.value, Number::new(2, 0, false));
+
+    let Some(ExprNode::TupleSelection(tuple)) = &globals["named_tuple_selection"].value else {
+        panic!("expected tuple selection");
+    };
+    assert_eq!(tuple.selection.raw, "02");
+    assert_eq!(tuple.selection.value, Number::new(2, 0, false));
+    let ExprNode::Selection(named) = tuple.value.as_ref() else { panic!("expected named selection") };
+    assert_eq!(named.selection.value, "field");
+
+    let Some(ExprNode::TupleSelection(tuple)) = &globals["tuple_separator_selection"].value else {
+        panic!("expected tuple selection");
+    };
+    assert_eq!(tuple.selection.raw, "1_0");
+    assert_eq!(tuple.selection.value, Number::new(10, 0, false));
+
+    let Some(ExprNode::TupleSelection(outer)) = &globals["α"].value else { panic!("expected tuple selection") };
+    let ExprNode::TupleSelection(inner) = outer.value.as_ref() else { panic!("expected tuple selection") };
+    assert_eq!(inner.selection.pos.col, 20);
+    assert_eq!(outer.selection.pos.col, 22);
+    assert_eq!(outer.selection.pos.file, file.id);
+}
+
+#[test]
+fn malformed_tuples_preserve_following_declarations() {
+    let mut files = FileManager::default();
+    for expression in ["(1,,2)", "(1, 2", "(1 2)", "value.-1", "value.1e2", "value.0x1", "value.// comment\n0.1.2"] {
+        let file = files
+            .add_file("tuple_recovery.mg".into(), format!("let broken: i32 = {expression};\nlet recovered: i32 = 42;"))
+            .unwrap();
+        let errors = ErrorManager::default();
+        let node = parse(&errors, &file);
+        assert!(!errors.is_empty(), "{expression}");
+        let [_, ItemNode::Global(recovered)] = node.items.as_slice() else {
+            panic!("expected two globals after parsing {expression}");
+        };
+        assert_eq!(recovered.name.value, "recovered");
+        assert!(
+            matches!(&recovered.value, Some(ExprNode::Number(number)) if number.value == Number::new(42, 0, false)),
+            "{expression}"
+        );
+    }
 }
 
 #[test]
@@ -304,8 +417,8 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
             "recovery.mg".into(),
             concat!(
                 "let binary: i32 = left +; ",
-                "let chain: i32 = left + () + right; ",
-                "let grouped: i32 = (); ",
+                "let chain: i32 = left + (+) + right; ",
+                "let grouped: i32 = (+); ",
                 "let indexed: i32 = values[1; ",
                 "let called: i32 = f(, 1); ",
                 "let invalid_struct: i32 = 1{}; ",
@@ -322,8 +435,8 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
         messages,
         [
             "Missing second operand",
-            "Missing grouped expression",
-            "Missing grouped expression",
+            "Missing unary operand",
+            "Missing unary operand",
             "Missing closing ']'",
             "Missing function argument",
         ]
@@ -388,6 +501,10 @@ fn types_and_values_share_expression_syntax() {
         "[*]Box[i32]",
         "fn(Box[i32], [*]u8): *Box[i32]",
         "(i32)",
+        "(i32, f32, Foo, Bar)",
+        "(i32,)",
+        "()",
+        "*((i32, bool), *[f64])",
         "Box[]",
         "(Box)[i32]",
         "items[1 + 2]",

@@ -150,7 +150,7 @@ fn collect_expr_dependencies<'a>(
         ExprKind::Global(def_id) => {
             dependencies.insert(def_id);
         }
-        ExprKind::StructLit(_, values) => {
+        ExprKind::CompositeLit(values) => {
             for expr in values {
                 collect_expr_dependencies(ctx, expr, dependencies, visited_funcs, visiting_funcs);
             }

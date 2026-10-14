@@ -40,7 +40,10 @@ impl<'a> Eq for Type<'a> {}
 
 impl<'a> Hash for Type<'a> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.kind.hash(state)
+        self.kind.hash(state);
+        if matches!(self.kind, TypeKind::Anonymous) {
+            self.repr.hash(state);
+        }
     }
 }
 
@@ -194,6 +197,10 @@ impl<'a> Type<'a> {
 
         match &self.repr {
             TypeRepr::Unknown => self,
+            TypeRepr::Tuple(elements) => {
+                let elements = ctx.arena.alloc_slice_fill_iter(elements.iter().map(|ty| ty.substitute(ctx, type_args)));
+                ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(elements) })
+            }
             TypeRepr::Struct(struct_type) => match self.kind {
                 TypeKind::GenericStruct(..) | TypeKind::GenericFunc(..) => unreachable!(),
                 TypeKind::Inst(inst_type) => {
@@ -437,10 +444,11 @@ impl<'a> Hash for GenericType<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TypeRepr<'a> {
     Unknown,
     Struct(StructType<'a>),
+    Tuple(&'a [&'a Type<'a>]),
     Func(FuncType<'a>),
     Void,
     Opaque,
@@ -516,6 +524,19 @@ impl<'a> Display for TypeRepr<'a> {
                     write!(f, "struct{{missing body}}")
                 }
             }
+            TypeRepr::Tuple(elements) => {
+                write!(f, "(")?;
+                for (i, ty) in elements.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    Display::fmt(ty, f)?;
+                }
+                if elements.len() == 1 {
+                    write!(f, ",")?;
+                }
+                write!(f, ")")
+            }
             TypeRepr::Func(func_type) => write!(f, "{}", func_type),
             TypeRepr::Void => write!(f, "void"),
             TypeRepr::Opaque => write!(f, "opaque"),
@@ -561,9 +582,27 @@ pub struct StructType<'a> {
     pub body: OnceCell<StructBody<'a>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+impl<'a> Hash for StructType<'a> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.body.get().hash(state);
+    }
+}
+
+#[derive(Debug, Eq, Clone)]
 pub struct StructBody<'a> {
     pub fields: IndexMap<Symbol<'a>, &'a Type<'a>>,
+}
+
+impl<'a> PartialEq for StructBody<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.fields.as_slice() == other.fields.as_slice()
+    }
+}
+
+impl<'a> Hash for StructBody<'a> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.fields.as_slice().hash(state);
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -671,7 +710,18 @@ pub(crate) fn get_type_from_node<'a, 'b>(
                 repr: TypeRepr::Func(FuncType { params: params.into_bump_slice(), return_type }),
             })
         }
-        ExprNode::Grouped(node) => get_type_from_node(ctx, scope, node),
+        ExprNode::Tuple(node) => {
+            let elements =
+                ctx.arena.alloc_slice_fill_iter(node.elements.iter().map(|node| get_type_from_node(ctx, scope, node)));
+            ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(elements) })
+        }
+        ExprNode::Grouped(node) => {
+            let element_ty = get_type_from_node(ctx, scope, node);
+            ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Tuple(ctx.arena.alloc_slice_copy(&[element_ty])),
+            })
+        }
         _ => {
             errors::report_expected_type(ctx.errors, node.pos());
             ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown })
@@ -902,14 +952,16 @@ fn build_struct_dependency_list<'a>(ctx: &Context<'a, '_>) -> IndexMap<DefId<'a>
             continue;
         };
 
-        let dependencies = struct_type
-            .body
-            .get()
-            .expect("missing struct body")
-            .fields
-            .values()
-            .filter_map(|ty| ty.kind.get_def_id())
-            .collect::<IndexSet<_>>();
+        let mut dependencies = IndexSet::default();
+        let mut fields =
+            struct_type.body.get().expect("missing struct body").fields.values().rev().copied().collect::<Vec<_>>();
+        while let Some(ty) = fields.pop() {
+            if let TypeRepr::Tuple(elements) = ty.repr {
+                fields.extend(elements.iter().rev().copied());
+            } else if let Some(def_id) = ty.kind.get_def_id() {
+                dependencies.insert(def_id);
+            }
+        }
 
         adjlist.insert(def_id, dependencies);
     }
@@ -939,4 +991,144 @@ fn report_circular_type(ctx: &Context<'_, '_>, in_chain: &IndexSet<DefId>, start
 
     let pos = object.node.as_ref().expect("missing strut node in type object").pos;
     errors::report_circular_type(ctx.errors, pos, &chain_str);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bumpalo::Bump;
+    use std::collections::HashSet;
+    use std::hash::{DefaultHasher, Hasher};
+
+    fn hash_type(ty: &Type<'_>) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        ty.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn anonymous_type_hashes_include_representation() {
+        let integer = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I32) };
+        let boolean = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool };
+        let single = [&integer];
+        let pair = [&integer, &boolean];
+        let reversed = [&boolean, &integer];
+        let changed = [&integer, &integer];
+        let tuple = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(&pair) };
+        let nested = [&tuple];
+        let representations = [
+            TypeRepr::Unknown,
+            TypeRepr::Void,
+            TypeRepr::Opaque,
+            TypeRepr::Bool,
+            TypeRepr::UntypedInt,
+            TypeRepr::UntypedFloat,
+            TypeRepr::Int(true, BitSize::I32),
+            TypeRepr::Int(false, BitSize::I32),
+            TypeRepr::Int(true, BitSize::I64),
+            TypeRepr::Int(true, BitSize::ISize),
+            TypeRepr::Float(FloatType::F32),
+            TypeRepr::Float(FloatType::F64),
+            TypeRepr::Ptr(&integer),
+            TypeRepr::Ptr(&boolean),
+            TypeRepr::ArrayPtr(&integer),
+            TypeRepr::SlicePtr(&integer),
+            TypeRepr::Tuple(&[]),
+            TypeRepr::Tuple(&single),
+            TypeRepr::Tuple(&pair),
+            TypeRepr::Tuple(&reversed),
+            TypeRepr::Tuple(&changed),
+            TypeRepr::Tuple(&nested),
+            TypeRepr::Func(FuncType { params: &single, return_type: &boolean }),
+            TypeRepr::Func(FuncType { params: &pair, return_type: &boolean }),
+            TypeRepr::Func(FuncType { params: &single, return_type: &integer }),
+            TypeRepr::TypeArg(TypeArg::new(0, "T")),
+            TypeRepr::TypeArg(TypeArg::new(1, "T")),
+            TypeRepr::TypeArg(TypeArg::new(0, "U")),
+        ];
+        let count = representations.len();
+        let hashes = representations
+            .into_iter()
+            .map(|repr| hash_type(&Type { kind: TypeKind::Anonymous, repr }))
+            .collect::<HashSet<_>>();
+        assert_eq!(hashes.len(), count);
+    }
+
+    #[test]
+    fn tuple_hashes_use_contents_not_addresses() {
+        let arena = Bump::default();
+        let integer_a = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I32) };
+        let integer_b = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I32) };
+        let elements_a = arena.alloc_slice_copy(&[&integer_a]);
+        let elements_b = arena.alloc_slice_copy(&[&integer_b]);
+        assert!(!std::ptr::eq(&integer_a, &integer_b));
+        assert!(!std::ptr::eq(elements_a.as_ptr(), elements_b.as_ptr()));
+
+        let tuple_a = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(elements_a) };
+        let tuple_b = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(elements_b) };
+        assert_eq!(tuple_a, tuple_b);
+        assert_eq!(hash_type(&tuple_a), hash_type(&tuple_b));
+
+        let nested_a = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(arena.alloc_slice_copy(&[&tuple_a])) };
+        let nested_b = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Tuple(arena.alloc_slice_copy(&[&tuple_b])) };
+        assert_eq!(nested_a, nested_b);
+        assert_eq!(hash_type(&nested_a), hash_type(&nested_b));
+
+        let interner = TypeInterner::new(&arena);
+        assert!(std::ptr::eq(interner.define(nested_a), interner.define(nested_b)));
+    }
+
+    #[test]
+    fn nominal_type_hashes_stay_stable_when_bodies_are_initialized() {
+        let arena = Bump::default();
+        let interner = TypeInterner::new(&arena);
+        let identity = UserType { def_id: DefId { package: "test", name: "Node" } };
+        let named = interner.define(Type {
+            kind: TypeKind::User(identity),
+            repr: TypeRepr::Struct(StructType { body: OnceCell::default() }),
+        });
+        let pointer = interner.define(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Ptr(named) });
+        let named_hash = hash_type(named);
+        let pointer_hash = hash_type(pointer);
+        named.as_struct().unwrap().body.set(StructBody { fields: IndexMap::from([("next", pointer)]) }).unwrap();
+        assert_eq!(hash_type(named), named_hash);
+        assert_eq!(hash_type(pointer), pointer_hash);
+
+        let same_identity =
+            Type { kind: TypeKind::User(identity), repr: TypeRepr::Struct(StructType { body: OnceCell::default() }) };
+        assert_eq!(named, &same_identity);
+        assert_eq!(hash_type(named), hash_type(&same_identity));
+        assert!(std::ptr::eq(named, interner.define(same_identity)));
+    }
+
+    #[test]
+    fn anonymous_struct_identity_includes_field_order() {
+        let arena = Bump::default();
+        let integer = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Int(true, BitSize::I32) };
+        let boolean = Type { kind: TypeKind::Anonymous, repr: TypeRepr::Bool };
+        let [original, equivalent, reordered, changed, renamed] = [
+            [("x", &integer), ("flag", &boolean)],
+            [("x", &integer), ("flag", &boolean)],
+            [("flag", &boolean), ("x", &integer)],
+            [("x", &boolean), ("flag", &integer)],
+            [("y", &integer), ("flag", &boolean)],
+        ]
+        .map(|fields| Type {
+            kind: TypeKind::Anonymous,
+            repr: TypeRepr::Struct(StructType { body: OnceCell::from(StructBody { fields: IndexMap::from(fields) }) }),
+        });
+        assert_eq!(original, equivalent);
+        assert_eq!(hash_type(&original), hash_type(&equivalent));
+        assert_ne!(original, reordered);
+        assert_ne!(hash_type(&original), hash_type(&reordered));
+        assert_ne!(original, changed);
+        assert_ne!(hash_type(&original), hash_type(&changed));
+        assert_ne!(original, renamed);
+        assert_ne!(hash_type(&original), hash_type(&renamed));
+
+        let interner = TypeInterner::new(&arena);
+        let original = interner.define(original);
+        assert!(std::ptr::eq(original, interner.define(equivalent)));
+        assert!(!std::ptr::eq(original, interner.define(reordered)));
+    }
 }

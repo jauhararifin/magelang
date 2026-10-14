@@ -356,6 +356,36 @@ fn print_bar(bar: *Bar) {
 }
 ```
 
+### Tuples
+
+```
+let pair: (i32, f32) = (42, 1.5);
+let inferred = (42, true);
+let record: (i32, f32, Foo, Bar) = (1, 2.5, Foo{}, Bar{});
+
+// access by using .0, .1, .2, ...
+pair.0 = 7;
+pair.1 += 0.5;
+let foo: Foo = record.2;
+
+let nested: (bool, (i32, f32)) = (true, (10, 2.5));
+let number: i32 = nested.1.0;
+```
+
+```
+fn make_pair(): (i32, f32) {
+    return (42, 1.5);
+}
+
+let p: *(i32, f32) = mem.alloc[(i32, f32)]();
+p.* = make_pair();
+p.0.* = 7;
+let first: *i32 = p.0;
+mem.dealloc[(i32, f32)](p);
+```
+
+As with struct pointers, selecting an element through a tuple pointer returns its address.
+
 ### Function
 
 You can also have a function type defined like this:

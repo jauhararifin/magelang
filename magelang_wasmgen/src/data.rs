@@ -60,7 +60,7 @@ impl<'ctx> DataManager<'ctx> {
             | ExprKind::Global(..)
             | ExprKind::Func(..)
             | ExprKind::FuncInst(..) => {}
-            ExprKind::StructLit(_, values) => {
+            ExprKind::CompositeLit(values) => {
                 for val in values.iter() {
                     self.init_from_expr(val);
                 }

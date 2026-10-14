@@ -88,17 +88,24 @@ fn parse_annotations(f: &mut FileParser) -> Vec<AnnotationNode> {
             this.take_if_string_lit()
         });
 
-        let Some((_, arguments, _)) = args else {
+        let Some(args) = args else {
             f.unexpected("annotation arguments");
             f.skip_until_before(TOP_LEVEL_STOPPING_TOKEN);
             continue;
         };
 
-        let arguments = arguments.into_iter().map(StringLit::from).collect();
+        let arguments = args.items.into_iter().map(StringLit::from).collect();
         result.push(AnnotationNode { pos, name: ident, arguments });
     }
 
     result
+}
+
+struct SequenceResult<T> {
+    opening: Token,
+    items: Vec<T>,
+    closing: Token,
+    has_trailing_separator: bool,
 }
 
 fn parse_sequence<T, F>(
@@ -107,7 +114,7 @@ fn parse_sequence<T, F>(
     delim_tok: TokenKind,
     end_tok: TokenKind,
     parse_fn: F,
-) -> Option<(Token, Vec<T>, Token)>
+) -> Option<SequenceResult<T>>
 where
     F: Fn(&mut FileParser) -> Option<T>,
 {
@@ -117,7 +124,8 @@ where
     let mut needs_delimiter = false;
     loop {
         if let Some(closing) = f.take_if(&end_tok) {
-            return Some((opening, items, closing));
+            let has_trailing_separator = !items.is_empty() && !needs_delimiter;
+            return Some(SequenceResult { opening, items, closing, has_trailing_separator });
         }
         if f.kind() == &TokenKind::Eof {
             break;
@@ -144,7 +152,8 @@ where
     }
 
     if let Some(closing) = f.take_if(&end_tok) {
-        Some((opening, items, closing))
+        let has_trailing_separator = !items.is_empty() && !needs_delimiter;
+        Some(SequenceResult { opening, items, closing, has_trailing_separator })
     } else {
         report_missing(f.errors, opening.pos, format!("closing {end_tok}"));
         None
@@ -231,11 +240,11 @@ fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
         let result = parse_sequence(f, TokenKind::OpenSquare, TokenKind::Comma, TokenKind::CloseSquare, |parser| {
             parser.take_ident()
         });
-        result.map(|(opening, type_params, _)| {
-            if type_params.is_empty() {
-                report_missing(f.errors, opening.pos, "at least one type parameter");
+        result.map(|sequence| {
+            if sequence.items.is_empty() {
+                report_missing(f.errors, sequence.opening.pos, "at least one type parameter");
             }
-            type_params.into_iter().map(Identifier::from).map(TypeParameterNode::from).collect()
+            sequence.items.into_iter().map(Identifier::from).map(TypeParameterNode::from).collect()
         })
     } else {
         None
@@ -257,7 +266,7 @@ fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     if fields.is_none() {
         report_unexpected_parsing(f.errors, f.token().pos, "struct body", f.token().kind);
     }
-    let fields = fields.map(|(_, fields, _)| fields).unwrap_or_default();
+    let fields = fields.map(|sequence| sequence.items).unwrap_or_default();
 
     Some(StructNode { pos, annotations, name: name?, type_params: type_params.unwrap_or_default(), fields })
 }
@@ -282,14 +291,13 @@ fn parse_signature(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Opti
     let name: Identifier = f.take_ident()?;
 
     let type_params = if f.kind() == &TokenKind::OpenSquare {
-        let (opening, type_parameters, _) =
-            parse_sequence(f, TokenKind::OpenSquare, TokenKind::Comma, TokenKind::CloseSquare, |parser| {
-                parser.take_ident()
-            })?;
-        if type_parameters.is_empty() {
-            report_missing(f.errors, opening.pos, "at least one type parameter");
+        let sequence = parse_sequence(f, TokenKind::OpenSquare, TokenKind::Comma, TokenKind::CloseSquare, |parser| {
+            parser.take_ident()
+        })?;
+        if sequence.items.is_empty() {
+            report_missing(f.errors, sequence.opening.pos, "at least one type parameter");
         }
-        type_parameters.into_iter().map(Identifier::from).map(TypeParameterNode::from).collect()
+        sequence.items.into_iter().map(Identifier::from).map(TypeParameterNode::from).collect()
     } else {
         Vec::default()
     };
@@ -313,10 +321,10 @@ fn parse_signature(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Opti
     let end_pos = return_type
         .as_ref()
         .map(|expr| expr.pos())
-        .or(param_result.as_ref().map(|(_, _, close_tok)| close_tok.pos))
+        .or(param_result.as_ref().map(|sequence| sequence.closing.pos))
         .unwrap_or(name.pos);
 
-    let parameters = param_result.map(|(_, params, _)| params).unwrap_or_default();
+    let parameters = param_result.map(|sequence| sequence.items).unwrap_or_default();
 
     Some(SignatureNode { pos, annotations, name, type_params, parameters, return_type, end_pos })
 }
@@ -683,29 +691,33 @@ fn parse_sequence_of_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<
                         let selection: Identifier = f.take_ident()?;
                         ExprNode::Selection(SelectionExprNode { value: Box::new(target), selection })
                     }
+                    TokenKind::NumberLit { value, .. } if !value.float => {
+                        let selection = f.take_number_lit()?;
+                        ExprNode::TupleSelection(TupleSelectionExprNode { value: Box::new(target), selection })
+                    }
                     TokenKind::Mul | TokenKind::AssignOp(BinaryOp::Mul) => {
                         let tok = f.take(TokenKind::Mul)?;
                         ExprNode::Deref(DerefExprNode { pos: tok.pos, value: Box::new(target) })
                     }
                     _ => {
-                        f.unexpected("ident or '*'");
+                        f.unexpected("ident, tuple index or '*'");
                         f.skip_until_before(&[TokenKind::SemiColon]);
                         ExprNode::Invalid(pos)
                     }
                 }
             }
             TokenKind::OpenSquare => {
-                let Some((_, args, _)) =
+                let Some(sequence) =
                     parse_sequence(f, TokenKind::OpenSquare, TokenKind::Comma, TokenKind::CloseSquare, |parser| {
                         parse_expr(parser, true)
                     })
                 else {
                     return Some(ExprNode::Invalid(pos));
                 };
-                ExprNode::Bracket(BracketExprNode { value: Box::new(target), args })
+                ExprNode::Bracket(BracketExprNode { value: Box::new(target), args: sequence.items })
             }
             TokenKind::OpenBrac => {
-                let Some((_, arguments, _)) =
+                let Some(sequence) =
                     parse_sequence(f, TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |this| {
                         match parse_expr(this, true) {
                             Some(argument) => Some(argument),
@@ -720,14 +732,14 @@ fn parse_sequence_of_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<
                 else {
                     return Some(ExprNode::Invalid(pos));
                 };
-                ExprNode::Call(CallExprNode { pos, callee: Box::new(target), arguments })
+                ExprNode::Call(CallExprNode { pos, callee: Box::new(target), arguments: sequence.items })
             }
             TokenKind::OpenBlock => {
                 if !allow_struct_lit {
                     break;
                 }
 
-                let Some((_, elements, _)) =
+                let Some(sequence) =
                     parse_sequence(f, TokenKind::OpenBlock, TokenKind::Comma, TokenKind::CloseBlock, |parser| {
                         let key: Identifier = parser.take_ident()?;
                         let value = if parser.take(TokenKind::Colon).is_some() {
@@ -744,7 +756,7 @@ fn parse_sequence_of_expr(f: &mut FileParser, allow_struct_lit: bool) -> Option<
                 else {
                     return Some(ExprNode::Invalid(pos));
                 };
-                ExprNode::Struct(StructExprNode { pos, target: Box::new(target), elements })
+                ExprNode::Struct(StructExprNode { pos, target: Box::new(target), elements: sequence.items })
             }
             _ => {
                 break;
@@ -836,9 +848,9 @@ fn parse_primary_expr(f: &mut FileParser) -> Option<ExprNode> {
             let end_pos = return_type
                 .as_ref()
                 .map(|expr| expr.pos())
-                .or(param_result.as_ref().map(|(_, _, close_tok)| close_tok.pos))
+                .or(param_result.as_ref().map(|sequence| sequence.closing.pos))
                 .unwrap_or(tok.pos);
-            let parameters = param_result.map(|(_, params, _)| params).unwrap_or_default();
+            let parameters = param_result.map(|sequence| sequence.items).unwrap_or_default();
             Some(ExprNode::FuncType(FuncTypeNode {
                 pos: tok.pos,
                 params: parameters,
@@ -854,19 +866,23 @@ fn parse_primary_expr(f: &mut FileParser) -> Option<ExprNode> {
         TokenKind::True => f.take(TokenKind::True).map(BoolLiteral::from).map(ExprNode::Bool),
         TokenKind::False => f.take(TokenKind::False).map(BoolLiteral::from).map(ExprNode::Bool),
         TokenKind::OpenBrac => {
-            let open = f.take(TokenKind::OpenBrac).unwrap();
-            let Some(expr) = parse_expr(f, true) else {
-                report_missing(f.errors, f.token().pos, "grouped expression");
-                f.take_if(&TokenKind::CloseBrac);
-                return Some(ExprNode::Invalid(open.pos));
+            let pos = f.token().pos;
+            let Some(mut sequence) =
+                parse_sequence(f, TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |parser| {
+                    parse_expr(parser, true)
+                })
+            else {
+                return Some(ExprNode::Invalid(pos));
             };
-            if f.take(TokenKind::CloseBrac).is_none() {
-                return Some(ExprNode::Invalid(open.pos));
-            }
-            if matches!(expr, ExprNode::Invalid(..)) {
-                Some(ExprNode::Invalid(open.pos))
+            if sequence.items.len() == 1 && !sequence.has_trailing_separator {
+                let expr = sequence.items.pop().unwrap();
+                if matches!(expr, ExprNode::Invalid(..)) {
+                    Some(ExprNode::Invalid(pos))
+                } else {
+                    Some(ExprNode::Grouped(Box::new(expr)))
+                }
             } else {
-                Some(ExprNode::Grouped(Box::new(expr)))
+                Some(ExprNode::Tuple(TupleExprNode { pos, elements: sequence.items }))
             }
         }
         TokenKind::Equal
@@ -1063,6 +1079,34 @@ fn report_dangling_annotations(errors: &ErrorManager, pos: Pos) {
 mod tests {
     use super::*;
     use crate::token::FileManager;
+
+    #[test]
+    fn sequence_result_reports_trailing_separator() {
+        let mut files = FileManager::default();
+        for (source, count, has_trailing_separator) in [
+            ("()", 0, false),
+            ("(value)", 1, false),
+            ("(value,)", 1, true),
+            ("(value, other)", 2, false),
+            ("(value, other,)", 2, true),
+            ("((value, other))", 1, false),
+        ] {
+            let file = files.add_file("sequence.mg".into(), format!("{source};")).unwrap();
+            let errors = ErrorManager::default();
+            let mut parser = FileParser::new(&errors, scan(&errors, &file).into());
+            let sequence =
+                parse_sequence(&mut parser, TokenKind::OpenBrac, TokenKind::Comma, TokenKind::CloseBrac, |parser| {
+                    parse_expr(parser, true)
+                })
+                .unwrap();
+            assert!(errors.is_empty(), "{source}");
+            assert_eq!(sequence.items.len(), count, "{source}");
+            assert_eq!(sequence.has_trailing_separator, has_trailing_separator, "{source}");
+            assert_eq!(sequence.opening.kind, TokenKind::OpenBrac);
+            assert_eq!(sequence.closing.kind, TokenKind::CloseBrac);
+            assert_eq!(parser.kind(), &TokenKind::SemiColon);
+        }
+    }
 
     #[test]
     fn consuming_or_skipping_at_eof_preserves_the_token() {

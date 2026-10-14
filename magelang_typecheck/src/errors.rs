@@ -93,6 +93,14 @@ pub(crate) fn report_not_indexable(errors: &ErrorManager, pos: Pos) {
     errors.report(pos, String::from("Expression is not indexable"));
 }
 
+pub(crate) fn report_non_tuple_type(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, String::from("The expression is not a tuple"));
+}
+
+pub(crate) fn report_tuple_index_out_of_bounds(errors: &ErrorManager, pos: Pos, index: &str, ty: impl Display) {
+    errors.report(pos, format!("Tuple index {index} is out of bounds for {ty}"));
+}
+
 pub(crate) fn report_non_int_index(errors: &ErrorManager, pos: Pos) {
     errors.report(pos, String::from("Cannot use non-int expression as index"));
 }
