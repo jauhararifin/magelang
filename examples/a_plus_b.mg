@@ -43,14 +43,14 @@ fn read_i32(): i32 {
 
 fn read_single_char(): u8 {
   let data = mem.alloc_array[u8](1);
-  let iovec = mem.alloc[*[u8]]();
+  let iovec = mem.alloc[wasi.IoVec]();
   iovec.* = *[u8]{ptr: data, len: 1};
   let n_read_ptr = mem.alloc[i32]();
   wasi.fd_read(0, iovec, 1, n_read_ptr);
   let n_read = n_read_ptr.*;
   let ch = data[0].*;
 
-  mem.dealloc[*[u8]](iovec);
+  mem.dealloc[wasi.IoVec](iovec);
   mem.dealloc_array[u8](data);
   mem.dealloc[i32](n_read_ptr);
 
@@ -63,12 +63,12 @@ fn read_single_char(): u8 {
 fn print_single_char(ch: u8) {
   let data = mem.alloc_array[u8](1);
   data[0].* = ch;
-  let iovec = mem.alloc[*[u8]]();
+  let iovec = mem.alloc[wasi.IoVec]();
   iovec.* = *[u8]{ptr: data, len: 1};
   let n_written_ptr = mem.alloc[i32]();
 
   wasi.fd_write(1, iovec, 1, n_written_ptr);
-  mem.dealloc[*[u8]](iovec);
+  mem.dealloc[wasi.IoVec](iovec);
   mem.dealloc_array[u8](data);
   mem.dealloc[i32](n_written_ptr);
 }

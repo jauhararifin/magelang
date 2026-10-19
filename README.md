@@ -118,15 +118,17 @@ fn the_main_function() {
   // use let to define a variable.
   let msg = "Hello, world\n";
 
-  // A *[u8] has the same pointer-and-length layout as a WASI iovec. Here we use address 40
+  // IoVec has the pointer-and-length layout required by WASI. Here we use address 40
   // to store one. A real program should use an allocator instead of a fixed address.
-  let iovec = 40 as **[u8];
+  let iovec = 40 as *IoVec;
   iovec.* = msg;
 
   // We use WASI's fd_write (https://github.com/WebAssembly/WASI/blob/main/legacy/preview1/docs.md#-iovec-record)
   // to write bytes to stdout file.
   fd_write(stdout, iovec, 1, 0 as *i32);
 }
+
+type IoVec = *[u8];
 
 // stdout is the file descriptor id for standard output.
 let stdout: i32 = 1;
@@ -137,7 +139,7 @@ let stdout: i32 = 1;
 // In this case, we imported a [WASI](https://wasi.dev/) function from host environment to 
 // write bytes to file.
 @wasm_import("wasi_snapshot_preview1", "fd_write")
-fn fd_write(fd: i32, iovec_addr: **[u8], count: i32, n_written_ptr: *i32): i32;
+fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
 ```
 
 Save this code into a file named `hello.mg` and run `magelang compile hello -o hello.wasm`.
@@ -171,8 +173,10 @@ fn the_main_function() {
 ```
 // fmt.mg
 
+type IoVec = *[u8];
+
 fn print_string(msg: string) {
-  let iovec = 40 as **[u8];
+  let iovec = 40 as *IoVec;
   iovec.* = msg;
   fd_write(stdout, iovec, 1, 0 as *i32);
 }
@@ -180,7 +184,7 @@ fn print_string(msg: string) {
 let stdout: i32 = 1;
 
 @wasm_import("wasi_snapshot_preview1", "fd_write")
-fn fd_write(fd: i32, iovec_addr: **[u8], count: i32, n_written_ptr: *i32): i32;
+fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
 ```
 
 Now, compile it with `magelang compile hello -o hello.wasm`. You should be able to run
@@ -220,6 +224,17 @@ string
 ```
 
 `string` is a built-in alias for `*[u8]`.
+
+### Type Aliases
+
+A type alias gives an existing type another name
+
+```
+type IoVec = *[u8];
+
+let iovec = mem.alloc[IoVec]();
+iovec.* = "hello";
+```
 
 ### Pointers
 

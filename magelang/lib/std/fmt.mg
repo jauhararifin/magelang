@@ -3,11 +3,11 @@ import mem "std/mem";
 import vector "std/vector";
 
 fn print_str(value: string) {
-  let iovec = mem.alloc[*[u8]]();
+  let iovec = mem.alloc[wasi.IoVec]();
   iovec.* = value;
 
   wasi.fd_write(1, iovec, 1, 0 as *i32);
-  mem.dealloc[*[u8]](iovec);
+  mem.dealloc[wasi.IoVec](iovec);
 }
 
 fn strlen(p: [*]u8): usize {

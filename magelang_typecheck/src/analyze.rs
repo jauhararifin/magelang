@@ -14,9 +14,10 @@ use bumpalo::Bump;
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode, Pos, StructNode, parse,
+    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode, Pos, StructNode,
+    TypeAliasNode, parse,
 };
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
@@ -43,6 +44,7 @@ pub fn analyze<'a>(
 
     let value_items = build_scopes(&mut ctx, package_asts);
 
+    resolve_type_aliases(&ctx);
     generate_type_body(&ctx);
     check_circular_type(&ctx);
 
@@ -102,6 +104,7 @@ pub struct Interners<'a> {
 pub(crate) enum Object<'a> {
     Import(ImportObject<'a>),
     Type(TypeObject<'a>),
+    TypeAlias(TypeAliasObject<'a>),
     Value(OnceCell<ValueObject<'a>>),
 }
 
@@ -109,6 +112,13 @@ impl<'a> Object<'a> {
     pub(crate) fn as_type(&self) -> Option<&TypeObject<'a>> {
         match self {
             Self::Type(object) => Some(object),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_type_alias(&self) -> Option<&TypeAliasObject<'a>> {
+        match self {
+            Self::TypeAlias(object) => Some(object),
             _ => None,
         }
     }
@@ -150,9 +160,24 @@ impl<'a> From<&'a Type<'a>> for TypeObject<'a> {
 
 impl<'a> std::ops::Deref for TypeObject<'a> {
     type Target = &'a Type<'a>;
+
     fn deref(&self) -> &Self::Target {
         &self.ty
     }
+}
+
+#[derive(Clone, Copy)]
+enum TypeAliasState {
+    Unresolved,
+    Resolving(usize),
+    Resolved,
+}
+
+pub(crate) struct TypeAliasObject<'a> {
+    def_id: DefId<'a>,
+    node: TypeAliasNode,
+    state: Cell<TypeAliasState>,
+    ty: OnceCell<&'a Type<'a>>,
 }
 
 #[derive(Debug)]
@@ -360,6 +385,15 @@ fn build_scopes<'a>(
                         .define_type(Type { kind, repr: TypeRepr::Struct(StructType { body: OnceCell::default() }) });
                     Object::Type(TypeObject { ty, node: Some(struct_node) })
                 }
+                ItemNode::TypeAlias(node) => {
+                    let def_id = DefId { package: package_name, name: object_name };
+                    Object::TypeAlias(TypeAliasObject {
+                        def_id,
+                        node,
+                        state: Cell::new(TypeAliasState::Unresolved),
+                        ty: OnceCell::default(),
+                    })
+                }
                 ItemNode::Global(..) | ItemNode::Function(..) => {
                     // Reserve value names before resolving types, including names that shadow built-ins.
                     values.push(item);
@@ -413,9 +447,55 @@ fn get_builtin_scope<'a>(ctx: &Context<'a, '_>) -> Scope<'a> {
     builtin_scope
 }
 
+fn resolve_type_aliases(ctx: &Context<'_, '_>) {
+    for scope in ctx.scopes.values() {
+        for alias in scope.iter().filter_map(|(_, object)| object.as_type_alias()) {
+            resolve_type_alias(ctx, alias);
+        }
+    }
+}
+
+pub(crate) fn resolve_type_alias<'a>(ctx: &Context<'a, '_>, alias: &TypeAliasObject<'a>) -> &'a Type<'a> {
+    if let TypeAliasState::Resolved = alias.state.get() {
+        return alias.ty.get().copied().expect("resolved type alias has no type");
+    }
+
+    if let TypeAliasState::Resolving(cycle_start) = alias.state.get() {
+        let mut cycle = ctx
+            .scopes
+            .values()
+            .flat_map(|scope| scope.iter())
+            .filter_map(|(_, object)| object.as_type_alias())
+            .filter_map(|alias| match alias.state.get() {
+                TypeAliasState::Resolving(depth) if depth >= cycle_start => Some((depth, alias.def_id)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        cycle.sort_unstable_by_key(|(depth, _)| *depth);
+        let cycle = cycle.into_iter().map(|(_, def_id)| def_id.to_string()).collect::<Vec<_>>();
+        errors::report_circular_type(ctx.errors, alias.node.pos, &cycle);
+        return ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
+    }
+
+    let depth = ctx
+        .scopes
+        .values()
+        .flat_map(|scope| scope.iter())
+        .filter_map(|(_, object)| object.as_type_alias())
+        .filter(|alias| matches!(alias.state.get(), TypeAliasState::Resolving(..)))
+        .count();
+    alias.state.set(TypeAliasState::Resolving(depth));
+
+    let scope = ctx.scopes.get(&alias.def_id.package).expect("missing package scope");
+    let ty = get_type_from_node(ctx, scope, &alias.node.ty);
+    alias.ty.set(ty).expect("type alias already resolved");
+    alias.state.set(TypeAliasState::Resolved);
+    ty
+}
+
 fn generate_type_body(ctx: &Context<'_, '_>) {
-    for scopes in ctx.scopes.values() {
-        for type_object in scopes.iter().filter_map(|(_, object)| object.as_type()) {
+    for scope in ctx.scopes.values() {
+        for type_object in scope.iter().filter_map(|(_, object)| object.as_type()) {
             type_object.init_body(ctx);
             assert!(type_object.as_struct().unwrap().body.get().is_some());
         }

@@ -48,6 +48,7 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
     let item = match &tok.kind {
         TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
         TokenKind::Struct => parse_struct(f, annotations).map(ItemNode::Struct),
+        TokenKind::Type => parse_type_alias(f, annotations).map(ItemNode::TypeAlias),
         TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
         TokenKind::Fn => parse_func(f, annotations).map(ItemNode::Function),
         TokenKind::Eof => {
@@ -71,7 +72,7 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
 }
 
 const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] =
-    &[TokenKind::Let, TokenKind::Fn, TokenKind::Import, TokenKind::Struct, TokenKind::SemiColon];
+    &[TokenKind::Let, TokenKind::Fn, TokenKind::Import, TokenKind::Struct, TokenKind::Type, TokenKind::SemiColon];
 
 fn parse_annotations(f: &mut FileParser) -> Vec<AnnotationNode> {
     let mut result = Vec::default();
@@ -167,6 +168,22 @@ fn parse_import(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     let path = f.take_string_lit()?;
     f.take(TokenKind::SemiColon)?;
     Some(ImportNode { pos, annotations, name, path })
+}
+
+fn parse_type_alias(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<TypeAliasNode> {
+    let type_tok = f.take_if(&TokenKind::Type)?;
+    let pos = type_tok.pos;
+    let name = f.take_ident()?;
+
+    f.take(TokenKind::Equal)?;
+    let ty = parse_expr(f, false).unwrap_or_else(|| {
+        let pos = f.token().pos;
+        report_missing(f.errors, pos, "aliased type");
+        ExprNode::Invalid(pos)
+    });
+    f.take(TokenKind::SemiColon)?;
+
+    Some(TypeAliasNode { pos, annotations, name, ty })
 }
 
 fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<GlobalNode> {

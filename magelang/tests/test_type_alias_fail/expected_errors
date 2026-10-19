@@ -1,0 +1,12 @@
+tests/test_type_alias_fail/main.mg:1:1: Invalid recursive type:
+	tests/test_type_alias_fail/main::First refers to
+	tests/test_type_alias_fail/main::Second refers to
+	tests/test_type_alias_fail/main::Third refers to
+	tests/test_type_alias_fail/main::First
+tests/test_type_alias_fail/main.mg:5:1: Invalid recursive type:
+	tests/test_type_alias_fail/main::PointerFirst refers to
+	tests/test_type_alias_fail/main::PointerSecond refers to
+	tests/test_type_alias_fail/main::PointerFirst
+tests/test_type_alias_fail/main.mg:9:1: Invalid recursive type:
+	tests/test_type_alias_fail/main::Container refers to
+	tests/test_type_alias_fail/main::Container

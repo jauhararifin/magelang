@@ -66,6 +66,24 @@ fn test_parsing() {
 }
 
 #[test]
+fn type_alias_declarations() {
+    let errors = ErrorManager::default();
+    let mut files = FileManager::default();
+    let file = files.add_file("aliases.mg".into(), "type IoVec = *[u8];\ntype Number = i32;".into()).unwrap();
+    let node = parse(&errors, &file);
+    assert!(errors.is_empty());
+
+    let [ItemNode::TypeAlias(iovec), ItemNode::TypeAlias(number)] = node.items.as_slice() else {
+        panic!("expected type aliases");
+    };
+    assert_eq!(iovec.name.value, "IoVec");
+    let ExprNode::SlicePtrType(slice) = &iovec.ty else { panic!("expected slice pointer type") };
+    assert!(matches!(slice.ty.as_ref(), ExprNode::Ident(name) if name.value == "u8"));
+    assert_eq!(number.name.value, "Number");
+    assert!(matches!(&number.ty, ExprNode::Ident(name) if name.value == "i32"));
+}
+
+#[test]
 fn tuple_expressions_and_selections() {
     let source = concat!(
         "let tuple_empty: () = ();\n",

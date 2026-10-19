@@ -1,4 +1,4 @@
-use crate::analyze::{Context, Object, TypeObject};
+use crate::analyze::{Context, Object, resolve_type_alias};
 use crate::errors;
 use crate::interner::Interner;
 use crate::scope::Scope;
@@ -672,11 +672,7 @@ impl<'a> TypeArg<'a> {
     }
 }
 
-pub(crate) fn get_type_from_node<'a, 'b>(
-    ctx: &'b Context<'a, '_>,
-    scope: &'b Scope<'a>,
-    node: &ExprNode,
-) -> &'a Type<'a> {
+pub(crate) fn get_type_from_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &ExprNode) -> &'a Type<'a> {
     match node {
         ExprNode::Invalid(..) => ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
         ExprNode::Ident(..) | ExprNode::Selection(..) => get_type_from_named(ctx, scope, node, None),
@@ -729,21 +725,21 @@ pub(crate) fn get_type_from_node<'a, 'b>(
     }
 }
 
-fn get_type_from_named<'a, 'b>(
-    ctx: &'b Context<'a, '_>,
-    scope: &'b Scope<'a>,
+fn get_type_from_named<'a>(
+    ctx: &Context<'a, '_>,
+    scope: &Scope<'a>,
     node: &ExprNode,
     args: Option<&[ExprNode]>,
 ) -> &'a Type<'a> {
-    let Some(object) = get_type_object_from_name(ctx, scope, node) else {
+    let Some(ty) = get_type_from_scope(ctx, scope, node) else {
         return ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
     };
 
-    let TypeKind::GenericStruct(generic_type) = &object.kind else {
+    let TypeKind::GenericStruct(generic_type) = &ty.kind else {
         if args.is_some() {
             errors::report_non_generic_value(ctx.errors, node.pos());
         }
-        return object.ty;
+        return ty;
     };
 
     let required_type_param = generic_type.type_params.len();
@@ -760,14 +756,10 @@ fn get_type_from_named<'a, 'b>(
     }
     let type_args = ctx.define_typeargs(&type_args);
 
-    object.specialize(ctx, type_args)
+    ty.specialize(ctx, type_args)
 }
 
-fn get_type_object_from_name<'a, 'b>(
-    ctx: &'b Context<'a, '_>,
-    scope: &'b Scope<'a>,
-    node: &ExprNode,
-) -> Option<&'b TypeObject<'a>> {
+fn get_type_from_scope<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &ExprNode) -> Option<&'a Type<'a>> {
     match node {
         ExprNode::Ident(name) => {
             let name_symbol = ctx.define_symbol(name.value.as_str());
@@ -775,11 +767,7 @@ fn get_type_object_from_name<'a, 'b>(
                 errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
-            let Some(object) = object.as_type() else {
-                errors::report_expected_type(ctx.errors, name.pos);
-                return None;
-            };
-            Some(object)
+            get_type_from_object(ctx, object, name.pos)
         }
         ExprNode::Selection(selection) => {
             let mut base = selection.value.as_ref();
@@ -798,7 +786,7 @@ fn get_type_object_from_name<'a, 'b>(
             };
             let import_object = match object {
                 Object::Import(import) => import,
-                Object::Type(..) => {
+                Object::Type(..) | Object::TypeAlias(..) => {
                     errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                     return None;
                 }
@@ -818,17 +806,23 @@ fn get_type_object_from_name<'a, 'b>(
                 errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
-            let Some(object) = object.as_type() else {
-                errors::report_expected_type(ctx.errors, name.pos);
-                return None;
-            };
-
-            Some(object)
+            get_type_from_object(ctx, object, name.pos)
         }
-        ExprNode::Grouped(inner) => get_type_object_from_name(ctx, scope, inner),
+        ExprNode::Grouped(inner) => get_type_from_scope(ctx, scope, inner),
         ExprNode::Invalid(..) => None,
         _ => {
             errors::report_expected_type(ctx.errors, node.pos());
+            None
+        }
+    }
+}
+
+fn get_type_from_object<'a>(ctx: &Context<'a, '_>, object: &Object<'a>, pos: Pos) -> Option<&'a Type<'a>> {
+    match object {
+        Object::Type(object) => Some(object.ty),
+        Object::TypeAlias(object) => Some(resolve_type_alias(ctx, object)),
+        Object::Import(..) | Object::Value(..) => {
+            errors::report_expected_type(ctx.errors, pos);
             None
         }
     }
@@ -989,7 +983,7 @@ fn report_circular_type(ctx: &Context<'_, '_>, in_chain: &IndexSet<DefId>, start
 
     let object = ctx.scopes.get(&start.package).unwrap().lookup(start.name).and_then(Object::as_type).unwrap();
 
-    let pos = object.node.as_ref().expect("missing strut node in type object").pos;
+    let pos = object.node.as_ref().expect("missing struct node in type object").pos;
     errors::report_circular_type(ctx.errors, pos, &chain_str);
 }
 

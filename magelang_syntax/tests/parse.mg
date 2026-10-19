@@ -28,6 +28,26 @@ import something;
 import something "something";
 
 // =====================================================
+// Type aliases
+// =====================================================
+
+type IoVec = *[u8];
+type Pointer = *IoVec;
+type Qualified = package.SomeType[i32];
+type TupleAlias = (i32, bool);
+type FuncAlias = fn(value: i32): bool;
+
+//syntax_error line=+1 col=6: Expected IDENT, but found '='
+type = i32;
+//syntax_error line=+1 col=14: Expected '=', but found 'i32'
+type Missing i32;
+//syntax_error line=+1 col=14: Missing aliased type
+type Empty = ;
+//syntax_error line=+2 col=1: Expected ';', but found 'type'
+type MissingSemicolon = i32
+type Recovered = bool;
+
+// =====================================================
 // Global definitions
 // =====================================================
 

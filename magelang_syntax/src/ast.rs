@@ -17,6 +17,7 @@ pub struct Comment {
 pub enum ItemNode {
     Import(ImportNode),
     Struct(StructNode),
+    TypeAlias(TypeAliasNode),
     Global(GlobalNode),
     Function(FunctionNode),
 }
@@ -26,6 +27,7 @@ impl ItemNode {
         match self {
             Self::Import(node) => &node.name.value,
             Self::Struct(node) => &node.name.value,
+            Self::TypeAlias(node) => &node.name.value,
             Self::Global(node) => &node.name.value,
             Self::Function(node) => &node.signature.name.value,
         }
@@ -35,6 +37,7 @@ impl ItemNode {
         match self {
             Self::Import(node) => node.pos,
             Self::Struct(node) => node.pos,
+            Self::TypeAlias(node) => node.pos,
             Self::Global(node) => node.pos,
             Self::Function(node) => node.pos,
         }
@@ -97,6 +100,14 @@ pub struct StructNode {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructFieldNode {
+    pub name: Identifier,
+    pub ty: ExprNode,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TypeAliasNode {
+    pub pos: Pos,
+    pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
     pub ty: ExprNode,
 }
