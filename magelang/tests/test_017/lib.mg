@@ -1,5 +1,5 @@
-struct Pair[T] { value: T }
-struct Plain { value: i32 }
+type Pair[T] struct { value: T }
+type Plain struct { value: i32 }
 
 let count: i32 = 3;
 let bytes: string = "ab";

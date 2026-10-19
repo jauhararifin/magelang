@@ -1,0 +1,14 @@
+tests/test_typedef_fail/main.mg:4:23: Mismatch type, expected tests/test_typedef_fail/main::First but found tests/test_typedef_fail/main::Second
+tests/test_typedef_fail/main.mg:5:23: Mismatch type, expected i32 but found tests/test_typedef_fail/main::First
+tests/test_typedef_fail/main.mg:9:30: Mismatch type, expected tests/test_typedef_fail/main::Point but found tests/test_typedef_fail/main::PointCopy
+tests/test_typedef_fail/main.mg:11:1: Invalid recursive type:
+	tests/test_typedef_fail/main::CycleA refers to
+	tests/test_typedef_fail/main::CycleB refers to
+	tests/test_typedef_fail/main::CycleA
+tests/test_typedef_fail/main.mg:14:1: Invalid recursive type:
+	tests/test_typedef_fail/main::MixedCycle refers to
+	tests/test_typedef_fail/main::AliasCycle refers to
+	tests/test_typedef_fail/main::MixedCycle
+tests/test_typedef_fail/main.mg:17:1: Invalid recursive type:
+	tests/test_typedef_fail/main::Recursive refers to
+	tests/test_typedef_fail/main::Recursive

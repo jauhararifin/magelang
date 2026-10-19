@@ -1,6 +1,6 @@
 import mem "std/mem";
 
-struct Vector[T]{
+type Vector[T] struct {
   arr: [*]T,
   cap: usize,
   len: usize,

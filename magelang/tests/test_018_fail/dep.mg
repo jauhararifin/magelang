@@ -1,1 +1,1 @@
-struct Outer {}
+type Outer struct {}

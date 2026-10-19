@@ -47,8 +47,7 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
     let tok = f.token();
     let item = match &tok.kind {
         TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
-        TokenKind::Struct => parse_struct(f, annotations).map(ItemNode::Struct),
-        TokenKind::Type => parse_type_alias(f, annotations).map(ItemNode::TypeAlias),
+        TokenKind::Type => parse_typedef(f, annotations),
         TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
         TokenKind::Fn => parse_func(f, annotations).map(ItemNode::Function),
         TokenKind::Eof => {
@@ -72,7 +71,7 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
 }
 
 const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] =
-    &[TokenKind::Let, TokenKind::Fn, TokenKind::Import, TokenKind::Struct, TokenKind::Type, TokenKind::SemiColon];
+    &[TokenKind::Let, TokenKind::Fn, TokenKind::Import, TokenKind::Type, TokenKind::SemiColon];
 
 fn parse_annotations(f: &mut FileParser) -> Vec<AnnotationNode> {
     let mut result = Vec::default();
@@ -170,20 +169,52 @@ fn parse_import(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     Some(ImportNode { pos, annotations, name, path })
 }
 
-fn parse_type_alias(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<TypeAliasNode> {
+fn parse_typedef(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<ItemNode> {
     let type_tok = f.take_if(&TokenKind::Type)?;
     let pos = type_tok.pos;
     let name = f.take_ident()?;
 
-    f.take(TokenKind::Equal)?;
+    if f.take_if(&TokenKind::Equal).is_some() {
+        let ty = parse_expr(f, false).unwrap_or_else(|| {
+            let pos = f.token().pos;
+            report_missing(f.errors, pos, "aliased type");
+            ExprNode::Invalid(pos)
+        });
+        f.take(TokenKind::SemiColon)?;
+        return Some(ItemNode::TypeAlias(TypeAliasNode { pos, annotations, name, ty }));
+    }
+
+    let type_params = parse_type_parameters(f);
     let ty = parse_expr(f, false).unwrap_or_else(|| {
         let pos = f.token().pos;
-        report_missing(f.errors, pos, "aliased type");
+        report_missing(f.errors, pos, "defined type");
         ExprNode::Invalid(pos)
     });
-    f.take(TokenKind::SemiColon)?;
+    if matches!(ty, ExprNode::StructType(..)) {
+        f.take_if(&TokenKind::SemiColon);
+    } else {
+        f.take(TokenKind::SemiColon)?;
+    }
 
-    Some(TypeAliasNode { pos, annotations, name, ty })
+    Some(ItemNode::TypeDef(TypeDefNode { pos, annotations, name, type_params, ty }))
+}
+
+fn parse_type_parameters(f: &mut FileParser) -> Vec<TypeParameterNode> {
+    if f.kind() != &TokenKind::OpenSquare || f.tokens.get(1).is_some_and(|token| token.kind == TokenKind::Mul) {
+        return Vec::default();
+    }
+
+    let result = parse_sequence(f, TokenKind::OpenSquare, TokenKind::Comma, TokenKind::CloseSquare, |parser| {
+        parser.take_ident()
+    });
+    result
+        .map(|sequence| {
+            if sequence.items.is_empty() {
+                report_missing(f.errors, sequence.opening.pos, "at least one type parameter");
+            }
+            sequence.items.into_iter().map(Identifier::from).map(TypeParameterNode::from).collect()
+        })
+        .unwrap_or_default()
 }
 
 fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<GlobalNode> {
@@ -247,26 +278,8 @@ fn parse_func_type_parameter(f: &mut FileParser) -> Option<FuncTypeParam> {
     Some(FuncTypeParam { pos, name, ty })
 }
 
-fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<StructNode> {
+fn parse_struct_type(f: &mut FileParser) -> Option<StructTypeNode> {
     let struct_tok = f.take_if(&TokenKind::Struct)?;
-    let pos = struct_tok.pos;
-
-    let name = f.take_ident();
-
-    let type_params = if f.kind() == &TokenKind::OpenSquare {
-        let result = parse_sequence(f, TokenKind::OpenSquare, TokenKind::Comma, TokenKind::CloseSquare, |parser| {
-            parser.take_ident()
-        });
-        result.map(|sequence| {
-            if sequence.items.is_empty() {
-                report_missing(f.errors, sequence.opening.pos, "at least one type parameter");
-            }
-            sequence.items.into_iter().map(Identifier::from).map(TypeParameterNode::from).collect()
-        })
-    } else {
-        None
-    };
-
     let fields = parse_sequence(f, TokenKind::OpenBlock, TokenKind::Comma, TokenKind::CloseBlock, |parser| {
         let name = parser.take_ident()?;
         let ty = if parser.take(TokenKind::Colon).is_some() {
@@ -285,7 +298,7 @@ fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     }
     let fields = fields.map(|sequence| sequence.items).unwrap_or_default();
 
-    Some(StructNode { pos, annotations, name: name?, type_params: type_params.unwrap_or_default(), fields })
+    Some(StructTypeNode { pos: struct_tok.pos, fields })
 }
 
 fn parse_func(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<FunctionNode> {
@@ -840,6 +853,7 @@ fn parse_primary_expr(f: &mut FileParser) -> Option<ExprNode> {
             };
             Some(ExprNode::PtrType(PtrTypeNode { pos: tok.pos, ty: Box::new(ty) }))
         }
+        TokenKind::Struct => parse_struct_type(f).map(ExprNode::StructType),
         TokenKind::Fn => {
             let tok = f.pop();
             let param_result = parse_sequence(

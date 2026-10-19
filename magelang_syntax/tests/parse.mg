@@ -28,19 +28,22 @@ import something;
 import something "something";
 
 // =====================================================
-// Type aliases
+// Typedefs
 // =====================================================
 
+type Number i32;
 type IoVec = *[u8];
 type Pointer = *IoVec;
 type Qualified = package.SomeType[i32];
 type TupleAlias = (i32, bool);
 type FuncAlias = fn(value: i32): bool;
+type Record struct { value: Number }
+type RecordAlias = struct { value: Number };
 
 //syntax_error line=+1 col=6: Expected IDENT, but found '='
 type = i32;
-//syntax_error line=+1 col=14: Expected '=', but found 'i32'
-type Missing i32;
+//syntax_error line=+1 col=13: Missing defined type
+type Missing;
 //syntax_error line=+1 col=14: Missing aliased type
 type Empty = ;
 //syntax_error line=+2 col=1: Expected ';', but found 'type'
@@ -93,6 +96,8 @@ let _: *[*]i32;
 let _: *[*[i32]];
 let _: *[fn(i32): *[u8]];
 let _: Box[*[i32]];
+let _: struct { value: i32 };
+let _: *struct { value: i32 };
 //syntax_error line=+1 col=10: Missing pointee type
 let _: *[];
 //syntax_error line=+1 col=13: Expected ']', but found ';'
@@ -142,28 +147,24 @@ let _: 123 = 10;
 let _:;
 
 // =====================================================
-// Struct definitions
+// Struct types
 // =====================================================
 
-//syntax_error line=+1 col=8: Expected IDENT, but found '{'
-struct {}
-struct a
-//syntax_error line=+1 col=1: Expected struct body, but found 'struct'
-struct a[i32]
-//syntax_error line=+2 col=1: Expected struct body, but found 'struct'
-//syntax_error line=+1 col=8: Expected IDENT, but found '['
-struct [i32]{}
-struct a[i32]{field1: type1}
-//syntax_error line=+1 col=20: Missing at least one type parameter
-struct EmptyGeneric[] {}
-//syntax_error line=+1 col=34: Expected ',', but found 'right'
-struct MissingCommas { left: i32 right: i32 }
-//syntax_error line=+1 col=33: Expected ':', but found ','
-struct MissingFieldColon { value, next: i32 }
-//syntax_error line=+1 col=24: Missing struct field type
-struct Empty { erased: }
-//syntax_error line=+1 col=34: Missing struct field type
-struct Partial { good: i32, bad: }
+//syntax_error line=+1 col=6: Expected IDENT, but found 'struct'
+type struct {}
+//syntax_error line=+1 col=6: Expected IDENT, but found '['
+type [i32] struct {}
+type Generic[T] struct { field: T }
+//syntax_error line=+1 col=18: Missing at least one type parameter
+type EmptyGeneric[] struct {}
+//syntax_error line=+1 col=39: Expected ',', but found 'right'
+type MissingCommas struct { left: i32 right: i32 }
+//syntax_error line=+1 col=38: Expected ':', but found ','
+type MissingFieldColon struct { value, next: i32 }
+//syntax_error line=+1 col=29: Missing struct field type
+type Empty struct { erased: }
+//syntax_error line=+1 col=39: Missing struct field type
+type Partial struct { good: i32, bad: }
 
 // =====================================================
 // Value expressions
@@ -175,6 +176,7 @@ let a: bool = !!(false && true);
 let a: i32 = SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct{a: 10};
 let a: i32 = pkg.SomeStruct[a,b,c]{a: 10};
+let anonymous: struct { a: i32 } = struct { a: i32 }{a: 10};
 let a: i32 = pkg.some_func[i32](a, b)[1].*;
 let _: *[i32] = *[i32]{ptr: data, len: count};
 let _: *i32 = *[i32]{ptr: data, len: count}[index];

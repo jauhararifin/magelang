@@ -28,12 +28,12 @@ fn sock_accept(fd: i32, flags: u16, out_fd: *i32): u16;
 @wasm_import("wasi_snapshot_preview1", "sock_shutdown")
 fn sock_shutdown(fd: i32, flags: u8): u16;
 
-struct Subscription {
+type Subscription struct {
   userdata: u64,
   u:        SubscriptionU,
 }
 
-struct SubscriptionU {
+type SubscriptionU struct {
   tag: u8,
 
   _padding: i32,
@@ -46,13 +46,13 @@ struct SubscriptionU {
   // TODO: support union data type, and then model this
   // struct into:
   // union {
-  //  struct SubscriptionClock {
+  //  type SubscriptionClock struct {
   //    id:        u32,
   //    timestamp: u64,
   //    precision: u64,
   //    flags:     u16,
   //  }
-  //  struct SubscriptionFdReadWrite {
+  //  type SubscriptionFdReadWrite struct {
   //    fd: i32,
   //  }
   // }
@@ -64,14 +64,14 @@ let EVENT_TYPE_CLOCK:    u8 = 0;
 let EVENT_TYPE_FD_READ:  u8 = 1;
 let EVENT_TYPE_FD_WRITE: u8 = 2;
 
-struct Event {
+type Event struct {
   userdata:     u64,
   errno:        u16,
   event_type:   u8,
   fd_readwrite: EventFdReadWrite,
 }
 
-struct EventFdReadWrite {
+type EventFdReadWrite struct {
   nbytes: u64,
   flags:  u16,
 }

@@ -14,8 +14,8 @@ use bumpalo::Bump;
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
 use magelang_syntax::{
-    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode, Pos, StructNode,
-    TypeAliasNode, parse,
+    AnnotationNode, ErrorManager, FileManager, FunctionNode, GlobalNode, ItemNode, PackageNode, Pos, TypeAliasNode,
+    TypeDefNode, parse,
 };
 use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -44,8 +44,10 @@ pub fn analyze<'a>(
 
     let value_items = build_scopes(&mut ctx, package_asts);
 
+    resolve_typedefs(&ctx);
     resolve_type_aliases(&ctx);
     generate_type_body(&ctx);
+    generate_derived_type_body(&ctx);
     check_circular_type(&ctx);
 
     build_values(&ctx, value_items);
@@ -148,26 +150,27 @@ pub struct ImportObject<'a> {
 }
 
 pub struct TypeObject<'a> {
-    pub(crate) ty: &'a Type<'a>,
-    pub(crate) node: Option<StructNode>,
+    def_id: Option<DefId<'a>>,
+    pub(crate) node: Option<TypeDefNode>,
+    state: Cell<TypeResolutionState>,
+    ty: OnceCell<&'a Type<'a>>,
+    underlying: OnceCell<&'a Type<'a>>,
 }
 
 impl<'a> From<&'a Type<'a>> for TypeObject<'a> {
     fn from(ty: &'a Type<'a>) -> Self {
-        Self { ty, node: None }
-    }
-}
-
-impl<'a> std::ops::Deref for TypeObject<'a> {
-    type Target = &'a Type<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ty
+        Self {
+            def_id: None,
+            node: None,
+            state: Cell::new(TypeResolutionState::Resolved),
+            ty: OnceCell::from(ty),
+            underlying: OnceCell::default(),
+        }
     }
 }
 
 #[derive(Clone, Copy)]
-enum TypeAliasState {
+enum TypeResolutionState {
     Unresolved,
     Resolving(usize),
     Resolved,
@@ -176,7 +179,7 @@ enum TypeAliasState {
 pub(crate) struct TypeAliasObject<'a> {
     def_id: DefId<'a>,
     node: TypeAliasNode,
-    state: Cell<TypeAliasState>,
+    state: Cell<TypeResolutionState>,
     ty: OnceCell<&'a Type<'a>>,
 }
 
@@ -373,24 +376,43 @@ fn build_scopes<'a>(
                     };
                     Object::Import(ImportObject { package: ctx.define_symbol(package_path) })
                 }
-                ItemNode::Struct(struct_node) => {
+                ItemNode::TypeDef(node) => {
                     let def_id = DefId { package: package_name, name: object_name };
-                    let type_params = get_typeparams(ctx, &struct_node.type_params);
-                    let kind = if type_params.is_empty() {
-                        TypeKind::User(UserType { def_id })
+                    let is_struct = matches!(&node.ty, magelang_syntax::ExprNode::StructType(..));
+                    let (state, ty) = if is_struct {
+                        let type_params = get_typeparams(ctx, &node.type_params);
+                        let kind = if type_params.is_empty() {
+                            TypeKind::User(UserType { def_id })
+                        } else {
+                            TypeKind::GenericStruct(GenericType { def_id, type_params, mono_cache: RefCell::default() })
+                        };
+                        let ty = ctx.define_type(Type {
+                            kind,
+                            repr: TypeRepr::Struct(StructType { body: OnceCell::default() }),
+                        });
+                        (TypeResolutionState::Resolved, Some(ty))
+                    } else if !node.type_params.is_empty() {
+                        ctx.errors.report(node.pos, String::from("Type parameters are only supported on struct types"));
+                        let ty = ctx
+                            .define_type(Type { kind: TypeKind::User(UserType { def_id }), repr: TypeRepr::Unknown });
+                        (TypeResolutionState::Resolved, Some(ty))
                     } else {
-                        TypeKind::GenericStruct(GenericType { def_id, type_params, mono_cache: RefCell::default() })
+                        (TypeResolutionState::Unresolved, None)
                     };
-                    let ty = ctx
-                        .define_type(Type { kind, repr: TypeRepr::Struct(StructType { body: OnceCell::default() }) });
-                    Object::Type(TypeObject { ty, node: Some(struct_node) })
+                    Object::Type(TypeObject {
+                        def_id: Some(def_id),
+                        node: Some(node),
+                        state: Cell::new(state),
+                        ty: ty.map_or_else(OnceCell::default, OnceCell::from),
+                        underlying: OnceCell::default(),
+                    })
                 }
                 ItemNode::TypeAlias(node) => {
                     let def_id = DefId { package: package_name, name: object_name };
                     Object::TypeAlias(TypeAliasObject {
                         def_id,
                         node,
-                        state: Cell::new(TypeAliasState::Unresolved),
+                        state: Cell::new(TypeResolutionState::Unresolved),
                         ty: OnceCell::default(),
                     })
                 }
@@ -447,6 +469,14 @@ fn get_builtin_scope<'a>(ctx: &Context<'a, '_>) -> Scope<'a> {
     builtin_scope
 }
 
+fn resolve_typedefs(ctx: &Context<'_, '_>) {
+    for scope in ctx.scopes.values() {
+        for type_object in scope.iter().filter_map(|(_, object)| object.as_type()) {
+            resolve_typedef(ctx, type_object);
+        }
+    }
+}
+
 fn resolve_type_aliases(ctx: &Context<'_, '_>) {
     for scope in ctx.scopes.values() {
         for alias in scope.iter().filter_map(|(_, object)| object.as_type_alias()) {
@@ -455,50 +485,137 @@ fn resolve_type_aliases(ctx: &Context<'_, '_>) {
     }
 }
 
+fn resolution_depth(ctx: &Context<'_, '_>) -> usize {
+    ctx.scopes
+        .values()
+        .flat_map(|scope| scope.iter())
+        .filter(|(_, object)| match object {
+            Object::Type(object) => matches!(object.state.get(), TypeResolutionState::Resolving(..)),
+            Object::TypeAlias(object) => matches!(object.state.get(), TypeResolutionState::Resolving(..)),
+            Object::Import(..) | Object::Value(..) => false,
+        })
+        .count()
+}
+
+fn resolution_cycle(ctx: &Context<'_, '_>, cycle_start: usize) -> Vec<String> {
+    let mut cycle = ctx
+        .scopes
+        .values()
+        .flat_map(|scope| scope.iter())
+        .filter_map(|(_, object)| match object {
+            Object::Type(object) => match (object.state.get(), object.def_id) {
+                (TypeResolutionState::Resolving(depth), Some(def_id)) if depth >= cycle_start => Some((depth, def_id)),
+                _ => None,
+            },
+            Object::TypeAlias(object) => match object.state.get() {
+                TypeResolutionState::Resolving(depth) if depth >= cycle_start => Some((depth, object.def_id)),
+                _ => None,
+            },
+            Object::Import(..) | Object::Value(..) => None,
+        })
+        .collect::<Vec<_>>();
+    cycle.sort_unstable_by_key(|(depth, _)| *depth);
+    cycle.into_iter().map(|(_, def_id)| def_id.to_string()).collect()
+}
+
+pub(crate) fn resolve_typedef<'a>(ctx: &Context<'a, '_>, object: &TypeObject<'a>) -> &'a Type<'a> {
+    if let TypeResolutionState::Resolved = object.state.get() {
+        return object.ty.get().copied().expect("resolved typedef has no type");
+    }
+
+    if let TypeResolutionState::Resolving(cycle_start) = object.state.get() {
+        let cycle = resolution_cycle(ctx, cycle_start);
+        let pos = object.node.as_ref().expect("typedef has no node").pos;
+        errors::report_circular_type(ctx.errors, pos, &cycle);
+        return ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
+    }
+
+    object.state.set(TypeResolutionState::Resolving(resolution_depth(ctx)));
+
+    let def_id = object.def_id.expect("typedef has no definition id");
+    let node = object.node.as_ref().expect("typedef has no node");
+    let scope = ctx.scopes.get(&def_id.package).expect("missing package scope");
+    let underlying = get_type_from_node(ctx, scope, &node.ty);
+    let repr = match &underlying.repr {
+        TypeRepr::Struct(..) => TypeRepr::Struct(StructType { body: OnceCell::default() }),
+        _ => underlying.repr.clone(),
+    };
+    let ty = ctx.define_type(Type { kind: TypeKind::User(UserType { def_id }), repr });
+    object.underlying.set(underlying).expect("underlying type already resolved");
+    object.ty.set(ty).expect("typedef already resolved");
+    object.state.set(TypeResolutionState::Resolved);
+    ty
+}
+
 pub(crate) fn resolve_type_alias<'a>(ctx: &Context<'a, '_>, alias: &TypeAliasObject<'a>) -> &'a Type<'a> {
-    if let TypeAliasState::Resolved = alias.state.get() {
+    if let TypeResolutionState::Resolved = alias.state.get() {
         return alias.ty.get().copied().expect("resolved type alias has no type");
     }
 
-    if let TypeAliasState::Resolving(cycle_start) = alias.state.get() {
-        let mut cycle = ctx
-            .scopes
-            .values()
-            .flat_map(|scope| scope.iter())
-            .filter_map(|(_, object)| object.as_type_alias())
-            .filter_map(|alias| match alias.state.get() {
-                TypeAliasState::Resolving(depth) if depth >= cycle_start => Some((depth, alias.def_id)),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        cycle.sort_unstable_by_key(|(depth, _)| *depth);
-        let cycle = cycle.into_iter().map(|(_, def_id)| def_id.to_string()).collect::<Vec<_>>();
+    if let TypeResolutionState::Resolving(cycle_start) = alias.state.get() {
+        let cycle = resolution_cycle(ctx, cycle_start);
         errors::report_circular_type(ctx.errors, alias.node.pos, &cycle);
         return ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
     }
 
-    let depth = ctx
-        .scopes
-        .values()
-        .flat_map(|scope| scope.iter())
-        .filter_map(|(_, object)| object.as_type_alias())
-        .filter(|alias| matches!(alias.state.get(), TypeAliasState::Resolving(..)))
-        .count();
-    alias.state.set(TypeAliasState::Resolving(depth));
+    alias.state.set(TypeResolutionState::Resolving(resolution_depth(ctx)));
 
     let scope = ctx.scopes.get(&alias.def_id.package).expect("missing package scope");
     let ty = get_type_from_node(ctx, scope, &alias.node.ty);
     alias.ty.set(ty).expect("type alias already resolved");
-    alias.state.set(TypeAliasState::Resolved);
+    alias.state.set(TypeResolutionState::Resolved);
     ty
 }
 
 fn generate_type_body(ctx: &Context<'_, '_>) {
     for scope in ctx.scopes.values() {
         for type_object in scope.iter().filter_map(|(_, object)| object.as_type()) {
-            type_object.init_body(ctx);
-            assert!(type_object.as_struct().unwrap().body.get().is_some());
+            let Some(node) = type_object.node.as_ref() else {
+                continue;
+            };
+            if !matches!(&node.ty, magelang_syntax::ExprNode::StructType(..)) {
+                continue;
+            }
+            let ty = resolve_typedef(ctx, type_object);
+            ty.init_body(ctx);
+            assert!(ty.as_struct().unwrap().body.get().is_some());
         }
+    }
+}
+
+fn generate_derived_type_body(ctx: &Context<'_, '_>) {
+    for scope in ctx.scopes.values() {
+        for type_object in scope.iter().filter_map(|(_, object)| object.as_type()) {
+            generate_derived_type_body_for(ctx, type_object);
+        }
+    }
+}
+
+fn generate_derived_type_body_for<'a>(ctx: &Context<'a, '_>, object: &TypeObject<'a>) {
+    let ty = resolve_typedef(ctx, object);
+    let Some(target) = ty.as_struct() else {
+        return;
+    };
+    if target.body.get().is_some() {
+        return;
+    }
+    let Some(underlying) = object.underlying.get().copied() else {
+        return;
+    };
+    let Some(source) = underlying.as_struct() else {
+        return;
+    };
+
+    if source.body.get().is_none()
+        && let Some(def_id) = underlying.kind.get_def_id()
+        && let Some(source_object) =
+            ctx.scopes.get(&def_id.package).and_then(|scope| scope.lookup(def_id.name)).and_then(Object::as_type)
+    {
+        generate_derived_type_body_for(ctx, source_object);
+    }
+
+    if let Some(body) = source.body.get() {
+        target.body.set(body.clone()).expect("derived struct body already initialized");
     }
 }
 

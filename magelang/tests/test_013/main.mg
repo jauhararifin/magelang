@@ -4,7 +4,7 @@ import wasm "std/wasm";
 // nothing on the operand stack (an if/else where both branches return, a nested block, ...).
 // These used to fail wasm validation because the function's `end` saw an empty stack.
 
-struct Pair { a: i32, b: i64 }
+type Pair struct { a: i32, b: i64 }
 
 let trace: i64 = 0;
 

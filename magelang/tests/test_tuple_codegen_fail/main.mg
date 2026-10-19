@@ -9,8 +9,8 @@ fn invalid() {
   pointer.* = (null, 1);
 }
 
-struct Hidden { value: opaque }
-struct Wrapped { value: (Hidden, i32) }
+type Hidden struct { value: opaque }
+type Wrapped struct { value: (Hidden, i32) }
 
 fn invalid_comparisons() {
   let direct = (null, 1) == (null, 1);

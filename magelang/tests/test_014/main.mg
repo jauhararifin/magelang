@@ -1,7 +1,7 @@
 import wasm "std/wasm";
 
-struct Pair { a: i32, b: i64 }
-struct Box[T] { v: T }
+type Pair struct { a: i32, b: i64 }
+type Box[T] struct { v: T }
 
 let g: i32 = 10;
 

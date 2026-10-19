@@ -66,21 +66,53 @@ fn test_parsing() {
 }
 
 #[test]
-fn type_alias_declarations() {
+fn typedefs() {
     let errors = ErrorManager::default();
     let mut files = FileManager::default();
-    let file = files.add_file("aliases.mg".into(), "type IoVec = *[u8];\ntype Number = i32;".into()).unwrap();
+    let file = files
+        .add_file(
+            "types.mg".into(),
+            concat!(
+                "type Number i32;\n",
+                "type Buffer [*]u8;\n",
+                "type Pair[T] struct { value: T }\n",
+                "type IoVec = *[u8];\n",
+                "type Record = struct { value: Number };",
+            )
+            .into(),
+        )
+        .unwrap();
     let node = parse(&errors, &file);
     assert!(errors.is_empty());
 
-    let [ItemNode::TypeAlias(iovec), ItemNode::TypeAlias(number)] = node.items.as_slice() else {
-        panic!("expected type aliases");
+    let [
+        ItemNode::TypeDef(number),
+        ItemNode::TypeDef(buffer),
+        ItemNode::TypeDef(pair),
+        ItemNode::TypeAlias(iovec),
+        ItemNode::TypeAlias(record),
+    ] = node.items.as_slice()
+    else {
+        panic!("expected typedefs");
     };
+
+    assert_eq!(number.name.value, "Number");
+    assert!(matches!(&number.ty, ExprNode::Ident(name) if name.value == "i32"));
+
+    assert_eq!(buffer.name.value, "Buffer");
+    assert!(matches!(&buffer.ty, ExprNode::ArrayPtrType(..)));
+
+    assert_eq!(pair.name.value, "Pair");
+    assert_eq!(pair.type_params.len(), 1);
+    let ExprNode::StructType(pair) = &pair.ty else { panic!("expected struct type") };
+    assert_eq!(pair.fields.len(), 1);
+
     assert_eq!(iovec.name.value, "IoVec");
     let ExprNode::SlicePtrType(slice) = &iovec.ty else { panic!("expected slice pointer type") };
     assert!(matches!(slice.ty.as_ref(), ExprNode::Ident(name) if name.value == "u8"));
-    assert_eq!(number.name.value, "Number");
-    assert!(matches!(&number.ty, ExprNode::Ident(name) if name.value == "i32"));
+
+    assert_eq!(record.name.value, "Record");
+    assert!(matches!(&record.ty, ExprNode::StructType(node) if node.fields.len() == 1));
 }
 
 #[test]

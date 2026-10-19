@@ -1,4 +1,4 @@
-struct Pair {
+type Pair struct {
   value: i32,
 }
 

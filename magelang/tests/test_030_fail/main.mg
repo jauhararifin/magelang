@@ -1,6 +1,6 @@
 import dep "tests/test_030_fail/dep";
 
-struct Holder { value: i32 }
+type Holder struct { value: i32 }
 fn use_local(value: i32) {}
 fn use_import(value: dep.i32) {}
 let earlier: i32;

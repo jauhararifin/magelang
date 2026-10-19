@@ -1,4 +1,4 @@
-struct Box[T] { value: T }
+type Box[T] struct { value: T }
 
 fn id[T](value: T): T { return value; }
 fn plain(value: i32): i32 { return value; }

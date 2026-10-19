@@ -3,13 +3,13 @@ import mem "std/mem";
 
 let global_1: i32 = 10;
 
-struct Foo {
+type Foo struct {
   a: i32,
   b: void,
   c: i64,
 }
 
-struct Bar[T] {
+type Bar[T] struct {
   a: T,
 }
 

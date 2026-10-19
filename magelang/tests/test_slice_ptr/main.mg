@@ -1,13 +1,13 @@
 import mem "std/mem";
 import wasm "std/wasm";
 
-struct Box[T] {
+type Box[T] struct {
   tag: u8,
   items: *[T],
   tail: i64,
 }
 
-struct Node[T] {
+type Node[T] struct {
   value: T,
   children: *[Node[T]],
 }

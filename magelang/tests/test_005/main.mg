@@ -1,24 +1,24 @@
 import wasm "std/wasm";
 
-struct Inner {
+type Inner struct {
   a: i64,
   b: i64,
 }
 
-struct Outer {
+type Outer struct {
   x: i32,
   inner: Inner,
   y: i32,
 }
 
-struct A { pad: i32, b: B }
-struct B { pad: i64, c: *C }
-struct C { pad: i64, d: D }
-struct D { pad: i32, e: E }
-struct E { f: *F, pad: i32 }
-struct F { pad: i32, g: G }
-struct G { pad: i64, h: H }
-struct H { pad: i32, i: *i64 }
+type A struct { pad: i32, b: B }
+type B struct { pad: i64, c: *C }
+type C struct { pad: i64, d: D }
+type D struct { pad: i32, e: E }
+type E struct { f: *F, pad: i32 }
+type F struct { pad: i32, g: G }
+type G struct { pad: i64, h: H }
+type H struct { pad: i32, i: *i64 }
 
 let global_outer: *Outer = 1024 as *Outer;
 

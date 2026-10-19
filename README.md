@@ -225,9 +225,16 @@ string
 
 `string` is a built-in alias for `*[u8]`.
 
-### Type Aliases
+### Defined Types and Type Aliases
 
-A type alias gives an existing type another name
+A declaration without `=` defines a named type with its own identity:
+
+```
+type UserId i64;
+type Point struct { x: i32, y: i32 }
+```
+
+A declaration with `=` is a transparent alias for an existing type:
 
 ```
 type IoVec = *[u8];
@@ -285,17 +292,28 @@ mem.dealloc_array[i32](values.ptr);
 
 ### Structs
 
-You can define a struct using `struct` keyword like this:
+A named struct uses a `type` declaration:
 ```
-struct Foo {
+type Foo struct {
     field1: i32,
     field2: bool,
     field3: Bar,
 }
 
-struct Bar {
+type Bar struct {
     field1: bool,
 }
+```
+
+Struct types can also be anonymous or used through a transparent alias:
+
+```
+type Point = struct { x: i32, y: i32 };
+
+let point: struct { x: i32, y: i32 } = struct { x: i32, y: i32 }{
+    x: 20,
+    y: 22,
+};
 ```
 
 You can embed struct in another struct just like above example where struct `Bar` is embedded inside struct `Foo`.
@@ -306,13 +324,13 @@ Accessing a field of a struct is quite strightforward, you just need to put a do
 For example:
 
 ```
-struct Foo {
+type Foo struct {
     field1: i32,
     field2: bool,
     field3: Bar,
 }
 
-struct Bar {
+type Bar struct {
     field1: bool,
 }
 
@@ -327,13 +345,13 @@ However, accessing a field of a struct behind a pointer is a little bit differen
 get the actual value, you need to dereference it using `.*`.
 
 ```
-struct Foo {
+type Foo struct {
     field1: i32,
     field2: bool,
     field3: Bar,
 }
 
-struct Bar {
+type Bar struct {
     field1: bool,
 }
 

@@ -1,4 +1,4 @@
 import dep "tests/test_018_fail/dep";
 let value: dep.Outer.Inner;
-struct Local {}
+type Local struct {}
 let local: Local.Inner;

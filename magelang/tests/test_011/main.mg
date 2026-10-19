@@ -1,6 +1,6 @@
 import wasm "std/wasm";
 
-struct Pair { a: i32, b: i64 }
+type Pair struct { a: i32, b: i64 }
 
 let trace: i64 = 0;
 

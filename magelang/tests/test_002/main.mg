@@ -1,13 +1,13 @@
 import wasm "std/wasm";
 import mem "std/mem";
 
-struct A {
+type A struct {
   a: i32,
   b: B,
   c: i32,
 }
 
-struct B {
+type B struct {
   a: i64,
   b: i64,
 }

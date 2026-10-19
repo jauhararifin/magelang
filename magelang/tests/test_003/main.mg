@@ -1,12 +1,12 @@
 import wasm "std/wasm";
 
-struct Foo {
+type Foo struct {
   a: i32,
   b: Bar,
   c: i64,
 }
 
-struct Bar {
+type Bar struct {
   a: i64,
   b: i64,
 }

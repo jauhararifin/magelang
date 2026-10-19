@@ -13,20 +13,20 @@ type NodePtr = *Node;
 type StructAlias = RecursiveStruct;
 type TupleStructAlias = (i32, TupleStruct);
 
-struct Payload {
+type Payload struct {
   value: Forward,
 }
 
-struct Node {
+type Node struct {
   next: NodePtr,
   value: i32,
 }
 
-struct RecursiveStruct {
+type RecursiveStruct struct {
   next: *StructAlias,
 }
 
-struct TupleStruct {
+type TupleStruct struct {
   next: *TupleStructAlias,
 }
 

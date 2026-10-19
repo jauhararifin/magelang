@@ -1,16 +1,16 @@
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -102,16 +102,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -203,16 +203,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -304,16 +304,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -405,16 +405,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -506,16 +506,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -607,16 +607,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -708,16 +708,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -809,16 +809,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -910,16 +910,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1011,16 +1011,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1112,16 +1112,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1213,16 +1213,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1314,16 +1314,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1415,16 +1415,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1516,16 +1516,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1617,16 +1617,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1718,16 +1718,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1819,16 +1819,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -1920,16 +1920,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2021,16 +2021,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2122,16 +2122,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2223,16 +2223,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2324,16 +2324,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2425,16 +2425,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2526,16 +2526,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2627,16 +2627,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2728,16 +2728,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2829,16 +2829,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -2930,16 +2930,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3031,16 +3031,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3132,16 +3132,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3233,16 +3233,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3334,16 +3334,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3435,16 +3435,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3536,16 +3536,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3637,16 +3637,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3738,16 +3738,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3839,16 +3839,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -3940,16 +3940,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4041,16 +4041,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4142,16 +4142,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4243,16 +4243,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4344,16 +4344,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4445,16 +4445,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4546,16 +4546,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4647,16 +4647,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4748,16 +4748,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4849,16 +4849,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -4950,16 +4950,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5051,16 +5051,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5152,16 +5152,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5253,16 +5253,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5354,16 +5354,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5455,16 +5455,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5556,16 +5556,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5657,16 +5657,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5758,16 +5758,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5859,16 +5859,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -5960,16 +5960,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6061,16 +6061,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6162,16 +6162,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6263,16 +6263,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6364,16 +6364,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6465,16 +6465,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6566,16 +6566,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6667,16 +6667,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6768,16 +6768,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6869,16 +6869,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -6970,16 +6970,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7071,16 +7071,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7172,16 +7172,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7273,16 +7273,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7374,16 +7374,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7475,16 +7475,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7576,16 +7576,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7677,16 +7677,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7778,16 +7778,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7879,16 +7879,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -7980,16 +7980,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8081,16 +8081,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8182,16 +8182,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8283,16 +8283,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8384,16 +8384,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8485,16 +8485,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8586,16 +8586,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8687,16 +8687,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8788,16 +8788,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8889,16 +8889,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -8990,16 +8990,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9091,16 +9091,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9192,16 +9192,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9293,16 +9293,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9394,16 +9394,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9495,16 +9495,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9596,16 +9596,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9697,16 +9697,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9798,16 +9798,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -9899,16 +9899,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,
@@ -10000,16 +10000,16 @@ fn nested(value: i32): i32 {
 // A representative mix of declarations, statements, types, and expressions.
 import math "std/math";
 @layout("packed")
-struct Pair[T, U] {
+type Pair[T, U] struct {
     first: T,
     second: U,
 }
-struct Vec3 {
+type Vec3 struct {
     x: f64,
     y: f64,
     z: f64,
 }
-struct Job {
+type Job struct {
     id: u64,
     next: *Job,
     samples: [*]f32,

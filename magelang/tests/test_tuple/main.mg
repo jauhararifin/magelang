@@ -2,12 +2,12 @@ import mem "std/mem";
 import wasm "std/wasm";
 import dep "tests/test_tuple/dep";
 
-struct Foo { value: i32 }
-struct Bar { flag: bool }
-struct Box[T] { value: (i32, T) }
-struct Node[T] { links: (T, *Node[T]) }
-struct Single[T] { value: (T) }
-struct Empty {}
+type Foo struct { value: i32 }
+type Bar struct { flag: bool }
+type Box[T] struct { value: (i32, T) }
+type Node[T] struct { links: (T, *Node[T]) }
+type Single[T] struct { value: (T) }
+type Empty struct {}
 
 let global_first: i32 = global_tuple.0;
 let global_tuple: (i32, (f32, bool)) = (later, (2.5, true));

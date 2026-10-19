@@ -1,10 +1,10 @@
 import wasm "std/wasm";
 
-struct Inner { x: i32 }
-struct Outer { n: i32, inner: Inner }
-struct Pair { a: i32, b: i64 }
-struct Ptrs { p: *i32, q: *i32 }
-struct Box[T] { v: T }
+type Inner struct { x: i32 }
+type Outer struct { n: i32, inner: Inner }
+type Pair struct { a: i32, b: i64 }
+type Ptrs struct { p: *i32, q: *i32 }
+type Box[T] struct { v: T }
 
 let calls: i32 = 0;
 let evals: i32 = 0;

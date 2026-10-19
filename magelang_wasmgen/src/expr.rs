@@ -966,11 +966,14 @@ impl<'a, 'ctx> ExprBuilder<'a, 'ctx> {
         result
     }
 
-    fn build_cast(&self, ty: &Type, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
+    fn build_cast(&self, ty: &'ctx Type<'ctx>, value: &Expr<'ctx>) -> Vec<wasm::Instr> {
         let mut result = self.build(value);
 
         let source_type = value.ty;
         let target_type = ty;
+        if source_type.repr == target_type.repr {
+            return result;
+        }
 
         let instrs = match source_type.repr {
             TypeRepr::Ptr(..) | TypeRepr::ArrayPtr(..) => match target_type.repr {

@@ -1,7 +1,7 @@
 import wasm "std/wasm";
 
-struct Pair { a: i32, b: i64 }
-struct Big { x: i32, i: Pair, f: f64, y: i32 }
+type Pair struct { a: i32, b: i64 }
+type Big struct { x: i32, i: Pair, f: f64, y: i32 }
 
 let g: i32 = 0;
 let calls: i32 = 0;

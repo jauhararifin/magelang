@@ -1,10 +1,10 @@
 import wasm "std/wasm";
 
-struct Pair { a: i32, b: i32 }
-struct Triple { x: i32, y: i32, z: i32 }
-struct Nested { p: Pair, q: Pair }
-struct Wide { a: i32, b: i64, c: f64, d: i32 }
-struct Gen[T] { first: T, second: T }
+type Pair struct { a: i32, b: i32 }
+type Triple struct { x: i32, y: i32, z: i32 }
+type Nested struct { p: Pair, q: Pair }
+type Wide struct { a: i32, b: i64, c: f64, d: i32 }
+type Gen[T] struct { first: T, second: T }
 
 let seq: i32 = 0;
 let gseq: i32 = 0;

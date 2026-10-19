@@ -1,9 +1,9 @@
-struct Direct { value: (i32, Direct) }
-struct Indirect { value: (bool, (Other,)) }
-struct Other { value: Indirect }
-struct Generic[T] { value: (T, Generic[T]) }
+type Direct struct { value: (i32, Direct) }
+type Indirect struct { value: (bool, (Other,)) }
+type Other struct { value: Indirect }
+type Generic[T] struct { value: (T, Generic[T]) }
 
 let a: (i32,) = (b.0,);
 let b: (i32,) = (a.0,);
 
-struct Grouped { value: (Grouped) }
+type Grouped struct { value: (Grouped) }

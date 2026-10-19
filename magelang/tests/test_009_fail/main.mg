@@ -1,4 +1,4 @@
-struct P { a: i32 }
+type P struct { a: i32 }
 
 @main()
 fn main() {}

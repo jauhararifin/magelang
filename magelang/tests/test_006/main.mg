@@ -1,10 +1,10 @@
 import wasm "std/wasm";
 
-struct Inner { a: i64, b: i64 }
-struct Big { x: i32, i: Inner, f: f64, y: i32 }
-struct Tail { p: i32, q: Inner }
-struct Mixed { a: i8, b: f32, c: u16, d: i64, e: f64, f: bool }
-struct WithVoid { a: i32, v: void, b: i64 }
+type Inner struct { a: i64, b: i64 }
+type Big struct { x: i32, i: Inner, f: f64, y: i32 }
+type Tail struct { p: i32, q: Inner }
+type Mixed struct { a: i8, b: f32, c: u16, d: i64, e: f64, f: bool }
+type WithVoid struct { a: i32, v: void, b: i64 }
 
 let global_big: Big = Big{x: 1, i: Inner{a: 2, b: 3}, f: 4.5, y: 6};
 let counter: i32 = 0;

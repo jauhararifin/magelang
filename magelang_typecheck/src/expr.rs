@@ -410,7 +410,11 @@ fn get_expr_from_node_internal<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, nod
         ExprNode::Selection(selection_node) => get_expr_from_selection_node(ctx, scope, selection_node),
         ExprNode::TupleSelection(selection_node) => get_expr_from_tuple_selection_node(ctx, scope, selection_node),
         ExprNode::Bracket(node) => get_expr_from_bracket_node(ctx, scope, node),
-        ExprNode::PtrType(..) | ExprNode::ArrayPtrType(..) | ExprNode::SlicePtrType(..) | ExprNode::FuncType(..) => {
+        ExprNode::PtrType(..)
+        | ExprNode::ArrayPtrType(..)
+        | ExprNode::SlicePtrType(..)
+        | ExprNode::FuncType(..)
+        | ExprNode::StructType(..) => {
             errors::report_expected_value(ctx.errors, node.pos());
             Expr {
                 ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
@@ -1415,7 +1419,8 @@ fn get_expr_from_cast_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &
         _ => (),
     };
 
-    let valid_casting = (value_type.is_integral() && target_type.is_integral())
+    let valid_casting = value_type.repr == target_type.repr
+        || (value_type.is_integral() && target_type.is_integral())
         || (value_type.is_float() && target_type.is_float())
         || (value_type.is_integral() && target_type.is_float())
         || (value_type.is_float() && target_type.is_integral())

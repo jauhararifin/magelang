@@ -4,8 +4,8 @@ import mem "std/mem";
 // Defer edge cases around return paths, variable capture, and the value types that sit on the
 // wasm operand stack while deferred code runs.
 
-struct Pair { a: i32, b: i64 }
-struct Triple { x: i32, y: f64, z: Pair }
+type Pair struct { a: i32, b: i64 }
+type Triple struct { x: i32, y: f64, z: Pair }
 
 let trace: i64 = 0;
 

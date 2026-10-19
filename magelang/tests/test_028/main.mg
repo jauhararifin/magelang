@@ -1,7 +1,7 @@
 import dep "tests/test_028/dep";
 import wasm "std/wasm";
 
-struct Box[T] { value: T }
+type Box[T] struct { value: T }
 let initial: i32 = later();
 let later_value: i32 = 17;
 

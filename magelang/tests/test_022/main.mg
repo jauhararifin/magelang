@@ -1,7 +1,7 @@
 import mem "std/mem";
 import wasm "std/wasm";
 
-struct Pair[T] {
+type Pair[T] struct {
   value: T,
 }
 

@@ -5,7 +5,7 @@ let page_size: usize = 65536;
 
 // TODO: add footer in each allocation to make it easier to merge two
 // free chunk together.
-struct Header {
+type Header struct {
   next: *Header,
   size: usize,
 }

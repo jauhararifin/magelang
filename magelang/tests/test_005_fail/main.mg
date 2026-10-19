@@ -1,4 +1,4 @@
-struct P {
+type P struct {
   a: i32,
   b: i32,
 }

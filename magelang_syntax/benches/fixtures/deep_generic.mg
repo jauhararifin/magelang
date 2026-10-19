@@ -1,5 +1,5 @@
 // A generic instantiation with a type argument nested 512 levels deep.
-struct Box[T] {
+type Box[T] struct {
     value: T,
 }
 fn identity[T](value: T): T {

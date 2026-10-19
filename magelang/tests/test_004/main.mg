@@ -1,18 +1,18 @@
 import mem "std/mem";
 
-struct Foo[T, U, V] {
+type Foo[T, U, V] struct {
   a: *Bar[V, T, U],
 }
 
-struct Bar[T, U, V] {
+type Bar[T, U, V] struct {
   a: *Baz[V, T, U],
 }
 
-struct Baz[T, U, V] {
+type Baz[T, U, V] struct {
   a: *Qux[V, T, U],
 }
 
-struct Qux[T, U, V] {
+type Qux[T, U, V] struct {
   a: *Foo[V, T, U],
 }
 
@@ -33,19 +33,19 @@ fn main() {
   a.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.*.a.* = a;
 }
 
-struct Foo2[T, U, V] {
+type Foo2[T, U, V] struct {
   a: *Bar2[V, T, U],
 }
 
-struct Bar2[T, U, V] {
+type Bar2[T, U, V] struct {
   a: *Baz2[V, T, U],
 }
 
-struct Baz2[T, U, V] {
+type Baz2[T, U, V] struct {
   a: *Qux2[V, T, U],
 }
 
-struct Qux2[T, U, V] {
+type Qux2[T, U, V] struct {
   a: *Foo2[V, T, U],
 }
 

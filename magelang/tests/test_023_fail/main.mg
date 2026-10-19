@@ -1,4 +1,4 @@
-struct Empty[] {}
+type Empty[] struct {}
 
 fn empty_generic[]() {}
 

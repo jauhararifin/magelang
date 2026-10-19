@@ -1,21 +1,21 @@
 import dep "tests/test_028/dep";
 
-struct TypeFirst {}
+type TypeFirst struct {}
 fn TypeFirst() {}
 
 fn FunctionFirst() {}
-struct FunctionFirst {}
+type FunctionFirst struct {}
 
-struct TypeBeforeGlobal {}
+type TypeBeforeGlobal struct {}
 let TypeBeforeGlobal: i32;
 
 let GlobalFirst: i32;
-struct GlobalFirst {}
+type GlobalFirst struct {}
 
 import ImportFirst "tests/test_028/dep";
-struct ImportFirst {}
+type ImportFirst struct {}
 
-struct TypeBeforeImport {}
+type TypeBeforeImport struct {}
 import TypeBeforeImport "tests/test_028/dep";
 
 import ImportBeforeFunction "tests/test_028/dep";
@@ -32,7 +32,7 @@ import GlobalBeforeImport "tests/test_028/dep";
 
 fn repeated_parameter[T](T: T) {}
 
-struct Box[T] { value: T }
+type Box[T] struct { value: T }
 fn id[T](value: T): T { return value; }
 
 fn shadow_type() {

@@ -1,11 +1,11 @@
-use crate::analyze::{Context, Object, resolve_type_alias};
+use crate::analyze::{Context, Object, resolve_type_alias, resolve_typedef};
 use crate::errors;
 use crate::interner::Interner;
 use crate::scope::Scope;
 use crate::{DefId, Symbol};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::{IndexMap, IndexSet};
-use magelang_syntax::{ExprNode, Pos, SignatureNode, TypeParameterNode};
+use magelang_syntax::{ExprNode, Pos, SignatureNode, StructFieldNode, TypeParameterNode};
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
@@ -87,51 +87,42 @@ impl<'a> Type<'a> {
         };
         let scope = scope.as_ref().unwrap_or(package_scope);
 
-        let struct_node = ctx
+        let type_node = ctx
             .scopes
             .get(def_id.package)
             .expect("missing package scope")
             .lookup(def_id.name)
             .and_then(Object::as_type)
-            .expect("missing object")
-            .node
-            .as_ref()
+            .and_then(|object| object.node.as_ref())
             .expect("missing object node");
+        let ExprNode::StructType(struct_node) = &type_node.ty else {
+            return;
+        };
 
-        let mut field_pos = HashMap::<Symbol, Pos>::default();
-        let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
-        for field_node in &struct_node.fields {
-            let field_name = ctx.define_symbol(field_node.name.value.as_str());
-            let pos = field_node.name.pos;
-            if let Some(defined_at) = field_pos.get(&field_name) {
-                errors::report_redeclared_symbol(
-                    ctx.errors,
-                    pos,
-                    ctx.files.location(*defined_at),
-                    &field_node.name.value,
-                );
-            } else {
-                field_pos.insert(field_name, pos);
-                let ty = get_type_from_node(ctx, scope, &field_node.ty);
-                fields.insert(field_name, ty);
-            }
-        }
-
-        let body = StructBody { fields };
+        let body = get_struct_body_from_fields(ctx, scope, &struct_node.fields);
 
         struct_type.body.set(body).expect("cannot set struct body");
 
         if let TypeKind::GenericStruct(kind) = &self.kind {
             // TODO: I think we don't really need to do this. we can just do dfs normally
-            let instanced_types: Vec<&TypeArgs> = kind
+            let instanced_types: Vec<(&TypeArgs, &Type)> = kind
                 .mono_cache
                 .borrow()
                 .values()
-                .filter_map(|ty| if let TypeKind::Inst(inst) = ty.kind { Some(inst.type_args) } else { None })
+                .filter_map(|ty| if let TypeKind::Inst(inst) = ty.kind { Some((inst.type_args, *ty)) } else { None })
                 .collect();
 
-            for type_args in instanced_types {
-                self.specialize(ctx, type_args);
+            let body = self.repr.as_struct().expect("generic structs have struct repr").body.get().unwrap();
+            for (type_args, ty) in instanced_types {
+                let TypeRepr::Struct(instanced_repr) = &ty.repr else { unreachable!() };
+                instanced_repr.body.get_or_init(|| {
+                    let fields = body
+                        .fields
+                        .iter()
+                        .map(|(name, ty)| (*name, ty.substitute(ctx, type_args)))
+                        .collect::<IndexMap<_, _>>();
+                    StructBody { fields }
+                });
             }
         };
     }
@@ -157,7 +148,7 @@ impl<'a> Type<'a> {
                 cache.insert(type_args, ty);
                 drop(cache);
 
-                // it is important to call initialize the body after the cache is inserted and
+                // it is important to initialize the body after the cache is inserted and
                 // dropped to avoid infinite loop due to circular traversal in the type graph.
                 if let Some(body) = self.repr.as_struct().expect("generic structs have struct repr").body.get() {
                     let TypeRepr::Struct(ref instanced_repr) = ty.repr else { unreachable!() };
@@ -194,6 +185,9 @@ impl<'a> Type<'a> {
             !matches!(self.kind, TypeKind::GenericFunc(..) | TypeKind::GenericStruct(..)),
             "a struct field can't contain generic type. generic type is only defined in top level"
         );
+        if matches!(self.kind, TypeKind::User(..)) {
+            return self;
+        }
 
         match &self.repr {
             TypeRepr::Unknown => self,
@@ -216,7 +210,7 @@ impl<'a> Type<'a> {
                         substituted_typeargs.push(type_arg.substitute(ctx, type_args));
                     }
                     let substituted_typeargs = ctx.define_typeargs(substituted_typeargs.into_bump_slice());
-                    object.ty.specialize(ctx, substituted_typeargs)
+                    resolve_typedef(ctx, object).specialize(ctx, substituted_typeargs)
                 }
                 TypeKind::User(..) => self,
                 TypeKind::Anonymous => {
@@ -343,15 +337,23 @@ impl<'a> Type<'a> {
         self.repr.is_unknown() || self.repr.is_arithmetic()
     }
 
+    fn is_named(&self) -> bool {
+        match self.kind {
+            TypeKind::User(..) | TypeKind::GenericStruct(..) => true,
+            TypeKind::Inst(..) => matches!(self.repr, TypeRepr::Struct(..)),
+            TypeKind::GenericFunc(..) => false,
+            TypeKind::Anonymous => matches!(
+                self.repr,
+                TypeRepr::Void | TypeRepr::Opaque | TypeRepr::Bool | TypeRepr::Int(..) | TypeRepr::Float(..)
+            ),
+        }
+    }
+
     pub(crate) fn is_assignable_with(&self, other: &Self) -> bool {
         if self.is_unknown() || other.is_unknown() {
             return true;
         }
-        if matches!(self.kind, TypeKind::Anonymous) {
-            self.repr.is_assignable_with(&other.repr)
-        } else {
-            self.kind.eq(&other.kind) || self.repr.is_assignable_with(&other.repr)
-        }
+        if !self.is_named() || !other.is_named() { self.repr.is_assignable_with(&other.repr) } else { self.eq(other) }
     }
 }
 
@@ -444,7 +446,7 @@ impl<'a> Hash for GenericType<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeRepr<'a> {
     Unknown,
     Struct(StructType<'a>),
@@ -577,7 +579,7 @@ impl<'a> Display for TypeRepr<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructType<'a> {
     pub body: OnceCell<StructBody<'a>>,
 }
@@ -672,6 +674,27 @@ impl<'a> TypeArg<'a> {
     }
 }
 
+fn get_struct_body_from_fields<'a>(
+    ctx: &Context<'a, '_>,
+    scope: &Scope<'a>,
+    field_nodes: &[StructFieldNode],
+) -> StructBody<'a> {
+    let mut field_pos = HashMap::<Symbol, Pos>::default();
+    let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
+    for field_node in field_nodes {
+        let field_name = ctx.define_symbol(field_node.name.value.as_str());
+        let pos = field_node.name.pos;
+        if let Some(defined_at) = field_pos.get(&field_name) {
+            errors::report_redeclared_symbol(ctx.errors, pos, ctx.files.location(*defined_at), &field_node.name.value);
+        } else {
+            field_pos.insert(field_name, pos);
+            let ty = get_type_from_node(ctx, scope, &field_node.ty);
+            fields.insert(field_name, ty);
+        }
+    }
+    StructBody { fields }
+}
+
 pub(crate) fn get_type_from_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &ExprNode) -> &'a Type<'a> {
     match node {
         ExprNode::Invalid(..) => ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
@@ -704,6 +727,13 @@ pub(crate) fn get_type_from_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
             ctx.define_type(Type {
                 kind: TypeKind::Anonymous,
                 repr: TypeRepr::Func(FuncType { params: params.into_bump_slice(), return_type }),
+            })
+        }
+        ExprNode::StructType(node) => {
+            let body = get_struct_body_from_fields(ctx, scope, &node.fields);
+            ctx.define_type(Type {
+                kind: TypeKind::Anonymous,
+                repr: TypeRepr::Struct(StructType { body: OnceCell::from(body) }),
             })
         }
         ExprNode::Tuple(node) => {
@@ -819,7 +849,7 @@ fn get_type_from_scope<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &Expr
 
 fn get_type_from_object<'a>(ctx: &Context<'a, '_>, object: &Object<'a>, pos: Pos) -> Option<&'a Type<'a>> {
     match object {
-        Object::Type(object) => Some(object.ty),
+        Object::Type(object) => Some(resolve_typedef(ctx, object)),
         Object::TypeAlias(object) => Some(resolve_type_alias(ctx, object)),
         Object::Import(..) | Object::Value(..) => {
             errors::report_expected_type(ctx.errors, pos);
@@ -938,11 +968,12 @@ fn build_struct_dependency_list<'a>(ctx: &Context<'a, '_>) -> IndexMap<DefId<'a>
     let type_objects = ctx.scopes.values().flat_map(|scope| scope.iter()).filter_map(|(_, object)| object.as_type());
 
     for type_object in type_objects {
-        let TypeRepr::Struct(struct_type) = &type_object.repr else {
+        let ty = resolve_typedef(ctx, type_object);
+        let TypeRepr::Struct(struct_type) = &ty.repr else {
             continue;
         };
 
-        let Some(def_id) = type_object.kind.get_def_id() else {
+        let Some(def_id) = ty.kind.get_def_id() else {
             continue;
         };
 
@@ -950,10 +981,25 @@ fn build_struct_dependency_list<'a>(ctx: &Context<'a, '_>) -> IndexMap<DefId<'a>
         let mut fields =
             struct_type.body.get().expect("missing struct body").fields.values().rev().copied().collect::<Vec<_>>();
         while let Some(ty) = fields.pop() {
-            if let TypeRepr::Tuple(elements) = ty.repr {
-                fields.extend(elements.iter().rev().copied());
-            } else if let Some(def_id) = ty.kind.get_def_id() {
-                dependencies.insert(def_id);
+            match &ty.repr {
+                TypeRepr::Tuple(elements) => fields.extend(elements.iter().rev().copied()),
+                TypeRepr::Struct(struct_type) => {
+                    if let Some(def_id) = ty.kind.get_def_id() {
+                        dependencies.insert(def_id);
+                    } else {
+                        fields.extend(
+                            struct_type
+                                .body
+                                .get()
+                                .expect("missing anonymous struct body")
+                                .fields
+                                .values()
+                                .rev()
+                                .copied(),
+                        );
+                    }
+                }
+                _ => (),
             }
         }
 

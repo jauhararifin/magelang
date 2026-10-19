@@ -1,5 +1,5 @@
-struct Foo { value: i32 }
-struct Empty {}
+type Foo struct { value: i32 }
+type Empty struct {}
 
 fn takes(value: (i32, bool)) {}
 fn wrong_return(): (i32, bool) { return (1, 2); }

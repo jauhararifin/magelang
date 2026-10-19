@@ -6,7 +6,7 @@ type PointerFirst = *PointerSecond;
 type PointerSecond = PointerFirst;
 
 type Embedded = Container;
-struct Container {
+type Container struct {
   embedded: Embedded,
 }
 

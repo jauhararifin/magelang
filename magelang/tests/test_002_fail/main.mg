@@ -1,7 +1,7 @@
-struct A[T]{
+type A[T] struct {
   b: B[T],
 }
-struct B[T]{
+type B[T] struct {
   a: A[T],
 }
 fn main() {

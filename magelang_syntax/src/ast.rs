@@ -16,7 +16,7 @@ pub struct Comment {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ItemNode {
     Import(ImportNode),
-    Struct(StructNode),
+    TypeDef(TypeDefNode),
     TypeAlias(TypeAliasNode),
     Global(GlobalNode),
     Function(FunctionNode),
@@ -26,7 +26,7 @@ impl ItemNode {
     pub fn name(&self) -> &str {
         match self {
             Self::Import(node) => &node.name.value,
-            Self::Struct(node) => &node.name.value,
+            Self::TypeDef(node) => &node.name.value,
             Self::TypeAlias(node) => &node.name.value,
             Self::Global(node) => &node.name.value,
             Self::Function(node) => &node.signature.name.value,
@@ -36,7 +36,7 @@ impl ItemNode {
     pub fn pos(&self) -> Pos {
         match self {
             Self::Import(node) => node.pos,
-            Self::Struct(node) => node.pos,
+            Self::TypeDef(node) => node.pos,
             Self::TypeAlias(node) => node.pos,
             Self::Global(node) => node.pos,
             Self::Function(node) => node.pos,
@@ -89,12 +89,18 @@ impl From<Token> for Identifier {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StructNode {
+#[derive(Debug, PartialEq, Eq)]
+pub struct TypeDefNode {
     pub pos: Pos,
     pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
     pub type_params: Vec<TypeParameterNode>,
+    pub ty: ExprNode,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct StructTypeNode {
+    pub pos: Pos,
     pub fields: Vec<StructFieldNode>,
 }
 
@@ -220,6 +226,7 @@ pub enum ExprNode {
     ArrayPtrType(ArrayPtrTypeNode),
     SlicePtrType(SlicePtrTypeNode),
     FuncType(FuncTypeNode),
+    StructType(StructTypeNode),
     Grouped(Box<ExprNode>),
 }
 
@@ -247,6 +254,7 @@ impl ExprNode {
             Self::ArrayPtrType(node) => node.pos,
             Self::SlicePtrType(node) => node.pos,
             Self::FuncType(node) => node.pos,
+            Self::StructType(node) => node.pos,
             Self::Grouped(node) => node.pos(),
         }
     }
