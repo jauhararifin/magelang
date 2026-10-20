@@ -1,2 +1,2 @@
-type Bytes = *[u8];
-type Number = u16;
+pub type Bytes = *[u8];
+pub type Number = u16;

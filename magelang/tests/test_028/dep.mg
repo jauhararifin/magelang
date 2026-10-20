@@ -1,6 +1,6 @@
-struct Box[T] { value: T }
-let bytes: string = "ab";
+pub struct Box[T] { pub value: T }
+pub let bytes: string = "ab";
 
-fn id[T](value: T): T {
+pub fn id[T](value: T): T {
   return value;
 }

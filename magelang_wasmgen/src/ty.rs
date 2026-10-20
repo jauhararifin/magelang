@@ -35,7 +35,7 @@ impl<'ctx> TypeManager<'ctx> {
             TypeRepr::UntypedFloat => unreachable!("found untyped float"),
             TypeRepr::Struct(struct_type) => self.get_composite_stack_layout(
                 ty,
-                struct_type.body.get().expect("missing struct body").fields.values().copied(),
+                struct_type.body.get().expect("missing struct body").fields.values().map(|field| field.ty),
             ),
             TypeRepr::Tuple(elements) => self.get_composite_stack_layout(ty, elements.iter().copied()),
             TypeRepr::Func(..) => Rc::new(1u32.into()),
@@ -100,7 +100,7 @@ impl<'ctx> TypeManager<'ctx> {
                 }
 
                 let layout = self.get_aggregate_mem_layout(
-                    struct_type.body.get().expect("missing struct body").fields.values().copied(),
+                    struct_type.body.get().expect("missing struct body").fields.values().map(|field| field.ty),
                 );
 
                 let mut internal = self.internal.borrow_mut();
@@ -236,8 +236,8 @@ pub(crate) fn build_val_type(ty: &Type<'_>) -> Vec<PrimitiveType> {
         TypeRepr::UntypedFloat => unreachable!("found untyped float"),
         TypeRepr::Struct(struct_type) => {
             let mut fields = vec![];
-            for field_ty in struct_type.body.get().expect("missing struct body").fields.values() {
-                fields.extend(build_val_type(field_ty));
+            for field in struct_type.body.get().expect("missing struct body").fields.values() {
+                fields.extend(build_val_type(field.ty));
             }
             fields
         }
@@ -345,7 +345,7 @@ impl PrimitiveType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use magelang_typecheck::{StructBody, StructType, TypeKind};
+    use magelang_typecheck::{StructBody, StructField, StructType, TypeKind};
     use std::cell::OnceCell;
 
     #[test]
@@ -363,13 +363,23 @@ mod tests {
         let record = Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Struct(StructType {
-                body: OnceCell::from(StructBody { fields: IndexMap::from([("tuple", &tuple), ("flag", &boolean)]) }),
+                body: OnceCell::from(StructBody {
+                    fields: IndexMap::from([
+                        ("tuple", StructField { ty: &tuple, is_public: false }),
+                        ("flag", StructField { ty: &boolean, is_public: false }),
+                    ]),
+                }),
             }),
         };
         let reordered_record = Type {
             kind: TypeKind::Anonymous,
             repr: TypeRepr::Struct(StructType {
-                body: OnceCell::from(StructBody { fields: IndexMap::from([("flag", &boolean), ("tuple", &tuple)]) }),
+                body: OnceCell::from(StructBody {
+                    fields: IndexMap::from([
+                        ("flag", StructField { ty: &boolean, is_public: false }),
+                        ("tuple", StructField { ty: &tuple, is_public: false }),
+                    ]),
+                }),
             }),
         };
         let outer_elements = [&empty, &record, &tuple];

@@ -175,7 +175,7 @@ fn the_main_function() {
 
 type IoVec = *[u8];
 
-fn print_string(msg: string) {
+pub fn print_string(msg: string) {
   let iovec = 40 as *IoVec;
   iovec.* = msg;
   fd_write(stdout, iovec, 1, 0 as *i32);
@@ -191,7 +191,7 @@ Now, compile it with `magelang compile hello -o hello.wasm`. You should be able 
 the `hello.wasm` file and see the hello world message.
 
 As you can see, you can import the `fmt` package into `hello` package by writing
-`import fmt "fmt"`. Here, the first `fmt` is the name of the import, we can access all
+`import fmt "fmt"`. Here, the first `fmt` is the name of the import, we can access public
 items in the `"fmt"` package using `fmt.print_str(...)`, for example. The second `"fmt"` is
 the path to fmt package, which is just "fmt".
 
@@ -230,7 +230,7 @@ string
 A type alias gives an existing type another name
 
 ```
-type IoVec = *[u8];
+pub type IoVec = *[u8];
 
 let iovec = mem.alloc[IoVec]();
 iovec.* = "hello";
@@ -422,7 +422,25 @@ But, unlike C, you can declare function in any order. You don't have too declare
 
 ## Visibility
 
-As for now, every top level declaration, and all struct fields are publicly visible and can be accessed from any package.
+Use `pub` to make objects accessible from another package:
+
+```
+pub type UserId = i64;
+
+pub struct User {
+    pub id: UserId,
+    password_hash: i64,
+}
+
+pub let user_count: usize;
+
+pub fn find_user(id: i64): User {
+    // private fields and defs are accessible from its own package
+    return User{id: id, password_hash: 0};
+}
+```
+
+Other packages can use `User`, `User.id`, `user_count`, and `find_user`, but they cannot access `password_hash`.
 
 ## Variables
 

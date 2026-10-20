@@ -1,12 +1,12 @@
 import mem "std/mem";
 
-struct Vector[T]{
-  arr: [*]T,
-  cap: usize,
-  len: usize,
+pub struct Vector[T]{
+  pub arr: [*]T,
+  pub cap: usize,
+  pub len: usize,
 }
 
-fn init[T](v: *Vector[T]) {
+pub fn init[T](v: *Vector[T]) {
   v.* = Vector[T]{
     cap: 0,
     len: 0,
@@ -14,7 +14,7 @@ fn init[T](v: *Vector[T]) {
   };
 }
 
-fn init_with_cap[T](v: *Vector[T], cap: usize) {
+pub fn init_with_cap[T](v: *Vector[T], cap: usize) {
   if v.arr.* as usize != 0 {
     mem.dealloc_array[T]( v.arr.* );
   }
@@ -27,7 +27,7 @@ fn init_with_cap[T](v: *Vector[T], cap: usize) {
   };
 }
 
-fn push[T](vec: *Vector[T], item: T) {
+pub fn push[T](vec: *Vector[T], item: T) {
   if vec.len.* == vec.cap.* {
     let new_cap: usize = 1;
     if vec.cap.* != 0 {
@@ -51,15 +51,15 @@ fn push[T](vec: *Vector[T], item: T) {
   vec.len.* = vec.len.* + 1;
 }
 
-fn set[T](vec: *Vector[T], i: usize, val: T) {
+pub fn set[T](vec: *Vector[T], i: usize, val: T) {
   vec.arr.*[i].* = val;
 }
 
-fn get[T](vec: *Vector[T], i: usize): T {
+pub fn get[T](vec: *Vector[T], i: usize): T {
   return vec.arr.*[i].*;
 }
 
-fn len[T](vec: *Vector[T]): usize {
+pub fn len[T](vec: *Vector[T]): usize {
   return vec.len.*;
 }
 

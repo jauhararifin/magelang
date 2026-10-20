@@ -1,4 +1,4 @@
-use crate::analyze::{Context, Object, resolve_type_alias};
+use crate::analyze::{Context, Object, ObjectKind, resolve_type_alias};
 use crate::errors;
 use crate::interner::Interner;
 use crate::scope::Scope;
@@ -99,7 +99,7 @@ impl<'a> Type<'a> {
             .expect("missing object node");
 
         let mut field_pos = HashMap::<Symbol, Pos>::default();
-        let mut fields = IndexMap::<Symbol, &'a Type<'a>>::default();
+        let mut fields = IndexMap::<Symbol, StructField<'a>>::default();
         for field_node in &struct_node.fields {
             let field_name = ctx.define_symbol(field_node.name.value.as_str());
             let pos = field_node.name.pos;
@@ -113,7 +113,7 @@ impl<'a> Type<'a> {
             } else {
                 field_pos.insert(field_name, pos);
                 let ty = get_type_from_node(ctx, scope, &field_node.ty);
-                fields.insert(field_name, ty);
+                fields.insert(field_name, StructField { ty, is_public: field_node.is_public });
             }
         }
 
@@ -165,7 +165,9 @@ impl<'a> Type<'a> {
                         let fields = body
                             .fields
                             .iter()
-                            .map(|(name, ty)| (*name, ty.substitute(ctx, type_args)))
+                            .map(|(name, field)| {
+                                (*name, StructField { ty: field.ty.substitute(ctx, type_args), ..*field })
+                            })
                             .collect::<IndexMap<_, _>>();
                         StructBody { fields }
                     });
@@ -226,7 +228,7 @@ impl<'a> Type<'a> {
                         .expect("all anonymous struct body should've been resolved")
                         .fields
                         .iter()
-                        .map(|(name, ty)| (*name, ty.substitute(ctx, type_args)))
+                        .map(|(name, field)| (*name, StructField { ty: field.ty.substitute(ctx, type_args), ..*field }))
                         .collect::<IndexMap<_, _>>();
                     ctx.define_type(Type {
                         kind: TypeKind::Anonymous,
@@ -516,8 +518,8 @@ impl<'a> Display for TypeRepr<'a> {
             TypeRepr::Struct(ty) => {
                 if let Some(body) = ty.body.get() {
                     write!(f, "struct{{")?;
-                    for (name, ty) in body.fields.iter() {
-                        write!(f, "{name}: {ty},")?;
+                    for (name, field) in body.fields.iter() {
+                        write!(f, "{name}: {},", field.ty)?;
                     }
                     write!(f, "}}")
                 } else {
@@ -588,9 +590,15 @@ impl<'a> Hash for StructType<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct StructField<'a> {
+    pub ty: &'a Type<'a>,
+    pub is_public: bool,
+}
+
 #[derive(Debug, Eq, Clone)]
 pub struct StructBody<'a> {
-    pub fields: IndexMap<Symbol<'a>, &'a Type<'a>>,
+    pub fields: IndexMap<Symbol<'a>, StructField<'a>>,
 }
 
 impl<'a> PartialEq for StructBody<'a> {
@@ -784,28 +792,32 @@ fn get_type_from_scope<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &Expr
                 errors::report_undeclared_symbol(ctx.errors, package.pos, &package.value);
                 return None;
             };
-            let import_object = match object {
-                Object::Import(import) => import,
-                Object::Type(..) | Object::TypeAlias(..) => {
+            let import_object = match &object.kind {
+                ObjectKind::Import(import) => import,
+                ObjectKind::Type(..) | ObjectKind::TypeAlias(..) => {
                     errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                     return None;
                 }
-                Object::Value(..) => {
+                ObjectKind::Value(..) => {
                     errors::report_expected_type(ctx.errors, package.pos);
                     return None;
                 }
             };
 
-            let Some(scope) = ctx.scopes.get(&import_object.package) else {
+            let Some(package_scope) = ctx.scopes.get(import_object.package) else {
                 errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
 
             let name_symbol = ctx.define_symbol(name.value.as_str());
-            let Some(object) = scope.lookup(name_symbol) else {
+            let Some(object) = package_scope.lookup(name_symbol) else {
                 errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
                 return None;
             };
+            if scope.package() != Some(import_object.package) && !object.is_public {
+                errors::report_undeclared_symbol(ctx.errors, name.pos, &name.value);
+                return None;
+            }
             get_type_from_object(ctx, object, name.pos)
         }
         ExprNode::Grouped(inner) => get_type_from_scope(ctx, scope, inner),
@@ -818,10 +830,10 @@ fn get_type_from_scope<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &Expr
 }
 
 fn get_type_from_object<'a>(ctx: &Context<'a, '_>, object: &Object<'a>, pos: Pos) -> Option<&'a Type<'a>> {
-    match object {
-        Object::Type(object) => Some(object.ty),
-        Object::TypeAlias(object) => Some(resolve_type_alias(ctx, object)),
-        Object::Import(..) | Object::Value(..) => {
+    match &object.kind {
+        ObjectKind::Type(object) => Some(object.ty),
+        ObjectKind::TypeAlias(object) => Some(resolve_type_alias(ctx, object)),
+        ObjectKind::Import(..) | ObjectKind::Value(..) => {
             errors::report_expected_type(ctx.errors, pos);
             None
         }
@@ -947,8 +959,15 @@ fn build_struct_dependency_list<'a>(ctx: &Context<'a, '_>) -> IndexMap<DefId<'a>
         };
 
         let mut dependencies = IndexSet::default();
-        let mut fields =
-            struct_type.body.get().expect("missing struct body").fields.values().rev().copied().collect::<Vec<_>>();
+        let mut fields = struct_type
+            .body
+            .get()
+            .expect("missing struct body")
+            .fields
+            .values()
+            .rev()
+            .map(|field| field.ty)
+            .collect::<Vec<_>>();
         while let Some(ty) = fields.pop() {
             if let TypeRepr::Tuple(elements) = ty.repr {
                 fields.extend(elements.iter().rev().copied());
@@ -1084,7 +1103,12 @@ mod tests {
         let pointer = interner.define(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Ptr(named) });
         let named_hash = hash_type(named);
         let pointer_hash = hash_type(pointer);
-        named.as_struct().unwrap().body.set(StructBody { fields: IndexMap::from([("next", pointer)]) }).unwrap();
+        named
+            .as_struct()
+            .unwrap()
+            .body
+            .set(StructBody { fields: IndexMap::from([("next", StructField { ty: pointer, is_public: false })]) })
+            .unwrap();
         assert_eq!(hash_type(named), named_hash);
         assert_eq!(hash_type(pointer), pointer_hash);
 
@@ -1109,7 +1133,11 @@ mod tests {
         ]
         .map(|fields| Type {
             kind: TypeKind::Anonymous,
-            repr: TypeRepr::Struct(StructType { body: OnceCell::from(StructBody { fields: IndexMap::from(fields) }) }),
+            repr: TypeRepr::Struct(StructType {
+                body: OnceCell::from(StructBody {
+                    fields: IndexMap::from(fields.map(|(name, ty)| (name, StructField { ty, is_public: false }))),
+                }),
+            }),
         });
         assert_eq!(original, equivalent);
         assert_eq!(hash_type(&original), hash_type(&equivalent));

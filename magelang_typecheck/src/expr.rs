@@ -1,4 +1,4 @@
-use crate::analyze::{Context, Object, ValueObject};
+use crate::analyze::{Context, Object, ObjectKind, ValueObject};
 use crate::errors;
 use crate::scope::Scope;
 use crate::ty::{BitSize, FloatType, Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
@@ -1474,14 +1474,20 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
     let mut values = HashMap::<Symbol, (Pos, Expr)>::default();
     for element in &node.elements {
         let field_name = ctx.define_symbol(&element.key.value);
-        let ty = fields.get(&field_name).cloned().unwrap_or_else(|| {
+        let field = fields.get(&field_name);
+        if let Some(field) = field {
+            if !is_field_accessible(scope, ty, field.is_public) {
+                errors::report_undeclared_field(ctx.errors, element.key.pos, &element.key.value);
+            }
+        }
+        let field_ty = field.map(|field| field.ty).unwrap_or_else(|| {
             errors::report_undeclared_field(ctx.errors, element.key.pos, &element.key.value);
             ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown })
         });
-        let value = get_expr_from_node(ctx, scope, Some(ty), &element.value);
+        let value = get_expr_from_node(ctx, scope, Some(field_ty), &element.value);
 
-        let value = if !ty.is_assignable_with(value.ty) {
-            errors::report_type_mismatch(ctx.errors, element.value.pos(), ty, value.ty);
+        let value = if !field_ty.is_assignable_with(value.ty) {
+            errors::report_type_mismatch(ctx.errors, element.value.pos(), field_ty, value.ty);
             Expr {
                 ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
                 kind: ExprKind::Invalid,
@@ -1505,15 +1511,19 @@ fn get_expr_from_struct_lit_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, n
     }
 
     let mut full_values = BumpVec::with_capacity_in(fields.len(), ctx.arena);
-    for (field_name, type_id) in fields {
+    for (field_name, field) in fields {
         if let Some((_, value)) = values.remove(field_name) {
             full_values.push(value)
         } else {
-            full_values.push(Expr { ty: type_id, kind: ExprKind::Zero, pos: node.pos, assignable: false })
+            full_values.push(Expr { ty: field.ty, kind: ExprKind::Zero, pos: node.pos, assignable: false })
         }
     }
 
     Expr { ty, kind: ExprKind::CompositeLit(full_values.into_bump_slice()), pos: node.pos, assignable: false }
+}
+
+fn is_field_accessible(scope: &Scope<'_>, ty: &Type<'_>, is_public: bool) -> bool {
+    ty.kind.get_def_id().is_none_or(|def_id| scope.package() == Some(def_id.package) || is_public)
 }
 
 fn get_expr_from_slice_ptr_lit_node<'a>(
@@ -1593,11 +1603,22 @@ fn get_generic_instantiation_expr<'a>(
                 return None;
             };
             let symbol = ctx.define_symbol(&package.value);
-            let Object::Import(import) = scope.lookup(symbol)? else {
+            let object = scope.lookup(symbol)?;
+            let ObjectKind::Import(import) = &object.kind else {
                 return None;
             };
             let name = ctx.define_symbol(&selection.selection.value);
-            ctx.scopes.get(&import.package)?.lookup(name)
+            let object = ctx.scopes.get(import.package)?.lookup(name)?;
+            if scope.package() != Some(import.package) && !object.is_public {
+                errors::report_undeclared_symbol(ctx.errors, selection.selection.pos, &selection.selection.value);
+                return Some(Expr {
+                    ty: ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown }),
+                    kind: ExprKind::Invalid,
+                    pos: node.value.pos(),
+                    assignable: false,
+                });
+            }
+            Some(object)
         }
         _ => return None,
     }?;
@@ -1618,19 +1639,26 @@ fn get_generic_instantiation_expr<'a>(
 
 fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, node: &SelectionExprNode) -> Expr<'a> {
     let mut node_value: &ExprNode = &node.value;
-    while let ExprNode::Grouped(v) = node_value {
-        node_value = v;
+    while let ExprNode::Grouped(value) = node_value {
+        node_value = value;
     }
 
     if let ExprNode::Ident(base) = node_value {
         let symbol = ctx.define_symbol(&base.value);
-        if let Some(Object::Import(import)) = scope.lookup(symbol) {
-            let name = ctx.define_symbol(&node.selection.value);
-            let object = ctx.scopes.get(&import.package).and_then(|package| package.lookup(name));
-            if object.is_none() {
-                errors::report_undeclared_symbol(ctx.errors, node.selection.pos, &node.selection.value);
+        if let Some(object) = scope.lookup(symbol) {
+            if let ObjectKind::Import(import) = &object.kind {
+                let name = ctx.define_symbol(&node.selection.value);
+                let object = ctx.scopes.get(import.package).and_then(|package| package.lookup(name));
+                if let Some(object) = object {
+                    if scope.package() != Some(import.package) && !object.is_public {
+                        errors::report_undeclared_symbol(ctx.errors, node.selection.pos, &node.selection.value);
+                        return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], None);
+                    }
+                } else {
+                    errors::report_undeclared_symbol(ctx.errors, node.selection.pos, &node.selection.value);
+                }
+                return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], object);
             }
-            return get_expr_from_named_value(ctx, scope, node.value.pos(), &[], object);
         }
     }
 
@@ -1662,11 +1690,17 @@ fn get_expr_from_selection_node<'a>(ctx: &Context<'a, '_>, scope: &Scope<'a>, no
     let field = if let Some(struct_type) = ty.as_struct() {
         let struct_body = struct_type.body.get().expect("missing struct body");
         let selection_name = ctx.define_symbol(&node.selection.value);
-        let field = struct_body.fields.get_full(&selection_name).map(|(idx, _, ty)| (idx, *ty));
-        if field.is_none() {
-            errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
+        match struct_body.fields.get_full(&selection_name) {
+            Some((index, _, field)) if is_field_accessible(scope, ty, field.is_public) => Some((index, field.ty)),
+            Some(..) => {
+                errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
+                None
+            }
+            None => {
+                errors::report_undeclared_field(ctx.errors, node.selection.pos, &node.selection.value);
+                None
+            }
         }
-        field
     } else {
         if !ty.is_unknown() {
             errors::report_non_field_type(ctx.errors, node.selection.pos, &node.selection.value);

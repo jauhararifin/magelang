@@ -46,6 +46,16 @@ impl ItemNode {
     pub fn as_import(&self) -> Option<&ImportNode> {
         if let Self::Import(node) = self { Some(node) } else { None }
     }
+
+    pub fn is_public(&self) -> bool {
+        match self {
+            Self::Struct(node) => node.is_public,
+            Self::TypeAlias(node) => node.is_public,
+            Self::Global(node) => node.is_public,
+            Self::Function(node) => node.is_public,
+            Self::Import(..) => false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -92,6 +102,7 @@ impl From<Token> for Identifier {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructNode {
     pub pos: Pos,
+    pub is_public: bool,
     pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
     pub type_params: Vec<TypeParameterNode>,
@@ -100,6 +111,7 @@ pub struct StructNode {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructFieldNode {
+    pub is_public: bool,
     pub name: Identifier,
     pub ty: ExprNode,
 }
@@ -107,6 +119,7 @@ pub struct StructFieldNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct TypeAliasNode {
     pub pos: Pos,
+    pub is_public: bool,
     pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
     pub ty: ExprNode,
@@ -115,6 +128,7 @@ pub struct TypeAliasNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct GlobalNode {
     pub pos: Pos,
+    pub is_public: bool,
     pub annotations: Vec<AnnotationNode>,
     pub name: Identifier,
     pub ty: ExprNode,
@@ -124,6 +138,7 @@ pub struct GlobalNode {
 #[derive(Debug, PartialEq, Eq)]
 pub struct FunctionNode {
     pub pos: Pos,
+    pub is_public: bool,
     pub signature: SignatureNode,
     pub body: Option<BlockStatementNode>,
 }

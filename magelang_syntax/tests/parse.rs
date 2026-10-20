@@ -66,6 +66,76 @@ fn test_parsing() {
 }
 
 #[test]
+fn public_modifiers_are_preserved() {
+    let errors = ErrorManager::default();
+    let mut files = FileManager::default();
+    let file = files
+        .add_file(
+            "public.mg".into(),
+            concat!(
+                "pub struct Record { pub visible: i32, hidden: bool }\n",
+                "pub type PublicAlias = Record;\n",
+                "pub let global: i32 = 1;\n",
+                "pub fn exported() {}\n",
+                "struct Private {}\n",
+                "type PrivateAlias = Private;\n",
+                "let private_global: i32;\n",
+                "fn private_function() {}\n",
+            )
+            .into(),
+        )
+        .unwrap();
+    let node = parse(&errors, &file);
+    assert!(errors.is_empty());
+
+    let [
+        ItemNode::Struct(record),
+        ItemNode::TypeAlias(public_alias),
+        ItemNode::Global(global),
+        ItemNode::Function(exported),
+        ItemNode::Struct(private),
+        ItemNode::TypeAlias(private_alias),
+        ItemNode::Global(private_global),
+        ItemNode::Function(private_function),
+    ] = node.items.as_slice()
+    else {
+        panic!("unexpected public modifier AST");
+    };
+    assert!(record.is_public);
+    assert!(record.fields[0].is_public);
+    assert!(!record.fields[1].is_public);
+    assert!(public_alias.is_public);
+    assert!(global.is_public);
+    assert!(exported.is_public);
+    assert!(!private.is_public);
+    assert!(!private_alias.is_public);
+    assert!(!private_global.is_public);
+    assert!(!private_function.is_public);
+}
+
+#[test]
+fn public_import_is_reported_and_preserved() {
+    let mut errors = ErrorManager::default();
+    let mut files = FileManager::default();
+    let file = files
+        .add_file("public_import.mg".into(), "@annotation()\npub import dep \"dep\";\npub fn recovered() {}\n".into())
+        .unwrap();
+    let node = parse(&errors, &file);
+
+    let [ItemNode::Import(import), ItemNode::Function(function)] = node.items.as_slice() else {
+        panic!("public import should remain in the AST");
+    };
+    assert_eq!(import.name.value, "dep");
+    assert_eq!(import.annotations.len(), 1);
+    assert!(function.is_public);
+
+    let errors = errors.take();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].pos, Some(magelang_syntax::Pos { file: file.id, line: 2, col: 1 }));
+    assert_eq!(errors[0].message, "The 'pub' modifier cannot be used on imports");
+}
+
+#[test]
 fn type_alias_declarations() {
     let errors = ErrorManager::default();
     let mut files = FileManager::default();
@@ -76,9 +146,11 @@ fn type_alias_declarations() {
     let [ItemNode::TypeAlias(iovec), ItemNode::TypeAlias(number)] = node.items.as_slice() else {
         panic!("expected type aliases");
     };
+    assert!(!iovec.is_public);
     assert_eq!(iovec.name.value, "IoVec");
     let ExprNode::SlicePtrType(slice) = &iovec.ty else { panic!("expected slice pointer type") };
     assert!(matches!(slice.ty.as_ref(), ExprNode::Ident(name) if name.value == "u8"));
+    assert!(!number.is_public);
     assert_eq!(number.name.value, "Number");
     assert!(matches!(&number.ty, ExprNode::Ident(name) if name.value == "i32"));
 }

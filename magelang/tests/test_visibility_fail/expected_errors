@@ -1,0 +1,8 @@
+tests/test_visibility_fail/main.mg:4:31: Symbol private_global is not declared yet
+tests/test_visibility_fail/main.mg:5:33: Symbol private_function is not declared yet
+tests/test_visibility_fail/main.mg:6:32: Symbol private_generic is not declared yet
+tests/test_visibility_fail/main.mg:7:23: Symbol Private is not declared yet
+tests/test_visibility_fail/main.mg:9:24: Symbol PrivateAlias is not declared yet
+tests/test_visibility_fail/main.mg:10:46: The field hidden is not declared yet
+tests/test_visibility_fail/main.mg:14:32: The field hidden is not declared yet
+tests/test_visibility_fail/main.mg:17:26: Symbol i32 is not declared yet

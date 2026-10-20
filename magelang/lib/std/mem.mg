@@ -10,12 +10,12 @@ struct Header {
   size: usize,
 }
 
-fn alloc[T](): *T {
+pub fn alloc[T](): *T {
   let ptr = alloc_size(wasm.size_of[T]());
   return ptr as *T;
 }
 
-fn alloc_array[T](len: usize): [*]T {
+pub fn alloc_array[T](len: usize): [*]T {
   let ptr = alloc_size(wasm.size_of[T]() * len);
   return ptr as [*]T;
 }
@@ -86,13 +86,13 @@ fn grow(size: usize) {
   free_list = new_header;
 }
 
-fn dealloc[T](p: *T) {
+pub fn dealloc[T](p: *T) {
   let header = (p as usize - wasm.size_of[Header]()) as *Header;
   header.next.* = free_list;
   free_list = header;
 }
 
-fn dealloc_array[T](p: [*]T) {
+pub fn dealloc_array[T](p: [*]T) {
   let header = (p as usize - wasm.size_of[Header]()) as *Header;
   header.next.* = free_list;
   free_list = header;

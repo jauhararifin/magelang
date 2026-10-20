@@ -43,17 +43,21 @@ fn parse_root(f: &mut FileParser) -> Vec<ItemNode> {
 
 fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
     let annotations = parse_annotations(f);
+    let public = f.take_if(&TokenKind::Pub);
+    let is_public = public.is_some();
 
     let tok = f.token();
     let item = match &tok.kind {
         TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
-        TokenKind::Struct => parse_struct(f, annotations).map(ItemNode::Struct),
-        TokenKind::Type => parse_type_alias(f, annotations).map(ItemNode::TypeAlias),
-        TokenKind::Let => parse_global(f, annotations).map(ItemNode::Global),
-        TokenKind::Fn => parse_func(f, annotations).map(ItemNode::Function),
+        TokenKind::Struct => parse_struct(f, annotations, is_public).map(ItemNode::Struct),
+        TokenKind::Type => parse_type_alias(f, annotations, is_public).map(ItemNode::TypeAlias),
+        TokenKind::Let => parse_global(f, annotations, is_public).map(ItemNode::Global),
+        TokenKind::Fn => parse_func(f, annotations, is_public).map(ItemNode::Function),
         TokenKind::Eof => {
             if let Some(annotation) = annotations.last() {
                 report_dangling_annotations(f.errors, annotation.pos);
+            } else if let Some(public) = &public {
+                report_missing(f.errors, public.pos, "declaration after 'pub'");
             }
             None
         }
@@ -63,6 +67,10 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
         }
     };
 
+    if let (TokenKind::Import, Some(public)) = (tok.kind, public) {
+        report_public_import(f.errors, public.pos);
+    }
+
     if item.is_none() {
         f.skip_until_before(TOP_LEVEL_STOPPING_TOKEN);
         f.take_if(&TokenKind::SemiColon);
@@ -71,8 +79,15 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
     item
 }
 
-const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] =
-    &[TokenKind::Let, TokenKind::Fn, TokenKind::Import, TokenKind::Struct, TokenKind::Type, TokenKind::SemiColon];
+const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] = &[
+    TokenKind::Pub,
+    TokenKind::Let,
+    TokenKind::Fn,
+    TokenKind::Import,
+    TokenKind::Struct,
+    TokenKind::Type,
+    TokenKind::SemiColon,
+];
 
 fn parse_annotations(f: &mut FileParser) -> Vec<AnnotationNode> {
     let mut result = Vec::default();
@@ -170,7 +185,7 @@ fn parse_import(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     Some(ImportNode { pos, annotations, name, path })
 }
 
-fn parse_type_alias(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<TypeAliasNode> {
+fn parse_type_alias(f: &mut FileParser, annotations: Vec<AnnotationNode>, is_public: bool) -> Option<TypeAliasNode> {
     let type_tok = f.take_if(&TokenKind::Type)?;
     let pos = type_tok.pos;
     let name = f.take_ident()?;
@@ -183,10 +198,10 @@ fn parse_type_alias(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Opt
     });
     f.take(TokenKind::SemiColon)?;
 
-    Some(TypeAliasNode { pos, annotations, name, ty })
+    Some(TypeAliasNode { pos, is_public, annotations, name, ty })
 }
 
-fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<GlobalNode> {
+fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>, is_public: bool) -> Option<GlobalNode> {
     let let_tok = f.take_if(&TokenKind::Let)?;
     let pos = let_tok.pos;
 
@@ -219,7 +234,7 @@ fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     };
     f.take(TokenKind::SemiColon)?;
 
-    Some(GlobalNode { pos, annotations, name, ty, value })
+    Some(GlobalNode { pos, is_public, annotations, name, ty, value })
 }
 
 fn parse_func_type_parameter(f: &mut FileParser) -> Option<FuncTypeParam> {
@@ -247,7 +262,7 @@ fn parse_func_type_parameter(f: &mut FileParser) -> Option<FuncTypeParam> {
     Some(FuncTypeParam { pos, name, ty })
 }
 
-fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<StructNode> {
+fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>, is_public: bool) -> Option<StructNode> {
     let struct_tok = f.take_if(&TokenKind::Struct)?;
     let pos = struct_tok.pos;
 
@@ -268,6 +283,7 @@ fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
     };
 
     let fields = parse_sequence(f, TokenKind::OpenBlock, TokenKind::Comma, TokenKind::CloseBlock, |parser| {
+        let is_public = parser.take_if(&TokenKind::Pub).is_some();
         let name = parser.take_ident()?;
         let ty = if parser.take(TokenKind::Colon).is_some() {
             parse_expr(parser, false).unwrap_or_else(|| {
@@ -278,28 +294,28 @@ fn parse_struct(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<
         } else {
             ExprNode::Invalid(parser.token().pos)
         };
-        Some(StructFieldNode { name, ty })
+        Some(StructFieldNode { is_public, name, ty })
     });
     if fields.is_none() {
         report_unexpected_parsing(f.errors, f.token().pos, "struct body", f.token().kind);
     }
     let fields = fields.map(|sequence| sequence.items).unwrap_or_default();
 
-    Some(StructNode { pos, annotations, name: name?, type_params: type_params.unwrap_or_default(), fields })
+    Some(StructNode { pos, is_public, annotations, name: name?, type_params: type_params.unwrap_or_default(), fields })
 }
 
-fn parse_func(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<FunctionNode> {
+fn parse_func(f: &mut FileParser, annotations: Vec<AnnotationNode>, is_public: bool) -> Option<FunctionNode> {
     let signature = parse_signature(f, annotations)?;
     let pos = signature.pos;
     if f.take_if(&TokenKind::SemiColon).is_some() {
-        return Some(FunctionNode { pos, signature, body: None });
+        return Some(FunctionNode { pos, is_public, signature, body: None });
     }
 
     let Some(body) = parse_block_stmt(f) else {
         report_missing(f.errors, signature.end_pos, "function body");
         return None;
     };
-    Some(FunctionNode { pos, signature, body: Some(body) })
+    Some(FunctionNode { pos, is_public, signature, body: Some(body) })
 }
 
 fn parse_signature(f: &mut FileParser, annotations: Vec<AnnotationNode>) -> Option<SignatureNode> {
@@ -1090,6 +1106,10 @@ fn report_unexpected_token(errors: &ErrorManager, pos: Pos, kind: TokenKind) {
 
 fn report_dangling_annotations(errors: &ErrorManager, pos: Pos) {
     errors.report(pos, String::from("There is no object to annotate"));
+}
+
+fn report_public_import(errors: &ErrorManager, pos: Pos) {
+    errors.report(pos, String::from("The 'pub' modifier cannot be used on imports"));
 }
 
 #[cfg(test)]

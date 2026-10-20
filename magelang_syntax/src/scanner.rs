@@ -66,6 +66,7 @@ impl<'a> Scanner<'a> {
         }
 
         let kind = match value.as_str() {
+            "pub" => TokenKind::Pub,
             "let" => TokenKind::Let,
             "struct" => TokenKind::Struct,
             "type" => TokenKind::Type,

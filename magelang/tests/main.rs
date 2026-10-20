@@ -66,6 +66,7 @@ test_success!(test_tuple_codegen_fail);
 test_success!(test_string);
 test_success!(test_type_alias);
 test_success!(test_type_alias_fail);
+test_success!(test_visibility_fail);
 
 #[test]
 fn test_slice_ptr_bounds() {

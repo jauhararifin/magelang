@@ -2,7 +2,7 @@ import wasi "std/wasi";
 import mem "std/mem";
 import vector "std/vector";
 
-fn print_str(value: string) {
+pub fn print_str(value: string) {
   let iovec = mem.alloc[wasi.IoVec]();
   iovec.* = value;
 
@@ -10,7 +10,7 @@ fn print_str(value: string) {
   mem.dealloc[wasi.IoVec](iovec);
 }
 
-fn strlen(p: [*]u8): usize {
+pub fn strlen(p: [*]u8): usize {
   let i: usize = 0;
   while p[i].* != 0 {
     i = i + 1;
@@ -18,17 +18,17 @@ fn strlen(p: [*]u8): usize {
   return i;
 }
 
-fn print_i8(val: i8) { print_i64(val as i64); }
-fn print_i16(val: i16) { print_i64(val as i64); }
-fn print_i32(val: i32) { print_i64(val as i64); }
-fn print_isize(val: isize) { print_i64(val as i64); }
+pub fn print_i8(val: i8) { print_i64(val as i64); }
+pub fn print_i16(val: i16) { print_i64(val as i64); }
+pub fn print_i32(val: i32) { print_i64(val as i64); }
+pub fn print_isize(val: isize) { print_i64(val as i64); }
 
-fn print_u8(val: u8) { print_u64(val as u64); }
-fn print_u16(val: u16) { print_u64(val as u64); }
-fn print_u32(val: u32) { print_u64(val as u64); }
-fn print_usize(val: usize) { print_u64(val as u64); }
+pub fn print_u8(val: u8) { print_u64(val as u64); }
+pub fn print_u16(val: u16) { print_u64(val as u64); }
+pub fn print_u32(val: u32) { print_u64(val as u64); }
+pub fn print_usize(val: usize) { print_u64(val as u64); }
 
-fn print_i64(val: i64) {
+pub fn print_i64(val: i64) {
   if val == 0 {
     print_str("0");
     return;
@@ -66,7 +66,7 @@ fn print_i64(val: i64) {
   mem.dealloc[vector.Vector[u8]](str);
 }
 
-fn print_u64(val: u64) {
+pub fn print_u64(val: u64) {
   if val == 0 {
     print_str("0");
     return;

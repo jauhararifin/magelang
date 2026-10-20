@@ -1186,7 +1186,7 @@ fn build_zero_type(ty: &Type<'_>) -> Vec<wasm::Instr> {
             .expect("missing struct body")
             .fields
             .values()
-            .flat_map(|ty| build_zero_type(ty))
+            .flat_map(|field| build_zero_type(field.ty))
             .collect(),
         TypeRepr::Func(..) => vec![wasm::Instr::I32Const(0)],
         TypeRepr::Void => vec![],

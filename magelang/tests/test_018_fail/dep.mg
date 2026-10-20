@@ -1,1 +1,1 @@
-struct Outer {}
+pub struct Outer {}

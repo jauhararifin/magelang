@@ -101,7 +101,12 @@ pub struct Interners<'a> {
     statements: StatementInterner<'a>,
 }
 
-pub(crate) enum Object<'a> {
+pub(crate) struct Object<'a> {
+    pub(crate) is_public: bool,
+    pub(crate) kind: ObjectKind<'a>,
+}
+
+pub(crate) enum ObjectKind<'a> {
     Import(ImportObject<'a>),
     Type(TypeObject<'a>),
     TypeAlias(TypeAliasObject<'a>),
@@ -110,22 +115,22 @@ pub(crate) enum Object<'a> {
 
 impl<'a> Object<'a> {
     pub(crate) fn as_type(&self) -> Option<&TypeObject<'a>> {
-        match self {
-            Self::Type(object) => Some(object),
+        match &self.kind {
+            ObjectKind::Type(object) => Some(object),
             _ => None,
         }
     }
 
     pub(crate) fn as_type_alias(&self) -> Option<&TypeAliasObject<'a>> {
-        match self {
-            Self::TypeAlias(object) => Some(object),
+        match &self.kind {
+            ObjectKind::TypeAlias(object) => Some(object),
             _ => None,
         }
     }
 
     pub(crate) fn as_value(&self) -> Option<&ValueObject<'a>> {
-        match self {
-            Self::Value(object) => object.get(),
+        match &self.kind {
+            ObjectKind::Value(object) => object.get(),
             _ => None,
         }
     }
@@ -133,13 +138,13 @@ impl<'a> Object<'a> {
 
 impl<'a> From<&'a Type<'a>> for Object<'a> {
     fn from(ty: &'a Type<'a>) -> Self {
-        Self::Type(ty.into())
+        Self { is_public: false, kind: ObjectKind::Type(ty.into()) }
     }
 }
 
 impl<'a> From<ValueObject<'a>> for Object<'a> {
     fn from(value: ValueObject<'a>) -> Self {
-        Self::Value(OnceCell::from(value))
+        Self { is_public: false, kind: ObjectKind::Value(OnceCell::from(value)) }
     }
 }
 
@@ -356,13 +361,14 @@ fn build_scopes<'a>(
         for item in package_ast.items {
             let object_name = ctx.define_symbol(item.name());
             let pos = item.pos();
+            let is_public = item.is_public();
             if let Some(declared_at) = object_pos.get(&object_name) {
                 errors::report_redeclared_symbol(ctx.errors, pos, ctx.files.location(*declared_at), object_name);
                 continue;
             }
             object_pos.insert(object_name, pos);
 
-            let object = match item {
+            let kind = match item {
                 ItemNode::Import(import_node) => {
                     let package_path = match std::str::from_utf8(&import_node.path.value) {
                         Ok(path) => path,
@@ -371,7 +377,7 @@ fn build_scopes<'a>(
                             continue;
                         }
                     };
-                    Object::Import(ImportObject { package: ctx.define_symbol(package_path) })
+                    ObjectKind::Import(ImportObject { package: ctx.define_symbol(package_path) })
                 }
                 ItemNode::Struct(struct_node) => {
                     let def_id = DefId { package: package_name, name: object_name };
@@ -383,11 +389,11 @@ fn build_scopes<'a>(
                     };
                     let ty = ctx
                         .define_type(Type { kind, repr: TypeRepr::Struct(StructType { body: OnceCell::default() }) });
-                    Object::Type(TypeObject { ty, node: Some(struct_node) })
+                    ObjectKind::Type(TypeObject { ty, node: Some(struct_node) })
                 }
                 ItemNode::TypeAlias(node) => {
                     let def_id = DefId { package: package_name, name: object_name };
-                    Object::TypeAlias(TypeAliasObject {
+                    ObjectKind::TypeAlias(TypeAliasObject {
                         def_id,
                         node,
                         state: Cell::new(TypeAliasState::Unresolved),
@@ -397,12 +403,12 @@ fn build_scopes<'a>(
                 ItemNode::Global(..) | ItemNode::Function(..) => {
                     // Reserve value names before resolving types, including names that shadow built-ins.
                     values.push(item);
-                    Object::Value(OnceCell::default())
+                    ObjectKind::Value(OnceCell::default())
                 }
             };
-            table.insert(object_name, object);
+            table.insert(object_name, Object { is_public, kind });
         }
-        ctx.scopes.insert(package_name, builtin_scope.new_child(table));
+        ctx.scopes.insert(package_name, builtin_scope.new_package_child(package_name, table));
     }
     value_items
 }
@@ -545,7 +551,7 @@ fn build_values<'a>(ctx: &Context<'a, '_>, package_asts: IndexMap<Symbol<'a>, Ve
                 _ => unreachable!(),
             };
 
-            let Some(Object::Value(value)) = scopes.lookup(object_name) else {
+            let Some(Object { kind: ObjectKind::Value(value), .. }) = scopes.lookup(object_name) else {
                 unreachable!("value name was reserved");
             };
             value.set(object).expect("value object already initialized");
@@ -872,7 +878,7 @@ fn build_module<'a>(ctx: Context<'a, '_>, is_valid: bool, global_init_order: Vec
         let mut globals = Vec::default();
         let mut functions = Vec::default();
         for (_, object) in scope.into_iter() {
-            let Object::Value(value_object) = object else {
+            let ObjectKind::Value(value_object) = object.kind else {
                 continue;
             };
             match value_object.into_inner().expect("missing value object") {
