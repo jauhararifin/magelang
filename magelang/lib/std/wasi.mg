@@ -58,11 +58,11 @@ pub struct SubscriptionU {
   // }
 }
 
-pub let ERROR_EAGAIN: u16 = 6;
+pub var ERROR_EAGAIN: u16 = 6;
 
-pub let EVENT_TYPE_CLOCK:    u8 = 0;
-pub let EVENT_TYPE_FD_READ:  u8 = 1;
-pub let EVENT_TYPE_FD_WRITE: u8 = 2;
+pub var EVENT_TYPE_CLOCK:    u8 = 0;
+pub var EVENT_TYPE_FD_READ:  u8 = 1;
+pub var EVENT_TYPE_FD_WRITE: u8 = 2;
 
 pub struct Event {
   pub userdata:     u64,

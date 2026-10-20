@@ -3,7 +3,7 @@ import mem "std/mem";
 import vector "std/vector";
 
 pub fn print_str(value: string) {
-  let iovec = mem.alloc[wasi.IoVec]();
+  var iovec = mem.alloc[wasi.IoVec]();
   iovec.* = value;
 
   wasi.fd_write(1, iovec, 1, 0 as *i32);
@@ -11,7 +11,7 @@ pub fn print_str(value: string) {
 }
 
 pub fn strlen(p: [*]u8): usize {
-  let i: usize = 0;
+  var i: usize = 0;
   while p[i].* != 0 {
     i = i + 1;
   }
@@ -34,17 +34,17 @@ pub fn print_i64(val: i64) {
     return;
   }
 
-  let str = mem.alloc[vector.Vector[u8]]();
+  var str = mem.alloc[vector.Vector[u8]]();
   vector.init_with_cap[u8](str, 10);
 
-  let start: usize = 0;
+  var start: usize = 0;
   if val < 0 {
     vector.push[u8](str, 45); // ascii for '-'
     start = 1;
   }
 
   while val != 0 {
-    let d = val % 10;
+    var d = val % 10;
     if d < 0 {
       d = -d;
     }
@@ -52,10 +52,10 @@ pub fn print_i64(val: i64) {
     val = val / 10;
   }
 
-  let i: usize = start;
-  let j = vector.len[u8](str) as usize - 1;
+  var i: usize = start;
+  var j = vector.len[u8](str) as usize - 1;
   while i < j {
-    let tmp = vector.get[u8](str, i);
+    var tmp = vector.get[u8](str, i);
     vector.set[u8](str, i, vector.get[u8](str, j));
     vector.set[u8](str, j, tmp);
     i = i + 1;
@@ -72,11 +72,11 @@ pub fn print_u64(val: u64) {
     return;
   }
 
-  let str = mem.alloc[vector.Vector[u8]]();
+  var str = mem.alloc[vector.Vector[u8]]();
   vector.init_with_cap[u8](str, 10);
 
   while val != 0 {
-    let d = val % 10;
+    var d = val % 10;
     if d < 0 {
       d = -d;
     }
@@ -84,10 +84,10 @@ pub fn print_u64(val: u64) {
     val = val / 10;
   }
 
-  let i: usize = 0;
-  let j = vector.len[u8](str) as usize - 1;
+  var i: usize = 0;
+  var j = vector.len[u8](str) as usize - 1;
   while i < j {
-    let tmp = vector.get[u8](str, i);
+    var tmp = vector.get[u8](str, i);
     vector.set[u8](str, i, vector.get[u8](str, j));
     vector.set[u8](str, j, tmp);
     i = i + 1;

@@ -2,10 +2,10 @@ import fmt "std/fmt";
 
 @main()
 fn main() {
-  let n = 10;
-  let i = 0;
+  var n = 10;
+  var i = 0;
   while i < n {
-    let j = 0;
+    var j = 0;
     while j < n-i-1 {
       fmt.print_str(" ");
       j = j + 1;

@@ -51,7 +51,7 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
         TokenKind::Import => parse_import(f, annotations).map(ItemNode::Import),
         TokenKind::Struct => parse_struct(f, annotations, is_public).map(ItemNode::Struct),
         TokenKind::Type => parse_type_alias(f, annotations, is_public).map(ItemNode::TypeAlias),
-        TokenKind::Let => parse_global(f, annotations, is_public).map(ItemNode::Global),
+        TokenKind::Var => parse_global(f, annotations, is_public).map(ItemNode::Global),
         TokenKind::Fn => parse_func(f, annotations, is_public).map(ItemNode::Function),
         TokenKind::Eof => {
             if let Some(annotation) = annotations.last() {
@@ -81,7 +81,7 @@ fn parse_item_node(f: &mut FileParser) -> Option<ItemNode> {
 
 const TOP_LEVEL_STOPPING_TOKEN: &[TokenKind] = &[
     TokenKind::Pub,
-    TokenKind::Let,
+    TokenKind::Var,
     TokenKind::Fn,
     TokenKind::Import,
     TokenKind::Struct,
@@ -202,8 +202,8 @@ fn parse_type_alias(f: &mut FileParser, annotations: Vec<AnnotationNode>, is_pub
 }
 
 fn parse_global(f: &mut FileParser, annotations: Vec<AnnotationNode>, is_public: bool) -> Option<GlobalNode> {
-    let let_tok = f.take_if(&TokenKind::Let)?;
-    let pos = let_tok.pos;
+    let var_tok = f.take_if(&TokenKind::Var)?;
+    let pos = var_tok.pos;
 
     let name = f.take_ident()?;
 
@@ -403,11 +403,11 @@ fn parse_stmt(f: &mut FileParser) -> Option<StatementNode> {
     })
 }
 
-// a simple statement is a let, an assignment or an expression statement. it is parsed without its
+// a simple statement is a var declaration, an assignment or an expression statement. it is parsed without its
 // ';' since it is also used as the initialization and the update of a for statement.
 fn parse_simple_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<StatementNode> {
-    if f.kind() == &TokenKind::Let {
-        return Some(StatementNode::Let(parse_let_stmt(f, allow_struct_lit)?));
+    if f.kind() == &TokenKind::Var {
+        return Some(StatementNode::Var(parse_var_stmt(f, allow_struct_lit)?));
     }
 
     let expr = parse_expr(f, allow_struct_lit)?;
@@ -431,9 +431,9 @@ fn parse_simple_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<State
     Some(StatementNode::Assign(AssignStatementNode { pos, receiver: expr, op, value }))
 }
 
-fn parse_let_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<LetStatementNode> {
-    let let_tok = f.take(TokenKind::Let)?;
-    let pos = let_tok.pos;
+fn parse_var_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<VarStatementNode> {
+    let var_tok = f.take(TokenKind::Var)?;
+    let pos = var_tok.pos;
 
     let name: Identifier = f.take_ident()?;
 
@@ -449,9 +449,9 @@ fn parse_let_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<LetState
                 report_missing(f.errors, pos, "initial value expression");
                 ExprNode::Invalid(pos)
             });
-            Some(LetStatementNode { pos, name, kind: LetKind::TypeValue { ty, value } })
+            Some(VarStatementNode { pos, name, kind: VarKind::TypeValue { ty, value } })
         } else {
-            Some(LetStatementNode { pos, name, kind: LetKind::TypeOnly { ty } })
+            Some(VarStatementNode { pos, name, kind: VarKind::TypeOnly { ty } })
         }
     } else if f.take(TokenKind::Equal).is_some() {
         let value = parse_expr(f, allow_struct_lit).unwrap_or_else(|| {
@@ -459,11 +459,11 @@ fn parse_let_stmt(f: &mut FileParser, allow_struct_lit: bool) -> Option<LetState
             report_missing(f.errors, pos, "initial value expression");
             ExprNode::Invalid(pos)
         });
-        Some(LetStatementNode { pos, name, kind: LetKind::ValueOnly { value } })
+        Some(VarStatementNode { pos, name, kind: VarKind::ValueOnly { value } })
     } else {
         f.unexpected("type or value");
         f.skip_until_before(&[TokenKind::SemiColon]);
-        Some(LetStatementNode { pos, name, kind: LetKind::Invalid })
+        Some(VarStatementNode { pos, name, kind: VarKind::Invalid })
     }
 }
 
@@ -1148,7 +1148,7 @@ mod tests {
     #[test]
     fn consuming_or_skipping_at_eof_preserves_the_token() {
         let mut files = FileManager::default();
-        let file = files.add_file("eof.mg".into(), "let value = 1;\n  ".into()).unwrap();
+        let file = files.add_file("eof.mg".into(), "var value = 1;\n  ".into()).unwrap();
         let errors = ErrorManager::default();
         let tokens = scan(&errors, &file);
         let eof = tokens.last().unwrap().clone();
@@ -1175,11 +1175,11 @@ mod tests {
         for source in [
             "unexpected",
             "fn f() { if",
-            "fn f() { let",
+            "fn f() { var",
             "fn f() { ()",
             "fn f() { value as",
-            "let x: Pair[i32",
-            "let x: i32 = f[i32",
+            "var x: Pair[i32",
+            "var x: i32 = f[i32",
         ] {
             let file = files.add_file("recovery.mg".into(), format!("{source}\n  ")).unwrap();
             let errors = ErrorManager::default();

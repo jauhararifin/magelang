@@ -5,5 +5,5 @@ struct B[T]{
   a: A[T],
 }
 fn main() {
-  let a: A[i32];
+  var a: A[i32];
 }

@@ -5,8 +5,8 @@ struct P {
 
 @main()
 fn main() {
-  let p = 1024 as *P;
-  let q = 2048 as *i32;
+  var p = 1024 as *P;
+  var q = 2048 as *i32;
 
   p.b = q;
 }

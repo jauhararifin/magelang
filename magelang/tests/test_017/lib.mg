@@ -1,9 +1,9 @@
 pub struct Pair[T] { pub value: T }
 pub struct Plain { pub value: i32 }
 
-pub let count: i32 = 3;
-pub let bytes: string = "ab";
-pub let current: Plain = Plain{value: 2};
+pub var count: i32 = 3;
+pub var bytes: string = "ab";
+pub var current: Plain = Plain{value: 2};
 
 pub fn make_pair[T](value: T): Pair[T] {
   return Pair[T]{value: value};

@@ -52,13 +52,13 @@ type Recovered = bool;
 // =====================================================
 
 //syntax_error line=+1 col=17: Expected ';', but found 'unexpected'
-let answer: i32 unexpected tokens = 42;
-let next: i32 = 7;
+var answer: i32 unexpected tokens = 42;
+var next: i32 = 7;
 //syntax_error line=+1 col=18: Missing initializer value expression
-let empty: i32 = ;
+var empty: i32 = ;
 //syntax_error line=+1 col=19: Missing unary operand
-let unary: i32 = +;
-let recovered: i32 = 1;
+var unary: i32 = +;
+var recovered: i32 = 1;
 
 // =====================================================
 // Type expressions
@@ -66,80 +66,80 @@ let recovered: i32 = 1;
 
 fn invalid_keyword_types() {
     //syntax_error line=+1 col=12: Unexpected token 'if'
-    let x: if;
+    var x: if;
     //syntax_error line=+1 col=12: Unexpected token 'return'
-    let y: return;
-    let recovered: i32 = 1;
+    var y: return;
+    var recovered: i32 = 1;
 }
 
-let _: package.sometype = 10;
-let _: package.sometype[int] = 10;
-let _: package.sometype[int,int] = 10;
-let _: sometype = 10;
-let _: *sometype = 10;
-let _: *package.sometype = 10;
-let _: *package.sometype[i32,package.package[i32]] = 10;
-let _: *package.sometype[i32,(package.package[i32])] = 10;
-let _: [*]sometype = 10;
-let _: [*]package.sometype = 10;
-let _: [*]package.sometype[i32,package.package[i32]] = 10;
-let _: [*]package.sometype[i32,(package.package[i32])] = 10;
-let _: *[i32];
-let _: *[pkg.Box[i32]];
-let _: **[i32];
-let _: *[*i32];
-let _: *[[*]i32];
-let _: *[*]i32;
-let _: *[*[i32]];
-let _: *[fn(i32): *[u8]];
-let _: Box[*[i32]];
+var _: package.sometype = 10;
+var _: package.sometype[int] = 10;
+var _: package.sometype[int,int] = 10;
+var _: sometype = 10;
+var _: *sometype = 10;
+var _: *package.sometype = 10;
+var _: *package.sometype[i32,package.package[i32]] = 10;
+var _: *package.sometype[i32,(package.package[i32])] = 10;
+var _: [*]sometype = 10;
+var _: [*]package.sometype = 10;
+var _: [*]package.sometype[i32,package.package[i32]] = 10;
+var _: [*]package.sometype[i32,(package.package[i32])] = 10;
+var _: *[i32];
+var _: *[pkg.Box[i32]];
+var _: **[i32];
+var _: *[*i32];
+var _: *[[*]i32];
+var _: *[*]i32;
+var _: *[*[i32]];
+var _: *[fn(i32): *[u8]];
+var _: Box[*[i32]];
 //syntax_error line=+1 col=10: Missing pointee type
-let _: *[];
+var _: *[];
 //syntax_error line=+1 col=13: Expected ']', but found ';'
-let _: *[i32;
+var _: *[i32;
 //syntax_error line=+1 col=13: Expected ']', but found ','
-let _: *[i32, u8];
+var _: *[i32, u8];
 //syntax_error line=+2 col=10: Missing pointee type
 //syntax_error line=+1 col=10: Expected ']', but found ';'
-let _: *[;
-let _: *[i32];
+var _: *[;
+var _: *[i32];
 //syntax_error line=+1 col=8: Missing pointee type
-let _: * = 10;
-let _: *package = 10;
+var _: * = 10;
+var _: *package = 10;
 //syntax_error line=+1 col=18: Expected ident, tuple index or '*', but found '='
-let _: *package. = 10;
-let _: *package.sometype = 10;
+var _: *package. = 10;
+var _: *package.sometype = 10;
 //syntax_error line=+1 col=25: Missing closing ']'
-let _: *package.sometype[ = 10;
+var _: *package.sometype[ = 10;
 //syntax_error line=+1 col=25: Missing closing ']'
-let _: *package.sometype[i32 = 10;
-let _: *package.sometype[i32] = 10;
+var _: *package.sometype[i32 = 10;
+var _: *package.sometype[i32] = 10;
 //syntax_error line=+1 col=9: Expected '*', but found 'package'
-let _: [package = 10;
+var _: [package = 10;
 //syntax_error line=+1 col=10: Expected ']', but found 'package'
-let _: [*package = 10;
-let _: [*]package = 10;
+var _: [*package = 10;
+var _: [*]package = 10;
 //syntax_error line=+1 col=10: Missing pointee type
-let _: [*] = 10;
-let _: i32;
+var _: [*] = 10;
+var _: i32;
 //syntax_error line=+1 col=17: Expected ',', but found 'bool'
-let _: Pair[i32 bool];
+var _: Pair[i32 bool];
 //syntax_error line=+1 col=13: Expected list item, but found ','
-let _: Pair[,];
-let _: Pair[];
-let _: Pair[Pair[]];
-let _: Pair[i32,];
+var _: Pair[,];
+var _: Pair[];
+var _: Pair[Pair[]];
+var _: Pair[i32,];
 //syntax_error line=+1 col=9: Expected list item, but found ','
-let _: (,);
+var _: (,);
 //syntax_error line=+1 col=15: Expected ',', but found 'i32'
-let _: fn(i32 i32);
+var _: fn(i32 i32);
 //syntax_error line=+1 col=11: Expected list item, but found ','
-let _: fn(,);
+var _: fn(,);
 //syntax_error line=+1 col=17: Missing parameter type
-let _: fn(value:): i32;
-let _: 123 = 10;
+var _: fn(value:): i32;
+var _: 123 = 10;
 //syntax_error line=+1 col=7: Missing type expression
-let _:;
+var _:;
 
 // =====================================================
 // Struct definitions
@@ -169,124 +169,124 @@ struct Partial { good: i32, bad: }
 // Value expressions
 // =====================================================
 
-let a: i32 = 10;
-let a: i32 = 10 + 20 * (30 - 1) / 2 + 3 >> 5 as i32;
-let a: bool = !!(false && true);
-let a: i32 = SomeStruct{a: 10};
-let a: i32 = pkg.SomeStruct{a: 10};
-let a: i32 = pkg.SomeStruct[a,b,c]{a: 10};
-let a: i32 = pkg.some_func[i32](a, b)[1].*;
-let _: *[i32] = *[i32]{ptr: data, len: count};
-let _: *i32 = *[i32]{ptr: data, len: count}[index];
-let _: usize = *[i32]{ptr: data, len: count}.len;
-let _: i32 = value as *[i32] + other;
-let a: pkg.Pair[i32]=pkg.Pair[i32]{value: 1};
-let a: bool = pkg.id[i32]==pkg.id[i32];
-let a: bool = pkg.id[pkg.Pair[i32]]==pkg.id[pkg.Pair[i32]];
-let a: i32 = pkg.id[i32]>>value;
-let a: i32 = pkg.id[pkg.Pair[pkg.Pair[i32]]]>>value;
-let a: bool = pkg.id[i32]==// comments are transparent to the parser
+var a: i32 = 10;
+var a: i32 = 10 + 20 * (30 - 1) / 2 + 3 >> 5 as i32;
+var a: bool = !!(false && true);
+var a: i32 = SomeStruct{a: 10};
+var a: i32 = pkg.SomeStruct{a: 10};
+var a: i32 = pkg.SomeStruct[a,b,c]{a: 10};
+var a: i32 = pkg.some_func[i32](a, b)[1].*;
+var _: *[i32] = *[i32]{ptr: data, len: count};
+var _: *i32 = *[i32]{ptr: data, len: count}[index];
+var _: usize = *[i32]{ptr: data, len: count}.len;
+var _: i32 = value as *[i32] + other;
+var a: pkg.Pair[i32]=pkg.Pair[i32]{value: 1};
+var a: bool = pkg.id[i32]==pkg.id[i32];
+var a: bool = pkg.id[pkg.Pair[i32]]==pkg.id[pkg.Pair[i32]];
+var a: i32 = pkg.id[i32]>>value;
+var a: i32 = pkg.id[pkg.Pair[pkg.Pair[i32]]]>>value;
+var a: bool = pkg.id[i32]==// comments are transparent to the parser
 pkg.id[i32];
-let _: i32 = 1{};
+var _: i32 = 1{};
 //syntax_error line=+1 col=18: Expected ',', but found NUMBER_LIT
-let _: i32 = f(1 2);
-let _: i32 = f(1,);
+var _: i32 = f(1 2);
+var _: i32 = f(1,);
 //syntax_error line=+1 col=28: Expected ',', but found 'right'
-let _: Pair = Pair{left: 1 right: 2};
-let _: Pair = Pair{left: 1,};
+var _: Pair = Pair{left: 1 right: 2};
+var _: Pair = Pair{left: 1,};
 //syntax_error line=+1 col=25: Expected ':', but found ','
-let _: Pair = Pair{value, next: 1};
-let a: f32 = 1.0 + 2.0;
-let a: [*]u8 = "some string";
-let a: i32 = a < b;
-let _: u8 = '\0';
-let _: u8 = '\x00';
+var _: Pair = Pair{value, next: 1};
+var a: f32 = 1.0 + 2.0;
+var a: [*]u8 = "some string";
+var a: i32 = a < b;
+var _: u8 = '\0';
+var _: u8 = '\x00';
 //syntax_error line=+1 col=13: Character literal cannot be empty
-let _: u8 = '' + 1;
+var _: u8 = '' + 1;
 //syntax_error line=+1 col=16: Expected at least one digit in 16-base integer literal
-let _: i32 = 0x;
+var _: i32 = 0x;
 //syntax_error line=+1 col=16: Expected at least one digit in 2-base integer literal
-let _: i32 = 0b;
+var _: i32 = 0b;
 //syntax_error line=+1 col=16: Expected at least one digit in 8-base integer literal
-let _: i32 = 0o;
+var _: i32 = 0o;
 //syntax_error line=+1 col=17: Expected at least one digit in 16-base integer literal
-let _: i32 = 0x_;
+var _: i32 = 0x_;
 //syntax_error line=+1 col=19: Expected at least one digit in 2-base integer literal
-let _: i32 = 0b___;
+var _: i32 = 0b___;
 //syntax_error line=+1 col=17: Expected at least one digit in 8-base integer literal
-let _: i32 = 0o_;
+var _: i32 = 0o_;
 //syntax_error line=+1 col=17: Expected at least one digit in 16-base integer literal
-let _: i32 = 0_x;
+var _: i32 = 0_x;
 //syntax_error line=+1 col=20: Expected at least one digit in 2-base integer literal
-let _: i32 = 0_b___;
+var _: i32 = 0_b___;
 //syntax_error line=+1 col=19: Expected at least one digit in 8-base integer literal
-let _: i32 = 0__o_;
+var _: i32 = 0__o_;
 //syntax_error line=+1 col=17: Missing second operand
-let a: i32 = a +;
+var a: i32 = a +;
 //syntax_error line=+1 col=15: Expected list item, but found ','
-let _: i32 = (,);
-let _: i32 = values[];
+var _: i32 = (,);
+var _: i32 = values[];
 //syntax_error line=+1 col=16: Missing function argument
-let _: i32 = f(, 1);
+var _: i32 = f(, 1);
 //syntax_error line=+1 col=28: Missing struct field value
-let _: i32 = SomeStruct{a: };
+var _: i32 = SomeStruct{a: };
 //syntax_error line=+1 col=20: Expected ident, tuple index or '*', but found ';'
-let _: i32 = value.;
+var _: i32 = value.;
 //syntax_error line=+1 col=15: Missing closing ')'
-let _: i32 = f(1;
+var _: i32 = f(1;
 //syntax_error line=+1 col=20: Missing closing ']'
-let _: i32 = values[1;
-//syntax_error line=+1 col=14: Unexpected token 'let'
-let _: i32 = let;
+var _: i32 = values[1;
+//syntax_error line=+1 col=14: Unexpected token 'var'
+var _: i32 = var;
 
 // =====================================================
 // Tuples
 // =====================================================
 
-let tuple_empty: () = ();
-let tuple_single: (i32,) = (1,);
-let tuple_single_type: (i32,) = (i32,);
-let tuple_pair: (i32, f32) = (1, 2.5);
-let tuple_types: (i32, f32, Foo, Bar,) = (i32, f32, Foo, Bar,);
-let tuple_nested: ((i32, bool), (i32,), ()) = ((1, true), (2,), ());
-let tuple_grouped: (i32) = (1);
-let tuple_grouped_type: (i32) = (i32);
-let tuple_grouped_pair: ((i32, i32)) = ((1, 2));
-let tuple_selection: i32 = value.0.1.2;
-let tuple_spaced_selection: i32 = value . 0 . 1 . 2;
-let tuple_multiline_selection: i32 = value.
+var tuple_empty: () = ();
+var tuple_single: (i32,) = (1,);
+var tuple_single_type: (i32,) = (i32,);
+var tuple_pair: (i32, f32) = (1, 2.5);
+var tuple_types: (i32, f32, Foo, Bar,) = (i32, f32, Foo, Bar,);
+var tuple_nested: ((i32, bool), (i32,), ()) = ((1, true), (2,), ());
+var tuple_grouped: (i32) = (1);
+var tuple_grouped_type: (i32) = (i32);
+var tuple_grouped_pair: ((i32, i32)) = ((1, 2));
+var tuple_selection: i32 = value.0.1.2;
+var tuple_spaced_selection: i32 = value . 0 . 1 . 2;
+var tuple_multiline_selection: i32 = value.
 0.1.2;
-let tuple_named_selection: i32 = value.2.field;
-let named_tuple_selection: i32 = value.field.02;
-let tuple_separator_selection: i32 = value.1_0;
-let α: i32 = value.0.12;
-let _: i32 = value.0.*;
-let _: i32 = value.10(1);
-let _: i32 = value.1[0];
-let _: i32 = (1.25, 2e3).0;
+var tuple_named_selection: i32 = value.2.field;
+var named_tuple_selection: i32 = value.field.02;
+var tuple_separator_selection: i32 = value.1_0;
+var α: i32 = value.0.12;
+var _: i32 = value.0.*;
+var _: i32 = value.10(1);
+var _: i32 = value.1[0];
+var _: i32 = (1.25, 2e3).0;
 
 //syntax_error line=+1 col=17: Expected list item, but found ','
-let _: i32 = (1,,2);
-let tuple_recovered_element: i32 = 42;
+var _: i32 = (1,,2);
+var tuple_recovered_element: i32 = 42;
 //syntax_error line=+1 col=14: Missing closing ')'
-let _: i32 = (1, 2;
-let tuple_recovered_close: i32 = 42;
+var _: i32 = (1, 2;
+var tuple_recovered_close: i32 = 42;
 //syntax_error line=+1 col=17: Expected ',', but found NUMBER_LIT
-let _: i32 = (1 2);
-let tuple_recovered_comma: i32 = 42;
+var _: i32 = (1 2);
+var tuple_recovered_comma: i32 = 42;
 //syntax_error line=+1 col=20: Expected ident, tuple index or '*', but found '-'
-let _: i32 = value.-1;
-let tuple_recovered_negative: i32 = 42;
+var _: i32 = value.-1;
+var tuple_recovered_negative: i32 = 42;
 //syntax_error line=+1 col=21: Invalid suffix "e2" for number literal
-let _: i32 = value.1e2;
-let tuple_recovered_exponent: i32 = 42;
+var _: i32 = value.1e2;
+var tuple_recovered_exponent: i32 = 42;
 //syntax_error line=+1 col=21: Invalid suffix "x1" for number literal
-let _: i32 = value.0x1;
-let tuple_recovered_radix: i32 = 42;
+var _: i32 = value.0x1;
+var tuple_recovered_radix: i32 = 42;
 //syntax_error line=+2 col=1: Expected ident, tuple index or '*', but found NUMBER_LIT
-let _: i32 = value.// comment
+var _: i32 = value.// comment
 0.1.2;
-let tuple_recovered_comment: i32 = 42;
+var tuple_recovered_comment: i32 = 42;
 
 // =====================================================
 // Signatures
@@ -327,32 +327,32 @@ fn func_with_typeargs[T,U]();
 // =====================================================
 
 fn f(): i32 {
-    let a: i32 = 10;
-    let b = 10;
-    let c: i32;
+    var a: i32 = 10;
+    var b = 10;
+    var c: i32;
     //syntax_error line=+1 col=11: Missing local variable type
-    let d:;
+    var d:;
     //syntax_error line=+1 col=12: Missing local variable type
-    let e: = 1;
+    var e: = 1;
     //syntax_error line=+1 col=17: Missing initial value expression
-    let empty = ;
+    var empty = ;
     //syntax_error line=+1 col=22: Missing initial value expression
-    let typed: i32 = ;
+    var typed: i32 = ;
     //syntax_error line=+1 col=9: Missing right-hand operand
     a = ;
     //syntax_error line=+1 col=10: Missing right-hand operand
     a += ;
     //syntax_error line=+1 col=18: Missing unary operand
-    let unary = +;
+    var unary = +;
     //syntax_error line=+1 col=10: Missing unary operand
     a = +;
     //syntax_error line=+2 col=6: Expected list item, but found ','
     //syntax_error line=+1 col=11: Missing right-hand operand
     (,) = ;
-    let recovered = 1;
+    var recovered = 1;
     //syntax_error line=+1 col=12: Expected return value expression, but found ','
     return ,;
-    let recovered_after_return = 2;
+    var recovered_after_return = 2;
     if a == 0 {
         return a;
     }
@@ -372,7 +372,7 @@ fn f(): i32 {
             break;
         }
     }
-    for let i = 0; i < 10; i = i + 1 {
+    for var i = 0; i < 10; i = i + 1 {
         if i == 3 {
             continue;
         }
@@ -401,7 +401,7 @@ fn f(): i32 {
     p.*=v;
     p.*==v;
     p.**=2;
-    for let i = 0; i < 10; i += 1 {}
+    for var i = 0; i < 10; i += 1 {}
     //syntax_error line=+1 col=5: Missing if body
     if (true)
         print(a);
@@ -413,18 +413,18 @@ fn f(): i32 {
         print(a);
     //syntax_error line=+1 col=23: Expected ';', but found '{'
     for a = 0; a < 10 { }
-    let dummy = 0;
+    var dummy = 0;
     //syntax_error line=+1 col=9: Missing for init statement
     for { }
     //syntax_error line=+1 col=11: Missing for condition
     for ; { }
     //syntax_error line=+1 col=12: Missing for update statement
     for ;; , { }
-    let dummy = 0;
+    var dummy = 0;
     //syntax_error line=+1 col=9: Unexpected token 'break'
     for break;; {}
     defer f();
-    defer { let x = 1; f(x); };
+    defer { var x = 1; f(x); };
     defer if true { f(); }
     //syntax_error line=+1 col=10: Expected deferred statement, but found ';'
     defer;
@@ -432,22 +432,22 @@ fn f(): i32 {
     defer defer;
     //syntax_error line=+1 col=11: Expected deferred statement, but found ','
     defer ,;
-    let recovered_after_defer_comma = 1;
+    var recovered_after_defer_comma = 1;
     //syntax_error line=+1 col=11: Expected deferred statement, but found ')'
     defer );
-    let recovered_after_defer_close_brac = 1;
+    var recovered_after_defer_close_brac = 1;
     //syntax_error line=+1 col=11: Expected deferred statement, but found ']'
     defer ];
-    let recovered_after_defer_close_square = 1;
+    var recovered_after_defer_close_square = 1;
     //syntax_error line=+1 col=11: Expected deferred statement, but found 'else'
     defer else;
-    let recovered_after_defer_else = 1;
+    var recovered_after_defer_else = 1;
     //syntax_error line=+1 col=11: Missing if condition
     defer if ;
-    let recovered_after_invalid_deferred_if = 1;
+    var recovered_after_invalid_deferred_if = 1;
     //syntax_error line=+1 col=9: Unexpected token 'defer'
     for defer f();; {}
-    for ;; let x = 1 {}
+    for ;; var x = 1 {}
 }
 
 fn missing_deferred_statement_before_close() {
@@ -456,8 +456,8 @@ fn missing_deferred_statement_before_close() {
 }
 
 fn missing_jump_terminators() {
-    //syntax_error line=+1 col=24: Expected ';', but found 'let'
-    while true { break let x = 1; }
+    //syntax_error line=+1 col=24: Expected ';', but found 'var'
+    while true { break var x = 1; }
     //syntax_error line=+1 col=24: Expected ';', but found '}'
     while true { break }
     //syntax_error line=+1 col=27: Expected ';', but found 'f'
@@ -481,7 +481,7 @@ fn invalid_else_bodies() {
     if true {} else ;
     //syntax_error line=+1 col=16: Missing else body
     if true {} else return;
-    let recovered = 1;
+    var recovered = 1;
 }
 
 fn nested_dangling_else() {

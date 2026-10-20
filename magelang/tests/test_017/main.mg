@@ -1,34 +1,34 @@
 import lib "tests/test_017/lib";
 import wasm "std/wasm";
 
-let initial: i32 = lib.count;
-let initial_pair: lib.Pair[i32] = lib.Pair[i32]{value: 4};
+var initial: i32 = lib.count;
+var initial_pair: lib.Pair[i32] = lib.Pair[i32]{value: 4};
 
 @main()
 fn main() {
-  let grouped_count: i32 = (lib).count;
+  var grouped_count: i32 = (lib).count;
   if grouped_count != 3 { wasm.unreachable(); }
   if (lib).add(1, 2) != 3 { wasm.unreachable(); }
 
-  let pair: lib.Pair[i32] = lib.make_pair[i32](lib.add(initial, initial_pair.value));
+  var pair: lib.Pair[i32] = lib.make_pair[i32](lib.add(initial, initial_pair.value));
   if pair.value != 7 { wasm.unreachable(); }
-  let plain: lib.Plain = lib.Plain{value: lib.current.value};
+  var plain: lib.Plain = lib.Plain{value: lib.current.value};
   if plain.value != 2 { wasm.unreachable(); }
 
   lib.count = 5;
   if lib.count != 5 { wasm.unreachable(); }
   if ((lib)).count != 5 { wasm.unreachable(); }
 
-  let nested: lib.Pair[lib.Pair[i32]] = lib.make_pair[lib.Pair[i32]](pair);
+  var nested: lib.Pair[lib.Pair[i32]] = lib.make_pair[lib.Pair[i32]](pair);
   if nested.value.value != 7 { wasm.unreachable(); }
-  let grouped: (lib).Pair[i32] = ((lib).Pair)[i32]{value: 8};
+  var grouped: (lib).Pair[i32] = ((lib).Pair)[i32]{value: 8};
   if grouped.value != 8 { wasm.unreachable(); }
   if ((lib.make_pair))[i32](8).value != 8 { wasm.unreachable(); }
   if ((lib)).make_pair[i32](9).value != 9 { wasm.unreachable(); }
   if lib.bytes[0].* != 97 { wasm.unreachable(); }
   if (lib).bytes[1].* != 98 { wasm.unreachable(); }
 
-  let lib = lib.Pair[i32]{value: 9};
+  var lib = lib.Pair[i32]{value: 9};
   if lib.value != 9 { wasm.unreachable(); }
   if (lib).value != 9 { wasm.unreachable(); }
 }

@@ -36,31 +36,31 @@ fn increment(value: Forward): Later {
 
 @main()
 fn main() {
-  let iovec = mem.alloc[IoVec]();
+  var iovec = mem.alloc[IoVec]();
   iovec.* = "hello";
 
-  let alias: ChainedIoVec = iovec.*;
+  var alias: ChainedIoVec = iovec.*;
   if alias.len != 5 || alias[4].* != 111 {
     wasm.unreachable();
   }
 
-  let pointer: *IoVec = iovec;
-  let raw: **[u8] = pointer;
+  var pointer: *IoVec = iovec;
+  var raw: **[u8] = pointer;
   if raw.*.len != 5 {
     wasm.unreachable();
   }
 
-  let pair: Pair = (41, true);
-  let callback: Callback = increment;
+  var pair: Pair = (41, true);
+  var callback: Callback = increment;
   if pair.1 != true || callback(pair.0) != 42 {
     wasm.unreachable();
   }
 
-  let payload: PayloadAlias = PayloadAlias{value: 42};
-  let node = mem.alloc[Node]();
+  var payload: PayloadAlias = PayloadAlias{value: 42};
+  var node = mem.alloc[Node]();
   node.* = Node{next: 0 as NodePtr, value: payload.value};
-  let bytes: dep.Bytes = "dependency";
-  let number: dep.Number = 7;
+  var bytes: dep.Bytes = "dependency";
+  var number: dep.Number = 7;
   if node.value.* != 42 || node.next.* as usize != 0 || bytes.len != 10 || number != 7 {
     wasm.unreachable();
   }

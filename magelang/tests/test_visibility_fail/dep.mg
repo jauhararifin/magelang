@@ -10,8 +10,8 @@ struct Private {
 pub type PublicAlias = Public;
 type PrivateAlias = Public;
 
-pub let public_global: i32 = private_global;
-let private_global: i32 = 2;
+pub var public_global: i32 = private_global;
+var private_global: i32 = 2;
 
 pub fn public_function(): Public {
   return Public{visible: private_function(), hidden: private_generic[i32](2)};

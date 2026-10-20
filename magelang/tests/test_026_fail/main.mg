@@ -4,7 +4,7 @@ struct Pair {
 
 @main()
 fn main() {
-  let pair = Pair{
+  var pair = Pair{
     value: 1,
     value: 2,
   };

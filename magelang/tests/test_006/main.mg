@@ -6,8 +6,8 @@ struct Tail { p: i32, q: Inner }
 struct Mixed { a: i8, b: f32, c: u16, d: i64, e: f64, f: bool }
 struct WithVoid { a: i32, v: void, b: i64 }
 
-let global_big: Big = Big{x: 1, i: Inner{a: 2, b: 3}, f: 4.5, y: 6};
-let counter: i32 = 0;
+var global_big: Big = Big{x: 1, i: Inner{a: 2, b: 3}, f: 4.5, y: 6};
+var counter: i32 = 0;
 
 @main()
 fn main() {
@@ -56,11 +56,11 @@ fn test_nested_field_of_call_result() {
 }
 
 fn test_struct_typed_field() {
-  let inner = make_big().i;
+  var inner = make_big().i;
   assert_equal[i64](2, inner.a);
   assert_equal[i64](3, inner.b);
 
-  let tail = make_tail().q;
+  var tail = make_tail().q;
   assert_equal[i64](8, tail.a);
   assert_equal[i64](9, tail.b);
 }
@@ -77,7 +77,7 @@ fn test_mixed_component_types() {
 fn test_zero_sized_field() {
   assert_equal[i32](1, make_with_void().a);
   assert_equal[i64](2, make_with_void().b);
-  let v: void = make_with_void().v;
+  var v: void = make_with_void().v;
   make_with_void().v;
 }
 
@@ -96,7 +96,7 @@ fn pick_middle(a: i32, b: i64, c: i32): i64 {
 }
 
 fn test_local_and_global() {
-  let b = make_big();
+  var b = make_big();
   assert_equal[i32](1, b.x);
   assert_equal[i64](3, b.i.b);
   assert_equal[i32](6, b.y);
@@ -113,7 +113,7 @@ fn test_local_and_global() {
 }
 
 fn test_deref() {
-  let p = 16384 as *Big;
+  var p = 16384 as *Big;
   p.*.x = 11;
   p.*.i = Inner{a: 22, b: 33};
   p.*.f = 4.5;
@@ -127,8 +127,8 @@ fn test_deref() {
 }
 
 fn test_inside_loop() {
-  let i: i32 = 0;
-  let sum: i64 = 0;
+  var i: i32 = 0;
+  var sum: i64 = 0;
   while i < make_big().y - 1 {
     i = i + 1;
     if make_big().x == 1 {

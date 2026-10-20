@@ -512,7 +512,7 @@ fn deep_scope() {
     {
     {
     {
-    let value: i32 = 0;
+    var value: i32 = 0;
     }
     }
     }

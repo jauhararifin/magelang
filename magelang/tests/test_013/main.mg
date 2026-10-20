@@ -6,7 +6,7 @@ import wasm "std/wasm";
 
 struct Pair { a: i32, b: i64 }
 
-let trace: i64 = 0;
+var trace: i64 = 0;
 
 @main()
 fn main() {
@@ -132,10 +132,10 @@ fn f64_if_else(c: bool): f64 {
 }
 
 fn test_struct_and_float_returns() {
-  let p = pair_if_else(true);
+  var p = pair_if_else(true);
   assert_equal[i32](1, p.a);
   assert_equal[i64](2, p.b);
-  let q = pair_if_else(false);
+  var q = pair_if_else(false);
   assert_equal[i32](3, q.a);
   assert_equal[i64](4, q.b);
   assert_equal[f64](1.5, f64_if_else(true));

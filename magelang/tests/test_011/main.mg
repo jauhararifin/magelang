@@ -2,7 +2,7 @@ import wasm "std/wasm";
 
 struct Pair { a: i32, b: i64 }
 
-let trace: i64 = 0;
+var trace: i64 = 0;
 
 @main()
 fn main() {
@@ -146,7 +146,7 @@ fn test_three_nested_blocks() {
 
 fn test_while_each_iteration() {
   trace = 0;
-  let i: i64 = 0;
+  var i: i64 = 0;
   while i < 3 {
     defer mark(9);
     mark(i + 1);
@@ -157,7 +157,7 @@ fn test_while_each_iteration() {
 
 fn test_continue_skips_defers_registered_after_it() {
   trace = 0;
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     defer mark(1);
     if i == 1 {
       continue;
@@ -169,7 +169,7 @@ fn test_continue_skips_defers_registered_after_it() {
 
 fn break_skips_later_defers() {
   defer mark(9);
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     defer mark(1);
     if i == 1 {
       break;
@@ -188,9 +188,9 @@ fn test_break_skips_defers_registered_after_it() {
 
 fn test_inner_loop_break_keeps_outer_defers() {
   trace = 0;
-  for let i: i64 = 0; i < 2; i = i + 1 {
+  for var i: i64 = 0; i < 2; i = i + 1 {
     defer mark(1);
-    for let j: i64 = 0; j < 3; j = j + 1 {
+    for var j: i64 = 0; j < 3; j = j + 1 {
       defer mark(2);
       if j == 1 {
         break;
@@ -204,9 +204,9 @@ fn test_inner_loop_break_keeps_outer_defers() {
 
 fn test_inner_loop_continue_keeps_outer_defers() {
   trace = 0;
-  for let i: i64 = 0; i < 2; i = i + 1 {
+  for var i: i64 = 0; i < 2; i = i + 1 {
     defer mark(1);
-    for let j: i64 = 0; j < 2; j = j + 1 {
+    for var j: i64 = 0; j < 2; j = j + 1 {
       defer mark(2);
       if j == 0 {
         continue;
@@ -220,7 +220,7 @@ fn test_inner_loop_continue_keeps_outer_defers() {
 
 fn test_infinite_for_with_break() {
   trace = 0;
-  let n: i64 = 0;
+  var n: i64 = 0;
   for ;; {
     defer mark(1);
     n = n + 1;
@@ -235,7 +235,7 @@ fn test_infinite_for_with_break() {
 
 fn test_while_continue() {
   trace = 0;
-  let i: i64 = 0;
+  var i: i64 = 0;
   while i < 4 {
     i = i + 1;
     defer mark(i);
@@ -249,7 +249,7 @@ fn test_while_continue() {
 
 fn test_break_through_nested_blocks_and_ifs() {
   trace = 0;
-  for let i: i64 = 0; i < 5; i = i + 1 {
+  for var i: i64 = 0; i < 5; i = i + 1 {
     defer mark(1);
     {
       defer mark(2);
@@ -269,8 +269,8 @@ fn test_break_through_nested_blocks_and_ifs() {
 
 fn test_deferred_loop_on_continue() {
   trace = 0;
-  for let i: i64 = 0; i < 2; i = i + 1 {
-    defer for let j: i64 = 0; j < 2; j = j + 1 { mark(j + 1); }
+  for var i: i64 = 0; i < 2; i = i + 1 {
+    defer for var j: i64 = 0; j < 2; j = j + 1 { mark(j + 1); }
     if i == 0 {
       continue;
     }
@@ -281,8 +281,8 @@ fn test_deferred_loop_on_continue() {
 
 fn test_deferred_loop_on_break() {
   trace = 0;
-  for let i: i64 = 0; i < 3; i = i + 1 {
-    defer for let j: i64 = 0; j < 3; j = j + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
+    defer for var j: i64 = 0; j < 3; j = j + 1 {
       if j == 1 {
         continue;
       }
@@ -298,7 +298,7 @@ fn test_deferred_loop_on_break() {
 
 fn defer_inside_deferred_loop() {
   defer {
-    for let j: i64 = 0; j < 5; j = j + 1 {
+    for var j: i64 = 0; j < 5; j = j + 1 {
       defer mark(j);
       if j == 2 {
         break;
@@ -317,7 +317,7 @@ fn test_defer_inside_deferred_loop_with_break() {
 
 fn test_update_sees_deferred_assignment() {
   trace = 0;
-  for let i: i64 = 0; i < 6; i = i + 1 {
+  for var i: i64 = 0; i < 6; i = i + 1 {
     defer i = i + 1;
     mark(i + 1);
   }
@@ -326,9 +326,9 @@ fn test_update_sees_deferred_assignment() {
 
 fn test_inner_while_break_keeps_for_defers() {
   trace = 0;
-  for let i: i64 = 0; i < 2; i = i + 1 {
+  for var i: i64 = 0; i < 2; i = i + 1 {
     defer mark(1);
-    let k: i64 = 0;
+    var k: i64 = 0;
     while true {
       k = k + 1;
       defer mark(2);
@@ -343,7 +343,7 @@ fn test_inner_while_break_keeps_for_defers() {
 
 fn deferred_while_with_continue() {
   defer {
-    let k: i64 = 0;
+    var k: i64 = 0;
     while k < 3 {
       k = k + 1;
       if k == 2 {
@@ -362,7 +362,7 @@ fn test_deferred_while_with_continue() {
 
 fn test_else_if_chain_with_jumps() {
   trace = 0;
-  for let i: i64 = 0; i < 5; i = i + 1 {
+  for var i: i64 = 0; i < 5; i = i + 1 {
     defer mark(1);
     if i == 0 {
       defer mark(2);
@@ -387,11 +387,11 @@ fn test_else_if_chain_with_jumps() {
 
 fn test_deferred_block_locals_with_nested_defers_on_continue() {
   trace = 0;
-  for let i: i64 = 1; i < 4; i = i + 1 {
+  for var i: i64 = 1; i < 4; i = i + 1 {
     defer {
-      let a: i64 = i;
+      var a: i64 = i;
       defer mark(a);
-      let b: i64 = a * 2;
+      var b: i64 = a * 2;
       defer mark(b);
     }
     if i != 2 {
@@ -403,7 +403,7 @@ fn test_deferred_block_locals_with_nested_defers_on_continue() {
 }
 
 fn loop_terminated_by_deferred_increment(): i64 {
-  let i: i64 = 0;
+  var i: i64 = 0;
   while i < 3 {
     defer i = i + 1;
     mark(i + 1);
@@ -418,7 +418,7 @@ fn test_loop_terminated_by_deferred_increment() {
 }
 
 fn multiple_defers_per_iteration(): i64 {
-  for let i: i64 = 1; i < 10; i = i + 1 {
+  for var i: i64 = 1; i < 10; i = i + 1 {
     defer mark(i);
     defer mark(i);
     if i == 3 {
@@ -442,7 +442,7 @@ fn make_pair(): Pair {
 
 fn test_dropped_struct_result_on_break() {
   trace = 0;
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     defer make_pair();
     if i == 1 {
       break;

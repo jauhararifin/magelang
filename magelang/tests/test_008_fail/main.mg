@@ -36,9 +36,9 @@ fn jump_in_deferred_if_and_block() {
 
 fn deferred_locals_are_not_visible() {
   defer {
-    let x: i64 = 1;
+    var x: i64 = 1;
   }
-  defer let y: i64 = 2;
+  defer var y: i64 = 2;
   x = 3;
   y = 4;
 }

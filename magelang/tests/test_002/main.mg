@@ -12,7 +12,7 @@ struct B {
   b: i64,
 }
 
-let global_struct: A;
+var global_struct: A;
 
 @main()
 fn main() {
@@ -33,7 +33,7 @@ fn main() {
   assert_equal[i64](22, global_struct.b.b);
   assert_equal[i32](30, global_struct.c);
 
-  let a = mem.alloc[A]();
+  var a = mem.alloc[A]();
   a.* = returning_a_struct();
   assert_equal[i32](10, a.a.*);
   assert_equal[i64](21, a.b.a.*);

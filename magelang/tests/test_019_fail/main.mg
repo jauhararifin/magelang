@@ -1,4 +1,4 @@
 @main()
 fn main() {
-  let value = 1{};
+  var value = 1{};
 }

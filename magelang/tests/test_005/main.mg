@@ -20,7 +20,7 @@ struct F { pad: i32, g: G }
 struct G { pad: i64, h: H }
 struct H { pad: i32, i: *i64 }
 
-let global_outer: *Outer = 1024 as *Outer;
+var global_outer: *Outer = 1024 as *Outer;
 
 @main()
 fn main() {
@@ -36,7 +36,7 @@ fn main() {
 }
 
 fn test_assign_through_deref() {
-  let p = 2048 as *Outer;
+  var p = 2048 as *Outer;
   p.x.* = 1;
   p.y.* = 2;
 
@@ -50,7 +50,7 @@ fn test_assign_through_deref() {
 }
 
 fn test_assign_through_nested_deref() {
-  let p = 3072 as *Outer;
+  var p = 3072 as *Outer;
 
   p.*.inner.a = 111;
   p.*.inner.b = 222;
@@ -65,7 +65,7 @@ fn test_assign_through_nested_deref() {
 }
 
 fn test_assign_whole_struct_field() {
-  let p = 4096 as *Outer;
+  var p = 4096 as *Outer;
 
   p.*.x = 1;
   p.*.inner = Inner{a: 333, b: 444};
@@ -78,7 +78,7 @@ fn test_assign_whole_struct_field() {
 }
 
 fn test_assign_through_array_index() {
-  let arr = 5120 as [*]Outer;
+  var arr = 5120 as [*]Outer;
 
   arr[0].*.x = 7;
   arr[1].*.x = 8;
@@ -102,7 +102,7 @@ fn test_assign_through_global_pointer() {
 }
 
 fn test_read_through_deref() {
-  let p = 6144 as *Outer;
+  var p = 6144 as *Outer;
   p.x.* = 3;
   p.inner.a.* = 4;
   p.y.* = 5;
@@ -111,18 +111,18 @@ fn test_read_through_deref() {
   assert_equal[i64](4, p.*.inner.a);
   assert_equal[i32](5, p.*.y);
 
-  let v = p.*;
+  var v = p.*;
   assert_equal[i32](3, v.x);
   assert_equal[i64](4, v.inner.a);
   assert_equal[i32](5, v.y);
 }
 
 fn test_assign_local_struct_field() {
-  let p = 7168 as *Outer;
+  var p = 7168 as *Outer;
   p.x.* = 3;
   p.inner.a.* = 4;
 
-  let v = p.*;
+  var v = p.*;
   v.x = 30;
   v.inner.a = 40;
 
@@ -133,7 +133,7 @@ fn test_assign_local_struct_field() {
 }
 
 fn test_long_chain() {
-  let a: A;
+  var a: A;
   a.b.c = 8192 as *C;
 
   a.b.c.*.d.e.f = 9216 as *F;
@@ -143,12 +143,12 @@ fn test_long_chain() {
 
   assert_equal[usize](9216, a.b.c.d.e.f.* as usize);
 
-  let raw_f = 8204 as **F;
+  var raw_f = 8204 as **F;
   assert_equal[usize](9216, raw_f.* as usize);
 }
 
 fn test_long_chain_through_two_pointers() {
-  let a: A;
+  var a: A;
   a.b.c = 8192 as *C;
   a.b.c.*.d.e.f = 9216 as *F;
 
@@ -161,7 +161,7 @@ fn test_long_chain_through_two_pointers() {
 
   assert_equal[i64](123456789, a.b.c.d.e.f.*.g.h.i.*.*);
 
-  let raw_i = 10240 as *i64;
+  var raw_i = 10240 as *i64;
   assert_equal[i64](123456789, raw_i.*);
 
   a.b.c.d.e.f.*.g.h.i.*.* = 987654321;

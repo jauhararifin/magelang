@@ -67,7 +67,7 @@ impl<'a> Scanner<'a> {
 
         let kind = match value.as_str() {
             "pub" => TokenKind::Pub,
-            "let" => TokenKind::Let,
+            "var" => TokenKind::Var,
             "struct" => TokenKind::Struct,
             "type" => TokenKind::Type,
             "if" => TokenKind::If,
@@ -704,6 +704,19 @@ mod test {
     use std::path::PathBuf;
 
     #[test]
+    fn var_keyword_replaces_let() {
+        let mut files = FileManager::default();
+        let file = files.add_file("variable.mg".into(), "var let".into()).unwrap();
+        let errors = ErrorManager::default();
+
+        let tokens = scan(&errors, &file);
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens[0].kind, TokenKind::Var);
+        assert_eq!(tokens[1].kind, TokenKind::Ident("let".into()));
+    }
+
+    #[test]
     fn comment() {
         let path = PathBuf::from("dummy.mg");
         let mut files = FileManager::default();
@@ -714,7 +727,7 @@ mod test {
 // with multiline
 // grouped comment
 
-let a = 10; // comment in the end
+var a = 10; // comment in the end
 
 // nested comment // is considered a single comment
 
@@ -741,7 +754,7 @@ string"
         assert_eq!(tokens[2].kind, TokenKind::Comment("// with multiline\n".to_string()));
         assert_eq!(tokens[3].kind, TokenKind::Comment("// grouped comment\n".to_string()));
 
-        assert_eq!(tokens[4].kind, TokenKind::Let);
+        assert_eq!(tokens[4].kind, TokenKind::Var);
         assert_eq!(tokens[5].kind, TokenKind::Ident("a".to_string()));
         assert_eq!(tokens[6].kind, TokenKind::Equal);
         assert_eq!(tokens[7].kind, TokenKind::NumberLit { raw: "10".to_string(), value: Number::new(10, 0, false) });

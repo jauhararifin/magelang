@@ -10,4 +10,4 @@ struct Container {
   embedded: Embedded,
 }
 
-let value: First;
+var value: First;

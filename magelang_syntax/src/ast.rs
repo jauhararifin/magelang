@@ -439,7 +439,7 @@ pub struct GroupedExprNode {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum StatementNode {
-    Let(LetStatementNode),
+    Var(VarStatementNode),
     Assign(AssignStatementNode),
     Block(BlockStatementNode),
     If(IfStatementNode),
@@ -455,7 +455,7 @@ pub enum StatementNode {
 impl StatementNode {
     pub fn pos(&self) -> Pos {
         match self {
-            Self::Let(node) => node.pos,
+            Self::Var(node) => node.pos,
             Self::Assign(node) => node.pos,
             Self::Block(node) => node.pos,
             Self::If(node) => node.pos,
@@ -471,14 +471,14 @@ impl StatementNode {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct LetStatementNode {
+pub struct VarStatementNode {
     pub pos: Pos,
     pub name: Identifier,
-    pub kind: LetKind,
+    pub kind: VarKind,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum LetKind {
+pub enum VarKind {
     Invalid,
     TypeOnly { ty: ExprNode },
     TypeValue { ty: ExprNode, value: ExprNode },

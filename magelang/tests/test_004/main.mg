@@ -18,7 +18,7 @@ struct Qux[T, U, V] {
 
 @main()
 fn main() {
-  let a = mem.alloc[Foo[i32, f64, i64]]();
+  var a = mem.alloc[Foo[i32, f64, i64]]();
   a.a.* = mem.alloc[Bar[i64,i32,f64]]();
   a.a.*.a.* = mem.alloc[Baz[f64,i64,i32]]();
   a.a.*.a.*.a.* = mem.alloc[Qux[i32,f64,i64]]();
@@ -50,5 +50,5 @@ struct Qux2[T, U, V] {
 }
 
 fn another_test() {
-  let a: Foo2[i32, f64, i64];
+  var a: Foo2[i32, f64, i64];
 }

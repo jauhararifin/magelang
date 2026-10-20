@@ -49,8 +49,8 @@ import fmt "std/fmt";
 fn gcd(a: i64, b: i64): i64 {
   // loop using while keyword
   while b != 0 {
-    // create a new variable using let
-    let t: i64 = b;
+    // create a new variable using var
+    var t: i64 = b;
     b = a % b;
     a = t;
   }
@@ -63,10 +63,10 @@ fn gcd(a: i64, b: i64): i64 {
 // function as `_start` using `@wasm_export("_start")` to mark it as main function.
 @main()
 fn main() {
-  let a: i64 = 1260;
-  let b: i64 = 165;
+  var a: i64 = 1260;
+  var b: i64 = 165;
   // calling a function
-  let c: i64 = gcd(a, b);
+  var c: i64 = gcd(a, b);
   fmt.print_i64(c);
   fmt.print_str("\n");
 }
@@ -115,12 +115,12 @@ cargo install --path magelang
 // function as `_start` using `@wasm_export("_start")` to mark it as main function.
 @main()
 fn the_main_function() {
-  // use let to define a variable.
-  let msg = "Hello, world\n";
+  // use var to define a variable.
+  var msg = "Hello, world\n";
 
   // IoVec has the pointer-and-length layout required by WASI. Here we use address 40
   // to store one. A real program should use an allocator instead of a fixed address.
-  let iovec = 40 as *IoVec;
+  var iovec = 40 as *IoVec;
   iovec.* = msg;
 
   // We use WASI's fd_write (https://github.com/WebAssembly/WASI/blob/main/legacy/preview1/docs.md#-iovec-record)
@@ -131,7 +131,7 @@ fn the_main_function() {
 type IoVec = *[u8];
 
 // stdout is the file descriptor id for standard output.
-let stdout: i32 = 1;
+var stdout: i32 = 1;
 
 // To import web assembly function from host environment, you can use @wasm_import(...)
 // annotation. The @wasm_import annotation takes two string arguments, the module and the
@@ -165,7 +165,7 @@ import fmt "fmt";
 
 @main()
 fn the_main_function() {
-  let msg = "Hello again, world\n";
+  var msg = "Hello again, world\n";
   fmt.print_string(msg);
 }
 ```
@@ -176,12 +176,12 @@ fn the_main_function() {
 type IoVec = *[u8];
 
 pub fn print_string(msg: string) {
-  let iovec = 40 as *IoVec;
+  var iovec = 40 as *IoVec;
   iovec.* = msg;
   fd_write(stdout, iovec, 1, 0 as *i32);
 }
 
-let stdout: i32 = 1;
+var stdout: i32 = 1;
 
 @wasm_import("wasi_snapshot_preview1", "fd_write")
 fn fd_write(fd: i32, iovec_addr: *IoVec, count: i32, n_written_ptr: *i32): i32;
@@ -232,7 +232,7 @@ A type alias gives an existing type another name
 ```
 pub type IoVec = *[u8];
 
-let iovec = mem.alloc[IoVec]();
+var iovec = mem.alloc[IoVec]();
 iovec.* = "hello";
 ```
 
@@ -244,7 +244,7 @@ To dereference a unit pointer `p`, you can write `p.*`. For eaxmple:
 ```
 @main()
 fn main() {
-    let p: *i32 = mem.alloc[i32]();
+    var p: *i32 = mem.alloc[i32]();
     p.* = 10;
     fmt.print_i32(p.*);
 }
@@ -256,7 +256,7 @@ will give you the address of `i`-th element, adding `.*` will dereference it. Fo
 ```
 @main()
 fn main() {
-    let p: [*]i32 = mem.alloc_array[i32](10);
+    var p: [*]i32 = mem.alloc_array[i32](10);
     set(p[5]);
     p[6].* = 10;
     fmt.print_i32(p[5].*);
@@ -270,16 +270,16 @@ fn set(value: *i32) {
 A slice pointer (`*[T]`) is an array pointer with a runtime length and bounds-checked indexing.
 
 ```
-let count: usize = 10;
-let data = mem.alloc_array[i32](count);
-let values: *[i32] = *[i32]{ptr: data, len: count};
+var count: usize = 10;
+var data = mem.alloc_array[i32](count);
+var values: *[i32] = *[i32]{ptr: data, len: count};
 
 values[0].* = 42;
-let first: *i32 = values[0];
-let length: usize = values.len;
+var first: *i32 = values[0];
+var length: usize = values.len;
 
-let same = values == *[i32]{ptr: data, len: count}; // true
-let different = values != *[i32]{ptr: data, len: count - 1}; // true
+var same = values == *[i32]{ptr: data, len: count}; // true
+var different = values != *[i32]{ptr: data, len: count - 1}; // true
 mem.dealloc_array[i32](values.ptr);
 ```
 
@@ -350,17 +350,17 @@ fn print_bar(bar: *Bar) {
 ### Tuples
 
 ```
-let pair: (i32, f32) = (42, 1.5);
-let inferred = (42, true);
-let record: (i32, f32, Foo, Bar) = (1, 2.5, Foo{}, Bar{});
+var pair: (i32, f32) = (42, 1.5);
+var inferred = (42, true);
+var record: (i32, f32, Foo, Bar) = (1, 2.5, Foo{}, Bar{});
 
 // access by using .0, .1, .2, ...
 pair.0 = 7;
 pair.1 += 0.5;
-let foo: Foo = record.2;
+var foo: Foo = record.2;
 
-let nested: (bool, (i32, f32)) = (true, (10, 2.5));
-let number: i32 = nested.1.0;
+var nested: (bool, (i32, f32)) = (true, (10, 2.5));
+var number: i32 = nested.1.0;
 ```
 
 ```
@@ -368,10 +368,10 @@ fn make_pair(): (i32, f32) {
     return (42, 1.5);
 }
 
-let p: *(i32, f32) = mem.alloc[(i32, f32)]();
+var p: *(i32, f32) = mem.alloc[(i32, f32)]();
 p.* = make_pair();
 p.0.* = 7;
-let first: *i32 = p.0;
+var first: *i32 = p.0;
 mem.dealloc[(i32, f32)](p);
 ```
 
@@ -381,7 +381,7 @@ As with struct pointers, selecting an element through a tuple pointer returns it
 
 You can also have a function type defined like this:
 ```
-let some_func: fn(i32, i64): i8 = ...;
+var some_func: fn(i32, i64): i8 = ...;
 fmt.print_u8(some_func(10, 11));
 ```
 
@@ -397,7 +397,7 @@ fn gcd(a: i32, b: i32): i32 {
     }
 
     // Here is how you call a function.
-    let result = gcd(b, a % b);
+    var result = gcd(b, a % b);
 
     // Here is how you return from a function.
     return result;
@@ -432,7 +432,7 @@ pub struct User {
     password_hash: i64,
 }
 
-pub let user_count: usize;
+pub var user_count: usize;
 
 pub fn find_user(id: i64): User {
     // private fields and defs are accessible from its own package
@@ -447,18 +447,18 @@ Other packages can use `User`, `User.id`, `user_count`, and `find_user`, but the
 ```
 // global variable are declared this way:
 // note that you need to explicitly specify the variable type for global variable.
-let foo: i32 = 10;
+var foo: i32 = 10;
 
 // However, you don't have to initialize them with any value. In this case, the initial
 // value of a global variable is zero.
-let bar: i32;
+var bar: i32;
 
 @main()
 fn main() {
     // Local variable are declared this way:
-    let a: i32 = 10;
-    let b = 10;
-    let c: i32;
+    var a: i32 = 10;
+    var b = 10;
+    var c: i32;
 
     // you can assign value to a variable this way:
     a = 9;
@@ -470,12 +470,12 @@ Just like Rust, Magelang support variable shadowing for local variables:
 ```
 @main()
 fn main() {
-    let a: i32 = 10;
+    var a: i32 = 10;
     fmt.print_i32(a);
 
     // you can redeclare variable with the same name and invalidate the
     // previously declared variable with the same name.
-    let a: string = "Hello world\n";
+    var a: string = "Hello world\n";
     fmt.print_str(a);
 }
 ```
@@ -499,8 +499,8 @@ There is no need to put parenthesis surrounding the condition. Unlike C, the con
 have to be a boolean.
 
 ```
-let i = 0;
-let sum = 0;
+var i = 0;
+var sum = 0;
 while i < 100 {
     sum = sum + i;
     i = i + 1;
@@ -512,8 +512,8 @@ fmt.print_i32(i);
 Use while statement to perform a loop. You can use `break` and `continue` just like other programming languages.
 
 ```
-let i = 0;
-let sum = 0;
+var i = 0;
+var sum = 0;
 while i < 100 {
     if i % 2 == 0 {
         continue;
@@ -528,8 +528,8 @@ while i < 100 {
 You can also use for-loop.
 
 ```
-let sum = 0;
-for let i = 0; i < 100; i = i + 1 {
+var sum = 0;
+for var i = 0; i < 100; i = i + 1 {
     sum = sum + i;
 }
 
@@ -540,7 +540,7 @@ Magelang also support scope-based defer.
 
 ```
 fn f() {
-    let a: i32 = 10;
+    var a: i32 = 10;
     defer fmt.print_i32(a);
     {
         defer fmt.print_str("inner\n");

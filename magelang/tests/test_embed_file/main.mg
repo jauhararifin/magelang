@@ -1,7 +1,7 @@
 import wasm "std/wasm";
 
 @embed_file("tests/test_embed_file/data.bin")
-let data: *[u8];
+var data: *[u8];
 
 @main()
 fn main() {

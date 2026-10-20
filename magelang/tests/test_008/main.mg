@@ -2,9 +2,9 @@ import wasm "std/wasm";
 
 // `computed` is declared before `offset`, so it can only be correct if the global initialization
 // order takes the for-loop update statement into account.
-let computed: i32 = compute_offset();
-let offset: i32 = 100;
-let counter: i32 = 0;
+var computed: i32 = compute_offset();
+var offset: i32 = 100;
+var counter: i32 = 0;
 
 @main()
 fn main() {
@@ -30,8 +30,8 @@ fn main() {
 }
 
 fn test_basic() {
-  let sum: i32 = 0;
-  for let i: i32 = 0; i < 5; i = i + 1 {
+  var sum: i32 = 0;
+  for var i: i32 = 0; i < 5; i = i + 1 {
     sum = sum + i;
   }
   assert_equal[i32](10, sum);
@@ -39,9 +39,9 @@ fn test_basic() {
 
 fn test_continue_runs_update() {
   // continue has to jump to the update statement, otherwise this loop never ends.
-  let sum: i32 = 0;
-  let count: i32 = 0;
-  for let i: i32 = 0; i < 10; i = i + 1 {
+  var sum: i32 = 0;
+  var count: i32 = 0;
+  for var i: i32 = 0; i < 10; i = i + 1 {
     count = count + 1;
     if i % 2 == 0 {
       continue;
@@ -53,8 +53,8 @@ fn test_continue_runs_update() {
 }
 
 fn test_break() {
-  let last: i32 = -1;
-  for let i: i32 = 0; i < 100; i = i + 1 {
+  var last: i32 = -1;
+  for var i: i32 = 0; i < 100; i = i + 1 {
     if i == 7 {
       break;
     }
@@ -64,8 +64,8 @@ fn test_break() {
 }
 
 fn test_empty_init() {
-  let i: i32 = 0;
-  let sum: i32 = 0;
+  var i: i32 = 0;
+  var sum: i32 = 0;
   for ; i < 5; i = i + 1 {
     sum = sum + i;
   }
@@ -74,8 +74,8 @@ fn test_empty_init() {
 }
 
 fn test_empty_condition() {
-  let sum: i32 = 0;
-  for let i: i32 = 0;; i = i + 1 {
+  var sum: i32 = 0;
+  for var i: i32 = 0;; i = i + 1 {
     if i == 5 {
       break;
     }
@@ -85,9 +85,9 @@ fn test_empty_condition() {
 }
 
 fn test_empty_update() {
-  let sum: i32 = 0;
-  let count: i32 = 0;
-  for let i: i32 = 0; i < 5; {
+  var sum: i32 = 0;
+  var count: i32 = 0;
+  for var i: i32 = 0; i < 5; {
     i = i + 1;
     if i == 2 {
       continue;
@@ -100,7 +100,7 @@ fn test_empty_update() {
 }
 
 fn test_all_empty() {
-  let count: i32 = 0;
+  var count: i32 = 0;
   for ;; {
     count = count + 1;
     if count == 3 {
@@ -111,8 +111,8 @@ fn test_all_empty() {
 }
 
 fn test_nested_labels() {
-  let sum: i32 = 0;
-  for let i: i32 = 0; i < 6; i = i + 1 {
+  var sum: i32 = 0;
+  for var i: i32 = 0; i < 6; i = i + 1 {
     if i == 1 {
       if true {
         continue;
@@ -128,9 +128,9 @@ fn test_nested_labels() {
 }
 
 fn test_nested_for() {
-  let total: i32 = 0;
-  for let i: i32 = 0; i < 3; i = i + 1 {
-    for let j: i32 = 0; j < 3; j = j + 1 {
+  var total: i32 = 0;
+  for var i: i32 = 0; i < 3; i = i + 1 {
+    for var j: i32 = 0; j < 3; j = j + 1 {
       if j == 2 {
         continue;
       }
@@ -145,10 +145,10 @@ fn test_nested_for() {
 }
 
 fn test_for_inside_while() {
-  let i: i32 = 0;
-  let total: i32 = 0;
+  var i: i32 = 0;
+  var total: i32 = 0;
   while i < 3 {
-    for let j: i32 = 0; j < 3; j = j + 1 {
+    for var j: i32 = 0; j < 3; j = j + 1 {
       if j == 1 {
         continue;
       }
@@ -164,9 +164,9 @@ fn test_for_inside_while() {
 }
 
 fn test_while_inside_for() {
-  let total: i32 = 0;
-  for let i: i32 = 0; i < 3; i = i + 1 {
-    let j: i32 = 0;
+  var total: i32 = 0;
+  for var i: i32 = 0; i < 3; i = i + 1 {
+    var j: i32 = 0;
     while j < 5 {
       j = j + 1;
       if j == 2 {
@@ -187,7 +187,7 @@ fn test_while_inside_for() {
 
 fn test_assign_init_and_call_update() {
   counter = 0;
-  let n: i32 = 100;
+  var n: i32 = 100;
   for n = 0; n < 4; incr() {
     n = n + 1;
   }
@@ -197,7 +197,7 @@ fn test_assign_init_and_call_update() {
 
 fn test_expr_init() {
   counter = 0;
-  let sum: i32 = 0;
+  var sum: i32 = 0;
   for incr(); counter < 3; incr() {
     sum = sum + counter;
   }
@@ -206,9 +206,9 @@ fn test_expr_init() {
 }
 
 fn test_scoping() {
-  let i: i32 = 42;
-  let sum: i32 = 0;
-  for let i: i32 = 0; i < 3; i = i + 1 {
+  var i: i32 = 42;
+  var sum: i32 = 0;
+  for var i: i32 = 0; i < 3; i = i + 1 {
     sum = sum + i;
   }
   assert_equal[i32](42, i);
@@ -221,23 +221,23 @@ fn test_generic() {
 }
 
 fn count_with[T](val: T, n: i32): i32 {
-  let total: i32 = 0;
-  for let i: i32 = 0; i < n; i = i + 1 {
+  var total: i32 = 0;
+  for var i: i32 = 0; i < n; i = i + 1 {
     total = total + 1;
   }
   return total;
 }
 
 fn test_unconditional_jump() {
-  let count: i32 = 0;
-  for let i: i32 = 0; i < 5; i = i + 1 {
+  var count: i32 = 0;
+  for var i: i32 = 0; i < 5; i = i + 1 {
     count = count + 1;
     continue;
   }
   assert_equal[i32](5, count);
 
-  let count2: i32 = 0;
-  for let i: i32 = 0; i < 5; i = i + 1 {
+  var count2: i32 = 0;
+  for var i: i32 = 0; i < 5; i = i + 1 {
     count2 = count2 + 1;
     break;
   }
@@ -247,10 +247,10 @@ fn test_unconditional_jump() {
 fn test_string_literal_in_init_and_update() {
   // the string literals below only appear in the init and the update statement, so they are only
   // put in the data segment if the data collector walks those statements.
-  let s: string = "zzz";
-  let n: i32 = 0;
+  var s: string = "zzz";
+  var n: i32 = 0;
   assert_equal[u8](122, s[0].*);
-  for let t: string = "init"; n < 2; s = "post" {
+  for var t: string = "init"; n < 2; s = "post" {
     n = n + 1;
     assert_equal[u8](105, t[0].*);
   }
@@ -263,7 +263,7 @@ fn test_return_inside_for() {
 }
 
 fn first_even(n: i32): i32 {
-  for let i: i32 = 1; i < n; i = i + 1 {
+  for var i: i32 = 1; i < n; i = i + 1 {
     if i % 2 == 0 {
       return i;
     }
@@ -276,8 +276,8 @@ fn test_global_init_order() {
 }
 
 fn compute_offset(): i32 {
-  let total: i32 = 0;
-  for let i: i32 = 0; i < 3; total = total + offset {
+  var total: i32 = 0;
+  for var i: i32 = 0; i < 3; total = total + offset {
     i = i + 1;
   }
   return total;

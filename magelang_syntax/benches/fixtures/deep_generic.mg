@@ -6,7 +6,7 @@ fn identity[T](value: T): T {
     return value;
 }
 fn deep_generic() {
-    let value = identity[
+    var value = identity[
         Box[
         Box[
         Box[

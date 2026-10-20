@@ -7,7 +7,7 @@ import mem "std/mem";
 struct Pair { a: i32, b: i64 }
 struct Triple { x: i32, y: f64, z: Pair }
 
-let trace: i64 = 0;
+var trace: i64 = 0;
 
 @main()
 fn main() {
@@ -51,9 +51,9 @@ fn mark(n: i64) {
 
 fn return_inside_nested_loops(): i64 {
   defer mark(1);
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     defer mark(2);
-    let j: i64 = 0;
+    var j: i64 = 0;
     while true {
       j = j + 1;
       defer mark(3);
@@ -136,7 +136,7 @@ fn test_void_return_in_nested_blocks() {
 
 fn struct_return_with_deferred_loops(): Pair {
   defer {
-    let k: i64 = 0;
+    var k: i64 = 0;
     while true {
       k = k + 1;
       if k == 3 {
@@ -145,7 +145,7 @@ fn struct_return_with_deferred_loops(): Pair {
     }
     mark(k);
   }
-  defer for let j: i64 = 0; j < 2; j = j + 1 {
+  defer for var j: i64 = 0; j < 2; j = j + 1 {
     if j == 0 {
       continue;
     }
@@ -156,7 +156,7 @@ fn struct_return_with_deferred_loops(): Pair {
 
 fn test_struct_return_with_deferred_loops() {
   trace = 0;
-  let p = struct_return_with_deferred_loops();
+  var p = struct_return_with_deferred_loops();
   assert_equal[i32](7, p.a);
   assert_equal[i64](8, p.b);
   assert_equal[i64](13, trace);
@@ -228,7 +228,7 @@ fn test_recursion() {
 }
 
 fn loop_return(stop: i64): i64 {
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     defer mark(1);
     if i == stop {
       return i;
@@ -257,7 +257,7 @@ fn block_return(): i64 {
 }
 
 fn while_return(): i64 {
-  let i: i64 = 0;
+  var i: i64 = 0;
   while i < 10 {
     defer mark(4);
     i = i + 1;
@@ -278,7 +278,7 @@ fn test_return_as_last_statement_of_nested_block() {
 }
 
 fn test_deferred_assignment_visible_after_block() {
-  let x: i64 = 1;
+  var x: i64 = 1;
   {
     defer x = 5;
     x = 2;
@@ -288,16 +288,16 @@ fn test_deferred_assignment_visible_after_block() {
 
 fn test_deferred_block_locals_in_loop() {
   trace = 0;
-  for let i: i64 = 1; i < 4; i = i + 1 {
+  for var i: i64 = 1; i < 4; i = i + 1 {
     defer {
-      let a: i64 = i * 2;
-      let b: i64 = a + 1;
+      var a: i64 = i * 2;
+      var b: i64 = a + 1;
       mark(b);
     }
     if i == 2 {
       continue;
     }
-    let c: i64 = i;
+    var c: i64 = i;
     mark(c);
   }
   assert_equal[i64](13537, trace);
@@ -317,10 +317,10 @@ fn test_parameter_modified_by_defer() {
 
 fn test_shadowing_inside_loop() {
   trace = 0;
-  for let i: i64 = 0; i < 2; i = i + 1 {
-    let i: i64 = i + 10;
+  for var i: i64 = 0; i < 2; i = i + 1 {
+    var i: i64 = i + 10;
     defer mark(i);
-    let i: i64 = i + 10;
+    var i: i64 = i + 10;
     mark(i);
   }
   assert_equal[i64](21221, trace);
@@ -328,11 +328,11 @@ fn test_shadowing_inside_loop() {
 
 fn deferred_block_then_locals(): i64 {
   defer {
-    let a: i64 = 100;
-    let b: i64 = a + 1;
+    var a: i64 = 100;
+    var b: i64 = a + 1;
     mark(b);
   }
-  let c: i64 = 6;
+  var c: i64 = 6;
   {
     defer mark(c);
   }
@@ -347,7 +347,7 @@ fn test_deferred_block_locals_do_not_clobber_later_locals() {
 }
 
 fn test_deferred_pointer_store() {
-  let p: *i64 = mem.alloc[i64]();
+  var p: *i64 = mem.alloc[i64]();
   p.* = 1;
   {
     defer p.* = 5;
@@ -358,7 +358,7 @@ fn test_deferred_pointer_store() {
 }
 
 fn test_deferred_struct_pointer_stores() {
-  let p: *Pair = mem.alloc[Pair]();
+  var p: *Pair = mem.alloc[Pair]();
   p.a.* = 1;
   p.b.* = 2;
   {
@@ -378,7 +378,7 @@ fn take_pair(p: Pair) {
 fn test_struct_argument_evaluated_late() {
   trace = 0;
   {
-    let p = Pair{a: 3, b: 4};
+    var p = Pair{a: 3, b: 4};
     defer take_pair(p);
     p.a = 5;
     mark(1);
@@ -423,7 +423,7 @@ fn many_defers(n: i64): i64 {
   defer mark(3);
   defer mark(4);
   defer mark(5);
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     defer mark(6);
     if i == n {
       return i;
@@ -452,7 +452,7 @@ fn test_many_defers_with_every_exit_kind() {
 
 fn i32_with_deferred_loop(n: i32): i32 {
   defer {
-    let k: i32 = 0;
+    var k: i32 = 0;
     while true {
       k = k + 1;
       if k == n {
@@ -471,7 +471,7 @@ fn test_i32_return_with_deferred_loop() {
 }
 
 fn i64_with_deferred_memory_stores(): i64 {
-  let p: *i64 = mem.alloc[i64]();
+  var p: *i64 = mem.alloc[i64]();
   p.* = 4;
   defer mem.dealloc[i64](p);
   defer mark(p.*);
@@ -487,8 +487,8 @@ fn test_i64_return_with_deferred_memory_stores() {
 
 fn f64_with_deferred_struct_locals(early: bool): f64 {
   defer {
-    let q = Pair{a: 1, b: 2};
-    let r = make_pair();
+    var q = Pair{a: 1, b: 2};
+    var r = make_pair();
     mark(q.b + r.b);
   }
   if early {
@@ -507,14 +507,14 @@ fn test_f64_return_with_deferred_struct_locals() {
 }
 
 fn nested_struct_with_deferred_loops(): Triple {
-  defer for let j: i64 = 0; j < 3; j = j + 1 {
+  defer for var j: i64 = 0; j < 3; j = j + 1 {
     defer mark(j);
     if j == 1 {
       continue;
     }
   }
   defer {
-    let tr = Triple{x: 1, y: 2.0, z: Pair{a: 3, b: 4}};
+    var tr = Triple{x: 1, y: 2.0, z: Pair{a: 3, b: 4}};
     mark(tr.z.b);
   }
   return Triple{x: 7, y: 8.5, z: Pair{a: 9, b: 10}};
@@ -522,7 +522,7 @@ fn nested_struct_with_deferred_loops(): Triple {
 
 fn test_nested_struct_return_with_deferred_loops() {
   trace = 0;
-  let tr = nested_struct_with_deferred_loops();
+  var tr = nested_struct_with_deferred_loops();
   assert_equal[i32](7, tr.x);
   assert_equal[f64](8.5, tr.y);
   assert_equal[i32](9, tr.z.a);
@@ -531,21 +531,21 @@ fn test_nested_struct_return_with_deferred_loops() {
 }
 
 fn pointer_return(): *i64 {
-  let p = mem.alloc[i64]();
+  var p = mem.alloc[i64]();
   defer p.* = 42;
   p.* = 1;
   return p;
 }
 
 fn test_pointer_return() {
-  let p = pointer_return();
+  var p = pointer_return();
   assert_equal[i64](42, p.*);
   mem.dealloc[i64](p);
 }
 
 fn deep(n: i64): i64 {
   defer {
-    for let i: i64 = 0; i < 2; i = i + 1 {
+    for var i: i64 = 0; i < 2; i = i + 1 {
       defer {
         defer mark(1);
         mark(2);
@@ -553,7 +553,7 @@ fn deep(n: i64): i64 {
       mark(3);
     }
   }
-  for let k: i64 = 0; k < 5; k = k + 1 {
+  for var k: i64 = 0; k < 5; k = k + 1 {
     defer mark(4);
     if k == n {
       return k;
@@ -569,7 +569,7 @@ fn test_defers_in_loops_inside_deferred_block_on_return() {
 }
 
 fn struct_local_deferred_field(): Pair {
-  let p = Pair{a: 1, b: 2};
+  var p = Pair{a: 1, b: 2};
   defer p.b = 99;
   defer mark(p.b);
   return p;
@@ -577,7 +577,7 @@ fn struct_local_deferred_field(): Pair {
 
 fn test_struct_local_field_deferred_after_return_value() {
   trace = 0;
-  let p = struct_local_deferred_field();
+  var p = struct_local_deferred_field();
   assert_equal[i64](2, p.b);
   assert_equal[i64](2, trace);
 }
@@ -615,7 +615,7 @@ fn middle_field_in_deferred_expression(): Triple {
 
 fn test_middle_field_in_deferred_expression() {
   trace = 0;
-  let tr = middle_field_in_deferred_expression();
+  var tr = middle_field_in_deferred_expression();
   assert_equal[i64](10, tr.z.b);
   assert_equal[i64](6693, trace);
 }
@@ -625,7 +625,7 @@ fn chain(n: i64): i64 {
   if n == 0 {
     return 0;
   }
-  let r: i64 = 0;
+  var r: i64 = 0;
   {
     defer r = r + 1;
     r = chain(n - 1);
@@ -641,8 +641,8 @@ fn test_recursive_chain_with_block_defers() {
 
 fn generic_block[T](v: T, m: i64): T {
   defer {
-    let x: T = v;
-    let y: T = x;
+    var x: T = v;
+    var y: T = x;
     mark(m);
   }
   return v;
@@ -652,7 +652,7 @@ fn test_generic_deferred_block_with_type_param_local() {
   trace = 0;
   assert_equal[i32](5, generic_block[i32](5, 1));
   assert_equal[i64](1, trace);
-  let p = generic_block[Pair](Pair{a: 2, b: 3}, 4);
+  var p = generic_block[Pair](Pair{a: 2, b: 3}, 4);
   assert_equal[i32](2, p.a);
   assert_equal[i64](3, p.b);
   assert_equal[i64](14, trace);

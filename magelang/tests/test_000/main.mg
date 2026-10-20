@@ -1,10 +1,10 @@
 import wasm "std/wasm";
 
-let global_init_a: i64 = global_init_b;
-let global_init_b: i64 = 10;
-let global_init_c: i64 = global_init_from_func();
-let global_func_ref: fn(): i64 = global_func_ref_target;
-let global_recursive_value: i64 = recursive_without_global_dependency(3);
+var global_init_a: i64 = global_init_b;
+var global_init_b: i64 = 10;
+var global_init_c: i64 = global_init_from_func();
+var global_func_ref: fn(): i64 = global_func_ref_target;
+var global_recursive_value: i64 = recursive_without_global_dependency(3);
 
 @main()
 @wasm_export("_start")
@@ -23,71 +23,71 @@ fn test_precedence() {
   assert_equal[i32](10, 2*3+4);
   assert_equal[i32](14, 2+3*4);
 
-  let a = 10;
+  var a = 10;
   assert_equal[isize](10, a);
-  let a: i64 = 1260;
+  var a: i64 = 1260;
   assert_equal[i64](1260, a);
-  let a = 1.0 / 2.0;
-  let eps = a - 0.5;
+  var a = 1.0 / 2.0;
+  var eps = a - 0.5;
   assert(eps < 0.00001 && eps > -0.00001);
 
-  let a: i8 = -128;
+  var a: i8 = -128;
   assert(a < 0);
   assert(a == -128);
   assert(a < -127);
-  let a: i8 = 127;
+  var a: i8 = 127;
   assert(a > 0);
   assert(a == 127);
   assert(a > 126);
-  let a: u8 = -1;
+  var a: u8 = -1;
   assert(a > 254);
   assert(a == 255);
-  let a: u8 = 0;
+  var a: u8 = 0;
   assert(a == 0);
   assert(a < 1);
 
-  let a: i16 = -32768;
+  var a: i16 = -32768;
   assert(a < 0);
   assert(a == -32768);
   assert(a < -32767);
-  let a: i16 = 32767;
+  var a: i16 = 32767;
   assert(a > 0);
   assert(a == 32767);
   assert(a > 32766);
-  let a: u16 = -1;
+  var a: u16 = -1;
   assert(a > 65534);
   assert(a == 65535);
-  let a: u16 = 0;
+  var a: u16 = 0;
   assert(a == 0);
   assert(a < 1);
 
-  let a: i32 = -2147483648;
+  var a: i32 = -2147483648;
   assert(a < 0);
   assert(a == -2147483648);
   assert(a < -2147483647);
-  let a: i32 = 2147483647;
+  var a: i32 = 2147483647;
   assert(a > 0);
   assert(a == 2147483647);
   assert(a > 2147483646);
-  let a: u32 = -1;
+  var a: u32 = -1;
   assert(a > 4294967294);
   assert(a == 4294967295);
-  let a: u32 = 0;
+  var a: u32 = 0;
   assert(a == 0);
   assert(a < 1);
 
-  let a: i64 = -9223372036854775808;
+  var a: i64 = -9223372036854775808;
   assert(a < 0);
   assert(a == -9223372036854775808);
   assert(a < -9223372036854775807);
-  let a: i64 = 9223372036854775807;
+  var a: i64 = 9223372036854775807;
   assert(a > 0);
   assert(a == 9223372036854775807);
   assert(a > 9223372036854775806);
-  let a: u64 = -1;
+  var a: u64 = -1;
   assert(a > 18446744073709551614);
   assert(a == 18446744073709551615);
-  let a: u64 = 0;
+  var a: u64 = 0;
   assert(a == 0);
   assert(a < 1);
 
@@ -114,16 +114,16 @@ fn test_precedence() {
 }
 
 fn test_f64_arithmetic() {
-  let x: f64 = 1.5;
-  let y: f64 = ((x + 2.0) * 3.0) / 2.0 - 1.0;
+  var x: f64 = 1.5;
+  var y: f64 = ((x + 2.0) * 3.0) / 2.0 - 1.0;
   assert_near_f64(y, 4.25);
 
-  let z: f64 = y - x;
+  var z: f64 = y - x;
   assert_near_f64(z, 2.75);
 }
 
 fn assert_near_f64(actual: f64, expected: f64) {
-  let diff = actual - expected;
+  var diff = actual - expected;
   assert(diff < 0.0000001 && diff > -0.0000001);
 }
 
@@ -139,7 +139,7 @@ fn global_init_from_func(): i64 {
 }
 
 fn global_func_ref_target(): i64 {
-  let f = global_func_ref;
+  var f = global_func_ref;
   return 1;
 }
 

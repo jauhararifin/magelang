@@ -16,10 +16,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -29,9 +29,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -44,13 +44,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -60,8 +60,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -69,24 +69,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -117,10 +117,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -130,9 +130,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -145,13 +145,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -161,8 +161,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -170,24 +170,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -218,10 +218,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -231,9 +231,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -246,13 +246,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -262,8 +262,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -271,24 +271,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -319,10 +319,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -332,9 +332,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -347,13 +347,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -363,8 +363,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -372,24 +372,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -420,10 +420,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -433,9 +433,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -448,13 +448,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -464,8 +464,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -473,24 +473,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -521,10 +521,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -534,9 +534,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -549,13 +549,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -565,8 +565,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -574,24 +574,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -622,10 +622,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -635,9 +635,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -650,13 +650,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -666,8 +666,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -675,24 +675,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -723,10 +723,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -736,9 +736,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -751,13 +751,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -767,8 +767,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -776,24 +776,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -824,10 +824,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -837,9 +837,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -852,13 +852,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -868,8 +868,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -877,24 +877,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -925,10 +925,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -938,9 +938,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -953,13 +953,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -969,8 +969,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -978,24 +978,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1026,10 +1026,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1039,9 +1039,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1054,13 +1054,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1070,8 +1070,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1079,24 +1079,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1127,10 +1127,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1140,9 +1140,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1155,13 +1155,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1171,8 +1171,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1180,24 +1180,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1228,10 +1228,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1241,9 +1241,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1256,13 +1256,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1272,8 +1272,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1281,24 +1281,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1329,10 +1329,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1342,9 +1342,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1357,13 +1357,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1373,8 +1373,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1382,24 +1382,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1430,10 +1430,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1443,9 +1443,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1458,13 +1458,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1474,8 +1474,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1483,24 +1483,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1531,10 +1531,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1544,9 +1544,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1559,13 +1559,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1575,8 +1575,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1584,24 +1584,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1632,10 +1632,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1645,9 +1645,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1660,13 +1660,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1676,8 +1676,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1685,24 +1685,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1733,10 +1733,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1746,9 +1746,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1761,13 +1761,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1777,8 +1777,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1786,24 +1786,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1834,10 +1834,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1847,9 +1847,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1862,13 +1862,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1878,8 +1878,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1887,24 +1887,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -1935,10 +1935,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -1948,9 +1948,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -1963,13 +1963,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -1979,8 +1979,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -1988,24 +1988,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2036,10 +2036,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2049,9 +2049,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2064,13 +2064,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2080,8 +2080,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2089,24 +2089,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2137,10 +2137,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2150,9 +2150,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2165,13 +2165,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2181,8 +2181,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2190,24 +2190,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2238,10 +2238,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2251,9 +2251,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2266,13 +2266,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2282,8 +2282,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2291,24 +2291,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2339,10 +2339,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2352,9 +2352,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2367,13 +2367,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2383,8 +2383,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2392,24 +2392,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2440,10 +2440,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2453,9 +2453,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2468,13 +2468,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2484,8 +2484,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2493,24 +2493,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2541,10 +2541,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2554,9 +2554,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2569,13 +2569,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2585,8 +2585,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2594,24 +2594,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2642,10 +2642,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2655,9 +2655,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2670,13 +2670,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2686,8 +2686,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2695,24 +2695,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2743,10 +2743,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2756,9 +2756,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2771,13 +2771,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2787,8 +2787,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2796,24 +2796,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2844,10 +2844,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2857,9 +2857,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2872,13 +2872,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2888,8 +2888,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2897,24 +2897,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -2945,10 +2945,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -2958,9 +2958,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -2973,13 +2973,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -2989,8 +2989,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -2998,24 +2998,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3046,10 +3046,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3059,9 +3059,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3074,13 +3074,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3090,8 +3090,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3099,24 +3099,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3147,10 +3147,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3160,9 +3160,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3175,13 +3175,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3191,8 +3191,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3200,24 +3200,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3248,10 +3248,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3261,9 +3261,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3276,13 +3276,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3292,8 +3292,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3301,24 +3301,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3349,10 +3349,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3362,9 +3362,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3377,13 +3377,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3393,8 +3393,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3402,24 +3402,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3450,10 +3450,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3463,9 +3463,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3478,13 +3478,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3494,8 +3494,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3503,24 +3503,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3551,10 +3551,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3564,9 +3564,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3579,13 +3579,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3595,8 +3595,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3604,24 +3604,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3652,10 +3652,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3665,9 +3665,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3680,13 +3680,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3696,8 +3696,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3705,24 +3705,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3753,10 +3753,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3766,9 +3766,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3781,13 +3781,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3797,8 +3797,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3806,24 +3806,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3854,10 +3854,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3867,9 +3867,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3882,13 +3882,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3898,8 +3898,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -3907,24 +3907,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -3955,10 +3955,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -3968,9 +3968,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -3983,13 +3983,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -3999,8 +3999,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4008,24 +4008,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4056,10 +4056,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4069,9 +4069,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4084,13 +4084,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4100,8 +4100,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4109,24 +4109,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4157,10 +4157,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4170,9 +4170,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4185,13 +4185,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4201,8 +4201,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4210,24 +4210,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4258,10 +4258,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4271,9 +4271,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4286,13 +4286,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4302,8 +4302,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4311,24 +4311,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4359,10 +4359,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4372,9 +4372,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4387,13 +4387,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4403,8 +4403,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4412,24 +4412,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4460,10 +4460,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4473,9 +4473,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4488,13 +4488,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4504,8 +4504,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4513,24 +4513,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4561,10 +4561,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4574,9 +4574,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4589,13 +4589,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4605,8 +4605,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4614,24 +4614,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4662,10 +4662,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4675,9 +4675,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4690,13 +4690,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4706,8 +4706,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4715,24 +4715,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4763,10 +4763,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4776,9 +4776,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4791,13 +4791,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4807,8 +4807,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4816,24 +4816,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4864,10 +4864,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4877,9 +4877,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4892,13 +4892,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -4908,8 +4908,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -4917,24 +4917,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -4965,10 +4965,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -4978,9 +4978,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -4993,13 +4993,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5009,8 +5009,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5018,24 +5018,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5066,10 +5066,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5079,9 +5079,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5094,13 +5094,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5110,8 +5110,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5119,24 +5119,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5167,10 +5167,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5180,9 +5180,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5195,13 +5195,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5211,8 +5211,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5220,24 +5220,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5268,10 +5268,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5281,9 +5281,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5296,13 +5296,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5312,8 +5312,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5321,24 +5321,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5369,10 +5369,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5382,9 +5382,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5397,13 +5397,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5413,8 +5413,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5422,24 +5422,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5470,10 +5470,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5483,9 +5483,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5498,13 +5498,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5514,8 +5514,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5523,24 +5523,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5571,10 +5571,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5584,9 +5584,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5599,13 +5599,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5615,8 +5615,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5624,24 +5624,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5672,10 +5672,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5685,9 +5685,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5700,13 +5700,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5716,8 +5716,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5725,24 +5725,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5773,10 +5773,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5786,9 +5786,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5801,13 +5801,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5817,8 +5817,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5826,24 +5826,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5874,10 +5874,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5887,9 +5887,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -5902,13 +5902,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -5918,8 +5918,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -5927,24 +5927,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -5975,10 +5975,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -5988,9 +5988,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6003,13 +6003,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6019,8 +6019,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6028,24 +6028,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6076,10 +6076,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6089,9 +6089,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6104,13 +6104,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6120,8 +6120,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6129,24 +6129,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6177,10 +6177,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6190,9 +6190,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6205,13 +6205,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6221,8 +6221,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6230,24 +6230,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6278,10 +6278,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6291,9 +6291,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6306,13 +6306,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6322,8 +6322,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6331,24 +6331,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6379,10 +6379,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6392,9 +6392,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6407,13 +6407,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6423,8 +6423,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6432,24 +6432,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6480,10 +6480,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6493,9 +6493,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6508,13 +6508,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6524,8 +6524,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6533,24 +6533,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6581,10 +6581,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6594,9 +6594,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6609,13 +6609,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6625,8 +6625,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6634,24 +6634,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6682,10 +6682,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6695,9 +6695,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6710,13 +6710,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6726,8 +6726,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6735,24 +6735,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6783,10 +6783,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6796,9 +6796,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6811,13 +6811,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6827,8 +6827,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6836,24 +6836,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6884,10 +6884,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6897,9 +6897,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -6912,13 +6912,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -6928,8 +6928,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -6937,24 +6937,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -6985,10 +6985,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -6998,9 +6998,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7013,13 +7013,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7029,8 +7029,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7038,24 +7038,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7086,10 +7086,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7099,9 +7099,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7114,13 +7114,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7130,8 +7130,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7139,24 +7139,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7187,10 +7187,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7200,9 +7200,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7215,13 +7215,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7231,8 +7231,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7240,24 +7240,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7288,10 +7288,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7301,9 +7301,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7316,13 +7316,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7332,8 +7332,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7341,24 +7341,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7389,10 +7389,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7402,9 +7402,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7417,13 +7417,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7433,8 +7433,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7442,24 +7442,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7490,10 +7490,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7503,9 +7503,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7518,13 +7518,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7534,8 +7534,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7543,24 +7543,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7591,10 +7591,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7604,9 +7604,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7619,13 +7619,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7635,8 +7635,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7644,24 +7644,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7692,10 +7692,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7705,9 +7705,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7720,13 +7720,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7736,8 +7736,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7745,24 +7745,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7793,10 +7793,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7806,9 +7806,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7821,13 +7821,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7837,8 +7837,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7846,24 +7846,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7894,10 +7894,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -7907,9 +7907,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -7922,13 +7922,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -7938,8 +7938,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -7947,24 +7947,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -7995,10 +7995,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8008,9 +8008,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8023,13 +8023,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8039,8 +8039,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8048,24 +8048,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8096,10 +8096,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8109,9 +8109,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8124,13 +8124,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8140,8 +8140,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8149,24 +8149,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8197,10 +8197,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8210,9 +8210,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8225,13 +8225,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8241,8 +8241,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8250,24 +8250,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8298,10 +8298,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8311,9 +8311,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8326,13 +8326,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8342,8 +8342,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8351,24 +8351,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8399,10 +8399,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8412,9 +8412,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8427,13 +8427,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8443,8 +8443,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8452,24 +8452,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8500,10 +8500,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8513,9 +8513,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8528,13 +8528,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8544,8 +8544,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8553,24 +8553,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8601,10 +8601,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8614,9 +8614,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8629,13 +8629,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8645,8 +8645,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8654,24 +8654,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8702,10 +8702,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8715,9 +8715,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8730,13 +8730,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8746,8 +8746,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8755,24 +8755,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8803,10 +8803,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8816,9 +8816,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8831,13 +8831,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8847,8 +8847,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8856,24 +8856,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -8904,10 +8904,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -8917,9 +8917,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -8932,13 +8932,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -8948,8 +8948,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -8957,24 +8957,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9005,10 +9005,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9018,9 +9018,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9033,13 +9033,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9049,8 +9049,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9058,24 +9058,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9106,10 +9106,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9119,9 +9119,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9134,13 +9134,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9150,8 +9150,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9159,24 +9159,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9207,10 +9207,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9220,9 +9220,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9235,13 +9235,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9251,8 +9251,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9260,24 +9260,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9308,10 +9308,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9321,9 +9321,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9336,13 +9336,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9352,8 +9352,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9361,24 +9361,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9409,10 +9409,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9422,9 +9422,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9437,13 +9437,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9453,8 +9453,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9462,24 +9462,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9510,10 +9510,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9523,9 +9523,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9538,13 +9538,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9554,8 +9554,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9563,24 +9563,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9611,10 +9611,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9624,9 +9624,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9639,13 +9639,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9655,8 +9655,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9664,24 +9664,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9712,10 +9712,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9725,9 +9725,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9740,13 +9740,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9756,8 +9756,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9765,24 +9765,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9813,10 +9813,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9826,9 +9826,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9841,13 +9841,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9857,8 +9857,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9866,24 +9866,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -9914,10 +9914,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -9927,9 +9927,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -9942,13 +9942,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -9958,8 +9958,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -9967,24 +9967,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {
@@ -10015,10 +10015,10 @@ struct Job {
     samples: [*]f32,
     callback: fn(*Job, i32): bool,
 }
-let default_limit: i32 = 100;
-let epsilon: f64 = 0.000_001;
-let enabled: bool = true;
-let greeting: [*]u8 = "benchmark\n";
+var default_limit: i32 = 100;
+var epsilon: f64 = 0.000_001;
+var enabled: bool = true;
+var greeting: [*]u8 = "benchmark\n";
 @wasm_import("host", "log")
 fn host_log(message: [*]u8, length: usize): i32;
 fn identity[T](value: T): T {
@@ -10028,9 +10028,9 @@ fn make_pair[T, U](first: T, second: U): Pair[T, U] {
     return Pair[T, U]{first: first, second: second};
 }
 fn dot(left: Vec3, right: Vec3): f64 {
-    let x = left.x * right.x;
-    let y = left.y * right.y;
-    let z = left.z * right.z;
+    var x = left.x * right.x;
+    var y = left.y * right.y;
+    var z = left.z * right.z;
     return x + y + z;
 }
 fn classify(value: i32): i32 {
@@ -10043,13 +10043,13 @@ fn classify(value: i32): i32 {
     }
 }
 fn process(job: *Job, count: i32): i64 {
-    let total: i64 = 0;
-    let index: i32 = 0;
-    let mask: u64 = 0xff;
+    var total: i64 = 0;
+    var index: i32 = 0;
+    var mask: u64 = 0xff;
     defer host_log("done\n", 5);
     while index != count {
-        let sample = job.samples[index].*;
-        let rounded = sample as i64;
+        var sample = job.samples[index].*;
+        var rounded = sample as i64;
         total += rounded;
         index += 1;
         if rounded % 2 == 0 {
@@ -10059,8 +10059,8 @@ fn process(job: *Job, count: i32): i64 {
             break;
         }
     }
-    for let i = 0; i != count; i += 1 {
-        let mixed = (i * 31 + 7) ^ (i >> 2);
+    for var i = 0; i != count; i += 1 {
+        var mixed = (i * 31 + 7) ^ (i >> 2);
         total += mixed as i64;
     }
     mask = (mask << 8) | 0xaa;
@@ -10068,24 +10068,24 @@ fn process(job: *Job, count: i32): i64 {
     return total;
 }
 fn expressions(a: i32, b: i32, ptr: *i32): bool {
-    let arithmetic = a + b * 3 - (a / 2) % 7;
-    let bits = (a << 2) | (b >> 1) ^ ~a;
-    let ordered = arithmetic >= bits && a != b;
-    let either = ordered || false;
-    let negated = !either;
+    var arithmetic = a + b * 3 - (a / 2) % 7;
+    var bits = (a << 2) | (b >> 1) ^ ~a;
+    var ordered = arithmetic >= bits && a != b;
+    var either = ordered || false;
+    var negated = !either;
     ptr.* = arithmetic;
     ptr.* += bits;
     return !negated;
 }
 fn literals(): i64 {
-    let decimal = 1_234_567;
-    let hexadecimal = 0xdead_beef;
-    let octal = 0o755;
-    let binary = 0b1010_1100;
-    let floating = 6.022e23;
-    let newline = '\n';
-    let nothing = null;
-    let text = "escaped:\t\\\"\x21";
+    var decimal = 1_234_567;
+    var hexadecimal = 0xdead_beef;
+    var octal = 0o755;
+    var binary = 0b1010_1100;
+    var floating = 6.022e23;
+    var newline = '\n';
+    var nothing = null;
+    var text = "escaped:\t\\\"\x21";
     return decimal + hexadecimal + octal + binary;
 }
 fn nested(value: i32): i32 {

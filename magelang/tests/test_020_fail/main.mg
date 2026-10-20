@@ -1,5 +1,5 @@
 @main()
 fn main() {
-  let erased:;
-  let also_erased: = 123;
+  var erased:;
+  var also_erased: = 123;
 }

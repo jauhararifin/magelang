@@ -1,5 +1,5 @@
 use magelang_syntax::{
-    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, LetKind, Location, Number, StatementNode, parse,
+    BinaryOp, ErrorManager, ExprNode, FileManager, ItemNode, Location, Number, StatementNode, VarKind, parse,
 };
 use std::path::PathBuf;
 
@@ -75,11 +75,11 @@ fn public_modifiers_are_preserved() {
             concat!(
                 "pub struct Record { pub visible: i32, hidden: bool }\n",
                 "pub type PublicAlias = Record;\n",
-                "pub let global: i32 = 1;\n",
+                "pub var global: i32 = 1;\n",
                 "pub fn exported() {}\n",
                 "struct Private {}\n",
                 "type PrivateAlias = Private;\n",
-                "let private_global: i32;\n",
+                "var private_global: i32;\n",
                 "fn private_function() {}\n",
             )
             .into(),
@@ -158,22 +158,22 @@ fn type_alias_declarations() {
 #[test]
 fn tuple_expressions_and_selections() {
     let source = concat!(
-        "let tuple_empty: () = ();\n",
-        "let tuple_single: (i32,) = (1,);\n",
-        "let tuple_single_type: (i32,) = (i32,);\n",
-        "let tuple_pair: (i32, f32) = (1, 2.5);\n",
-        "let tuple_types: (i32, f32, Foo, Bar,) = (i32, f32, Foo, Bar,);\n",
-        "let tuple_nested: ((i32, bool), (i32,), ()) = ((1, true), (2,), ());\n",
-        "let tuple_grouped: (i32) = (1);\n",
-        "let tuple_grouped_type: (i32) = (i32);\n",
-        "let tuple_grouped_pair: ((i32, i32)) = ((1, 2));\n",
-        "let tuple_selection: i32 = value.0.1.2;\n",
-        "let tuple_spaced_selection: i32 = value . 0 . 1 . 2;\n",
-        "let tuple_multiline_selection: i32 = value.\n0.1.2;\n",
-        "let tuple_named_selection: i32 = value.2.field;\n",
-        "let named_tuple_selection: i32 = value.field.02;\n",
-        "let tuple_separator_selection: i32 = value.1_0;\n",
-        "let α: i32 = value.0.12;\n",
+        "var tuple_empty: () = ();\n",
+        "var tuple_single: (i32,) = (1,);\n",
+        "var tuple_single_type: (i32,) = (i32,);\n",
+        "var tuple_pair: (i32, f32) = (1, 2.5);\n",
+        "var tuple_types: (i32, f32, Foo, Bar,) = (i32, f32, Foo, Bar,);\n",
+        "var tuple_nested: ((i32, bool), (i32,), ()) = ((1, true), (2,), ());\n",
+        "var tuple_grouped: (i32) = (1);\n",
+        "var tuple_grouped_type: (i32) = (i32);\n",
+        "var tuple_grouped_pair: ((i32, i32)) = ((1, 2));\n",
+        "var tuple_selection: i32 = value.0.1.2;\n",
+        "var tuple_spaced_selection: i32 = value . 0 . 1 . 2;\n",
+        "var tuple_multiline_selection: i32 = value.\n0.1.2;\n",
+        "var tuple_named_selection: i32 = value.2.field;\n",
+        "var named_tuple_selection: i32 = value.field.02;\n",
+        "var tuple_separator_selection: i32 = value.1_0;\n",
+        "var α: i32 = value.0.12;\n",
     );
     let errors = ErrorManager::default();
     let mut files = FileManager::default();
@@ -252,7 +252,7 @@ fn malformed_tuples_preserve_following_declarations() {
     let mut files = FileManager::default();
     for expression in ["(1,,2)", "(1, 2", "(1 2)", "value.-1", "value.1e2", "value.0x1", "value.// comment\n0.1.2"] {
         let file = files
-            .add_file("tuple_recovery.mg".into(), format!("let broken: i32 = {expression};\nlet recovered: i32 = 42;"))
+            .add_file("tuple_recovery.mg".into(), format!("var broken: i32 = {expression};\nvar recovered: i32 = 42;"))
             .unwrap();
         let errors = ErrorManager::default();
         let node = parse(&errors, &file);
@@ -297,7 +297,7 @@ fn unicode_diagnostics_stay_with_source_file() {
 #[test]
 fn diagnostic_columns_count_code_points_after_unicode() {
     let mut files = FileManager::default();
-    for (source, col) in [("let café: i32 = 1 unexpected;", 19), ("let s: [*]u8 = \"😀e\u{301}\" unexpected;", 22)] {
+    for (source, col) in [("var café: i32 = 1 unexpected;", 19), ("var s: [*]u8 = \"😀e\u{301}\" unexpected;", 22)] {
         let file = files.add_file("unicode.mg".into(), source.into()).unwrap();
         let mut errors = ErrorManager::default();
         parse(&errors, &file);
@@ -330,11 +330,11 @@ fn empty_and_comment_only_sources_parse_without_items() {
 fn eof_diagnostics_include_trailing_whitespace_and_comments() {
     let mut files = FileManager::default();
     for (source, line, col) in [
-        ("let x: i32 = 123", 1, 17),
-        ("let x: i32 = 123   \n", 2, 1),
-        ("let x: i32 = 123 // 😀\n  ", 2, 3),
-        ("let x: i32 = 123 // 😀", 1, 22),
-        ("let x: i32 = 123\r\n\t", 2, 2),
+        ("var x: i32 = 123", 1, 17),
+        ("var x: i32 = 123   \n", 2, 1),
+        ("var x: i32 = 123 // 😀\n  ", 2, 3),
+        ("var x: i32 = 123 // 😀", 1, 22),
+        ("var x: i32 = 123\r\n\t", 2, 2),
     ] {
         let file = files.add_file("missing_semicolon.mg".into(), source.into()).unwrap();
         let mut errors = ErrorManager::default();
@@ -360,16 +360,16 @@ fn bracket_application_and_binary_expressions() {
             "generic.mg".into(),
             concat!(
                 "fn main() { ",
-                "let pair = pkg.make_pair[pkg.Pair[pkg.Pair[i32]]](1).value; ",
-                "let f = identity[i32]; ",
-                "let cast = identity[i32] as fn(i32): i32; ",
-                "let equal = identity[i32] == other; ",
-                "let cmp = a < b > c; ",
-                "let shifted = a < b >> 1; ",
-                "let other = a < b && c > d; ",
-                "let typed: pkg.Pair[i32] = pkg.Pair[i32]{value: 1}; ",
-                "let chain = a.b.c; ",
-                "let indexed = arr[0]; ",
+                "var pair = pkg.make_pair[pkg.Pair[pkg.Pair[i32]]](1).value; ",
+                "var f = identity[i32]; ",
+                "var cast = identity[i32] as fn(i32): i32; ",
+                "var equal = identity[i32] == other; ",
+                "var cmp = a < b > c; ",
+                "var shifted = a < b >> 1; ",
+                "var other = a < b && c > d; ",
+                "var typed: pkg.Pair[i32] = pkg.Pair[i32]{value: 1}; ",
+                "var chain = a.b.c; ",
+                "var indexed = arr[0]; ",
                 "}"
             )
             .into(),
@@ -383,10 +383,10 @@ fn bracket_application_and_binary_expressions() {
         panic!("expected function");
     };
     let statements = &function.body.as_ref().unwrap().statements;
-    let StatementNode::Let(pair) = &statements[0] else {
-        panic!("expected let");
+    let StatementNode::Var(pair) = &statements[0] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Selection(field) } = &pair.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Selection(field) } = &pair.kind else {
         panic!("expected field");
     };
     let ExprNode::Call(call) = field.value.as_ref() else {
@@ -403,19 +403,19 @@ fn bracket_application_and_binary_expressions() {
         if package.value == "pkg"));
     assert_eq!(inst.args.len(), 1);
 
-    let StatementNode::Let(reference) = &statements[1] else {
-        panic!("expected let");
+    let StatementNode::Var(reference) = &statements[1] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Bracket(inst) } = &reference.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Bracket(inst) } = &reference.kind else {
         panic!("expected generic reference");
     };
     assert!(matches!(inst.value.as_ref(), ExprNode::Ident(name) if name.value == "identity"));
     assert_eq!(inst.args.len(), 1);
 
-    let StatementNode::Let(cast) = &statements[2] else {
-        panic!("expected let");
+    let StatementNode::Var(cast) = &statements[2] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Cast(cast) } = &cast.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Cast(cast) } = &cast.kind else {
         panic!("expected cast of generic reference");
     };
     assert!(matches!(
@@ -423,10 +423,10 @@ fn bracket_application_and_binary_expressions() {
         ExprNode::Bracket(inst) if inst.args.len() == 1
     ));
 
-    let StatementNode::Let(equal) = &statements[3] else {
-        panic!("expected let");
+    let StatementNode::Var(equal) = &statements[3] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Binary(equal) } = &equal.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Binary(equal) } = &equal.kind else {
         panic!("expected comparison of generic reference");
     };
     assert_eq!(equal.op, BinaryOp::Eq);
@@ -435,10 +435,10 @@ fn bracket_application_and_binary_expressions() {
         ExprNode::Bracket(inst) if inst.args.len() == 1
     ));
 
-    let StatementNode::Let(comparison) = &statements[4] else {
-        panic!("expected let");
+    let StatementNode::Var(comparison) = &statements[4] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Binary(outer) } = &comparison.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Binary(outer) } = &comparison.kind else {
         panic!("expected comparison");
     };
     assert_eq!(outer.op, BinaryOp::Gt);
@@ -447,10 +447,10 @@ fn bracket_application_and_binary_expressions() {
         ExprNode::Binary(inner) if inner.op == BinaryOp::Lt
     ));
 
-    let StatementNode::Let(shifted) = &statements[5] else {
-        panic!("expected let");
+    let StatementNode::Var(shifted) = &statements[5] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Binary(less_than) } = &shifted.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Binary(less_than) } = &shifted.kind else {
         panic!("expected comparison with shifted operand");
     };
     assert_eq!(less_than.op, BinaryOp::Lt);
@@ -459,18 +459,18 @@ fn bracket_application_and_binary_expressions() {
         ExprNode::Binary(shift) if shift.op == BinaryOp::ShiftRight
     ));
 
-    let StatementNode::Let(other) = &statements[6] else {
-        panic!("expected let");
+    let StatementNode::Var(other) = &statements[6] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Binary(outer) } = &other.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Binary(outer) } = &other.kind else {
         panic!("expected conjunction");
     };
     assert_eq!(outer.op, BinaryOp::And);
 
-    let StatementNode::Let(typed) = &statements[7] else {
-        panic!("expected let");
+    let StatementNode::Var(typed) = &statements[7] else {
+        panic!("expected var");
     };
-    let LetKind::TypeValue { ty: ExprNode::Bracket(inst), value: ExprNode::Struct(_) } = &typed.kind else {
+    let VarKind::TypeValue { ty: ExprNode::Bracket(inst), value: ExprNode::Struct(_) } = &typed.kind else {
         panic!("expected named type and struct literal");
     };
     assert!(matches!(
@@ -480,10 +480,10 @@ fn bracket_application_and_binary_expressions() {
                 && matches!(selection.value.as_ref(), ExprNode::Ident(package) if package.value == "pkg")
     ));
 
-    let StatementNode::Let(chain) = &statements[8] else {
-        panic!("expected let");
+    let StatementNode::Var(chain) = &statements[8] else {
+        panic!("expected var");
     };
-    let LetKind::ValueOnly { value: ExprNode::Selection(c) } = &chain.kind else {
+    let VarKind::ValueOnly { value: ExprNode::Selection(c) } = &chain.kind else {
         panic!("expected selected field");
     };
     assert_eq!(c.selection.value, "c");
@@ -493,10 +493,10 @@ fn bracket_application_and_binary_expressions() {
             if b.selection.value == "b" && matches!(b.value.as_ref(), ExprNode::Ident(a) if a.value == "a")
     ));
 
-    let StatementNode::Let(indexed) = &statements[9] else {
-        panic!("expected let");
+    let StatementNode::Var(indexed) = &statements[9] else {
+        panic!("expected var");
     };
-    assert!(matches!(&indexed.kind, LetKind::ValueOnly { value: ExprNode::Bracket(node) } if node.args.len() == 1));
+    assert!(matches!(&indexed.kind, VarKind::ValueOnly { value: ExprNode::Bracket(node) } if node.args.len() == 1));
 }
 
 #[test]
@@ -506,13 +506,13 @@ fn malformed_expressions_return_recoverable_ast_nodes() {
         .add_file(
             "recovery.mg".into(),
             concat!(
-                "let binary: i32 = left +; ",
-                "let chain: i32 = left + (+) + right; ",
-                "let grouped: i32 = (+); ",
-                "let indexed: i32 = values[1; ",
-                "let called: i32 = f(, 1); ",
-                "let invalid_struct: i32 = 1{}; ",
-                "let recovered: i32 = 1;"
+                "var binary: i32 = left +; ",
+                "var chain: i32 = left + (+) + right; ",
+                "var grouped: i32 = (+); ",
+                "var indexed: i32 = values[1; ",
+                "var called: i32 = f(, 1); ",
+                "var invalid_struct: i32 = 1{}; ",
+                "var recovered: i32 = 1;"
             )
             .into(),
         )
@@ -602,7 +602,7 @@ fn types_and_values_share_expression_syntax() {
     ] {
         let mut files = FileManager::default();
         let file = files
-            .add_file("shared_syntax.mg".into(), format!("let typed: {expression}; let value: i32 = {expression};"))
+            .add_file("shared_syntax.mg".into(), format!("var typed: {expression}; var value: i32 = {expression};"))
             .unwrap();
         let mut errors = ErrorManager::default();
         let ast = parse(&errors, &file);
@@ -624,7 +624,7 @@ fn bracket_arguments_are_not_classified_by_the_parser() {
     let file = files
         .add_file(
             "brackets.mg".into(),
-            "let x: i32 = producer()[a < b, *Box[Pair[i32]], [*]u8, fn(i32): bool,];".into(),
+            "var x: i32 = producer()[a < b, *Box[Pair[i32]], [*]u8, fn(i32): bool,];".into(),
         )
         .unwrap();
     let mut errors = ErrorManager::default();
@@ -647,7 +647,7 @@ fn bracket_arguments_are_not_classified_by_the_parser() {
 fn cast_targets_do_not_consume_binary_operands() {
     for target in ["i32", "*Box[i32]", "[*]u8", "fn(*Box[i32]): Pair[i32]", "(Pair[i32])"] {
         let mut files = FileManager::default();
-        let file = files.add_file("cast.mg".into(), format!("let x: i32 = value as {target} + left * right;")).unwrap();
+        let file = files.add_file("cast.mg".into(), format!("var x: i32 = value as {target} + left * right;")).unwrap();
         let mut errors = ErrorManager::default();
         let ast = parse(&errors, &file);
         assert!(
@@ -681,7 +681,7 @@ fn angle_brackets_are_operators_not_generic_delimiters() {
         ("a-b-c", BinaryOp::Sub, BinaryOp::Sub),
         ("a>>b>>c", BinaryOp::ShiftRight, BinaryOp::ShiftRight),
     ] {
-        let file = files.add_file("operators.mg".into(), format!("let x: i32 = {expression};")).unwrap();
+        let file = files.add_file("operators.mg".into(), format!("var x: i32 = {expression};")).unwrap();
         let mut errors = ErrorManager::default();
         let ast = parse(&errors, &file);
         assert!(errors.is_empty(), "{:?}", errors.take().into_iter().map(|error| error.message).collect::<Vec<_>>());
@@ -702,7 +702,7 @@ fn nested_type_selection_is_parsed() {
     let file = files
         .add_file(
             "nested.mg".into(),
-            "fn main() { let typed: pkg.Outer.Inner[i32]; let literal = pkg.Outer.Inner{value: 1}; }".into(),
+            "fn main() { var typed: pkg.Outer.Inner[i32]; var literal = pkg.Outer.Inner{value: 1}; }".into(),
         )
         .unwrap();
     let mut errors = ErrorManager::default();
@@ -712,10 +712,10 @@ fn nested_type_selection_is_parsed() {
     let ItemNode::Function(function) = &ast.items[0] else {
         panic!("expected function");
     };
-    let StatementNode::Let(typed) = &function.body.as_ref().unwrap().statements[0] else {
-        panic!("expected typed let");
+    let StatementNode::Var(typed) = &function.body.as_ref().unwrap().statements[0] else {
+        panic!("expected typed var");
     };
-    let LetKind::TypeOnly { ty: ExprNode::Bracket(inst) } = &typed.kind else {
+    let VarKind::TypeOnly { ty: ExprNode::Bracket(inst) } = &typed.kind else {
         panic!("expected generic type");
     };
     assert!(matches!(
@@ -726,12 +726,12 @@ fn nested_type_selection_is_parsed() {
                     if outer.selection.value == "Outer")
     ));
 
-    let StatementNode::Let(literal) = &function.body.as_ref().unwrap().statements[1] else {
-        panic!("expected literal let");
+    let StatementNode::Var(literal) = &function.body.as_ref().unwrap().statements[1] else {
+        panic!("expected literal var");
     };
     assert!(matches!(
         &literal.kind,
-        LetKind::ValueOnly {
+        VarKind::ValueOnly {
             value: ExprNode::Struct(node)
         } if matches!(node.target.as_ref(), ExprNode::Selection(inner) if inner.selection.value == "Inner")
     ));

@@ -6,21 +6,21 @@ struct Pair { a: i32, b: i64 }
 struct Ptrs { p: *i32, q: *i32 }
 struct Box[T] { v: T }
 
-let calls: i32 = 0;
-let evals: i32 = 0;
-let g: i32 = 0;
-let gs: Outer = Outer{n: 1, inner: Inner{x: 2}};
+var calls: i32 = 0;
+var evals: i32 = 0;
+var g: i32 = 0;
+var gs: Outer = Outer{n: 1, inner: Inner{x: 2}};
 
-let init_b: i32 = compute();
-let init_c: i32 = compute2();
-let init_d: i32 = compute3();
-let init_a: i32 = 5;
-let gptr: *i32 = alloc_slot();
+var init_b: i32 = compute();
+var init_c: i32 = compute2();
+var init_d: i32 = compute3();
+var init_a: i32 = 5;
+var gptr: *i32 = alloc_slot();
 
-fn compute(): i32 { let r: i32 = 0; r += init_a; r *= 2; return r; }
-fn compute2(): i32 { let r = 7000 as *i32; r.* = 0; r.* += init_a; return r.*; }
+fn compute(): i32 { var r: i32 = 0; r += init_a; r *= 2; return r; }
+fn compute2(): i32 { var r = 7000 as *i32; r.* = 0; r.* += init_a; return r.*; }
 fn compute3(): i32 { gptr.* += 1; return gptr.*; }
-fn alloc_slot(): *i32 { let s = 7100 as *i32; s.* = 41; return s; }
+fn alloc_slot(): *i32 { var s = 7100 as *i32; s.* = 41; return s; }
 
 @main()
 fn main() {
@@ -100,7 +100,7 @@ fn test_deref_targets_of_every_primitive_type() {
   assert_equal[i32](3, calls);
   assert_equal[i32](8, p_i32().*);
 
-  let pp = 1232 as **i32;
+  var pp = 1232 as **i32;
   pp.* = 1088 as *i32;
   pp.*.* = 40;
   pp.*.* += 2;
@@ -114,19 +114,19 @@ fn ident[T](v: T): T { return v; }
 fn pair_at(p: *Pair): Pair { return p.*; }
 
 fn test_value_temporaries_do_not_clobber_target_address() {
-  let slots = 2048 as [*]i32;
+  var slots = 2048 as [*]i32;
   slots[1].* = 100; slots[2].* = 200; slots[3].* = 300; slots[4].* = 400; slots[5].* = 500;
   calls = 0;
   next_slot().* += make_pair().a;
   assert_equal[i32](107, slots[1].*);
   next_slot().* += make_pair().b as i32;
   assert_equal[i32](209, slots[2].*);
-  let tmp = Pair{a: 5, b: 6};
+  var tmp = Pair{a: 5, b: 6};
   next_slot().* += tmp.a;
   assert_equal[i32](305, slots[3].*);
   next_slot().* += ident[i32](3);
   assert_equal[i32](403, slots[4].*);
-  let pp = 3000 as *Pair;
+  var pp = 3000 as *Pair;
   pp.* = Pair{a: 11, b: 12};
   next_slot().* += pair_at(pp).a + pp.*.a + (pair_at(pp).b as i32);
   assert_equal[i32](534, slots[5].*);
@@ -148,7 +148,7 @@ fn flag(): *bool { calls += 1; return 3500 as *bool; }
 fn side(v: bool): bool { evals += 1; return v; }
 
 fn test_short_circuit_through_deref_target() {
-  let f = 3500 as *bool;
+  var f = 3500 as *bool;
 
   f.* = false; calls = 0; evals = 0;
   flag().* &&= side(true);
@@ -174,7 +174,7 @@ fn test_short_circuit_through_deref_target() {
   assert_equal[i32](1, evals);
   assert_equal[i32](1, calls);
 
-  let t: bool = false; evals = 0;
+  var t: bool = false; evals = 0;
   t &&= side(true);
   assert_equal[bool](false, t);
   assert_equal[i32](0, evals);
@@ -196,7 +196,7 @@ fn with_defers() {
 }
 
 fn test_deferred_compound_assignment() {
-  let slots = 4096 as [*]i32;
+  var slots = 4096 as [*]i32;
   calls = 0;
   with_defers();
   assert_equal[i32](20, slots[1].*);
@@ -206,44 +206,44 @@ fn test_deferred_compound_assignment() {
 }
 
 fn test_mixed_shift_count_widths() {
-  let n32: i32 = 40;
-  let n64: i64 = 4;
-  let n16: u16 = 7;
-  let n8: i8 = 3;
+  var n32: i32 = 40;
+  var n64: i64 = 4;
+  var n16: u16 = 7;
+  var n8: i8 = 3;
 
-  let a64: i64 = 1; a64 <<= n32;
-  let b64: i64 = 1; b64 = b64 << n32;
+  var a64: i64 = 1; a64 <<= n32;
+  var b64: i64 = 1; b64 = b64 << n32;
   assert_equal[i64](1099511627776, a64);
   assert_equal[i64](b64, a64);
 
-  let c32: i32 = 256; c32 >>= n64;
-  let d32: i32 = 256; d32 = d32 >> n64;
+  var c32: i32 = 256; c32 >>= n64;
+  var d32: i32 = 256; d32 = d32 >> n64;
   assert_equal[i32](16, c32);
   assert_equal[i32](d32, c32);
 
-  let e8: u8 = 1; e8 <<= n16;
-  let f8: u8 = 1; f8 = f8 << n16;
+  var e8: u8 = 1; e8 <<= n16;
+  var f8: u8 = 1; f8 = f8 << n16;
   assert_equal[u8](128, e8);
   assert_equal[u8](f8, e8);
 
-  let g16: i16 = -256; g16 >>= n8;
-  let h16: i16 = -256; h16 = h16 >> n8;
+  var g16: i16 = -256; g16 >>= n8;
+  var h16: i16 = -256; h16 = h16 >> n8;
   assert_equal[i16](-32, g16);
   assert_equal[i16](h16, g16);
 
-  let x: i32 = 1; x <<= 33;
-  let y: i32 = 1; y = y << 33;
+  var x: i32 = 1; x <<= 33;
+  var y: i32 = 1; y = y << 33;
   assert_equal[i32](y, x);
 
-  let p64 = 5000 as *i64; p64.* = 1; p64.* <<= n32;
+  var p64 = 5000 as *i64; p64.* = 1; p64.* <<= n32;
   assert_equal[i64](1099511627776, p64.*);
-  let p32 = 5008 as *i32; p32.* = 256; p32.* >>= n64;
+  var p32 = 5008 as *i32; p32.* = 256; p32.* >>= n64;
   assert_equal[i32](16, p32.*);
-  let p8 = 5012 as *u8; p8.* = 1; p8.* <<= n16;
+  var p8 = 5012 as *u8; p8.* = 1; p8.* <<= n16;
   assert_equal[u8](128, p8.*);
-  let p16 = 5014 as *i16; p16.* = -256; p16.* >>= n8;
+  var p16 = 5014 as *i16; p16.* = -256; p16.* >>= n8;
   assert_equal[i16](-32, p16.*);
-  let q64 = 5016 as *u64; q64.* = 18446744073709551615; q64.* >>= n8;
+  var q64 = 5016 as *u64; q64.* = 18446744073709551615; q64.* >>= n8;
   assert_equal[u64](2305843009213693951, q64.*);
 }
 
@@ -265,7 +265,7 @@ fn test_struct_field_targets() {
   assert_equal[i32](6, gs.n);
   assert_equal[i32](20, gs.inner.x);
 
-  let lo = Outer{n: 3, inner: Inner{x: 4}};
+  var lo = Outer{n: 3, inner: Inner{x: 4}};
   lo.inner.x -= 1;
   lo.n <<= 2;
   assert_equal[i32](3, lo.inner.x);
@@ -274,19 +274,19 @@ fn test_struct_field_targets() {
   assert_equal[i32](3, lo.inner.x);
   assert_equal[i32](12, lo.n);
 
-  let arr = 5500 as [*]Pair;
+  var arr = 5500 as [*]Pair;
   arr[1].* = Pair{a: 1, b: 2};
   arr[1].*.a += 10;
   arr[1].b.* *= 5;
   assert_equal[i32](11, arr[1].*.a);
   assert_equal[i64](10, arr[1].*.b);
-  let p = arr[1];
+  var p = arr[1];
   p.*.b -= 3;
   assert_equal[i64](7, p.b.*);
 
-  let bb = Box[Box[i64]]{v: Box[i64]{v: 3}};
+  var bb = Box[Box[i64]]{v: Box[i64]{v: 3}};
   assert_equal[i64](13, bump_generic(bb));
-  let pb = 6000 as *Box[Box[i64]];
+  var pb = 6000 as *Box[Box[i64]];
   pb.* = bb;
   pb.*.v.v += 100;
   pb.v.*.v -= 1;
@@ -294,8 +294,8 @@ fn test_struct_field_targets() {
 }
 
 fn test_deref_assign_token_splitting() {
-  let p = 6500 as *i32;
-  let b = 6600 as *bool;
+  var p = 6500 as *i32;
+  var b = 6600 as *bool;
   p.*=7; assert_equal[i32](7, p.*);
   p.**=3; assert_equal[i32](21, p.*);
   p.*=-1; assert_equal[i32](-1, p.*);
@@ -307,7 +307,7 @@ fn test_deref_assign_token_splitting() {
   for p.*=0; p.*<3; p.**=2 { p.*+=1; }
   assert_equal[i32](6, p.*);
   p.* =2; p.*= p.**2; assert_equal[i32](4, p.*);
-  let q = 6700 as **i32;
+  var q = 6700 as **i32;
   q.*=p; q.*.*=9; q.*.**=2; assert_equal[i32](18, p.*);
 }
 

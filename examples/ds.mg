@@ -4,7 +4,7 @@ import fmt "std/fmt";
 
 @main()
 fn main() {
-  let vec_str = mem.alloc[vector.Vector[string]]();
+  var vec_str = mem.alloc[vector.Vector[string]]();
   vector.init_with_cap[string](vec_str, 2);
   vector.push[string](vec_str, "This");
   vector.push[string](vec_str, " is");
@@ -12,9 +12,9 @@ fn main() {
   vector.push[string](vec_str, " sentence");
   vector.push[string](vec_str, ".\n");
 
-  let i: usize = 0;
+  var i: usize = 0;
   while i < vector.len[string](vec_str) {
-    let s: string = vector.get[string](vec_str, i);
+    var s: string = vector.get[string](vec_str, i);
     fmt.print_str(s);
     i = i + 1;
   }

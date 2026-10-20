@@ -50,24 +50,24 @@ fn index_u64(index: u64, len: usize): *u8 {
 
 @wasm_export("empty")
 fn empty(): *i32 {
-  let s: *[i32];
+  var s: *[i32];
   return s[0];
 }
 
 @wasm_export("read")
 fn read(index: i32): u8 {
-  let s = *[u8]{ptr: 1024 as [*]u8, len: 2};
+  var s = *[u8]{ptr: 1024 as [*]u8, len: 2};
   return s[index].*;
 }
 
 @wasm_export("write")
 fn write(index: i32) {
-  let s = *[u8]{ptr: 1024 as [*]u8, len: 2};
+  var s = *[u8]{ptr: 1024 as [*]u8, len: 2};
   s[index].* = 7;
 }
 
 @wasm_export("update")
 fn update(index: i32) {
-  let s = *[u8]{ptr: 1024 as [*]u8, len: 2};
+  var s = *[u8]{ptr: 1024 as [*]u8, len: 2};
   s[index].* += 1;
 }

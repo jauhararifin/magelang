@@ -2,10 +2,10 @@ import wasm "std/wasm";
 
 struct Pair { a: i32, b: i64 }
 
-let trace: i64 = 0;
+var trace: i64 = 0;
 // `computed` is declared before `base`, which it only depends on through a deferred statement.
-let computed: i32 = compute();
-let base: i32 = 7;
+var computed: i32 = compute();
+var base: i32 = 7;
 
 @main()
 fn main() {
@@ -81,7 +81,7 @@ fn test_void_function_end() {
 
 fn test_conditional() {
   trace = 0;
-  for let i: i64 = 0; i < 3; i = i + 1 {
+  for var i: i64 = 0; i < 3; i = i + 1 {
     if i == 1 {
       defer mark(9);
     }
@@ -92,7 +92,7 @@ fn test_conditional() {
 
 fn test_loop_body() {
   trace = 0;
-  for let i: i64 = 1; i < 4; i = i + 1 {
+  for var i: i64 = 1; i < 4; i = i + 1 {
     defer mark(i);
     mark(0);
   }
@@ -101,7 +101,7 @@ fn test_loop_body() {
 
 fn test_loop_continue_and_break() {
   trace = 0;
-  for let i: i64 = 1; i < 10; i = i + 1 {
+  for var i: i64 = 1; i < 10; i = i + 1 {
     defer mark(i);
     if i == 2 {
       continue;
@@ -116,7 +116,7 @@ fn test_loop_continue_and_break() {
 
 fn test_while_defer_break() {
   trace = 0;
-  let i: i64 = 0;
+  var i: i64 = 0;
   while i < 5 {
     i = i + 1;
     defer mark(i);
@@ -129,7 +129,7 @@ fn test_while_defer_break() {
 
 fn test_for_update_after_body_defers() {
   trace = 0;
-  for let i: i64 = 1; i < 3; mark(8) {
+  for var i: i64 = 1; i < 3; mark(8) {
     defer mark(i);
     i = i + 1;
     if i == 2 {
@@ -164,7 +164,7 @@ fn test_return_runs_all_pending() {
 }
 
 fn value_before_defer(): i32 {
-  let x: i32 = 1;
+  var x: i32 = 1;
   defer x = 2;
   return x;
 }
@@ -176,8 +176,8 @@ fn test_return_value_evaluated_before_defers() {
 fn deferred_block_with_locals(early: bool): i64 {
   trace = 0;
   defer {
-    let a: i64 = 5;
-    let b: i64 = a + 1;
+    var a: i64 = 5;
+    var b: i64 = a + 1;
     mark(b);
   }
   if early {
@@ -197,9 +197,9 @@ fn test_deferred_block_with_locals() {
 fn test_shadowing() {
   trace = 0;
   {
-    let a: i32 = 1;
+    var a: i32 = 1;
     defer mark(a as i64);
-    let a: i64 = 2;
+    var a: i64 = 2;
     defer mark(a);
     mark(3);
   }
@@ -209,7 +209,7 @@ fn test_shadowing() {
 fn test_by_reference() {
   trace = 0;
   {
-    let x: i64 = 1;
+    var x: i64 = 1;
     defer mark(x);
     x = 5;
   }
@@ -241,7 +241,7 @@ fn pair_with_defers(): Pair {
 
 fn test_struct_call_and_struct_return() {
   trace = 0;
-  let p = pair_with_defers();
+  var p = pair_with_defers();
   assert_equal[i32](3, p.a);
   assert_equal[i64](4, p.b);
   assert_equal[i64](76, trace);
@@ -260,7 +260,7 @@ fn test_generic() {
 }
 
 fn test_string_literal_in_defer() {
-  let s: string = "zzz";
+  var s: string = "zzz";
   {
     defer s = "deferred";
     assert_equal[u8](122, s[0].*);
@@ -269,7 +269,7 @@ fn test_string_literal_in_defer() {
 }
 
 fn compute(): i32 {
-  let total: i32 = 0;
+  var total: i32 = 0;
   {
     defer total = total + base;
   }

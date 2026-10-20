@@ -13,7 +13,7 @@ struct Bar {
 
 @main()
 fn main() {
-  let a: *Foo;
+  var a: *Foo;
   assert_equal[usize](0, a as usize);
   assert_equal[usize](0, a.a as usize);
   assert_equal[usize](8, a.b as usize);

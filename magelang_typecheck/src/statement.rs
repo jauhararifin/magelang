@@ -7,8 +7,8 @@ use crate::ty::{Type, TypeArgs, TypeKind, TypeRepr, get_type_from_node};
 use bumpalo::collections::Vec as BumpVec;
 use indexmap::IndexMap;
 use magelang_syntax::{
-    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ForStatementNode, IfStatementNode, LetKind,
-    LetStatementNode, Pos, ReturnStatementNode, StatementNode, WhileStatementNode,
+    AssignStatementNode, BinaryOp, BlockStatementNode, DeferStatementNode, ForStatementNode, IfStatementNode, Pos,
+    ReturnStatementNode, StatementNode, VarKind, VarStatementNode, WhileStatementNode,
 };
 
 pub(crate) type StatementInterner<'a> = Interner<'a, Statement<'a>>;
@@ -140,7 +140,7 @@ pub(crate) fn get_statement_from_node<'a>(
     node: &StatementNode,
 ) -> StatementResult<'a> {
     match node {
-        StatementNode::Let(node) => get_statement_from_let(ctx, node),
+        StatementNode::Var(node) => get_statement_from_var(ctx, node),
         StatementNode::Assign(node) => get_statement_from_assign(ctx, node),
         StatementNode::Block(node) => get_statement_from_block(ctx, node),
         StatementNode::If(node) => get_statement_from_if(ctx, node),
@@ -159,20 +159,20 @@ pub(crate) fn get_statement_from_node<'a>(
     }
 }
 
-pub(crate) fn get_statement_from_let<'a>(
+pub(crate) fn get_statement_from_var<'a>(
     ctx: &StatementContext<'a, '_, '_>,
-    node: &LetStatementNode,
+    node: &VarStatementNode,
 ) -> StatementResult<'a> {
     let expr = match &node.kind {
-        LetKind::Invalid => {
+        VarKind::Invalid => {
             let type_id = ctx.ctx.define_type(Type { kind: TypeKind::Anonymous, repr: TypeRepr::Unknown });
             Expr { ty: type_id, kind: ExprKind::Zero, pos: node.pos, assignable: false }
         }
-        LetKind::TypeOnly { ty } => {
+        VarKind::TypeOnly { ty } => {
             let type_id = get_type_from_node(ctx.ctx, ctx.scope, ty);
             Expr { ty: type_id, kind: ExprKind::Zero, pos: node.pos, assignable: false }
         }
-        LetKind::TypeValue { ty, value } => {
+        VarKind::TypeValue { ty, value } => {
             let ty = get_type_from_node(ctx.ctx, ctx.scope, ty);
             let mut value_expr = get_expr_from_node(ctx.ctx, ctx.scope, Some(ty), value);
             if !ty.is_assignable_with(value_expr.ty) {
@@ -181,7 +181,7 @@ pub(crate) fn get_statement_from_let<'a>(
             }
             value_expr
         }
-        LetKind::ValueOnly { value } => get_expr_from_node(ctx.ctx, ctx.scope, None, value),
+        VarKind::ValueOnly { value } => get_expr_from_node(ctx.ctx, ctx.scope, None, value),
     };
 
     let name = ctx.ctx.define_symbol(&node.name.value);

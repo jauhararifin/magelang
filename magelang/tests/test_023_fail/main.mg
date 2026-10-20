@@ -8,5 +8,5 @@ fn invalid_return(): i32 {
 
 @main()
 fn main() {
-  let value: i32[] = 1;
+  var value: i32[] = 1;
 }

@@ -1769,7 +1769,7 @@ fn get_element_expr<'a>(
     //
     //   struct P { a: i32, b: i32 }
     //   ...
-    //   let p: *P;
+    //   var p: *P;
     //   p.*.b = 5;
     //
     // In this case, `p.*.b` is treated the same way as `p.b.*`.
